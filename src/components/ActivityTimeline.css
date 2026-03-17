@@ -1,0 +1,41 @@
+/* ===== ACTIVITY TIMELINE — Dark ===== */
+.timeline-wrapper { position: relative; padding: var(--sp-3) 0; display: flex; flex-direction: column; gap: var(--sp-4); }
+
+.timeline-line {
+  position: absolute; left: 18px; top: 0; bottom: 0;
+  width: 2px;
+  background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.08), transparent);
+}
+
+.timeline-item { position: relative; display: flex; gap: var(--sp-3); padding-left: calc(36px + var(--sp-3)); }
+
+.timeline-icon-outer { position: absolute; left: 0; top: 2px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; z-index: 2; }
+
+.timeline-icon-inner {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--bg-surface);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  color: var(--accent);
+}
+
+.timeline-content {
+  flex: 1; padding: var(--sp-3);
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.015);
+  border: 1px solid rgba(0, 0, 0, 0.03);
+  display: flex; flex-direction: column; gap: var(--sp-1);
+  min-width: 0;
+}
+
+.timeline-header { display: flex; flex-direction: column; gap: 2px; margin-bottom: var(--sp-1); }
+@media (min-width: 480px) { .timeline-header { flex-direction: row; justify-content: space-between; align-items: center; } }
+.timeline-title { font-weight: 600; color: var(--text-primary); font-size: var(--fs-small); }
+.timeline-time { font-size: var(--fs-xs); color: var(--text-tertiary); }
+.timeline-description { font-size: var(--fs-small); color: var(--text-secondary); line-height: 1.5; word-break: break-word; }
+
+.status-old { padding: 1px var(--sp-2); background: rgba(0, 0, 0, 0.03); border-radius: var(--radius-xs); font-weight: 500; text-decoration: line-through; opacity: 0.6; }
+.status-new { padding: 1px var(--sp-2); background: rgba(var(--accent-rgb), 0.1); color: var(--accent); border-radius: var(--radius-xs); font-weight: 600; }
+.mx-1 { margin: 0 var(--sp-1); vertical-align: middle; }
+.empty-timeline { text-align: center; padding: var(--sp-6) var(--sp-4); color: var(--text-tertiary); font-style: italic; font-size: var(--fs-body); }

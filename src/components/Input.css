@@ -1,0 +1,37 @@
+/* ===== INPUT — Dark Premium ===== */
+.input-group { display: flex; flex-direction: column; gap: var(--sp-2); }
+
+.input-label {
+  font-size: var(--fs-small);
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin-left: var(--sp-1);
+}
+
+.input-field {
+  height: var(--touch-min);
+  padding: 0 var(--sp-4);
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-body);
+  color: var(--text-primary);
+  transition: all var(--transition-fast);
+  outline: none;
+  font-family: inherit;
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.textarea-field { height: auto; min-height: 100px; padding: var(--sp-3) var(--sp-4); resize: vertical; }
+
+.input-field:focus {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.1), 0 0 16px rgba(var(--accent-rgb), 0.06);
+}
+
+.input-field::placeholder { color: var(--text-tertiary); }
+
+.input-helper { font-size: var(--fs-xs); color: var(--text-tertiary); margin-left: var(--sp-1); }

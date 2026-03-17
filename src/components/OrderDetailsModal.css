@@ -1,0 +1,66 @@
+/* ===== ORDER DETAILS — Dark ===== */
+.order_details-grid { display: flex; flex-direction: column; gap: var(--sp-5); max-height: 65vh; max-height: 65dvh; }
+@media (min-width: 768px) { .order_details-grid { display: grid; grid-template-columns: 1fr 300px; gap: var(--sp-5); max-height: 70vh; } }
+
+.details-main { overflow-y: auto; -webkit-overflow-scrolling: touch; padding-right: var(--sp-2); }
+.details-section { margin-bottom: var(--sp-5); }
+.details-section h4 { font-size: var(--fs-small); text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-tertiary); margin-bottom: var(--sp-3); border-bottom: 1px solid rgba(0, 0, 0, 0.04); padding-bottom: var(--sp-2); }
+
+.info-grid { display: grid; grid-template-columns: 1fr; gap: var(--sp-3); }
+@media (min-width: 480px) { .info-grid { grid-template-columns: 1fr 1fr; } }
+.info-item { display: flex; align-items: flex-start; gap: var(--sp-2); color: var(--text-primary); }
+.info-item.full-width { grid-column: 1 / -1; }
+.info-item svg { color: var(--accent); margin-top: 2px; flex-shrink: 0; }
+.info-content { display: flex; flex-direction: column; min-width: 0; }
+.info-content label { font-size: var(--fs-xs); color: var(--text-tertiary); font-weight: 500; }
+.info-content span { font-size: var(--fs-body); font-weight: 600; word-break: break-word; }
+
+.status-tracking-wrap { display: flex; flex-direction: column; gap: var(--sp-3); }
+@media (min-width: 480px) { .status-tracking-wrap { flex-direction: row; align-items: center; gap: var(--sp-4); } }
+.tracking-info { display: flex; align-items: center; gap: var(--sp-2); }
+.tracking-info label { font-size: var(--fs-small); color: var(--text-secondary); }
+.tracking-info code { background: rgba(0, 0, 0, 0.02); padding: var(--sp-1) var(--sp-2); border-radius: var(--radius-xs); font-family: monospace; font-weight: 600; font-size: var(--fs-small); color: var(--accent); }
+
+.notes-box {
+  display: flex; gap: var(--sp-3); padding: var(--sp-3);
+  background: rgba(var(--accent-rgb), 0.04);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--accent);
+}
+.notes-box p { margin: 0; font-size: var(--fs-body); line-height: 1.6; color: var(--text-primary); }
+
+/* ===== SIDEBAR ===== */
+.details-sidebar {
+  display: flex; flex-direction: column;
+  border-top: 1px solid rgba(0, 0, 0, 0.03);
+  padding-top: var(--sp-5);
+}
+@media (min-width: 768px) { .details-sidebar { border-top: none; border-left: 1px solid rgba(0, 0, 0, 0.03); padding-top: 0; padding-left: var(--sp-5); height: 100%; } }
+
+.sidebar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--sp-4); }
+.sidebar-header h4 { margin: 0; font-size: var(--fs-body); font-weight: 700; }
+.refresh-btn { font-size: var(--fs-xs); background: none; border: 1px solid rgba(0, 0, 0, 0.06); color: var(--text-secondary); padding: var(--sp-1) var(--sp-2); border-radius: var(--radius-xs); cursor: pointer; min-height: 30px; font-family: inherit; }
+.activity-scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; max-height: 300px; }
+@media (min-width: 768px) { .activity-scroll { max-height: none; } }
+
+.details-main::-webkit-scrollbar, .activity-scroll::-webkit-scrollbar { width: 3px; }
+.details-main::-webkit-scrollbar-thumb, .activity-scroll::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.1); border-radius: 10px; }
+
+/* ===== QUICK ACTIONS ===== */
+.quick-actions { margin-top: var(--sp-4); padding-top: var(--sp-4); border-top: 1px dashed rgba(0, 0, 0, 0.08); display: flex; flex-direction: column; gap: var(--sp-3); }
+.action-group { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+.action-group .btn { flex: 1; min-width: 0; }
+.action-group.vertical { flex-direction: column; }
+
+.tracking-form { display: flex; gap: var(--sp-2); width: 100%; }
+
+.inline-input {
+  flex: 1; padding: var(--sp-2) var(--sp-3);
+  background: rgba(0, 0, 0, 0.015);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-small); color: var(--text-primary);
+  outline: none; font-family: inherit;
+  min-height: var(--touch-min);
+}
+.inline-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.05); background: rgba(0, 0, 0, 0.02); }

@@ -1,0 +1,75 @@
+/* ===== BUTTON — Dark Premium + Neon Glow ===== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  font-size: var(--fs-small);
+  transition: all var(--transition-smooth);
+  white-space: nowrap;
+  border: none;
+  padding: 0 var(--sp-4);
+  height: var(--touch-min);
+  cursor: pointer;
+  font-family: inherit;
+  position: relative;
+  overflow: hidden;
+}
+
+@media (min-width: 768px) { .btn { padding: 0 var(--sp-5); font-size: var(--fs-body); } }
+
+/* ── PRIMARY (Neon Lime Glow) ── */
+.btn-primary {
+  background: var(--accent-gradient);
+  color: #ffffff;
+  box-shadow: var(--accent-glow-sm);
+}
+
+@media (hover: hover) {
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(var(--accent-rgb), 0.2);
+  }
+}
+
+/* ── SECONDARY ── */
+.btn-secondary {
+  background: linear-gradient(135deg, #0ea5e9, #0284c7);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.2);
+}
+
+@media (hover: hover) { .btn-secondary:hover { transform: translateY(-2px); } }
+
+/* ── GHOST ── */
+.btn-ghost {
+  background: rgba(0, 0, 0, 0.02);
+  color: var(--text-secondary);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+@media (hover: hover) {
+  .btn-ghost:hover {
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--text-primary);
+    border-color: rgba(0, 0, 0, 0.08);
+  }
+}
+
+/* ── STATUS BUTTONS ── */
+.btn-confirmed { background: linear-gradient(135deg, #22c55e, #16a34a); color: #fff; box-shadow: 0 2px 12px rgba(34, 197, 94, 0.3); }
+.btn-cancelled { background: linear-gradient(135deg, #f43f5e, #e11d48); color: #fff; box-shadow: 0 2px 12px rgba(244, 63, 94, 0.3); }
+.btn-courier { background: linear-gradient(135deg, #a78bfa, #7c3aed); color: #fff; box-shadow: 0 2px 12px rgba(167, 139, 250, 0.3); }
+.btn-factory { background: linear-gradient(135deg, #fb923c, #ea580c); color: #fff; box-shadow: 0 2px 12px rgba(251, 146, 60, 0.3); }
+.btn-completed { background: linear-gradient(135deg, #059669, #047857); color: #fff; box-shadow: 0 2px 12px rgba(5, 150, 105, 0.3); }
+
+.btn-sm { height: 36px; padding: 0 var(--sp-3); font-size: var(--fs-xs); }
+.btn-lg { height: 52px; padding: 0 var(--sp-8); font-size: var(--fs-body); }
+
+.btn-block-mobile { width: 100%; }
+@media (min-width: 768px) { .btn-block-mobile { width: auto; } }
+
+.btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
+.btn:active:not(:disabled) { transform: scale(0.97); }

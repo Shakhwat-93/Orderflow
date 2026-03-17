@@ -1,0 +1,135 @@
+/* ===== CALL TEAM PANEL — Premium Light ===== */
+.call-team-panel { display: flex; flex-direction: column; gap: var(--sp-6); animation: panelIn 0.5s var(--ease-out); }
+
+/* Call Stats Badges */
+.call-stats-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.call-stat-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 100px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.call-stat-badge.pending {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.call-stat-badge.confirmed {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+/* Tab Dot Pulse Animation */
+.tab-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f97316;
+  display: inline-block;
+  margin-left: 4px;
+}
+
+.tab-dot.pulse {
+  animation: pulse 2s infinite ease-in-out;
+}
+
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+/* Phone Link */
+.phone-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-primary);
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 6px 10px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
+}
+
+.phone-link:hover {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.phone-link svg { color: var(--accent); flex-shrink: 0; }
+
+/* Size Tag */
+.size-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 8px;
+  background: #f1f5f9;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+/* Amount Cell */
+.amount-cell-text {
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+/* Action Done */
+.action-done {
+  color: var(--text-tertiary);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+/* Call Action Grid */
+.call-action-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.call-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.call-action-btn span { display: inline; }
+
+.call-action-btn.confirm { background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
+.call-action-btn.confirm:hover { background: #dcfce7; transform: translateY(-1px); }
+
+.call-action-btn.cancel { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+.call-action-btn.cancel:hover { background: #fee2e2; transform: translateY(-1px); }
+
+.call-action-btn.not-reachable { background: #fffbeb; color: #92400e; border-color: #fde68a; }
+.call-action-btn.not-reachable:hover { background: #fef3c7; transform: translateY(-1px); }
+
+.call-action-btn.follow-up { background: #eff6ff; color: #1e40af; border-color: #bfdbfe; }
+.call-action-btn.follow-up:hover { background: #dbeafe; transform: translateY(-1px); }
+
+@keyframes panelIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }

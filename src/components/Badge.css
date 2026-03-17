@@ -1,0 +1,18 @@
+/* ===== BADGE — Dark Premium ===== */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.badge-default { background: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1; }
+.badge-confirmed { background: #dcfce7; color: #064e3b; border: 1px solid #86efac; font-weight: 900; }
+.badge-cancelled { background: #fee2e2; color: #7f1d1d; border: 1px solid #fca5a5; font-weight: 900; }
+.badge-completed { background: #dcfce7; color: #064e3b; border: 1px solid #86efac; font-weight: 900; }
+.badge-primary { background: #ecfccb; color: #365314; border: 1px solid #bef264; font-weight: 900; }

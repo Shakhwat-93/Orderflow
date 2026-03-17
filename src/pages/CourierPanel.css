@@ -1,0 +1,41 @@
+/* ===== COURIER — Dark ===== */
+.courier-panel { display: flex; flex-direction: column; gap: var(--sp-6); animation: panelIn 0.5s var(--ease-out); }
+
+.active-dispatch-stat {
+  display: flex; align-items: center; gap: var(--sp-3);
+  background: #ecfeff;
+  border: 1px solid #a5f3fc;
+  padding: var(--sp-3) var(--sp-5);
+  border-radius: var(--radius-pill);
+  font-weight: 900; font-size: var(--fs-body); color: #0e7490;
+}
+
+.tracking-badge {
+  display: inline-flex; align-items: center; gap: var(--sp-1);
+  background: #f8fafc;
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--radius-sm);
+  font-family: monospace;
+  font-weight: 900; font-size: var(--fs-small);
+  color: #1e40af;
+  border: 2px dashed #94a3b8;
+}
+
+.dispatch-action-grid { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+
+.courier-action-btn {
+  display: flex; align-items: center; justify-content: center; gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3); border-radius: var(--radius-sm);
+  border: none; font-size: var(--fs-small); font-weight: 700;
+  cursor: pointer; transition: all var(--transition-fast);
+  min-height: var(--touch-min); font-family: inherit;
+  flex: 1; min-width: 120px;
+}
+
+.courier-action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.courier-action-btn.tracking { background: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1; }
+.courier-action-btn.tracking:hover:not(:disabled) { background: var(--accent); color: #000000; border-color: var(--accent); }
+.courier-action-btn.submit { background: #ecfeff; color: #0891b2; border: 1px solid #a5f3fc; }
+.courier-action-btn.submit:hover:not(:disabled) { background: #22d3ee; color: #000000; }
+
+.tracking-form { margin-top: var(--sp-4); }
