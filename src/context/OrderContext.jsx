@@ -10,17 +10,17 @@ export const OrderProvider = ({ children }) => {
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize] = useState(10);
-  const [filters, setFilters] = useState({ 
-    searchTerm: '', 
-    status: 'All', 
-    source: 'All', 
+  const [filters, setFilters] = useState({
+    searchTerm: '',
+    status: 'All',
+    source: 'All',
     productName: '',
     dateRange: { start: null, end: null }
   });
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ 
-    total: 0, completed: 0, pending: 0, revenue: 0, 
-    addedTodayCount: 0, sourceDistribution: [], trendData: [], confirmationData: [] 
+  const [stats, setStats] = useState({
+    total: 0, completed: 0, pending: 0, revenue: 0,
+    addedTodayCount: 0, sourceDistribution: [], trendData: [], confirmationData: []
   });
   const [inventory, setInventory] = useState([]);
   const [toyBoxes, setToyBoxes] = useState([]);
@@ -163,20 +163,20 @@ export const OrderProvider = ({ children }) => {
     const currentUserName = profile?.name || user?.user_metadata?.full_name || user?.email || 'Unknown User';
     const order = orders.find(o => o.id === orderId);
     const oldStatus = order?.status;
-    
+
     setOrders(prev => prev.map(order => order.id === orderId ? { ...order, status: newStatus } : order));
-    
+
     try {
       await api.changeOrderStatus(orderId, newStatus, user?.id, currentUserName, userRoles);
-      
+
       // Auto stock deduction on confirmation
-      if ((newStatus === 'Confirmed' || newStatus === 'Factory Processing') && 
-          !(oldStatus === 'Confirmed' || oldStatus === 'Factory Processing')) {
+      if ((newStatus === 'Confirmed' || newStatus === 'Factory Processing') &&
+        !(oldStatus === 'Confirmed' || oldStatus === 'Factory Processing')) {
         if (order && order.product_name) {
           await api.deductStockByProductName(order.product_name, order.quantity || 1);
         }
       }
-      
+
       fetchStats();
     } catch (error) {
       console.error('Update status error:', error);
@@ -188,12 +188,12 @@ export const OrderProvider = ({ children }) => {
     const currentUserName = profile?.name || user?.user_metadata?.full_name || user?.email || 'Unknown User';
     try {
       const order = await api.createOrder(newOrder, user?.id, currentUserName, userRoles);
-      
+
       // If order is created as Confirmed already
       if (order.status === 'Confirmed') {
         await api.deductStockByProductName(order.product_name, order.quantity || 1);
       }
-      
+
       fetchOrders();
     } catch (error) {
       console.error('Error adding order:', error);
@@ -240,7 +240,7 @@ export const OrderProvider = ({ children }) => {
   const editOrder = async (orderId, updatedData) => {
     const currentUserName = profile?.name || user?.user_metadata?.full_name || user?.email || 'Unknown User';
     const oldOrder = orders.find(o => o.id === orderId);
-    
+
     try {
       await api.updateOrder(orderId, updatedData, user?.id, currentUserName, userRoles);
     } catch (error) {
@@ -262,7 +262,7 @@ export const OrderProvider = ({ children }) => {
       console.error('Unauthorized delete attempt');
       return;
     }
-    
+
     const currentUserName = profile?.name || user?.user_metadata?.full_name || user?.email || 'Unknown User';
     const order = orders.find(o => o.id === orderId);
 
@@ -300,7 +300,7 @@ export const OrderProvider = ({ children }) => {
     const currentUserName = profile?.name || user?.user_metadata?.full_name || user?.email || 'Unknown User';
     try {
       const result = await api.runAutoDistribution();
-      
+
       if (result.confirmed > 0) {
         await api.createNotification({
           type: 'SYSTEM_ACTION',
@@ -310,13 +310,35 @@ export const OrderProvider = ({ children }) => {
           actor_name: 'System Engine'
         });
       }
-      
+
       fetchOrders();
       fetchToyBoxes();
       fetchStats();
       return result;
     } catch (error) {
       console.error('Distribution error:', error);
+      throw error;
+    }
+  };
+
+  const previewInvoiceStockUpdate = async (invoiceText, options = {}) => {
+    try {
+      return await api.previewInvoiceStockUpdate(invoiceText, options);
+    } catch (error) {
+      console.error('Invoice stock preview error:', error);
+      throw error;
+    }
+  };
+
+  const applyInvoiceStockUpdate = async (invoiceText, options = {}) => {
+    const currentUserName = profile?.name || user?.user_metadata?.full_name || user?.email || 'Unknown User';
+    try {
+      const result = await api.applyInvoiceStockUpdate(invoiceText, currentUserName, options);
+      fetchInventory();
+      fetchToyBoxes();
+      return result;
+    } catch (error) {
+      console.error('Invoice stock apply error:', error);
       throw error;
     }
   };
@@ -364,7 +386,7 @@ export const OrderProvider = ({ children }) => {
       fetchOrderLogs,
       fetchStats,
       stats,
-      
+
       // Inventory
       inventory,
       fetchInventory,
@@ -377,7 +399,9 @@ export const OrderProvider = ({ children }) => {
       toyBoxes,
       fetchToyBoxes,
       updateToyBoxStock,
-      autoDistributeOrders
+      autoDistributeOrders,
+      previewInvoiceStockUpdate,
+      applyInvoiceStockUpdate
     }}>
       {children}
     </OrderContext.Provider>

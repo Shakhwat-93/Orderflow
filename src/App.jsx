@@ -5,6 +5,7 @@ import { OrderProvider } from './context/OrderContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { DashboardLayout } from './components/DashboardLayout';
 import { AccessRestricted } from './components/AccessRestricted';
+import { ChatBot } from './components/ChatBot';
 
 // Lazy loading components
 const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
@@ -78,6 +79,7 @@ function App() {
                 </Route>
               </Routes>
             </Suspense>
+            <ChatBot />
           </OrderProvider>
         </NotificationProvider>
       </AuthProvider>

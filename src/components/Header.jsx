@@ -245,8 +245,6 @@ export const Header = ({ onMenuToggle, isSidebarOpen }) => {
         </div>
 
         <div className="profile-actions-row">
-          <button className="share-btn">Share +</button>
-
           <div className="user-dropdown-container" ref={dropdownRef}>
             <div className="user-profile-trigger-premium" onClick={() => setIsDropdownOpen(!isDropdownOpen)}>
               <div className="avatar-ring">

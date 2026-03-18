@@ -74,7 +74,7 @@ export const AuthProvider = ({ children }) => {
       }
 
       setProfile(profileData);
-      
+
       if (!rolesError && rolesData) {
         setUserRoles(rolesData.map(r => r.role_id));
       } else {
@@ -107,7 +107,7 @@ export const AuthProvider = ({ children }) => {
       password,
     });
     if (error) throw error;
-    
+
     if (data.user) {
       // Default role as 'Call Team'
       const { error: profileError } = await supabase.from('users').insert({
@@ -136,9 +136,9 @@ export const AuthProvider = ({ children }) => {
       .from('users')
       .update(updates)
       .eq('id', userId);
-    
+
     if (error) throw error;
-    
+
     // Log profile update if name changed
     if (updates.name) {
       await api.logActivity({
@@ -163,7 +163,7 @@ export const AuthProvider = ({ children }) => {
 
   const uploadAvatar = async (file) => {
     if (!user) return;
-    
+
     const fileExt = file.name.split('.').pop();
     const fileName = `${user.id}-${Math.random()}.${fileExt}`;
     const filePath = `${user.id}/${fileName}`;
@@ -212,9 +212,21 @@ export const AuthProvider = ({ children }) => {
     channel
       .on('presence', { event: 'sync' }, () => {
         const newState = channel.presenceState();
-        const users = Object.values(newState).flat().map(p => p.profile);
-        // Filter out duplicates based on ID (optional but safer)
-        const uniqueUsers = Array.from(new Map(users.map(u => [u.id, u])).values());
+        const users = Object.values(newState)
+          .flat()
+          .map((p) => ({
+            ...(p.profile || {}),
+            online_at: p.online_at || null
+          }));
+
+        // Keep one entry per user id (latest online_at wins)
+        const uniqueUsers = Array.from(
+          new Map(
+            users
+              .sort((a, b) => new Date(b.online_at || 0) - new Date(a.online_at || 0))
+              .map(u => [u.id, u])
+          ).values()
+        );
         setOnlineUsers(uniqueUsers);
       })
       .on('presence', { event: 'join', key: user.id }, () => {
@@ -246,14 +258,14 @@ export const AuthProvider = ({ children }) => {
   const isAdmin = userRoles.includes('Admin');
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      profile, 
+    <AuthContext.Provider value={{
+      user,
+      profile,
       userRoles,
       onlineUsers,
-      loading, 
-      signIn, 
-      signUp, 
+      loading,
+      signIn,
+      signUp,
       signOut,
       updateProfile,
       updatePassword,

@@ -8,6 +8,434 @@ import { supabase } from './supabase';
 // --- Order Management ---
 
 export const api = {
+  normalizeText(value = '') {
+    return String(value)
+      .toLowerCase()
+      .replace(/([a-z])([0-9])/g, '$1 $2')
+      .replace(/([0-9])([a-z])/g, '$1 $2')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  },
+
+  parseInvoiceLine(line) {
+    const raw = String(line || '').trim();
+    if (!raw) return null;
+
+    // Ignore probable header/footer lines
+    const lowered = raw.toLowerCase();
+    if (/invoice|date|subtotal|total|discount|vat|phone|customer|address|paid|due/.test(lowered)) {
+      return null;
+    }
+
+    const patterns = [
+      /^(\d+)\s*[x×]\s*(.+)$/i,
+      /^(.+?)\s*[x×]\s*(\d+)$/i,
+      /^(.+?)\s*[-:]\s*(\d+)\s*(pcs|pc|qty)?$/i,
+      /^(.+?)\s+(\d+)\s*(pcs|pc|qty)$/i
+    ];
+
+    for (const p of patterns) {
+      const m = raw.match(p);
+      if (m) {
+        if (p === patterns[0]) {
+          return { product: m[2]?.trim(), quantity: Math.max(1, parseInt(m[1], 10)), sourceLine: raw };
+        }
+        return { product: m[1]?.trim(), quantity: Math.max(1, parseInt(m[2], 10)), sourceLine: raw };
+      }
+    }
+
+    // Fallback: treat full line as product with quantity 1
+    const normalized = this.normalizeText(raw);
+    if (!normalized || /^\d+$/.test(normalized)) return null;
+    return { product: raw, quantity: 1, sourceLine: raw };
+  },
+
+  parseManualBulkInvoiceInput(text) {
+    if (!text || !text.trim()) return [];
+
+    const cleaned = String(text)
+      .replace(/[\r\n]+/g, ',')
+      .replace(/,+/g, ',')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const unitWords = /(pis|pcs|piece|pieces|pc|qty)$/i;
+
+    return cleaned
+      .map((chunk) => {
+        const raw = chunk;
+        const normalizedChunk = raw.replace(/\s+/g, ' ').trim();
+
+        const patterns = [
+          /^(.+?)\s+(\d+)\s*(pis|pcs|piece|pieces|pc|qty)?$/i,
+          /^(\d+)\s*[x×]\s*(.+)$/i,
+          /^(.+?)\s*[x×]\s*(\d+)$/i,
+          /^(.+?)\s*[-:]\s*(\d+)\s*(pis|pcs|piece|pieces|pc|qty)?$/i
+        ];
+
+        for (const p of patterns) {
+          const m = normalizedChunk.match(p);
+          if (m) {
+            if (p === patterns[1]) {
+              return {
+                product: String(m[2] || '').replace(unitWords, '').trim(),
+                quantity: Math.max(1, parseInt(m[1], 10) || 1),
+                sourceLine: raw
+              };
+            }
+
+            const product = String(m[1] || '').replace(unitWords, '').trim();
+            const quantity = Math.max(1, parseInt(m[2], 10) || 1);
+            return { product, quantity, sourceLine: raw };
+          }
+        }
+
+        const fallback = normalizedChunk.replace(unitWords, '').trim();
+        if (!fallback) return null;
+        return { product: fallback, quantity: 1, sourceLine: raw };
+      })
+      .filter((x) => x && x.product);
+  },
+
+  async extractInvoiceItemsWithGroq(invoiceText) {
+    const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+    if (!apiKey || !invoiceText?.trim()) return null;
+
+    const prompt = `You are an invoice line parser. Extract purchasable product lines and quantity from raw invoice text.\nReturn STRICT JSON only (no markdown), in this exact shape:\n{"items":[{"product":"string","quantity":number,"sourceLine":"string"}]}\nRules:\n- quantity must be integer >= 1\n- ignore totals, VAT, discount, customer/phone/address/date/invoice number lines\n- if quantity is missing, use 1\n- keep product concise but faithful\nRaw invoice:\n${invoiceText}`;
+
+    try {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          temperature: 0.1,
+          messages: [
+            {
+              role: 'system',
+              content: 'Return strict JSON only. No prose. No markdown.'
+            },
+            {
+              role: 'user',
+              content: prompt
+            }
+          ]
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Groq API error: ${response.status}`);
+      }
+
+      const payload = await response.json();
+      const content = payload?.choices?.[0]?.message?.content;
+      if (!content) return null;
+
+      const cleaned = content
+        .replace(/^```json\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/```\s*$/i, '')
+        .trim();
+
+      const parsed = JSON.parse(cleaned);
+      const items = Array.isArray(parsed?.items) ? parsed.items : [];
+
+      const normalized = items
+        .map((i) => ({
+          product: String(i?.product || '').trim(),
+          quantity: Math.max(1, parseInt(i?.quantity, 10) || 1),
+          sourceLine: String(i?.sourceLine || i?.product || '').trim()
+        }))
+        .filter((i) => i.product);
+
+      return normalized.length ? normalized : null;
+    } catch (error) {
+      console.error('Groq extraction failed. Falling back to local parser:', error);
+      return null;
+    }
+  },
+
+  matchInventoryProduct(productName, inventory = []) {
+    const normalizedTarget = this.normalizeText(productName);
+    if (!normalizedTarget) return null;
+
+    const compactTarget = normalizedTarget.replace(/\s+/g, '');
+
+    const entries = inventory.map((item) => ({
+      ...item,
+      _nameNormalized: this.normalizeText(item.name),
+      _nameCompact: this.normalizeText(item.name).replace(/\s+/g, '')
+    }));
+
+    // Exact match first
+    const exact = entries.find((e) => e._nameNormalized === normalizedTarget);
+    if (exact) return exact;
+
+    // Strict compact match (handles toybox1 vs toy box 1)
+    const exactCompact = entries.find((e) => e._nameCompact === compactTarget);
+    if (exactCompact) return exactCompact;
+
+    // Inclusion match
+    const include = entries.find(
+      (e) => e._nameNormalized.includes(normalizedTarget) || normalizedTarget.includes(e._nameNormalized)
+    );
+    if (include) return include;
+
+    // Inclusion on compact strings
+    const includeCompact = entries.find(
+      (e) => e._nameCompact.includes(compactTarget) || compactTarget.includes(e._nameCompact)
+    );
+    if (includeCompact) return includeCompact;
+
+    // Token overlap scoring
+    const targetTokens = new Set(normalizedTarget.split(' ').filter(Boolean));
+    let best = null;
+    let bestScore = 0;
+
+    entries.forEach((entry) => {
+      const itemTokens = new Set(entry._nameNormalized.split(' ').filter(Boolean));
+      if (!itemTokens.size) return;
+      const overlap = [...targetTokens].filter((t) => itemTokens.has(t)).length;
+      const score = overlap / Math.max(targetTokens.size, itemTokens.size);
+      if (score > bestScore) {
+        bestScore = score;
+        best = entry;
+      }
+    });
+
+    if (best && bestScore >= 0.35) return best;
+    return null;
+  },
+
+  extractToyBoxNumber(productName = '') {
+    const compact = this.normalizeText(productName).replace(/\s+/g, '');
+    const match = compact.match(/^toybox(\d{1,3})$/i);
+    if (!match) return null;
+    const num = parseInt(match[1], 10);
+    return Number.isFinite(num) ? num : null;
+  },
+
+  getUnmatchedReason(row, inventory = [], toyBoxes = []) {
+    const normalized = this.normalizeText(row?.product || '');
+    if (!normalized) return 'Could not detect a valid product name in this line.';
+
+    const toyBoxNum = this.extractToyBoxNumber(row?.product || '');
+    if (toyBoxNum != null) {
+      const foundToyBox = (toyBoxes || []).some((b) => Number(b.toy_box_number) === toyBoxNum);
+      if (!foundToyBox) {
+        return `Toy Box #${toyBoxNum} was not found in toy box inventory.`;
+      }
+    }
+
+    const targetTokens = new Set(normalized.split(' ').filter(Boolean));
+    const best = (inventory || []).reduce((acc, item) => {
+      const itemNorm = this.normalizeText(item.name);
+      const itemTokens = new Set(itemNorm.split(' ').filter(Boolean));
+      const overlap = [...targetTokens].filter((t) => itemTokens.has(t)).length;
+      const score = overlap / Math.max(1, Math.max(targetTokens.size, itemTokens.size));
+      if (!acc || score > acc.score) return { item: item.name, score };
+      return acc;
+    }, null);
+
+    if (best && best.score > 0) {
+      return `No confident match found. Closest candidate: "${best.item}" (low similarity).`;
+    }
+
+    return 'No matching inventory product found. Check spelling or product naming.';
+  },
+
+  async previewInvoiceStockUpdate(invoiceText, options = {}) {
+    if (!invoiceText || !invoiceText.trim()) {
+      return {
+        matched: [],
+        unmatched: [],
+        summary: { lines: 0, matchedLines: 0, unmatchedLines: 0, totalQty: 0 }
+      };
+    }
+
+    const { data: inventory, error } = await supabase
+      .from('inventory')
+      .select('id,name,current_stock');
+    if (error) throw error;
+
+    const { data: toyBoxes, error: toyErr } = await supabase
+      .from('toy_box_inventory')
+      .select('id,toy_box_number,stock_quantity');
+    if (toyErr) throw toyErr;
+
+    const lines = invoiceText
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+
+    const manualParsed = options?.preferManualBulk
+      ? this.parseManualBulkInvoiceInput(invoiceText)
+      : [];
+
+    const groqParsed = manualParsed.length === 0
+      ? await this.extractInvoiceItemsWithGroq(invoiceText)
+      : null;
+
+    const parsed = (manualParsed && manualParsed.length > 0)
+      ? manualParsed
+      : (groqParsed && groqParsed.length > 0)
+        ? groqParsed
+        : lines
+          .map((line) => this.parseInvoiceLine(line))
+          .filter(Boolean);
+
+    const matched = [];
+    const unmatched = [];
+
+    parsed.forEach((row) => {
+      const matchedItem = this.matchInventoryProduct(row.product, inventory || []);
+      if (matchedItem) {
+        matched.push({
+          ...row,
+          target_type: 'inventory',
+          target_id: matchedItem.id,
+          inventory_id: `inventory-${matchedItem.id}`,
+          inventory_name: matchedItem.name,
+          current_stock: Number(matchedItem.current_stock || 0)
+        });
+        return;
+      }
+
+      const toyBoxNum = this.extractToyBoxNumber(row.product);
+      if (toyBoxNum != null) {
+        const toyBox = (toyBoxes || []).find((b) => Number(b.toy_box_number) === toyBoxNum);
+        if (toyBox) {
+          matched.push({
+            ...row,
+            target_type: 'toy_box_inventory',
+            target_id: toyBox.id,
+            inventory_id: `toybox-${toyBox.id}`,
+            inventory_name: `Toy Box #${toyBox.toy_box_number}`,
+            current_stock: Number(toyBox.stock_quantity || 0)
+          });
+          return;
+        }
+      }
+
+      if (!matchedItem) {
+        unmatched.push({
+          ...row,
+          reason: this.getUnmatchedReason(row, inventory || [], toyBoxes || [])
+        });
+        return;
+      }
+    });
+
+    // Aggregate same inventory product from multiple lines
+    const aggregatedMap = new Map();
+    matched.forEach((m) => {
+      const key = `${m.target_type}:${m.target_id}`;
+      const prev = aggregatedMap.get(key);
+      if (!prev) {
+        aggregatedMap.set(key, {
+          target_type: m.target_type,
+          target_id: m.target_id,
+          inventory_id: m.inventory_id,
+          inventory_name: m.inventory_name,
+          current_stock: m.current_stock,
+          quantity: m.quantity,
+          lines: [m.sourceLine]
+        });
+      } else {
+        prev.quantity += m.quantity;
+        prev.lines.push(m.sourceLine);
+      }
+    });
+
+    const aggregatedMatched = Array.from(aggregatedMap.values()).map((m) => {
+      const isAdd = options?.stockMode === 'add';
+      const nextStock = isAdd
+        ? Number(m.current_stock || 0) + Number(m.quantity || 0)
+        : Math.max(0, Number(m.current_stock || 0) - Number(m.quantity || 0));
+      return {
+        ...m,
+        next_stock: nextStock,
+        deducted: isAdd ? Number(m.quantity || 0) : Number(m.current_stock || 0) - nextStock,
+        shortfall: isAdd ? 0 : Math.max(0, Number(m.quantity || 0) - Number(m.current_stock || 0))
+      };
+    });
+
+    return {
+      matched: aggregatedMatched,
+      unmatched,
+      summary: {
+        lines: parsed.length,
+        matchedLines: matched.length,
+        unmatchedLines: unmatched.length,
+        totalQty: aggregatedMatched.reduce((sum, m) => sum + Number(m.quantity || 0), 0)
+      }
+    };
+  },
+
+  async applyInvoiceStockUpdate(invoiceText, actorName = 'System', options = {}) {
+    if (String(options?.confirmCommand || '').trim().toLowerCase() !== 'confirm') {
+      throw new Error('Apply blocked: explicit confirm command required. Type "confirm" to proceed.');
+    }
+
+    const preview = await this.previewInvoiceStockUpdate(invoiceText, options);
+    if (options.dryRun) return preview;
+
+    const applied = [];
+    for (const m of preview.matched) {
+      const table = m.target_type === 'toy_box_inventory' ? 'toy_box_inventory' : 'inventory';
+      const stockCol = table === 'toy_box_inventory' ? 'stock_quantity' : 'current_stock';
+      const nameCol = table === 'toy_box_inventory' ? 'toy_box_number' : 'name';
+
+      const { data: latest, error: fetchErr } = await supabase
+        .from(table)
+        .select(`id,${stockCol},${nameCol}`)
+        .eq('id', m.target_id)
+        .single();
+      if (fetchErr) throw fetchErr;
+
+      const before = Number(latest?.[stockCol] || 0);
+      const isAdd = options?.stockMode === 'add';
+      const after = isAdd
+        ? before + Number(m.quantity || 0)
+        : Math.max(0, before - Number(m.quantity || 0));
+      const { error: updateErr } = await supabase
+        .from(table)
+        .update(table === 'toy_box_inventory' ? { stock_quantity: after } : { current_stock: after })
+        .eq('id', m.target_id);
+      if (updateErr) throw updateErr;
+
+      applied.push({
+        id: m.target_id,
+        name: table === 'toy_box_inventory' ? `Toy Box #${latest?.[nameCol]}` : (latest?.[nameCol] || m.inventory_name),
+        sourceTable: table,
+        requestedChange: Number(m.quantity || 0),
+        deducted: isAdd ? Number(m.quantity || 0) : before - after,
+        before,
+        after
+      });
+    }
+
+    // Note:
+    // We intentionally skip writing to `order_activity_logs` here because that table
+    // has strict constraints tied to order workflow action types/order ids.
+    // Inventory sync is cross-table and may not satisfy those constraints.
+
+    return {
+      ...preview,
+      applied,
+      summary: {
+        ...preview.summary,
+        appliedItems: applied.length,
+        totalDeducted: applied.reduce((sum, a) => sum + Number(a.deducted || 0), 0)
+      }
+    };
+  },
+
   /**
    * Fetch orders with server-side pagination and filtering
    */
@@ -327,6 +755,185 @@ export const api = {
       .limit(limit);
     if (error) throw error;
     return data;
+  },
+
+  /**
+   * Fetch a single user's profile + performance summary + recent activity.
+   * range: 'today' | '7d' | '30d' | 'all'
+   */
+  async getUserPerformanceDetails(userId, options = {}) {
+    if (!userId) throw new Error('User ID is required.');
+
+    const range = options.range || '7d';
+    const limit = options.limit || 20;
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    let startIso = null;
+    let endIso = now.toISOString();
+
+    if (range === 'today') {
+      startIso = startOfToday.toISOString();
+    } else if (range === '7d') {
+      const d = new Date(now);
+      d.setDate(d.getDate() - 6);
+      d.setHours(0, 0, 0, 0);
+      startIso = d.toISOString();
+    } else if (range === '30d') {
+      const d = new Date(now);
+      d.setDate(d.getDate() - 29);
+      d.setHours(0, 0, 0, 0);
+      startIso = d.toISOString();
+    } else {
+      // all time
+      endIso = null;
+    }
+
+    // Profile query (schema-agnostic): fetch all and normalize
+    const { data: rawProfile, error: profileError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+    if (profileError) throw profileError;
+
+    const profile = rawProfile
+      ? {
+        id: rawProfile.id,
+        name: rawProfile.name || rawProfile.full_name || null,
+        full_name: rawProfile.full_name || null,
+        email: rawProfile.email || null,
+        phone: rawProfile.phone || null,
+        status: rawProfile.status,
+        is_active: rawProfile.is_active,
+        avatar_url: rawProfile.avatar_url || null,
+        created_at: rawProfile.created_at || null,
+        updated_at: rawProfile.updated_at || null,
+        last_active_at: rawProfile.last_active_at || null
+      }
+      : null;
+
+    // Roles
+    let roles = [];
+    try {
+      const { data: rolesData, error: rolesErr } = await supabase
+        .from('user_roles')
+        .select('role_id, roles(name)')
+        .eq('user_id', userId);
+
+      if (!rolesErr && Array.isArray(rolesData)) {
+        roles = rolesData
+          .map((r) => r?.roles?.name || r?.role_id)
+          .filter(Boolean);
+      }
+    } catch {
+      roles = [];
+    }
+
+    // Activity logs (filtered by range)
+    let logsQuery = supabase
+      .from('order_activity_logs')
+      .select('*')
+      .eq('changed_by_user_id', userId)
+      .order('timestamp', { ascending: false });
+
+    if (startIso) logsQuery = logsQuery.gte('timestamp', startIso);
+    if (endIso) logsQuery = logsQuery.lte('timestamp', endIso);
+
+    const { data: logs, error: logsError } = await logsQuery;
+    if (logsError) throw logsError;
+
+    const activityLogs = logs || [];
+    const recentActivity = activityLogs.slice(0, limit);
+
+    const actionBreakdown = activityLogs.reduce((acc, log) => {
+      const key = log.action_type || 'OTHER';
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+
+    const touchedOrderIds = new Set(activityLogs.map((l) => l.order_id).filter(Boolean));
+    const totalAssignedWork = touchedOrderIds.size;
+
+    const doneStatuses = new Set(['Confirmed', 'Factory Processing', 'Completed', 'Shipped']);
+    const completionLogs = activityLogs.filter(
+      (l) => l.action_type === 'STATUS_CHANGE' && doneStatuses.has(l.new_status)
+    );
+
+    const completedOrderIds = new Set(completionLogs.map((l) => l.order_id).filter(Boolean));
+    const completedWork = completedOrderIds.size;
+    const pendingWork = Math.max(0, totalAssignedWork - completedWork);
+    const completionRate = totalAssignedWork > 0
+      ? Number(((completedWork / totalAssignedWork) * 100).toFixed(1))
+      : 0;
+
+    // Avg completion time: order created_at -> first completion status timestamp by this user
+    let avgCompletionTimeHours = null;
+    if (completedOrderIds.size > 0) {
+      const completionAtByOrder = completionLogs.reduce((acc, l) => {
+        const id = l.order_id;
+        if (!id) return acc;
+        const ts = new Date(l.timestamp).getTime();
+        if (!acc[id] || ts < acc[id]) acc[id] = ts;
+        return acc;
+      }, {});
+
+      const ids = Object.keys(completionAtByOrder);
+      if (ids.length > 0) {
+        const { data: ordersData } = await supabase
+          .from('orders')
+          .select('id,created_at')
+          .in('id', ids);
+
+        const ordersMap = (ordersData || []).reduce((acc, o) => {
+          acc[o.id] = o;
+          return acc;
+        }, {});
+
+        let totalHours = 0;
+        let count = 0;
+        ids.forEach((id) => {
+          const order = ordersMap[id];
+          const completionTs = completionAtByOrder[id];
+          const createdTs = order?.created_at ? new Date(order.created_at).getTime() : null;
+          if (createdTs && completionTs && completionTs >= createdTs) {
+            totalHours += (completionTs - createdTs) / (1000 * 60 * 60);
+            count += 1;
+          }
+        });
+
+        if (count > 0) {
+          avgCompletionTimeHours = Number((totalHours / count).toFixed(2));
+        }
+      }
+    }
+
+    // Productivity score (real-data based weighted index)
+    const totalActions = activityLogs.length;
+    const completionScore = Math.min(55, completionRate * 0.55);
+    const volumeScore = Math.min(30, totalActions * 0.6);
+    const speedScore = avgCompletionTimeHours == null
+      ? 5
+      : Math.max(0, 15 - Math.min(15, avgCompletionTimeHours / 4));
+    const productivityScore = Math.round(Math.min(100, completionScore + volumeScore + speedScore));
+
+    return {
+      user: profile || { id: userId },
+      roles,
+      range,
+      performance: {
+        totalAssignedWork,
+        completedWork,
+        pendingWork,
+        completionRate,
+        avgCompletionTimeHours,
+        productivityScore,
+        totalActions,
+        actionBreakdown
+      },
+      recentActivity
+    };
   },
 
 
