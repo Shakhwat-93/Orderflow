@@ -40,6 +40,13 @@ const ORDER_STATUSES = [
 
 const SOURCES = ['Website', 'Facebook', 'Instagram', 'Direct'];
 
+const DELIVERY_ZONES = [
+  { value: 'Inside Dhaka', charge: 80 },
+  { value: 'Outside Dhaka', charge: 150 }
+];
+
+const BD_PHONE_REGEX = /^01\d{9}$/;
+
 export const OrdersBoard = () => {
   const { userRoles, isAdmin, hasAnyRole } = useAuth();
   const {
@@ -83,14 +90,144 @@ export const OrdersBoard = () => {
     customer_name: '',
     phone: '',
     address: '',
+    shipping_zone: '',
+    source: 'Website',
+    notes: '',
+    order_lines: [],
+    duplicate_policy: 'merge'
+  });
+  const [lineDraft, setLineDraft] = useState({
     product_name: '',
     size: '',
     quantity: '1',
-    source: 'Website',
-    notes: '',
-    amount: '',
-    ordered_items: []
+    unit_price: '',
+    toybox_serial: ''
   });
+  const [editingLineId, setEditingLineId] = useState(null);
+  const [formErrors, setFormErrors] = useState({});
+
+  const selectedZone = DELIVERY_ZONES.find(zone => zone.value === formData.shipping_zone) || null;
+  const deliveryCharge = selectedZone?.charge || 0;
+  const orderSubtotal = (formData.order_lines || []).reduce((sum, line) => sum + (Number(line.line_total) || 0), 0);
+  const payableTotal = orderSubtotal + deliveryCharge;
+
+  const createLineId = () => `ln-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+
+  const normalizeLineDraft = () => {
+    const qty = Math.max(1, parseInt(lineDraft.quantity, 10) || 1);
+    const unitPrice = Math.max(0, parseFloat(lineDraft.unit_price) || 0);
+    const isToyBox = lineDraft.product_name === 'TOY BOX';
+    const serialValue = isToyBox ? String(lineDraft.toybox_serial || '').trim() : '';
+    const lineKey = `${lineDraft.product_name}|${lineDraft.size || ''}|${serialValue}|${unitPrice}`;
+
+    return {
+      qty,
+      unitPrice,
+      isToyBox,
+      serialValue,
+      lineKey
+    };
+  };
+
+  const resetLineDraft = () => {
+    setLineDraft({
+      product_name: '',
+      size: '',
+      quantity: '1',
+      unit_price: '',
+      toybox_serial: ''
+    });
+    setEditingLineId(null);
+  };
+
+  const addOrUpdateLineItem = () => {
+    const nextErrors = {};
+    const { qty, unitPrice, isToyBox, serialValue, lineKey } = normalizeLineDraft();
+
+    if (!lineDraft.product_name) nextErrors.line_product = 'Select a product first.';
+    if (isToyBox && !serialValue) nextErrors.line_serial = 'Select a Toy Box serial.';
+    if (qty < 1) nextErrors.line_quantity = 'Quantity must be at least 1.';
+    if (unitPrice < 0) nextErrors.line_price = 'Unit price cannot be negative.';
+
+    if (Object.keys(nextErrors).length > 0) {
+      setFormErrors(prev => ({ ...prev, ...nextErrors }));
+      return;
+    }
+
+    const candidateLine = {
+      line_id: editingLineId || createLineId(),
+      product_name: lineDraft.product_name,
+      size: lineDraft.size,
+      quantity: qty,
+      unit_price: unitPrice,
+      toybox_serial: serialValue,
+      line_key: lineKey,
+      line_total: qty * unitPrice
+    };
+
+    setFormData(prev => {
+      let lines = [...(prev.order_lines || [])];
+
+      if (editingLineId) {
+        lines = lines.map(line => line.line_id === editingLineId ? candidateLine : line);
+      } else if (prev.duplicate_policy === 'merge') {
+        const existingIndex = lines.findIndex(line => line.line_key === candidateLine.line_key);
+        if (existingIndex !== -1) {
+          const existing = lines[existingIndex];
+          const mergedQty = (existing.quantity || 0) + candidateLine.quantity;
+          lines[existingIndex] = {
+            ...existing,
+            quantity: mergedQty,
+            line_total: mergedQty * (existing.unit_price || 0)
+          };
+        } else {
+          lines.push(candidateLine);
+        }
+      } else {
+        lines.push(candidateLine);
+      }
+
+      return { ...prev, order_lines: lines };
+    });
+
+    setFormErrors(prev => ({
+      ...prev,
+      line_product: '',
+      line_serial: '',
+      line_quantity: '',
+      line_price: '',
+      order_lines: ''
+    }));
+    resetLineDraft();
+  };
+
+  const handleEditLine = (line) => {
+    setEditingLineId(line.line_id);
+    setLineDraft({
+      product_name: line.product_name || '',
+      size: line.size || '',
+      quantity: String(line.quantity || 1),
+      unit_price: String(line.unit_price ?? ''),
+      toybox_serial: line.toybox_serial || ''
+    });
+  };
+
+  const handleRemoveLine = (lineId) => {
+    setFormData(prev => ({
+      ...prev,
+      order_lines: (prev.order_lines || []).filter(line => line.line_id !== lineId)
+    }));
+  };
+
+  const updateLineQuantity = (lineId, qty) => {
+    const safeQty = Math.max(1, qty || 1);
+    setFormData(prev => ({
+      ...prev,
+      order_lines: (prev.order_lines || []).map(line => line.line_id === lineId
+        ? { ...line, quantity: safeQty, line_total: safeQty * (line.unit_price || 0) }
+        : line)
+    }));
+  };
 
   const handleAutoDistribute = async () => {
     if (!window.confirm("Start automatic distribution? This will confirm orders strictly based on inventory availability.")) return;
@@ -121,21 +258,53 @@ export const OrdersBoard = () => {
 
   const handleNewOrderSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.customer_name || !formData.phone) return;
+
+    const nextErrors = {};
+    const normalizedPhone = (formData.phone || '').replace(/\D/g, '');
+    if (!formData.customer_name.trim()) nextErrors.customer_name = 'Customer name is required.';
+    if (!formData.phone.trim()) {
+      nextErrors.phone = 'Phone number is required.';
+    } else if (!BD_PHONE_REGEX.test(normalizedPhone)) {
+      nextErrors.phone = 'Phone number must start with 01 and be exactly 11 digits.';
+    }
+    if (!formData.address.trim()) nextErrors.address = 'Delivery address is required.';
+    if (!formData.shipping_zone) nextErrors.shipping_zone = 'Select a delivery zone to continue.';
+    if (!formData.order_lines || formData.order_lines.length === 0) nextErrors.order_lines = 'Add at least one product line item.';
+
+    if (Object.keys(nextErrors).length > 0) {
+      setFormErrors(nextErrors);
+      return;
+    }
+
+    setFormErrors({});
 
     try {
+      const totalQuantity = (formData.order_lines || []).reduce((sum, line) => sum + (line.quantity || 0), 0);
+      const firstLine = formData.order_lines?.[0];
+      const toyboxSerials = (formData.order_lines || [])
+        .filter(line => line.product_name === 'TOY BOX' && line.toybox_serial)
+        .map(line => Number(line.toybox_serial));
+
       await addOrder({
         customer_name: formData.customer_name,
-        phone: formData.phone,
+        phone: normalizedPhone,
         address: formData.address,
-        product_name: formData.product_name,
-        size: formData.size,
+        shipping_zone: formData.shipping_zone,
+        delivery_charge: deliveryCharge,
+        product_name: (formData.order_lines || []).length > 1 ? `Multi Item (${formData.order_lines.length})` : (firstLine?.product_name || ''),
+        size: firstLine?.size || '',
         source: formData.source,
         notes: formData.notes,
         status: 'New',
-        amount: parseFloat(formData.amount) || 0,
-        quantity: parseInt(formData.quantity) || 1,
-        ordered_items: formData.ordered_items || []
+        amount: payableTotal,
+        quantity: totalQuantity || 1,
+        ordered_items: toyboxSerials,
+        order_lines_payload: formData.order_lines,
+        pricing_summary: {
+          subtotal: orderSubtotal,
+          delivery_charge: deliveryCharge,
+          payable_total: payableTotal
+        }
       });
 
       // Reset filters so the new order is visible
@@ -143,10 +312,17 @@ export const OrdersBoard = () => {
 
       setIsNewOrderModalOpen(false);
       setFormData({
-        customer_name: '', phone: '', address: '', product_name: '', size: '',
-        quantity: '1', source: 'Website', notes: '', amount: '',
-        ordered_items: []
+        customer_name: '',
+        phone: '',
+        address: '',
+        shipping_zone: '',
+        source: 'Website',
+        notes: '',
+        order_lines: [],
+        duplicate_policy: 'merge'
       });
+      resetLineDraft();
+      setFormErrors({});
     } catch (error) {
       console.error('Failed to create order:', error);
       alert('Failed to create order. Please try again.');
@@ -390,7 +566,10 @@ export const OrdersBoard = () => {
 
       <Modal
         isOpen={isNewOrderModalOpen}
-        onClose={() => setIsNewOrderModalOpen(false)}
+        onClose={() => {
+          setIsNewOrderModalOpen(false);
+          setFormErrors({});
+        }}
         title="Create New Order"
       >
         <form onSubmit={handleNewOrderSubmit} className="new-order-form">
@@ -399,14 +578,26 @@ export const OrdersBoard = () => {
               label="Customer Name"
               placeholder="Full name"
               value={formData.customer_name}
-              onChange={e => setFormData({ ...formData, customer_name: e.target.value })}
+              onChange={e => {
+                setFormData({ ...formData, customer_name: e.target.value });
+                if (formErrors.customer_name) setFormErrors(prev => ({ ...prev, customer_name: '' }));
+              }}
+              error={formErrors.customer_name}
               required
             />
             <Input
               label="Phone Number"
-              placeholder="+1 234 567 890"
+              placeholder="01XXXXXXXXX"
               value={formData.phone}
-              onChange={e => setFormData({ ...formData, phone: e.target.value })}
+              onChange={e => {
+                const cleaned = e.target.value.replace(/\D/g, '').slice(0, 11);
+                setFormData({ ...formData, phone: cleaned });
+                if (formErrors.phone) setFormErrors(prev => ({ ...prev, phone: '' }));
+              }}
+              error={formErrors.phone}
+              inputMode="numeric"
+              maxLength={11}
+              helperText="Must start with 01 and contain 11 digits."
               required
             />
           </div>
@@ -415,81 +606,186 @@ export const OrdersBoard = () => {
             label="Delivery Address"
             placeholder="Full shipping address"
             value={formData.address}
-            onChange={e => setFormData({ ...formData, address: e.target.value })}
+            onChange={e => {
+              setFormData({ ...formData, address: e.target.value });
+              if (formErrors.address) setFormErrors(prev => ({ ...prev, address: '' }));
+            }}
+            error={formErrors.address}
             className="full-width-input"
             required
           />
 
-          <div className="form-grid">
-            <div className="input-group full-width">
-              <label className="input-label">Product Category</label>
-              <select
-                className="input-field glass-select"
-                value={formData.product_name}
-                onChange={e => {
-                  const val = e.target.value;
-                  setFormData({ ...formData, product_name: val, ordered_items: val === 'TOY BOX' ? formData.ordered_items : [] });
-                }}
-                required
-              >
-                <option value="">Select a product...</option>
-                {PRODUCT_CHECKPOINTS.filter(p => p.id !== 'all').map(product => (
-                  <option key={product.id} value={product.name}>
-                    {product.name}
-                  </option>
-                ))}
-              </select>
+          <div className="delivery-zone-module">
+            <div className="delivery-zone-head">
+              <div>
+                <p className="delivery-zone-title">Delivery Zone</p>
+                <p className="delivery-zone-subtitle">Choose where the parcel will be delivered. Charge is auto-applied.</p>
+              </div>
             </div>
 
-            {formData.product_name === 'TOY BOX' && (
-              <div className="input-group full-width toy-box-selector">
-                <label className="input-label">Select Toy Box Numbers (Serial)</label>
-                <div className="toy-box-grid">
-                  {Array.from({ length: 38 }, (_, i) => i + 1).map(num => (
-                    <button
-                      key={num}
-                      type="button"
-                      className={`toy-box-btn ${formData.ordered_items && formData.ordered_items.includes(num) ? 'selected' : ''}`}
-                      onClick={() => {
-                        const currentItems = formData.ordered_items || [];
-                        const items = currentItems.includes(num)
-                          ? currentItems.filter(n => n !== num)
-                          : [...currentItems, num].sort((a, b) => a - b);
-                        setFormData({ ...formData, ordered_items: items });
-                      }}
-                    >
-                      {num}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+            <div className="delivery-zone-options" role="radiogroup" aria-label="Delivery Zone">
+              {DELIVERY_ZONES.map(zone => {
+                const isActive = formData.shipping_zone === zone.value;
+                return (
+                  <button
+                    key={zone.value}
+                    type="button"
+                    className={`delivery-zone-card ${isActive ? 'active' : ''}`}
+                    onClick={() => {
+                      setFormData({ ...formData, shipping_zone: zone.value });
+                      if (formErrors.shipping_zone) setFormErrors(prev => ({ ...prev, shipping_zone: '' }));
+                    }}
+                    aria-pressed={isActive}
+                  >
+                    <span className="zone-name">{zone.value}</span>
+                    <span className="zone-charge">৳{zone.charge.toLocaleString()}</span>
+                  </button>
+                );
+              })}
+            </div>
 
-            <Input
-              label="Size"
-              placeholder="E.g. XL"
-              value={formData.size}
-              onChange={e => setFormData({ ...formData, size: e.target.value })}
-            />
+            {formErrors.shipping_zone && (
+              <p className="zone-error-text">{formErrors.shipping_zone}</p>
+            )}
+          </div>
+
+          <div className="line-items-module">
+            <div className="line-items-head">
+              <p className="line-items-title">Order Line Items</p>
+              <label className="line-duplicate-toggle">
+                <input
+                  type="checkbox"
+                  checked={formData.duplicate_policy === 'merge'}
+                  onChange={e => setFormData({ ...formData, duplicate_policy: e.target.checked ? 'merge' : 'separate' })}
+                />
+                <span>Auto merge duplicates</span>
+              </label>
+            </div>
+
+            <div className="line-composer-grid">
+              <div className="input-group full-width">
+                <label className="input-label">Product Category</label>
+                <select
+                  className="input-field glass-select"
+                  value={lineDraft.product_name}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setLineDraft({ ...lineDraft, product_name: val, toybox_serial: '' });
+                    if (formErrors.line_product) setFormErrors(prev => ({ ...prev, line_product: '' }));
+                  }}
+                >
+                  <option value="">Select a product...</option>
+                  {PRODUCT_CHECKPOINTS.filter(p => p.id !== 'all').map(product => (
+                    <option key={product.id} value={product.name}>
+                      {product.name}
+                    </option>
+                  ))}
+                </select>
+                {formErrors.line_product && <span className="input-helper inline-field-error">{formErrors.line_product}</span>}
+              </div>
+
+              <Input
+                label="Size"
+                placeholder="E.g. XL"
+                value={lineDraft.size}
+                onChange={e => setLineDraft({ ...lineDraft, size: e.target.value })}
+              />
+
+              {lineDraft.product_name === 'TOY BOX' && (
+                <div className="input-group full-width">
+                  <label className="input-label">Toy Box Serial</label>
+                  <select
+                    className="input-field glass-select"
+                    value={lineDraft.toybox_serial}
+                    onChange={e => {
+                      setLineDraft({ ...lineDraft, toybox_serial: e.target.value });
+                      if (formErrors.line_serial) setFormErrors(prev => ({ ...prev, line_serial: '' }));
+                    }}
+                  >
+                    <option value="">Select serial...</option>
+                    {Array.from({ length: 38 }, (_, i) => i + 1).map(num => (
+                      <option key={num} value={String(num)}>{num}</option>
+                    ))}
+                  </select>
+                  {formErrors.line_serial && <span className="input-helper inline-field-error">{formErrors.line_serial}</span>}
+                </div>
+              )}
+
+              <Input
+                label="Quantity"
+                type="number"
+                min="1"
+                value={lineDraft.quantity}
+                onChange={e => {
+                  setLineDraft({ ...lineDraft, quantity: e.target.value });
+                  if (formErrors.line_quantity) setFormErrors(prev => ({ ...prev, line_quantity: '' }));
+                }}
+              />
+
+              <Input
+                label="Unit Price (৳)"
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                value={lineDraft.unit_price}
+                onChange={e => {
+                  setLineDraft({ ...lineDraft, unit_price: e.target.value });
+                  if (formErrors.line_price) setFormErrors(prev => ({ ...prev, line_price: '' }));
+                }}
+              />
+
+              <div className="line-composer-actions">
+                <Button type="button" variant="primary" onClick={addOrUpdateLineItem}>
+                  {editingLineId ? 'Update Line' : 'Add Line'}
+                </Button>
+                {editingLineId && (
+                  <Button type="button" variant="ghost" onClick={resetLineDraft}>
+                    Cancel Edit
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <div className="line-items-list">
+              {(formData.order_lines || []).length === 0 ? (
+                <div className="line-empty-state">No line items yet. Add first product line.</div>
+              ) : (
+                (formData.order_lines || []).map((line, index) => (
+                  <div key={line.line_id} className="line-item-card">
+                    <div className="line-item-main">
+                      <p className="line-item-name">{index + 1}. {line.product_name}</p>
+                      <p className="line-item-meta">
+                        {line.size ? `Size: ${line.size}` : 'No size'}
+                        {line.toybox_serial ? ` • Serial: ${line.toybox_serial}` : ''}
+                      </p>
+                    </div>
+                    <div className="line-item-qty-controls">
+                      <button type="button" className="qty-btn" onClick={() => updateLineQuantity(line.line_id, (line.quantity || 1) - 1)}>-</button>
+                      <input
+                        type="number"
+                        min="1"
+                        value={line.quantity}
+                        onChange={e => updateLineQuantity(line.line_id, parseInt(e.target.value, 10) || 1)}
+                      />
+                      <button type="button" className="qty-btn" onClick={() => updateLineQuantity(line.line_id, (line.quantity || 1) + 1)}>+</button>
+                    </div>
+                    <div className="line-item-price">
+                      <span>৳{Number(line.unit_price || 0).toLocaleString()}</span>
+                      <strong>৳{Number(line.line_total || 0).toLocaleString()}</strong>
+                    </div>
+                    <div className="line-item-actions">
+                      <button type="button" className="line-action-btn" onClick={() => handleEditLine(line)}>Edit</button>
+                      <button type="button" className="line-action-btn danger" onClick={() => handleRemoveLine(line.line_id)}>Remove</button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {formErrors.order_lines && <p className="zone-error-text">{formErrors.order_lines}</p>}
           </div>
 
           <div className="form-grid three-cols">
-            <Input
-              label="Quantity"
-              type="number"
-              min="1"
-              value={formData.quantity}
-              onChange={e => setFormData({ ...formData, quantity: e.target.value })}
-              required
-            />
-            <Input
-              label="Amount ($)"
-              type="number"
-              step="0.01"
-              placeholder="0.00"
-              value={formData.amount}
-              onChange={e => setFormData({ ...formData, amount: e.target.value })}
-            />
             <div className="input-group full-width">
               <label className="input-label">Order Source</label>
               <select
@@ -502,6 +798,25 @@ export const OrdersBoard = () => {
                 <option value="Instagram">Instagram</option>
                 <option value="Direct">Direct</option>
               </select>
+            </div>
+          </div>
+
+          <div className="delivery-summary-box">
+            <div className="delivery-summary-row">
+              <span>Product Amount</span>
+              <strong>৳{orderSubtotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong>
+            </div>
+            <div className="delivery-summary-row">
+              <span>Delivery Charge</span>
+              <strong>
+                {formData.shipping_zone
+                  ? `৳${deliveryCharge.toLocaleString()}`
+                  : 'Select zone'}
+              </strong>
+            </div>
+            <div className="delivery-summary-row total">
+              <span>Payable Total</span>
+              <strong>৳{payableTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong>
             </div>
           </div>
 
@@ -536,5 +851,3 @@ export const OrdersBoard = () => {
     </div>
   );
 };
-
-

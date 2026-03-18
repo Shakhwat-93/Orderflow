@@ -32,8 +32,8 @@ const PRODUCT_CHECKPOINTS = [
 ];
 
 const ORDER_STATUSES = [
-  'New', 'Pending Call', 'Confirmed', 'Courier Submitted',
-  'Factory Processing', 'Completed', 'Cancelled'
+  'New', 'Pending Call', 'Confirmed', 'Factory Queue', 'Courier Ready',
+  'Courier Submitted', 'Factory Processing', 'Completed', 'Cancelled'
 ];
 
 const SOURCES = ['Website', 'Facebook', 'Instagram', 'Direct'];

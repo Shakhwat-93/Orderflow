@@ -5,25 +5,28 @@ import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { Modal } from '../components/Modal';
-import { Search, Truck, CheckCircle, Package } from 'lucide-react';
+import { Search, Truck, CheckCircle, Package, ClipboardCheck } from 'lucide-react';
 import './CourierPanel.css';
 
 export const CourierPanel = () => {
   const { orders, updateOrderStatus, editOrder } = useOrders();
   const [searchTerm, setSearchTerm] = useState('');
-  
+
   // Modal State for Tracking ID
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeOrderId, setActiveOrderId] = useState(null);
   const [trackingIdInput, setTrackingIdInput] = useState('');
 
-  // Show only Confirmed orders
+  // Show only Courier Ready orders (factory-approved, stock verified)
   const courierQueue = orders.filter(
-    o => o.status === 'Confirmed' &&
-    (o.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
-     o.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-     o.phone.includes(searchTerm))
+    o => o.status === 'Courier Ready' &&
+      (o.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        o.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        o.phone.includes(searchTerm))
   );
+
+  const withTrackingCount = courierQueue.filter(o => Boolean(o.trackingId)).length;
+  const pendingTrackingCount = courierQueue.length - withTrackingCount;
 
   const handleOpenTrackingModal = (order) => {
     setActiveOrderId(order.id);
@@ -48,12 +51,50 @@ export const CourierPanel = () => {
       <div className="page-header">
         <div>
           <h1>Courier Panel</h1>
-          <p>Assign tracking IDs and dispatch confirmed orders to the delivery team.</p>
+          <p>Assign tracking IDs and dispatch stock-verified orders to the delivery team.</p>
         </div>
         <div className="active-dispatch-stat">
           <Package size={20} className="text-secondary" />
           <span>{courierQueue.length} Ready for Dispatch</span>
         </div>
+      </div>
+
+      <div className="courier-summary-grid">
+        <Card className="courier-summary-card" noPadding>
+          <div className="courier-summary-card-inner">
+            <div className="courier-summary-icon total">
+              <Package size={18} />
+            </div>
+            <div>
+              <p className="courier-summary-label">Ready Queue</p>
+              <p className="courier-summary-value">{courierQueue.length}</p>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="courier-summary-card" noPadding>
+          <div className="courier-summary-card-inner">
+            <div className="courier-summary-icon assigned">
+              <ClipboardCheck size={18} />
+            </div>
+            <div>
+              <p className="courier-summary-label">Tracking Assigned</p>
+              <p className="courier-summary-value">{withTrackingCount}</p>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="courier-summary-card" noPadding>
+          <div className="courier-summary-card-inner">
+            <div className="courier-summary-icon pending">
+              <Truck size={18} />
+            </div>
+            <div>
+              <p className="courier-summary-label">Pending Tracking</p>
+              <p className="courier-summary-value">{pendingTrackingCount}</p>
+            </div>
+          </div>
+        </Card>
       </div>
 
       <Card className="table-card liquid-glass" noPadding>
@@ -68,8 +109,11 @@ export const CourierPanel = () => {
               className="glass-input"
             />
           </div>
+          <p className="queue-helper-text">
+            Assign tracking first, then dispatch to courier.
+          </p>
         </div>
-        
+
         <div className="table-container">
           <table className="management-table">
             <thead>
@@ -90,7 +134,10 @@ export const CourierPanel = () => {
                   <td className="customer-name">{order.customerName}</td>
                   <td className="phone-cell">{order.phone}</td>
                   <td className="product-name">
-                    {order.product} <span className="text-secondary text-sm">({order.size})</span>
+                    <div className="product-stack">
+                      <span>{order.product}</span>
+                      <span className="product-size-pill">Size {order.size}</span>
+                    </div>
                   </td>
                   <td className="tracking-cell">
                     {order.trackingId ? (
@@ -102,19 +149,19 @@ export const CourierPanel = () => {
                     )}
                   </td>
                   <td>
-                    <Badge variant="confirmed">{order.status}</Badge>
+                    <Badge variant="courier-ready">{order.status}</Badge>
                   </td>
                   <td>
                     <div className="dispatch-action-grid">
-                      <button 
-                        className="courier-action-btn tracking" 
+                      <button
+                        className="courier-action-btn tracking"
                         onClick={() => handleOpenTrackingModal(order)}
                         title="Add/Edit Tracking ID"
                       >
                         <Truck size={16} /> <span>Tracking</span>
                       </button>
-                      <button 
-                        className="courier-action-btn submit" 
+                      <button
+                        className="courier-action-btn submit"
                         onClick={() => handleSubmitToCourier(order.id)}
                         disabled={!order.trackingId}
                         title={!order.trackingId ? "Requires Tracking ID first" : "Submit to Courier"}
@@ -128,7 +175,7 @@ export const CourierPanel = () => {
               {courierQueue.length === 0 && (
                 <tr>
                   <td colSpan="7" className="empty-state-cell">
-                    No confirmed orders ready for dispatch.
+                    No stock-verified orders ready for dispatch. Orders must pass through Factory Panel first.
                   </td>
                 </tr>
               )}
@@ -138,8 +185,8 @@ export const CourierPanel = () => {
       </Card>
 
       {/* Tracking ID Modal */}
-      <Modal 
-        isOpen={isModalOpen} 
+      <Modal
+        isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title="Assign Tracking ID"
       >
@@ -147,8 +194,8 @@ export const CourierPanel = () => {
           <p className="text-secondary mb-4">
             Enter the courier tracking code for order <strong>{activeOrderId}</strong> to enable dispatching.
           </p>
-          <Input 
-            label="Tracking ID" 
+          <Input
+            label="Tracking ID"
             placeholder="e.g. STEADFAST-12345678"
             value={trackingIdInput}
             onChange={e => setTrackingIdInput(e.target.value)}

@@ -296,30 +296,6 @@ export const OrderProvider = ({ children }) => {
     }
   };
 
-  const autoDistributeOrders = async () => {
-    const currentUserName = profile?.name || user?.user_metadata?.full_name || user?.email || 'Unknown User';
-    try {
-      const result = await api.runAutoDistribution();
-
-      if (result.confirmed > 0) {
-        await api.createNotification({
-          type: 'SYSTEM_ACTION',
-          title: 'Auto Distribution Complete',
-          message: `Distribution engine confirmed ${result.confirmed} orders. ${result.skipped} orders skipped due to low stock.`,
-          data: result,
-          actor_name: 'System Engine'
-        });
-      }
-
-      fetchOrders();
-      fetchToyBoxes();
-      fetchStats();
-      return result;
-    } catch (error) {
-      console.error('Distribution error:', error);
-      throw error;
-    }
-  };
 
   const previewInvoiceStockUpdate = async (invoiceText, options = {}) => {
     try {
@@ -351,6 +327,81 @@ export const OrderProvider = ({ children }) => {
       console.error('Error updating toy box stock:', error);
       throw error;
     }
+  };
+
+  /**
+   * Auto Distribute: checks stock for Confirmed orders and moves stock-matched ones to Courier Ready.
+   * Non-toybox orders pass through directly. Unmatched orders go to Factory Queue.
+   */
+  const autoDistributeOrders = async () => {
+    // Fetch all Confirmed orders directly from DB (not just the paginated ones in state)
+    const { data: confirmedOrders, error: fetchErr } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('status', 'Confirmed');
+    if (fetchErr) throw fetchErr;
+    if (!confirmedOrders?.length) return { distributed: 0, queued: 0, total: 0 };
+
+    // Get current toy box stock
+    const { data: boxes } = await supabase
+      .from('toy_box_inventory')
+      .select('toy_box_number, stock_quantity, id');
+
+    const stockMap = {};
+    (boxes || []).forEach(b => { stockMap[b.toy_box_number] = { qty: b.stock_quantity, id: b.id }; });
+
+    let distributed = 0;
+    let queued = 0;
+    const stockDeductions = {}; // { toyBoxNumber: totalDeducted }
+
+    for (const order of confirmedOrders) {
+      const items = order.ordered_items || [];
+      const isToyBox = (order.product_name || '').toUpperCase().includes('TOY BOX');
+
+      if (!isToyBox || items.length === 0) {
+        // Non-toybox → direct to Courier Ready
+        await supabase.from('orders').update({ status: 'Courier Ready', updated_at: new Date().toISOString() }).eq('id', order.id);
+        distributed++;
+        continue;
+      }
+
+      // Check if all toy box items have enough stock (accounting for pending deductions)
+      let allInStock = true;
+      for (const boxNum of items) {
+        const available = (stockMap[boxNum]?.qty || 0) - (stockDeductions[boxNum] || 0);
+        if (available < 1) {
+          allInStock = false;
+          break;
+        }
+      }
+
+      if (allInStock) {
+        // Reserve stock (accumulate deductions)
+        for (const boxNum of items) {
+          stockDeductions[boxNum] = (stockDeductions[boxNum] || 0) + 1;
+        }
+        await supabase.from('orders').update({ status: 'Courier Ready', updated_at: new Date().toISOString() }).eq('id', order.id);
+        distributed++;
+      } else {
+        // Not enough stock → Factory Queue
+        await supabase.from('orders').update({ status: 'Factory Queue', updated_at: new Date().toISOString() }).eq('id', order.id);
+        queued++;
+      }
+    }
+
+    // Apply all stock deductions to toy_box_inventory
+    for (const [boxNum, deducted] of Object.entries(stockDeductions)) {
+      const num = Number(boxNum);
+      const current = stockMap[num]?.qty || 0;
+      const newQty = Math.max(0, current - deducted);
+      await supabase.from('toy_box_inventory').update({ stock_quantity: newQty, updated_at: new Date().toISOString() }).eq('toy_box_number', num);
+    }
+
+    // Refresh data
+    fetchOrders();
+    fetchToyBoxes();
+
+    return { distributed, queued, total: confirmedOrders.length };
   };
 
   const fetchOrderLogs = async (orderId) => {

@@ -521,6 +521,7 @@ export const api = {
       customer_name: orderData.customer_name,
       phone: orderData.phone,
       address: orderData.address,
+      shipping_zone: orderData.shipping_zone || 'Outside Dhaka',
       product_name: orderData.product_name || orderData.product,
       size: orderData.size,
       quantity: parseInt(orderData.quantity || 1),
@@ -558,8 +559,13 @@ export const api = {
       await this.createNotification({
         type: 'ORDER_CREATED',
         title: 'New Order Received',
-        message: `Order #${data.id} for ${data.customer_name} has been placed via ${data.source}.`,
-        data: { orderId: data.id, customer: data.customer_name },
+        message: `Order #${data.id} for ${data.customer_name} has been placed via ${data.source} (${payload.shipping_zone}).`,
+        data: {
+          orderId: data.id,
+          customer: data.customer_name,
+          shippingZone: payload.shipping_zone,
+          deliveryCharge: Number(orderData.delivery_charge || 0)
+        },
         actor_name: userName
       });
     } catch (sideEffectError) {
