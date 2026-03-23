@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { api } from '../lib/api';
 
@@ -11,6 +11,7 @@ export const AuthProvider = ({ children }) => {
   const [profile, setProfile] = useState(null);
   const [userRoles, setUserRoles] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [presenceContext, setPresenceContext] = useState({ page: 'Initializing', details: null });
 
   useEffect(() => {
     // Check active sessions and sets the user
@@ -209,6 +210,22 @@ export const AuthProvider = ({ children }) => {
       },
     });
 
+    const updatePresence = async () => {
+      if (channel.state === 'joined') {
+        await channel.track({
+          online_at: new Date().toISOString(),
+          profile: {
+            id: user.id,
+            name: profile.name,
+            roles: userRoles,
+            avatar_url: profile.avatar_url,
+            email: profile.email,
+            context: presenceContext
+          }
+        });
+      }
+    };
+
     channel
       .on('presence', { event: 'sync' }, () => {
         const newState = channel.presenceState();
@@ -216,7 +233,8 @@ export const AuthProvider = ({ children }) => {
           .flat()
           .map((p) => ({
             ...(p.profile || {}),
-            online_at: p.online_at || null
+            online_at: p.online_at || null,
+            context: p.profile?.context || { page: 'Active' }
           }));
 
         // Keep one entry per user id (latest online_at wins)
@@ -234,23 +252,31 @@ export const AuthProvider = ({ children }) => {
       })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
-          await channel.track({
-            online_at: new Date().toISOString(),
-            profile: {
-              id: user.id,
-              name: profile.name,
-              roles: userRoles,
-              avatar_url: profile.avatar_url,
-              email: profile.email
-            }
-          });
+          await updatePresence();
         }
       });
+
+    // Re-track when context changes
+    updatePresence();
 
     return () => {
       channel.unsubscribe();
     };
-  }, [profile, user, userRoles]);
+  }, [profile, user, userRoles, presenceContext]);
+
+  const updatePresenceContext = useCallback((newContext, details = null) => {
+    setPresenceContext(prev => {
+      // Prevent redundant updates
+      if (prev.page === newContext && JSON.stringify(prev.details) === JSON.stringify(details)) {
+        return prev;
+      }
+      return {
+        page: newContext,
+        details,
+        timestamp: new Date().toISOString()
+      };
+    });
+  }, []);
 
 
   const hasRole = (role) => userRoles.includes(role);
@@ -263,6 +289,8 @@ export const AuthProvider = ({ children }) => {
       profile,
       userRoles,
       onlineUsers,
+      presenceContext,
+      updatePresenceContext,
       loading,
       signIn,
       signUp,

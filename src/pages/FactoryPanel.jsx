@@ -1,17 +1,32 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useOrders } from '../context/OrderContext';
+import { useAuth } from '../context/AuthContext';
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
-import { Search, Loader2, CheckCircle, PackageSearch, Zap, AlertTriangle, Package, ArrowRight } from 'lucide-react';
+import { OrderEditModal } from '../components/OrderEditModal';
+import { Search, Loader2, CheckCircle, PackageSearch, Zap, AlertTriangle, Package, ArrowRight, Edit2 } from 'lucide-react';
 import './FactoryPanel.css';
 
 export const FactoryPanel = () => {
   const { orders, toyBoxes, autoDistributeOrders, updateOrderStatus } = useOrders();
+  const { updatePresenceContext } = useAuth();
+
+  useEffect(() => {
+    updatePresenceContext('Checking Production');
+  }, [updatePresenceContext]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDistributing, setIsDistributing] = useState(false);
   const [distributeResult, setDistributeResult] = useState(null);
   const [activeTab, setActiveTab] = useState('confirmed'); // 'confirmed' | 'queued'
+
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedOrderForEdit, setSelectedOrderForEdit] = useState(null);
+
+  const handleOpenEditModal = (order) => {
+    setSelectedOrderForEdit(order);
+    setIsEditModalOpen(true);
+  };
 
   // Confirmed = incoming, Factory Queue = waiting for stock
   const confirmedOrders = orders.filter(
@@ -165,7 +180,7 @@ export const FactoryPanel = () => {
                 <th>Customer</th>
                 <th>Products & Items</th>
                 <th>Inventory Check</th>
-                <th>Next Action</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -209,6 +224,9 @@ export const FactoryPanel = () => {
                     </td>
                     <td>
                       <div className="factory-action-grid">
+                        <button className="factory-action-btn edit" onClick={() => handleOpenEditModal(order)} title="Edit Order">
+                          <Edit2 size={16} /> <span>Edit</span>
+                        </button>
                         {order.status === 'Confirmed' && stock.matched && (
                           <button className="factory-action-btn send" onClick={() => handleManualSend(order.id)} title="Send to Courier Ready">
                             <ArrowRight size={16} /> <span>Approve for Delivery</span>
@@ -245,6 +263,12 @@ export const FactoryPanel = () => {
           </table>
         </div>
       </Card>
+
+      <OrderEditModal 
+        isOpen={isEditModalOpen} 
+        onClose={() => setIsEditModalOpen(false)} 
+        order={selectedOrderForEdit} 
+      />
     </div>
   );
 };

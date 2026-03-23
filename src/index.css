@@ -25,6 +25,8 @@
   --accent-glow: 0 0 20px rgba(132, 204, 22, 0.15), 0 0 60px rgba(132, 204, 22, 0.05);
   --accent-glow-sm: 0 0 12px rgba(132, 204, 22, 0.1);
   --accent-gradient: linear-gradient(135deg, #a3e635, #84cc16);
+  --accent-gradient-soft: linear-gradient(135deg, rgba(163, 230, 53, 0.1) 0%, rgba(132, 204, 22, 0.05) 100%);
+  --accent-stroke: rgba(132, 204, 22, 0.2);
 
   /* ── Secondary Accents ── */
   --cyan: #06b6d4;
@@ -57,7 +59,8 @@
   /* ── Light Mode Shadows (Softer & Deeper) ── */
   --glass-blur: blur(20px);
   --shadow-card: 0 10px 40px rgba(0, 0, 0, 0.04), 0 2px 10px rgba(0, 0, 0, 0.02);
-  --shadow-elevated: 0 20px 50px rgba(0, 0, 0, 0.08);
+  --shadow-premium: 0 20px 50px -12px rgba(0, 0, 0, 0.08), 0 10px 30px -10px rgba(0, 0, 0, 0.04);
+  --shadow-inner: inset 0 1px 0 rgba(255, 255, 255, 0.8);
   --shadow-inner: inset 0 1px 0 rgba(255, 255, 255, 0.8);
 
   /* ── Transitions ── */
@@ -128,8 +131,9 @@ body {
   min-height: 100vh;
   min-height: 100dvh;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;
-  overscroll-behavior: none;
+  overscroll-behavior-y: contain;
 }
 
 #root {
@@ -226,11 +230,18 @@ body {
 .content-scrollable {
   flex: 1;
   overflow-y: auto;
-  padding: var(--sp-3);
-  padding-left: max(var(--sp-3), var(--safe-left));
-  padding-right: max(var(--sp-3), var(--safe-right));
-  padding-bottom: calc(var(--safe-bottom) + var(--sp-4));
+  padding: var(--sp-4);
+  padding-left: max(var(--sp-4), var(--safe-left));
+  padding-right: max(var(--sp-4), var(--safe-right));
+  padding-bottom: calc(var(--safe-bottom) + var(--sp-6));
   -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 480px) {
+  .content-scrollable {
+    padding: var(--sp-3);
+    padding-bottom: calc(var(--safe-bottom) + var(--sp-8));
+  }
 }
 
 @media (min-width: 768px) {
@@ -302,11 +313,13 @@ body {
 .page-header h1 {
   font-size: var(--fs-display);
   font-weight: 950;
-  color: var(--accent);
+  background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
   margin-bottom: var(--sp-1);
   line-height: 1.1;
-  letter-spacing: -0.02em;
-  text-shadow: 0 0 30px rgba(var(--accent-rgb), 0.2);
+  letter-spacing: -0.03em;
 }
 
 .page-header p {

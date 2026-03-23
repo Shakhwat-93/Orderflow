@@ -5,6 +5,23 @@ import { useAuth } from './AuthContext';
 
 const NotificationContext = createContext(null);
 
+const VAPID_PUBLIC_KEY = 'BG7cmtt8dKAkYF3ttUgtgPlU_qvdm4_QbPrKRwqecdcWs_YG_hJRsgY_II6UpbloAghk_c2iSZPnsdm5yKkE1nWY';
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding)
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
+
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
 export const NotificationProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -15,30 +32,105 @@ export const NotificationProvider = ({ children }) => {
   const { user, isAdmin } = useAuth();
   const hasShownInitialUnreadToastsRef = useRef(false);
 
-  const playNotificationSound = useCallback(() => {
+  const playNotificationSound = useCallback((type) => {
     try {
-      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-      audio.volume = 0.5;
+      const audioUrl = type === 'ORDER_CREATED' 
+        ? '/ordersound.mp3' 
+        : 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3';
+        
+      const audio = new Audio(audioUrl);
+      audio.volume = type === 'ORDER_CREATED' ? 1.0 : 0.5;
       audio.play().catch(e => console.log('Audio play blocked:', e));
     } catch (e) { }
+  }, []);
+
+  const subscribeUserToPush = useCallback(async () => {
+    if (!('serviceWorker' in navigator)) return;
+    
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      
+      // Check if already subscribed
+      const existingSubscription = await registration.pushManager.getSubscription();
+      if (existingSubscription) {
+        // Sync with backend anyway to ensure it matches current user
+        await api.savePushSubscription(user.id, existingSubscription.toJSON());
+        return;
+      }
+
+      const subscribeOptions = {
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      };
+
+      const subscription = await registration.pushManager.subscribe(subscribeOptions);
+      console.log('User is subscribed to Push:', subscription);
+      
+      await api.savePushSubscription(user.id, subscription.toJSON());
+    } catch (err) {
+      console.error('Failed to subscribe user to push:', err);
+    }
+  }, [user]);
+
+  const requestNotificationPermission = useCallback(async () => {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'default') {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted' && user) {
+        subscribeUserToPush();
+      }
+    } else if (Notification.permission === 'granted' && user) {
+      subscribeUserToPush();
+    }
+  }, [user, subscribeUserToPush]);
+
+  const showBrowserNotification = useCallback((notif) => {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    if (document.visibilityState === 'visible') return; // Don't annoy if they are looking at the app
+
+    try {
+      const n = new Notification(notif.title, {
+        body: notif.message,
+        icon: '/pwa-192x192.svg',
+        tag: notif.id || notif.type,
+        data: notif
+      });
+
+      n.onclick = () => {
+        window.focus();
+        n.close();
+      };
+    } catch (e) {
+      console.error('Browser notification failed:', e);
+    }
   }, []);
 
   const addToast = useCallback((notif) => {
     const id = Date.now();
     setToasts(prev => [...prev, { ...notif, id }]);
-    playNotificationSound();
+    playNotificationSound(notif.type);
+    showBrowserNotification(notif);
 
     // Auto remove toast after 5 seconds
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, 5000);
-  }, [playNotificationSound]);
+  }, [playNotificationSound, showBrowserNotification]);
 
   const fetchNotifications = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
-      const data = await api.getNotifications(50); // Fetch more for better filtering
+      let data = await api.getNotifications(50); // Fetch more for better filtering
+
+      // Request/Verify permission and push subscription on first fetch
+      requestNotificationPermission();
+
+      // Filter by target_user_id if present (either direct column or in data JSON)
+      data = data.filter(n => {
+        const targetId = n.target_user_id || n.data?.targetUserId;
+        return !targetId || targetId === user?.id;
+      });
 
       // Persistence Fallback: Filter by last cleared timestamp
       const clearedAt = localStorage.getItem('notifs_cleared_at');
@@ -49,15 +141,22 @@ export const NotificationProvider = ({ children }) => {
       setNotifications(filteredData);
       setUnreadCount(filteredData.filter(n => !n.is_read).length);
 
-      // Show existing unread notifications in startup modal once per session
+      // Show existing unread notifications in startup modal once per day/session
       if (!hasShownInitialUnreadToastsRef.current) {
-        const initialUnread = filteredData
-          .filter(n => !n.is_read)
-          .slice(0, 10);
+        const lastShown = localStorage.getItem('last_unread_modal_shown_day');
+        const todayStr = new Date().toISOString().split('T')[0];
 
-        setStartupUnreadNotifications(initialUnread);
-        setIsStartupUnreadModalOpen(initialUnread.length > 0);
+        if (lastShown !== todayStr) {
+          const initialUnread = filteredData
+            .filter(n => !n.is_read)
+            .slice(0, 10);
 
+          if (initialUnread.length > 0) {
+            setStartupUnreadNotifications(initialUnread);
+            setIsStartupUnreadModalOpen(true);
+            localStorage.setItem('last_unread_modal_shown_day', todayStr);
+          }
+        }
         hasShownInitialUnreadToastsRef.current = true;
       }
     } catch (error) {
@@ -65,7 +164,7 @@ export const NotificationProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [user, isAdmin, addToast]);
+  }, [user, isAdmin, addToast, requestNotificationPermission]);
 
   useEffect(() => {
     if (!user) {
@@ -85,6 +184,11 @@ export const NotificationProvider = ({ children }) => {
       // Custom broadcast for instant feel
       .on('broadcast', { event: 'new_notification' }, (payload) => {
         const notif = payload.payload;
+        
+        // Filter out if it's targeted to someone else
+        const targetId = notif.target_user_id || notif.data?.targetUserId;
+        if (targetId && targetId !== user?.id) return;
+
         const clearedAt = localStorage.getItem('notifs_cleared_at');
         if (clearedAt && new Date(notif.created_at) <= new Date(clearedAt)) return;
 
@@ -97,6 +201,10 @@ export const NotificationProvider = ({ children }) => {
         { event: 'INSERT', schema: 'public', table: 'notifications' },
         (payload) => {
           const notif = payload.new;
+          
+          const targetId = notif.target_user_id || notif.data?.targetUserId;
+          if (targetId && targetId !== user?.id) return;
+
           const clearedAt = localStorage.getItem('notifs_cleared_at');
           if (clearedAt && new Date(notif.created_at) <= new Date(clearedAt)) return;
 

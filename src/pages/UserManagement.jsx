@@ -237,7 +237,7 @@ export const UserManagement = () => {
               ) : (
                 filteredUsers.map(user => (
                   <tr key={user.id} className={user.status === 'inactive' ? 'row-deactivated' : ''}>
-                    <td>
+                    <td data-label="Member">
                       <div className="user-cell">
                         <div className="user-avatar-sm">
                           {user.avatar_url ? (
@@ -252,10 +252,10 @@ export const UserManagement = () => {
                         </div>
                       </div>
                     </td>
-                    <td className="desktop-only">
+                    <td data-label="Contact" className="desktop-only">
                       <span className="email-text">{user.email}</span>
                     </td>
-                    <td>
+                    <td data-label="Roles">
                       <div className="role-badges">
                         {(userRoles[user.id] || []).map(role => (
                           <Badge key={role} variant="primary" className="compact-badge">
@@ -264,12 +264,12 @@ export const UserManagement = () => {
                         ))}
                       </div>
                     </td>
-                    <td>
+                    <td data-label="Status">
                       <Badge variant={user.status === 'active' ? 'completed' : 'cancelled'}>
                         {user.status === 'active' ? 'Active' : 'Deactivated'}
                       </Badge>
                     </td>
-                    <td className="text-right">
+                    <td data-label="Actions" className="text-right">
                       <div className="action-buttons">
                         <Button 
                           variant="ghost" 

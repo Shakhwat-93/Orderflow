@@ -11,6 +11,7 @@ import {
   LogOut,
   Users,
   Package,
+  ClipboardList,
   X
 } from 'lucide-react';
 
@@ -22,11 +23,12 @@ const menuItems = [
   { path: '/orders', label: 'Orders', icon: ShoppingCart },
   { path: '/moderator', label: 'Moderator Panel', icon: ShieldCheck, roles: ['Admin', 'Moderator'] },
   { path: '/call-team', label: 'Call Team Panel', icon: Headphones, roles: ['Admin', 'Call Team'] },
-  { path: '/courier', label: 'Courier Panel', icon: Truck, roles: ['Admin', 'Courier Team'] },
   { path: '/factory', label: 'Factory Panel', icon: Factory, roles: ['Admin', 'Factory Team'] },
+  { path: '/courier', label: 'Courier Panel', icon: Truck, roles: ['Admin', 'Courier Team'] },
   { path: '/users', label: 'User Management', icon: Users, roles: ['Admin'] },
   { path: '/inventory', label: 'Inventory', icon: Package, roles: ['Admin', 'Moderator'] },
   { path: '/reports', label: 'Reports', icon: BarChart3, roles: ['Admin'] },
+  { path: '/tasks', label: 'Tasks', icon: ClipboardList },
 ];
 
 export const Sidebar = ({ isOpen, onClose }) => {

@@ -2,10 +2,12 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { OrderProvider } from './context/OrderContext';
+import { TaskProvider } from './context/TaskContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { DashboardLayout } from './components/DashboardLayout';
 import { AccessRestricted } from './components/AccessRestricted';
 import { ChatBot } from './components/ChatBot';
+import { CommandPalette } from './components/CommandPalette';
 
 // Lazy loading components
 const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
@@ -20,6 +22,7 @@ const UserManagement = lazy(() => import('./pages/UserManagement').then(m => ({ 
 const InventoryPage = lazy(() => import('./pages/InventoryPage').then(m => ({ default: m.InventoryPage })));
 const Profile = lazy(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
 const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
+const TaskBoard = lazy(() => import('./pages/TaskBoard').then(m => ({ default: m.TaskBoard })));
 
 
 const ProtectedRoute = ({ children }) => {
@@ -60,6 +63,7 @@ function App() {
       <AuthProvider>
         <NotificationProvider>
           <OrderProvider>
+            <TaskProvider>
             <Suspense fallback={<div className="loading-screen">Preparing your experience...</div>}>
               <Routes>
                 <Route path="/login" element={<Login />} />
@@ -75,11 +79,14 @@ function App() {
                   <Route path="reports" element={<RoleRoute roles={['Admin']}><ReportsPanel /></RoleRoute>} />
                   <Route path="profile" element={<Profile />} />
                   <Route path="settings" element={<Settings />} />
+                  <Route path="tasks" element={<TaskBoard />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Route>
               </Routes>
             </Suspense>
             <ChatBot />
+            <CommandPalette />
+            </TaskProvider>
           </OrderProvider>
         </NotificationProvider>
       </AuthProvider>

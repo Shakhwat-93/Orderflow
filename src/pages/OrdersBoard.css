@@ -396,7 +396,6 @@
   transition: all 0.15s ease;
   display: flex;
   align-items: center;
-  justify-content: center;
 }
 
 .row-action-btn:hover {
@@ -889,6 +888,27 @@
   font-weight: 500;
 }
 
+.filter-search {
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.filter-select-group {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 140px;
+}
+
+@media (max-width: 640px) {
+  .filter-search, .filter-select-group {
+    min-width: 100%;
+  }
+}
+
 .pagination-actions {
   display: flex;
   align-items: center;
@@ -1035,4 +1055,69 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* Real-time Collaboration: Live Editing Banner */
+.live-editing-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: rgba(255, 241, 242, 0.8);
+  border: 1px solid rgba(251, 113, 133, 0.3);
+  border-radius: 12px;
+  margin-bottom: var(--sp-6);
+  backdrop-filter: blur(8px);
+  animation: bannerSlideDown 0.4s var(--ease-out);
+}
+
+.banner-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.users-icon-pulse {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: #fff;
+  color: #e11d48;
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 rgba(225, 29, 72, 0.4);
+  animation: usersPulse 2s infinite;
+}
+
+.banner-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #9f1239;
+}
+
+.banner-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: #fff;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #e11d48;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+@keyframes usersPulse {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(225, 29, 72, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(225, 29, 72, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(225, 29, 72, 0); }
+}
+
+@keyframes bannerSlideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
 }

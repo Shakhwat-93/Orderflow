@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
 import { Link, useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
+import { PresenceStack } from './PresenceStack';
 
 export const Header = ({ onMenuToggle, isSidebarOpen }) => {
   const { profile, userRoles, isAdmin, signOut } = useAuth();
@@ -75,8 +76,21 @@ export const Header = ({ onMenuToggle, isSidebarOpen }) => {
       case 'TRACKING_ADDED': return <Truck size={16} />;
       case 'ORDER_DELETED': return <Trash2 size={16} />;
       case 'LOW_STOCK': return <AlertOctagon size={16} />;
+      case 'TASK_ASSIGNED': return <Users size={16} />;
+      case 'TASK_UPDATED': return <Edit2 size={16} />;
+      case 'TASK_DEADLINE': return <Bell size={16} />;
       default: return <Bell size={16} />;
     }
+  };
+
+  const handleNotifClick = (notif) => {
+    markAsRead(notif.id);
+    if (notif.type.startsWith('TASK_')) {
+      navigate('/tasks');
+    } else {
+      navigate('/orders');
+    }
+    setIsNotifOpen(false);
   };
 
   const primaryRole = userRoles[0] || 'User';
@@ -96,7 +110,7 @@ export const Header = ({ onMenuToggle, isSidebarOpen }) => {
 
       {/* Search — hidden on very small screens, always present on desktop */}
       <div className="header-search desktop-only-flex">
-        <Search className="search-icon" size={18} />
+        <Search className="header-search-icon" size={18} />
         <input
           type="text"
           placeholder="Search orders, customers..."
@@ -106,10 +120,12 @@ export const Header = ({ onMenuToggle, isSidebarOpen }) => {
 
       <div className="header-spacer" />
 
+      <PresenceStack />
+
       {/* Floating Real-time Toasts */}
       <div className="notification-toasts-container">
         {toasts.map(toast => (
-          <div key={toast.id} className="notif-toast" onClick={() => { navigate('/orders'); markAsRead(toast.id); }}>
+          <div key={toast.id} className="notif-toast" onClick={() => handleNotifClick(toast)}>
             {getNotifIcon(toast.type)}
             <div className="toast-content">
               <span className="toast-title">{toast.title}</span>
@@ -208,7 +224,7 @@ export const Header = ({ onMenuToggle, isSidebarOpen }) => {
                     <div
                       key={notif.id}
                       className={`notif-item-standard ${notif.is_read ? '' : 'unread'}`}
-                      onClick={() => { markAsRead(notif.id); navigate(`/orders`); setIsNotifOpen(false); }}
+                      onClick={() => handleNotifClick(notif)}
                     >
                       <div className={`notif-circular-icon ${notif.type.toLowerCase().split('_')[0]}`}>
                         {getNotifIcon(notif.type)}

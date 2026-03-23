@@ -1,10 +1,14 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { OrderRow } from '../components/OrderRow';
+import { OrderEditModal } from '../components/OrderEditModal';
 import { DateRangePicker } from '../components/DateRangePicker';
-import { Search, PhoneCall, CheckCircle, XCircle, Clock, PhoneMissed, Globe, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, PhoneCall, CheckCircle, XCircle, Clock, PhoneMissed, Globe, ChevronLeft, ChevronRight, Edit2, Loader2, PhoneOff, PhoneForwarded } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { api } from '../lib/api';
+import { SLATimer } from '../components/SLATimer';
 import './CallTeamPanel.css';
 
 const PRODUCT_CHECKPOINTS = [
@@ -26,7 +30,12 @@ const STATUS_OPTIONS = ['All', 'New', 'Pending Call', 'Confirmed', 'Cancelled'];
 const SOURCES = ['Website', 'Facebook', 'Instagram', 'Direct'];
 
 export const CallTeamPanel = () => {
-  const { orders, stats, updateOrderStatus } = useOrders();
+  const { orders, stats, updateOrderStatus, fetchOrders } = useOrders();
+  const { user, profile, userRoles, updatePresenceContext } = useAuth();
+
+  useEffect(() => {
+    updatePresenceContext('Managing Calls');
+  }, [updatePresenceContext]);
 
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -34,6 +43,28 @@ export const CallTeamPanel = () => {
   const [productFilter, setProductFilter] = useState('');
   const [sourceFilter, setSourceFilter] = useState('All');
   const [dateRange, setDateRange] = useState({ start: null, end: null });
+
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedOrderForEdit, setSelectedOrderForEdit] = useState(null);
+  const [loggingAttemptId, setLoggingAttemptId] = useState(null);
+
+  const handleOpenEditModal = (order) => {
+    setSelectedOrderForEdit(order);
+    setIsEditModalOpen(true);
+  };
+
+  const handleLogAttempt = async (orderId, attemptStatus) => {
+    setLoggingAttemptId(orderId);
+    try {
+      await api.logCallAttempt(orderId, attemptStatus, user.id, profile?.name || 'Call Team', userRoles);
+      // Removed fetchOrders() because Supabase real-time updates the row automatically without reloading the table!
+    } catch (err) {
+      console.error('Failed to log attempt:', err);
+      alert(err.message || 'Failed to log call attempt.');
+    } finally {
+      setLoggingAttemptId(null);
+    }
+  };
 
   // Scroll refs
   const statusTabsRef = useRef(null);
@@ -171,6 +202,7 @@ export const CallTeamPanel = () => {
                 <th>Product</th>
                 <th>Amount</th>
                 <th>Status</th>
+                <th>SLA & Attempts</th>
                 <th>Call Actions</th>
               </tr>
             </thead>
@@ -200,20 +232,53 @@ export const CallTeamPanel = () => {
                     </Badge>
                   </td>
                   <td>
-                    {['New', 'Pending Call'].includes(order.status) ? (
+                    <div className="sla-attempts-col">
+                      <SLATimer 
+                        createdAt={order.created_at} 
+                        firstCallTime={order.first_call_time} 
+                        status={order.status} 
+                      />
+                      {order.call_attempts > 0 && (
+                        <div className="attempt-pill" title={`Last status: ${order.last_call_status}`}>
+                          <span className="attempt-count">{order.call_attempts} {order.call_attempts === 1 ? 'Attempt' : 'Attempts'}</span>
+                          <span className="attempt-status">{order.last_call_status}</span>
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                  <td>
+                    {['New', 'Pending Call', 'Confirmed'].includes(order.status) ? (
                       <div className="call-action-grid">
-                        <button className="call-action-btn confirm" onClick={() => handleAction(order.id, 'confirm')} title="Confirm">
-                          <CheckCircle size={16} /> <span>Confirm</span>
+                        <button className="call-action-btn edit" onClick={() => handleOpenEditModal(order)} title="Edit Order">
+                          <Edit2 size={16} /> <span>Edit</span>
                         </button>
-                        <button className="call-action-btn cancel" onClick={() => handleAction(order.id, 'cancel')} title="Cancel">
-                          <XCircle size={16} /> <span>Cancel</span>
-                        </button>
-                        <button className="call-action-btn not-reachable" onClick={() => handleAction(order.id, 'not_reachable')} title="No Answer">
-                          <PhoneMissed size={16} /> <span>No Answer</span>
-                        </button>
-                        <button className="call-action-btn follow-up" onClick={() => handleAction(order.id, 'schedule_followup')} title="Follow Up">
-                          <Clock size={16} /> <span>Follow Up</span>
-                        </button>
+                        {['New', 'Pending Call'].includes(order.status) && (
+                          <>
+                            <button className="call-action-btn confirm" onClick={() => handleAction(order.id, 'confirm')} title="Confirm Order">
+                              <CheckCircle size={16} /> <span>Confirm</span>
+                            </button>
+                            {loggingAttemptId === order.id ? (
+                              <button className="call-action-btn disabled" disabled>
+                                <Loader2 size={16} className="spin" /> <span>Logging...</span>
+                              </button>
+                            ) : (
+                              <>
+                                <button className="call-action-btn not-reachable" onClick={() => handleLogAttempt(order.id, 'No Answer')} title="Log: No Answer (Remains Pending)">
+                                  <PhoneMissed size={16} /> <span>No Answer</span>
+                                </button>
+                                <button className="call-action-btn busy" onClick={() => handleLogAttempt(order.id, 'Busy / Rejected')} title="Log: Busy/Rejected (Remains Pending)">
+                                  <PhoneOff size={16} /> <span>Busy</span>
+                                </button>
+                                <button className="call-action-btn follow-up" onClick={() => handleLogAttempt(order.id, 'Call Back Later')} title="Log: Call Back Later (Remains Pending)">
+                                  <Clock size={16} /> <span>Call Back</span>
+                                </button>
+                              </>
+                            )}
+                            <button className="call-action-btn cancel" onClick={() => handleAction(order.id, 'cancel')} title="Cancel Order">
+                              <XCircle size={16} /> <span>Cancel</span>
+                            </button>
+                          </>
+                        )}
                       </div>
                     ) : (
                       <span className="action-done">—</span>
@@ -223,7 +288,7 @@ export const CallTeamPanel = () => {
               ))}
               {filteredOrders.length === 0 && (
                 <tr>
-                  <td colSpan="7" className="empty-state-cell">
+                  <td colSpan="8" className="empty-state-cell">
                     No orders in the call queue. Great job! 🎉
                   </td>
                 </tr>
@@ -232,6 +297,12 @@ export const CallTeamPanel = () => {
           </table>
         </div>
       </Card>
+
+      <OrderEditModal 
+        isOpen={isEditModalOpen} 
+        onClose={() => setIsEditModalOpen(false)} 
+        order={selectedOrderForEdit} 
+      />
     </div>
   );
 };

@@ -1,0 +1,151 @@
+/* AI Morning Briefing Card */
+.ai-briefing-card {
+  margin-bottom: var(--sp-6);
+  background: linear-gradient(135deg, #fff 0%, #f9fafb 100%);
+  border: 1px solid rgba(124, 58, 237, 0.1);
+  box-shadow: 0 10px 30px -10px rgba(124, 58, 237, 0.1), var(--shadow-premium);
+  padding: 24px;
+  border-radius: 24px;
+  position: relative;
+  overflow: hidden;
+  animation: slideInBrief 0.6s var(--ease-out);
+}
+
+.ai-briefing-card::before {
+  content: "";
+  position: absolute;
+  top: -50px;
+  right: -50px;
+  width: 150px;
+  height: 150px;
+  background: radial-gradient(circle, rgba(124, 58, 237, 0.05) 0%, transparent 70%);
+  z-index: 0;
+}
+
+.briefing-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  position: relative;
+  z-index: 1;
+}
+
+.ai-icon-pulse {
+  width: 40px;
+  height: 40px;
+  background: #f5f3ff;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #7c3aed;
+  position: relative;
+}
+
+.ai-icon-pulse::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border: 2px solid #7c3aed;
+  border-radius: 14px;
+  opacity: 0.2;
+  animation: pulseAI 2s infinite;
+}
+
+.briefing-title {
+  display: flex;
+  flex-direction: column;
+}
+
+.briefing-title h2 {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.briefing-subtitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.briefing-content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  position: relative;
+  z-index: 1;
+}
+
+.briefing-narrative {
+  font-size: 15px;
+  line-height: 1.6;
+  color: #475569;
+  font-weight: 500;
+}
+
+.briefing-narrative strong {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.briefing-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.action-suggestion {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: white;
+  border: 1px solid #f1f5f9;
+  border-radius: 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.action-suggestion:hover {
+  border-color: #7c3aed;
+  color: #7c3aed;
+  transform: translateX(4px);
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.08);
+}
+
+.suggestion-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+}
+
+@keyframes pulseAI {
+  0% { transform: scale(1); opacity: 0.2; }
+  50% { transform: scale(1.1); opacity: 0.1; }
+  100% { transform: scale(1); opacity: 0.2; }
+}
+
+@keyframes slideInBrief {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 768px) {
+  .briefing-content {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}

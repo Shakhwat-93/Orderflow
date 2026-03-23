@@ -1,17 +1,46 @@
 import { useOrders } from '../context/OrderContext';
+import { useAuth } from '../context/AuthContext';
+import { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
+import { DateRangePicker } from '../components/DateRangePicker';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area,
   PieChart, Pie, Cell, 
   BarChart, Bar 
 } from 'recharts';
-import { Download, FileDown, TrendingUp, BarChart2, PieChart as PieChartIcon } from 'lucide-react';
-import { trendData, sourceData, confirmationData, courierData } from '../data/mockAnalytics';
+import { Download, FileDown, TrendingUp, BarChart2, PieChart as PieChartIcon, Activity, Truck, Clock, AlertCircle } from 'lucide-react';
+import { analytics } from '../utils/analytics';
 import './ReportsPanel.css';
 
 export const ReportsPanel = () => {
-  const { orders } = useOrders();
+  const { orders, velocityMetrics } = useOrders();
+  const { updatePresenceContext } = useAuth();
+
+  useEffect(() => {
+    updatePresenceContext('Analyzing Reports');
+  }, [updatePresenceContext]);
+
+  const [dateRange, setDateRange] = useState({
+    start: new Date(new Date().setDate(new Date().getDate() - 30)),
+    end: new Date()
+  });
+
+  // Filter orders by date range
+  const filteredOrders = useMemo(() => {
+    if (!orders) return [];
+    return orders.filter(o => {
+      const d = new Date(o.created_at);
+      return d >= dateRange.start && d <= dateRange.end;
+    });
+  }, [orders, dateRange]);
+
+  // Dynamic Data Calculation
+  const trendData = useMemo(() => analytics.getDailyTrend(filteredOrders, 7), [filteredOrders]);
+  const sourceData = useMemo(() => analytics.getSourceDistribution(filteredOrders), [filteredOrders]);
+  const confirmationData = useMemo(() => analytics.getConfirmationRate(filteredOrders), [filteredOrders]);
+  const logisticsData = useMemo(() => analytics.getLogisticsSuccessRate(filteredOrders), [filteredOrders]);
 
   // Export Orders as CSV
   const handleExportCSV = () => {
@@ -60,13 +89,20 @@ export const ReportsPanel = () => {
   };
 
   return (
-    <div className="reports-panel">
+    <motion.div 
+      className="reports-panel"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+    >
       <div className="page-header">
         <div>
           <h1>Reports & Analytics</h1>
-          <p>Deep dive into business performance data and operational metrics.</p>
+          <p>Real-time business intelligence and operational KPIs.</p>
         </div>
-        <div className="export-actions">
+        <div className="header-controls">
+          <DateRangePicker value={dateRange} onChange={setDateRange} />
+          <div className="export-actions">
           <Button variant="secondary" onClick={handleExportCSV}>
             <FileDown size={18} /> Export Orders (CSV)
           </Button>
@@ -75,8 +111,65 @@ export const ReportsPanel = () => {
           </Button>
         </div>
       </div>
+    </div>
 
       <div className="reports-grid">
+        {/* Phase 6: Operational Heartbeat */}
+        {velocityMetrics && (
+          <div className="operational-heartbeat">
+            <div className="section-title-wrap mb-4">
+              <Activity className="text-primary" size={20} />
+              <h2 className="text-xl font-bold">Operational Heartbeat</h2>
+            </div>
+            
+            <div className="velocity-grid">
+              <Card className="velocity-card liquid-glass">
+                <span className="label">Confirmed → Factory</span>
+                <div className="value">
+                  {velocityMetrics.avgConfirmedToFactory}
+                  <span className="unit">h</span>
+                </div>
+                <div className={`trend ${velocityMetrics.avgConfirmedToFactory < 8 ? 'good' : 'warn'}`}>
+                  <Clock size={12} /> {velocityMetrics.avgConfirmedToFactory < 8 ? 'Healthy Pace' : 'Needs Optimization'}
+                </div>
+              </Card>
+
+              <Card className="velocity-card liquid-glass">
+                <span className="label">Factory → Courier</span>
+                <div className="value">
+                  {velocityMetrics.avgFactoryToCourier}
+                  <span className="unit">h</span>
+                </div>
+                <div className={`trend ${velocityMetrics.avgFactoryToCourier < 18 ? 'good' : 'warn'}`}>
+                  <Clock size={12} /> {velocityMetrics.avgFactoryToCourier < 18 ? 'Healthy Pace' : 'Delayed'}
+                </div>
+              </Card>
+
+              <Card className="velocity-card liquid-glass">
+                <span className="label">Orders Processed</span>
+                <div className="value">{velocityMetrics.totalOrdersProcessed}</div>
+                <div className="trend good">Analysis based on last 200 logs</div>
+              </Card>
+            </div>
+
+            {velocityMetrics.bottlenecks.length > 0 && (
+              <div className="bottlenecks-section">
+                {velocityMetrics.bottlenecks.map((bottleneck, idx) => (
+                  <div key={idx} className={`bottleneck-alert ${bottleneck.severity}`}>
+                    <div className="icon-wrap">
+                      <AlertCircle size={20} />
+                    </div>
+                    <div className="content">
+                      <div className="title">Bottleneck Detected: {bottleneck.stage}</div>
+                      <div className="msg">{bottleneck.message}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Chart 1: Daily Order Volume */}
         <Card className="report-card liquid-glass report-chart-large">
           <div className="card-header">
@@ -151,7 +244,7 @@ export const ReportsPanel = () => {
           <Card className="report-card liquid-glass">
             <div className="card-header">
               <div className="chart-title-wrap">
-                <BarChart2 className="text-teal" size={20} />
+                <Activity className="text-teal" size={20} />
                 <h3>Confirmation Rate (%)</h3>
               </div>
             </div>
@@ -168,50 +261,38 @@ export const ReportsPanel = () => {
                       <Cell key={`cell-${index}`} fill={entry.rate > 85 ? '#2dd4bf' : '#94a3b8'} />
                     ))}
                   </Bar>
-                  <defs>
-                    <linearGradient id="colorConfirm" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#2dd4bf" stopOpacity={0.9}/>
-                      <stop offset="100%" stopColor="#2dd4bf" stopOpacity={0.3}/>
-                    </linearGradient>
-                  </defs>
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </Card>
 
-          {/* Chart 4: Courier Submission Rate */}
+          {/* Chart 4: Logistics Success Rate */}
           <Card className="report-card liquid-glass">
             <div className="card-header">
               <div className="chart-title-wrap">
-                <BarChart2 className="text-purple" size={20} />
-                <h3>Courier Submission Rate (%)</h3>
+                <Truck className="text-purple" size={20} />
+                <h3>Delivery Success Rate (%)</h3>
               </div>
             </div>
             <div className="report-chart-container">
               <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={courierData} margin={{top: 20, right: 10, left: -20, bottom: 0}}>
+                <BarChart data={logisticsData} margin={{top: 20, right: 10, left: -20, bottom: 0}}>
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} dy={10} />
                   <Tooltip 
                     cursor={{fill: 'rgba(var(--accent-rgb), 0.04)'}}
                     contentStyle={{ backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: '12px', border: 'none', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }}
                   />
                   <Bar dataKey="rate" fill="url(#colorCourier)" radius={[6, 6, 0, 0]} barSize={30}>
-                    {courierData.map((entry, index) => (
+                    {logisticsData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.rate > 90 ? '#3f51b5' : '#7c4dff'} />
                     ))}
                   </Bar>
-                  <defs>
-                    <linearGradient id="colorCourier" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#3f51b5" stopOpacity={0.9}/>
-                      <stop offset="100%" stopColor="#7c4dff" stopOpacity={0.3}/>
-                    </linearGradient>
-                  </defs>
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </Card>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };

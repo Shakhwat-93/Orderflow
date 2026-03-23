@@ -304,7 +304,7 @@ export const InventoryPage = () => {
 
                 return (
                   <tr key={item.id} className="inventory-row">
-                    <td>
+                    <td data-label="Product">
                       <div className="product-info-cell">
                         <div className="product-avatar">
                           <Package size={20} />
@@ -315,14 +315,14 @@ export const InventoryPage = () => {
                         </div>
                       </div>
                     </td>
-                    <td><span className="category-pill">{item.category}</span></td>
-                    <td>
+                    <td data-label="Category"><span className="category-pill">{item.category}</span></td>
+                    <td data-label="Price">
                       <div className="price-cell">
                         <span className="currency-symbol">৳</span>
                         <span className="amount-val">{Number(item.unit_price).toLocaleString()}</span>
                       </div>
                     </td>
-                    <td>
+                    <td data-label="Stock">
                       <div className="stock-visual-group">
                         <div className="stock-labels">
                           <span className="stock-count"><b>{item.current_stock}</b> items</span>
@@ -336,10 +336,10 @@ export const InventoryPage = () => {
                         </div>
                       </div>
                     </td>
-                    <td>
+                    <td data-label="Status">
                       <Badge variant={statusVariant} size="sm">{stockStatus}</Badge>
                     </td>
-                    <td>
+                    <td data-label="Actions" className="text-right">
                       <div className="inventory-actions">
                         <button className="action-btn adjust" onClick={() => handleOpenAdjustModal(item)} title="Update Stock">
                           <Plus size={16} /> Stock

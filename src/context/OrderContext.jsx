@@ -2,6 +2,9 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef } f
 import { supabase } from '../lib/supabase';
 import { api } from '../lib/api';
 import { useAuth } from './AuthContext';
+import { fraudDetection } from '../utils/fraudDetection';
+import { automationRules } from '../utils/automationRules';
+import { fulfillmentVelocity } from '../utils/fulfillmentVelocity';
 
 const OrderContext = createContext(null);
 
@@ -9,7 +12,7 @@ export const OrderProvider = ({ children }) => {
   const [orders, setOrders] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
-  const [pageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(100); // Increased from 10 to 100 to ensure panels don't break on client-side filtering
   const [filters, setFilters] = useState({
     searchTerm: '',
     status: 'All',
@@ -24,6 +27,9 @@ export const OrderProvider = ({ children }) => {
   });
   const [inventory, setInventory] = useState([]);
   const [toyBoxes, setToyBoxes] = useState([]);
+  const [fraudFlags, setFraudFlags] = useState({});
+  const [automationFlags, setAutomationFlags] = useState({});
+  const [velocityMetrics, setVelocityMetrics] = useState(null);
 
   const { user, profile, userRoles, isAdmin } = useAuth();
 
@@ -100,6 +106,14 @@ export const OrderProvider = ({ children }) => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
         if (payload.eventType === 'INSERT') {
           setOrders((prev) => [payload.new, ...prev]);
+          
+          // PLAY ORDER SOUND
+          try {
+            const audio = new Audio('/ordersound.mp3');
+            audio.play().catch(e => console.warn('Audio play failed (blocked by browser?):', e));
+          } catch (err) {
+            console.error('Audio initialization error:', err);
+          }
         } else if (payload.eventType === 'UPDATE') {
           setOrders((prev) => prev.map(order => order.id === payload.new.id ? payload.new : order));
         } else if (payload.eventType === 'DELETE') {
@@ -130,6 +144,30 @@ export const OrderProvider = ({ children }) => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  // Fraud & Automation Detection Effect
+  useEffect(() => {
+    if (orders.length > 0) {
+      // 1. Fraud & Automation
+      const newFraudFlags = fraudDetection.scanOrders(orders);
+      const newAutomationFlags = automationRules.scanOrders(orders);
+      setFraudFlags(newFraudFlags);
+      setAutomationFlags(newAutomationFlags);
+
+      // 2. Velocity Metrics (Fetch recent logs for calculations)
+      const computeVelocity = async () => {
+        try {
+          const logs = await api.getRecentActivity(200); // Analyze last 200 actions
+          const metrics = fulfillmentVelocity.calculateMetrics(logs);
+          setVelocityMetrics(metrics);
+        } catch (error) {
+          console.error('Velocity calculation failed:', error);
+        }
+      };
+
+      computeVelocity();
+    }
+  }, [orders]);
 
   // Re-fetch when page changes (but not on initial mount — handled above)
   const isFirstRender = useRef(true);
@@ -191,7 +229,13 @@ export const OrderProvider = ({ children }) => {
 
       // If order is created as Confirmed already
       if (order.status === 'Confirmed') {
-        await api.deductStockByProductName(order.product_name, order.quantity || 1);
+        if (Array.isArray(order.ordered_items) && order.ordered_items.length > 0) {
+          for (const item of order.ordered_items) {
+            await api.deductStockByProductName(item.name || order.product_name, item.quantity || 1);
+          }
+        } else {
+          await api.deductStockByProductName(order.product_name, order.quantity || 1);
+        }
       }
 
       fetchOrders();
@@ -356,10 +400,12 @@ export const OrderProvider = ({ children }) => {
 
     for (const order of confirmedOrders) {
       const items = order.ordered_items || [];
-      const isToyBox = (order.product_name || '').toUpperCase().includes('TOY BOX');
+      const hasToyBox = items.length > 0 && items.some(item => 
+        (item.name || '').toUpperCase().includes('TOY BOX') || item.isToyBox
+      );
 
-      if (!isToyBox || items.length === 0) {
-        // Non-toybox → direct to Courier Ready
+      if (!hasToyBox) {
+        // No toybox items → direct to Courier Ready
         await supabase.from('orders').update({ status: 'Courier Ready', updated_at: new Date().toISOString() }).eq('id', order.id);
         distributed++;
         continue;
@@ -367,23 +413,35 @@ export const OrderProvider = ({ children }) => {
 
       // Check if all toy box items have enough stock (accounting for pending deductions)
       let allInStock = true;
-      for (const boxNum of items) {
-        const available = (stockMap[boxNum]?.qty || 0) - (stockDeductions[boxNum] || 0);
-        if (available < 1) {
-          allInStock = false;
-          break;
+      const orderDeductions = [];
+
+      for (const item of items) {
+        const isItemToyBox = (item.name || '').toUpperCase().includes('TOY BOX') || item.isToyBox;
+        if (!isItemToyBox) continue;
+
+        // Try to find the box number
+        const boxMatch = (item.name || '').match(/#(\d+)/);
+        const boxNum = item.toyBoxNumber || (boxMatch ? parseInt(boxMatch[1]) : null);
+
+        if (boxNum != null) {
+          const available = (stockMap[boxNum]?.qty || 0) - (stockDeductions[boxNum] || 0);
+          if (available < (item.quantity || 1)) {
+            allInStock = false;
+            break;
+          }
+          orderDeductions.push({ boxNum, qty: item.quantity || 1 });
         }
       }
 
-      if (allInStock) {
-        // Reserve stock (accumulate deductions)
-        for (const boxNum of items) {
-          stockDeductions[boxNum] = (stockDeductions[boxNum] || 0) + 1;
+      if (allInStock && orderDeductions.length > 0) {
+        // Reserve stock
+        for (const ded of orderDeductions) {
+          stockDeductions[ded.boxNum] = (stockDeductions[ded.boxNum] || 0) + ded.qty;
         }
         await supabase.from('orders').update({ status: 'Courier Ready', updated_at: new Date().toISOString() }).eq('id', order.id);
         distributed++;
       } else {
-        // Not enough stock → Factory Queue
+        // Not enough stock or no box number detected → Factory Queue
         await supabase.from('orders').update({ status: 'Factory Queue', updated_at: new Date().toISOString() }).eq('id', order.id);
         queued++;
       }
@@ -452,7 +510,10 @@ export const OrderProvider = ({ children }) => {
       updateToyBoxStock,
       autoDistributeOrders,
       previewInvoiceStockUpdate,
-      applyInvoiceStockUpdate
+      applyInvoiceStockUpdate,
+      fraudFlags,
+      automationFlags,
+      velocityMetrics,
     }}>
       {children}
     </OrderContext.Provider>

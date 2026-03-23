@@ -8,6 +8,16 @@ import { supabase } from './supabase';
 // --- Order Management ---
 
 export const api = {
+  async getOrderById(orderId) {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('id', orderId)
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
   normalizeText(value = '') {
     return String(value)
       .toLowerCase()
@@ -156,6 +166,107 @@ export const api = {
       return normalized.length ? normalized : null;
     } catch (error) {
       console.error('Groq extraction failed. Falling back to local parser:', error);
+      return null;
+    }
+  },
+
+  async extractOrderWithAI(rawText) {
+    const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+    if (!apiKey || !rawText?.trim()) return null;
+
+    const prompt = `You are an expert order extractor for a premium Order Management System.
+From the raw input below (which could be WhatsApp text or Spreadsheet rows), extract customer details and products.
+
+### SYSTEM CONFIGURATION (Reference only):
+- PRODUCTS: [TOY BOX, ORGANIZER, Travel bag, TOY BOX + ORG, Gym bag, VLOGGER FOR FREE, MMB, Quran, WAIST BAG, BAGPACK, Moshari]
+- STATUSES: [New, Pending Call, Confirmed, Factory Queue, Courier Ready, Shipped, Delivered, Cancelled, Returned]
+
+### EXTRACTION RULES:
+1. CUSTOMER INFO:
+   - Identify Name, Phone, and Address. 
+   - For Spreadsheet rows (tab-separated):
+     - Name is often a short name after a date.
+     - Address is the longest string (e.g., "Flat C6 Mohanogor...").
+     - Phone is the 10-11 digit number.
+2. PRODUCT LOGIC:
+   - Map products to the SYSTEM CONFIGURATION names.
+   - TOY BOX SERIALS: If text mentions "tb: 09. 17" or "#15, #22", these are specific box numbers.
+   - MULTI-SERIAL SPLIT: If a single line mentions multiple serials (e.g., "tb: 09. 17") with a quantity (e.g., 2), return them as SEPARATE product objects in the array, each with quantity 1 and its specific serial number in the name: "TOY BOX #09", "TOY BOX #17".
+3. SHIPPING ZONE:
+   - Default to "Outside Dhaka".
+   - Set "Inside Dhaka" ONLY if address clearly mentions: Uttara, Dhanmondi, Gulshan, Banani, Mirpur, Badda, Mohammadpur, Khilgaon, Bashundhara, Rampura, or "Dhaka City". 
+4. FINANCIALS:
+   - "extracted_subtotal": Extract the price if clearly mentioned (e.g. 1200, 2400). Exclude delivery charge.
+5. FORMAT:
+   - Return STRICT JSON only. No markdown. No prose.
+
+### DESIRED SHAPE:
+{
+  "customer_name": "string",
+  "phone": "string",
+  "address": "string",
+  "products": [
+    { "name": "string", "quantity": number, "size": "string" }
+  ],
+  "shipping_zone": "Inside Dhaka" | "Outside Dhaka",
+  "extracted_subtotal": number | null,
+  "notes": "string"
+}
+
+### RAW INPUT:
+${rawText}`;
+
+    try {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          temperature: 0.1,
+          messages: [
+            {
+              role: 'system',
+              content: 'Return strict JSON only. No prose. No markdown.'
+            },
+            {
+              role: 'user',
+              content: prompt
+            }
+          ]
+        })
+      });
+
+      if (!response.ok) throw new Error(`Groq API error: ${response.status}`);
+
+      const payload = await response.json();
+      const content = payload?.choices?.[0]?.message?.content;
+      if (!content) return null;
+
+      const cleaned = content
+        .replace(/^```json\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/```\s*$/i, '')
+        .trim();
+
+      const parsed = JSON.parse(cleaned);
+      return {
+        customer_name: String(parsed?.customer_name || '').trim(),
+        phone: String(parsed?.phone || '').trim().replace(/[^0-9+]/g, ''),
+        address: String(parsed?.address || '').trim(),
+        shipping_zone: parsed?.shipping_zone === 'Inside Dhaka' ? 'Inside Dhaka' : 'Outside Dhaka',
+        extracted_subtotal: parsed?.extracted_subtotal ? parseFloat(parsed.extracted_subtotal) : null,
+        products: Array.isArray(parsed?.products) ? parsed.products.map(p => ({
+          name: String(p?.name || '').trim(),
+          quantity: Math.max(1, parseInt(p?.quantity, 10) || 1),
+          size: String(p?.size || '').trim()
+        })) : [],
+        notes: String(parsed?.notes || '').trim()
+      };
+    } catch (error) {
+      console.error('Groq order extraction failed:', error);
       return null;
     }
   },
@@ -666,11 +777,18 @@ export const api = {
     }
 
     // Get old status first for logging
-    const { data: oldData } = await supabase.from('orders').select('status').eq('id', orderId).single();
+    const { data: oldData } = await supabase.from('orders').select('status, first_call_time').eq('id', orderId).single();
+
+    const updatePayload = { status: newStatus };
+    
+    // Auto-set first_call_time if a call team or admin confirms/cancels an untouched order
+    if (!oldData?.first_call_time && ['Confirmed', 'Cancelled'].includes(newStatus)) {
+       updatePayload.first_call_time = new Date().toISOString();
+    }
 
     const { data, error } = await supabase
       .from('orders')
-      .update({ status: newStatus })
+      .update(updatePayload)
       .eq('id', orderId)
       .select()
       .single();
@@ -700,6 +818,48 @@ export const api = {
     return data;
   },
 
+  /**
+   * Log a call attempt (No Answer, Busy, etc.)
+   * Roles: Admin, Call Team
+   */
+  async logCallAttempt(orderId, status, userId, userName, userRoles = []) {
+    const hasPermission = userRoles.some(r => ['Admin', 'Call Team'].includes(r));
+    if (!hasPermission) throw new Error('Unauthorized: Only Admin or Call Team can log call attempts.');
+
+    const { data: oldData } = await supabase
+      .from('orders')
+      .select('call_attempts, first_call_time')
+      .eq('id', orderId)
+      .single();
+
+    const newAttempts = (oldData?.call_attempts || 0) + 1;
+    const newFirstCallTime = oldData?.first_call_time || new Date().toISOString();
+
+    const { data, error } = await supabase
+      .from('orders')
+      .update({
+        call_attempts: newAttempts,
+        last_call_status: status,
+        first_call_time: newFirstCallTime
+      })
+      .eq('id', orderId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    await this.logActivity({
+      order_id: orderId,
+      action_type: 'UPDATE', // Use UPDATE as it's allowed by DB constraints while providing a specific description
+      changed_by_user_id: userId,
+      changed_by_user_name: userName,
+      action_description: `${userName} logged a call attempt: ${status} (Attempt #${newAttempts})`,
+      new_status: 'Pending Call' // Keep the current logical status
+    });
+
+    return data;
+  },
+
 
   /**
    * Add Tracking ID
@@ -722,7 +882,7 @@ export const api = {
     // Log tracking update
     await this.logActivity({
       order_id: orderId,
-      action_type: 'TRACKING_UPDATE',
+      action_type: 'UPDATE', 
       changed_by_user_id: userId,
       changed_by_user_name: userName,
       action_description: `${userName} added tracking ID: ${trackingId} to order #${orderId}`
@@ -753,12 +913,25 @@ export const api = {
   /**
    * Fetch recent activity logs
    */
-  async getRecentActivity(limit = 20) {
+  async getRecentActivity(limit = 50) {
     const { data, error } = await supabase
       .from('order_activity_logs')
       .select('*')
       .order('timestamp', { ascending: false })
       .limit(limit);
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Fetch activity logs for a specific order
+   */
+  async getOrderActivity(orderId) {
+    const { data, error } = await supabase
+      .from('order_activity_logs')
+      .select('*')
+      .eq('order_id', orderId)
+      .order('timestamp', { ascending: false });
     if (error) throw error;
     return data;
   },
@@ -947,13 +1120,26 @@ export const api = {
    * Get dashboard statistics
    */
   async getDashboardStats() {
-    const { data: orders, error } = await supabase.from('orders').select('*');
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    // Get true total count without payload
+    const { count: total } = await supabase.from('orders').select('*', { count: 'exact', head: true });
+
+    // Fetch only recent orders for rich stats to save huge bandwidth
+    const { data: recentOrders, error } = await supabase
+      .from('orders')
+      .select('status, amount, phone, product_name, created_at, updated_at, source')
+      .gte('created_at', thirtyDaysAgo.toISOString());
 
     if (error) throw error;
 
-    const total = orders.length;
+    const orders = recentOrders || [];
+    
     const successfulStatuses = ['Confirmed', 'Completed', 'Shipped', 'Factory Processing'];
     const completedOrders = orders.filter(o => successfulStatuses.includes(o.status));
+    
+    // These counts now reflect the last 30 days strictly, which is better for real-world dashboards anyway
     const completed = orders.filter(o => o.status === 'Completed').length;
     const confirmedCount = orders.filter(o => o.status === 'Confirmed').length;
     const cancelledCount = orders.filter(o => o.status === 'Cancelled').length;
@@ -1483,5 +1669,307 @@ export const api = {
     if (toyErr) throw toyErr;
 
     return { success: true };
+  },
+
+  // ──────────────────────────────────────────────
+  // TASK MANAGEMENT
+  // ──────────────────────────────────────────────
+
+  async logTaskActivity(taskId, taskType, actionType, actionDescription, oldStatus = null, newStatus = null) {
+    try {
+      const { data: userSession } = await supabase.auth.getSession();
+      const userId = userSession?.session?.user?.id;
+      
+      let userName = 'System';
+      if (userId) {
+        const { data: profile } = await supabase.from('users').select('name').eq('id', userId).single();
+        if (profile?.name) userName = profile.name;
+      }
+
+      await supabase.from('task_activity_logs').insert({
+        task_id: taskId,
+        task_type: taskType,
+        user_id: userId,
+        user_name: userName,
+        action_type: actionType,
+        action_description: actionDescription,
+        old_status: oldStatus,
+        new_status: newStatus
+      });
+    } catch (e) {
+      console.error('Failed to log task activity:', e);
+    }
+  },
+
+  async getTaskLogs(taskId) {
+    const { data, error } = await supabase
+      .from('task_activity_logs')
+      .select('*')
+      .eq('task_id', taskId)
+      .order('timestamp', { ascending: false });
+    
+    if (error) throw error;
+    return data || [];
+  },
+
+  /** Daily Tasks */
+  async getDailyTasks() {
+    const { data, error } = await supabase
+      .from('daily_tasks')
+      .select('*')
+      .eq('is_active', true)
+      .order('priority', { ascending: false })
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async createDailyTask(taskData) {
+    const { data, error } = await supabase
+      .from('daily_tasks')
+      .insert(taskData)
+      .select()
+      .single();
+    if (error) throw error;
+    
+    await this.logTaskActivity(
+      data.id, 'daily', 'CREATE', 
+      `Daily Task created: "${taskData.title}"`
+    );
+    
+    return data;
+  },
+
+  async updateDailyTask(taskId, updates) {
+    const { data, error } = await supabase
+      .from('daily_tasks')
+      .update(updates)
+      .eq('id', taskId)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async deleteDailyTask(taskId) {
+    const { error } = await supabase
+      .from('daily_tasks')
+      .delete()
+      .eq('id', taskId);
+    if (error) throw error;
+  },
+
+  /** Task Completions */
+  async getDailyCompletions(date) {
+    const dateStr = date || new Date().toISOString().split('T')[0];
+    const { data, error } = await supabase
+      .from('task_completions')
+      .select('*')
+      .eq('completion_date', dateStr);
+    if (error) throw error;
+    return data || [];
+  },
+
+  async completeDailyTask(dailyTaskId, userId, userName, notes = '') {
+    const today = new Date().toISOString().split('T')[0];
+    const { data, error } = await supabase
+      .from('task_completions')
+      .insert({
+        daily_task_id: dailyTaskId,
+        completed_by: userId,
+        completed_by_name: userName,
+        completion_date: today,
+        notes
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    
+    await this.logTaskActivity(
+      dailyTaskId, 'daily', 'STATUS_CHANGE', 
+      'Marked as Completed for today', 
+      'Pending', 'Completed'
+    );
+    
+    return data;
+  },
+
+  async uncompleteDailyTask(dailyTaskId) {
+    const today = new Date().toISOString().split('T')[0];
+    const { error } = await supabase
+      .from('task_completions')
+      .delete()
+      .eq('daily_task_id', dailyTaskId)
+      .eq('completion_date', today);
+    if (error) throw error;
+    
+    await this.logTaskActivity(
+      dailyTaskId, 'daily', 'STATUS_CHANGE', 
+      'Marked as Pending for today', 
+      'Completed', 'Pending'
+    );
+  },
+
+  /** Assigned Tasks */
+  async getAssignedTasks(userId, isAdmin) {
+    let query = supabase
+      .from('assigned_tasks')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (!isAdmin && userId) {
+      query = query.or(`assigned_to.eq.${userId},assigned_by.eq.${userId}`);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  },
+
+  async createAssignedTask(taskData, userId, userName) {
+    const { data, error } = await supabase
+      .from('assigned_tasks')
+      .insert({
+        ...taskData,
+        assigned_by: userId,
+        assigned_by_name: userName
+      })
+      .select()
+      .single();
+    if (error) throw error;
+
+    await this.logTaskActivity(
+      data.id, 'assigned', 'CREATE', 
+      `Assigned task created for ${taskData.assigned_to_name || 'user'}`
+    );
+
+    // Notify the assigned user
+    try {
+      await this.createNotification({
+        type: 'TASK_ASSIGNED',
+        title: 'New Task Assigned',
+        message: `${userName} assigned a new task: "${data.title}"`,
+        actor_name: userName,
+        target_user_id: data.assigned_to,
+        data: {
+          taskId: data.id,
+          priority: data.priority,
+          dueDate: data.due_date
+        }
+      });
+    } catch (notifError) {
+      console.error('Failed to send task notification:', notifError);
+    }
+
+    return data;
+  },
+
+  async updateAssignedTask(taskId, updates, userId, userName) {
+    // Get old data for smart notifications
+    const { data: oldTask } = await supabase
+      .from('assigned_tasks')
+      .select('*')
+      .eq('id', taskId)
+      .single();
+
+    if (updates.status === 'completed') {
+      updates.completed_at = new Date().toISOString();
+    }
+    const { data, error } = await supabase
+      .from('assigned_tasks')
+      .update(updates)
+      .eq('id', taskId)
+      .select()
+      .single();
+    if (error) throw error;
+
+    // Log Activity
+    if (updates.status) {
+       await this.logTaskActivity(
+        taskId, 'assigned', 'STATUS_CHANGE',
+        `Status updated to ${updates.status.replace('_', ' ')}`,
+        oldTask?.status, updates.status
+      );
+    } else {
+       await this.logTaskActivity(taskId, 'assigned', 'UPDATE', 'Task details updated');
+    }
+
+    // Trigger Notification if status changed
+    if (updates.status && oldTask && updates.status !== oldTask.status) {
+      try {
+        const isAssigneeUpdating = userId === oldTask.assigned_to;
+        const targetUserId = isAssigneeUpdating ? oldTask.assigned_by : oldTask.assigned_to;
+        const targetRole = isAssigneeUpdating ? 'Assigner' : 'Assignee';
+
+        await this.createNotification({
+          type: 'TASK_UPDATED',
+          title: `Task ${updates.status.replace('_', ' ')}`,
+          message: `${userName} updated task "${data.title}" to ${updates.status.replace('_', ' ')}`,
+          actor_name: userName,
+          target_user_id: targetUserId,
+          data: {
+            taskId: data.id,
+            newStatus: updates.status,
+            oldStatus: oldTask.status,
+            targetRole
+          }
+        });
+      } catch (notifErr) {
+        console.error('Task update notification failed:', notifErr);
+      }
+    }
+
+    return data;
+  },
+
+  async deleteAssignedTask(taskId) {
+    const { error } = await supabase
+      .from('assigned_tasks')
+      .delete()
+      .eq('id', taskId);
+    if (error) throw error;
+  },
+
+  // --- Push Notifications ---
+  async savePushSubscription(userId, subscription, platform = 'desktop') {
+    // Check if subscription already exists for this endpoint to avoid duplicates
+    const endpoint = subscription.endpoint;
+    const { data: existing } = await supabase
+      .from('user_push_subscriptions')
+      .select('id')
+      .eq('user_id', userId)
+      .filter('subscription->>endpoint', 'eq', endpoint)
+      .maybeSingle();
+
+    if (existing) {
+      const { error } = await supabase
+        .from('user_push_subscriptions')
+        .update({ 
+          subscription, 
+          pwa_platform: platform,
+          last_synced_at: new Date().toISOString() 
+        })
+        .eq('id', existing.id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase
+        .from('user_push_subscriptions')
+        .insert([{ 
+          user_id: userId, 
+          subscription, 
+          pwa_platform: platform 
+        }]);
+      if (error) throw error;
+    }
+  },
+
+  async deletePushSubscription(endpoint) {
+    const { error } = await supabase
+      .from('user_push_subscriptions')
+      .delete()
+      .filter('subscription->>endpoint', 'eq', endpoint);
+    if (error) throw error;
   }
 };
+
+export default api;

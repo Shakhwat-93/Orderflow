@@ -1,0 +1,97 @@
+.sla-timer-v2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  border-radius: 12px;
+  font-family: 'Inter', sans-serif;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid transparent;
+  user-select: none;
+}
+
+.sla-timer-v2.active {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+.sla-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.sla-content {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.sla-value {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.sla-type {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+/* Excellent State (< 15m) */
+.sla-timer-v2.excellent {
+  background: rgba(16, 185, 129, 0.08);
+  color: #065f46;
+  border-color: rgba(16, 185, 129, 0.2);
+}
+.excellent .sla-icon-wrapper { background: #10b981; color: white; }
+
+/* Good State (15m - 60m) */
+.sla-timer-v2.good {
+  background: rgba(59, 130, 246, 0.08);
+  color: #1e40af;
+  border-color: rgba(59, 130, 246, 0.2);
+}
+.good .sla-icon-wrapper { background: #3b82f6; color: white; }
+
+/* Delayed State (1h - 4h) */
+.sla-timer-v2.delayed {
+  background: rgba(245, 158, 11, 0.08);
+  color: #92400e;
+  border-color: rgba(245, 158, 11, 0.2);
+}
+.delayed .sla-icon-wrapper { background: #f59e0b; color: white; }
+
+/* Breached State (> 4h) */
+.sla-timer-v2.breached {
+  background: rgba(239, 68, 68, 0.08);
+  color: #991b1b;
+  border-color: rgba(239, 68, 68, 0.2);
+}
+.breached .sla-icon-wrapper { background: #ef4444; color: white; }
+
+/* Resolved State */
+.sla-timer-v2.resolved {
+  background: #f8fafc;
+  color: #64748b;
+  border-color: #e2e8f0;
+  box-shadow: none;
+}
+.resolved .sla-icon-wrapper { background: #cbd5e1; color: #64748b; }
+
+/* Pulse Animation for urgent issues */
+.pulse-icon {
+  animation: slaPulse 1.5s infinite ease-in-out;
+}
+
+@keyframes slaPulse {
+  0% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(239, 68, 68, 0.4)); }
+  50% { transform: scale(1.2); filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.6)); }
+  100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(239, 68, 68, 0.4)); }
+}

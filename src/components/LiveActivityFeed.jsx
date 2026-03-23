@@ -9,7 +9,11 @@ import {
   CheckCircle2,
   XSquare,
   Package,
-  ArrowRightCircle
+  ArrowRightCircle,
+  Phone,
+  Truck,
+  FileText,
+  AlertCircle
 } from 'lucide-react';
 import './LiveActivityFeed.css';
 
@@ -52,7 +56,7 @@ export const LiveActivityFeed = () => {
 
     const loadActivity = async () => {
       try {
-        const data = await api.getRecentActivity(15);
+        const data = await api.getRecentActivity(50);
         setActivities(applyClearedFilter(data));
       } catch (err) {
         console.error('Failed to load initial activity:', err);
@@ -71,7 +75,14 @@ export const LiveActivityFeed = () => {
         schema: 'public',
         table: 'order_activity_logs'
       }, (payload) => {
-        setActivities(prev => applyClearedFilter([payload.new, ...prev]).slice(0, 15));
+        setActivities(prev => {
+          const filtered = applyClearedFilter([payload.new, ...prev]);
+          // Deduplicate if needed (sometimes trigger + manual log hit at once)
+          const unique = filtered.filter((v, i, a) => 
+            a.findIndex(t => (t.id === v.id || (t.order_id === v.order_id && t.timestamp === v.timestamp))) === i
+          );
+          return unique.slice(0, 50);
+        });
       })
       .on('postgres_changes', {
         event: 'DELETE',
@@ -110,8 +121,19 @@ export const LiveActivityFeed = () => {
       case 'UPDATE': return <RefreshCw size={16} className="text-sky-500" />;
       case 'STATUS_CHANGE': return <ArrowRightCircle size={16} className="text-amber-500" />;
       case 'DELETE': return <Trash2 size={16} className="text-rose-500" />;
+      case 'CALL_ATTEMPT': return <Phone size={16} className="text-purple-500" />;
+      case 'TRACKING_UPDATE': return <Truck size={16} className="text-blue-500" />;
+      case 'NOTE_ADDED': return <FileText size={16} className="text-slate-500" />;
       default: return <Package size={16} className="text-slate-400" />;
     }
+  };
+
+  const getEnhancedIcon = (activity) => {
+    const desc = (activity.action_description || '').toLowerCase();
+    if (desc.includes('call attempt')) return <Phone size={16} className="text-purple-500" />;
+    if (desc.includes('tracking id')) return <Truck size={16} className="text-blue-500" />;
+    if (desc.includes('note')) return <FileText size={16} className="text-slate-500" />;
+    return getActionIcon(activity.action_type);
   };
 
   const getStatusIndicator = (status) => {
@@ -147,14 +169,14 @@ export const LiveActivityFeed = () => {
             <div className="activity-content">
               <div className="activity-main">
                 <div className="action-type">
-                  {getActionIcon(activity.action_type)}
+                  {getEnhancedIcon(activity)}
                 </div>
                 <div className="activity-details">
                   <p className="activity-desc">
                     {activity.action_description ? (
                       activity.action_description
                     ) : (
-                      <><strong>{activity.changed_by_user_name || 'System'}</strong> performed an action</>
+                      <span className="generic-desc"><strong>{activity.changed_by_user_name || 'System'}</strong> updated order details</span>
                     )}
                   </p>
                   {activity.order_id && (

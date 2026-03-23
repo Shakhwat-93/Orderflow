@@ -11,6 +11,7 @@
   letter-spacing: -1px;
   background: linear-gradient(135deg, var(--text-primary) 0%, #6366f1 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   margin-bottom: 4px;
 }
@@ -188,7 +189,69 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
-/* Table Enhancements */
+.table-container { 
+  overflow-x: auto; 
+  -webkit-overflow-scrolling: touch; 
+}
+
+@media (max-width: 900px) {
+  .management-table, 
+  .management-table thead, 
+  .management-table tbody, 
+  .management-table th, 
+  .management-table td, 
+  .management-table tr { 
+    display: block; 
+  }
+  
+  .management-table thead { display: none; }
+  
+  .management-table tbody tr {
+    margin: var(--sp-4);
+    background: #ffffff;
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    padding: var(--sp-4);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+  }
+  
+  .management-table td {
+    border: none;
+    padding: var(--sp-2) 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  }
+  
+  .management-table td:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+  
+  .management-table td::before {
+    content: attr(data-label);
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    flex: 1;
+  }
+  
+  .product-info-cell {
+    width: 100%;
+    padding: 0;
+  }
+  
+  .stock-visual-group {
+    width: 100%;
+    max-width: 200px;
+  }
+}
+
 .management-table th {
   padding: 16px 20px;
   font-size: 12px;
@@ -402,12 +465,13 @@
 
 .form-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 16px;
 }
 
-.form-grid.three-cols {
-  grid-template-columns: 1fr 1fr 1fr;
+@media (min-width: 640px) {
+  .form-grid { grid-template-columns: 1fr 1fr; }
+  .form-grid.three-cols { grid-template-columns: 1fr 1fr 1fr; }
 }
 
 .premium-select {

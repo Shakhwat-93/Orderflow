@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import ReactDOM from 'react-dom';
 import { Badge } from './Badge';
-import { MoreHorizontal, Mail, Phone, ShoppingCart, Tag, Copy, Check, ChevronDown } from 'lucide-react';
+import { MoreHorizontal, Mail, Phone, ShoppingCart, Tag, Copy, Check, ChevronDown, Edit2, AlertTriangle, Clock } from 'lucide-react';
 import './OrderRow.css';
 
-export const OrderRow = ({ order, onDetails, onStatusChange }) => {
+export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected, onSelect, fraudFlag, automationFlag }) => {
   const [copied, setCopied] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
@@ -50,9 +51,22 @@ export const OrderRow = ({ order, onDetails, onStatusChange }) => {
   ];
 
   return (
-    <tr className="order-row clickable-row" onClick={() => onDetails(order)}>
+    <motion.tr 
+      className="order-row clickable-row" 
+      onClick={() => onDetails(order)}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: -20 }}
+      transition={{ duration: 0.2 }}
+      whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.05)' }}
+    >
       <td className="checkbox-cell" onClick={(e) => e.stopPropagation()}>
-        <input type="checkbox" className="premium-checkbox" />
+        <input 
+          type="checkbox" 
+          className="premium-checkbox" 
+          checked={isSelected}
+          onChange={() => onSelect(order.id)}
+        />
       </td>
 
       <td className="id-cell">
@@ -86,7 +100,19 @@ export const OrderRow = ({ order, onDetails, onStatusChange }) => {
 
       <td className="customer-cell">
         <div className="customer-block">
-          <div className="customer-name">{order.customer_name}</div>
+          <div className="customer-name">
+            <strong>{order.customer_name}</strong>
+            {fraudFlag && (
+              <div className="fraud-alert-icon" title={fraudFlag.message}>
+                <AlertTriangle size={14} color="#ff4d4d" />
+              </div>
+            )}
+            {automationFlag && (
+              <div className="automation-alert-icon" title={automationFlag.reason}>
+                <Clock size={14} color="#ffd700" />
+              </div>
+            )}
+          </div>
           <div className="customer-meta">
             <div className="meta-item"><Phone size={12} /> {order.phone}</div>
             <div className="meta-item email"><Mail size={12} /> {order.email || 'no-email@example.com'}</div>
@@ -109,9 +135,15 @@ export const OrderRow = ({ order, onDetails, onStatusChange }) => {
           </div>
           {order.ordered_items && order.ordered_items.length > 0 && (
             <div className="serial-pills">
-              {order.ordered_items.map(num => (
-                <span key={num} className="serial-pill">{num}</span>
-              ))}
+              {order.ordered_items.map((item, idx) => {
+                if (typeof item === 'number' || typeof item === 'string') {
+                  return <span key={idx} className="serial-pill">{item}</span>;
+                }
+                if (item?.isToyBox && item?.toyBoxNumber) {
+                  return <span key={idx} className="serial-pill">{item.toyBoxNumber}</span>;
+                }
+                return null;
+              })}
             </div>
           )}
         </div>
@@ -165,11 +197,11 @@ export const OrderRow = ({ order, onDetails, onStatusChange }) => {
         </div>
       </td>
 
-      <td className="actions-cell" onClick={(e) => e.stopPropagation()}>
-        <button className="row-action-btn">
-          <MoreHorizontal size={18} />
+      <td className="actions-cell" onClick={(e) => { e.stopPropagation(); onEdit && onEdit(order); }}>
+        <button className="row-action-btn edit-btn" title="Edit Order">
+          <Edit2 size={16} />
         </button>
       </td>
-    </tr>
+    </motion.tr>
   );
 };

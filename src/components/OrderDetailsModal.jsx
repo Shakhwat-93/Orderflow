@@ -5,20 +5,26 @@ import { Badge } from './Badge';
 import { ActivityTimeline } from './ActivityTimeline';
 import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
+import { useTasks } from '../context/TaskContext';
 import { Button } from './Button';
 import { 
   User, Phone, MapPin, Package, Tag, Hash, 
-  Calendar, Globe, StickyNote, DollarSign 
+  Calendar, Globe, StickyNote, DollarSign, Target, ExternalLink
 } from 'lucide-react';
+import { TaskDetailsModal } from './TaskDetailsModal';
 import './OrderDetailsModal.css';
 
 export const OrderDetailsModal = ({ order, isOpen, onClose }) => {
   const { fetchOrderLogs, updateOrderStatus, editOrder, addTrackingID } = useOrders();
+  const { assignedTasks, updateAssignedTask } = useTasks();
   const { hasRole, isAdmin } = useAuth();
   const [logs, setLogs] = useState([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const [newTrackingId, setNewTrackingId] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
+  const [selectedTask, setSelectedTask] = useState(null);
+
+  const orderTasks = assignedTasks ? assignedTasks.filter(t => t.related_order_id === String(order?.id)) : [];
 
   useEffect(() => {
     if (isOpen && order?.id) {
@@ -229,6 +235,44 @@ export const OrderDetailsModal = ({ order, isOpen, onClose }) => {
             </div>
           </section>
 
+          {/* ── Order Tasks Section ── */}
+          {orderTasks.length > 0 && (
+            <section className="details-section order-tasks-section">
+              <h4>Linked Tasks</h4>
+              <div className="linked-tasks-list">
+                {orderTasks.map(task => (
+                  <div key={task.id} className={`linked-task-item ${task.status}`}>
+                    <div className="task-header">
+                      <span className="task-title">{task.title}</span>
+                      <Badge variant={
+                        task.status === 'completed' ? 'completed' : 
+                        task.status === 'in_progress' ? 'factory' : 'default'
+                      }>
+                        {task.status.replace('_', ' ')}
+                      </Badge>
+                    </div>
+                    {task.description && <p className="task-desc-small">{task.description}</p>}
+                    <div className="task-actions" style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: 'var(--sp-2)' }}>
+                      <Button variant="ghost" size="small" onClick={() => setSelectedTask(task)}>
+                        <Target size={14} style={{ marginRight: '4px' }} /> Details
+                      </Button>
+                      {task.status === 'pending' && (
+                        <Button variant="outline" size="small" onClick={() => updateAssignedTask(task.id, { status: 'in_progress' })}>
+                          Start
+                        </Button>
+                      )}
+                      {task.status === 'in_progress' && (
+                        <Button variant="primary" size="small" onClick={() => updateAssignedTask(task.id, { status: 'completed' })}>
+                          Complete
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
           {order.notes && (
             <section className="details-section">
               <h4>Notes</h4>
@@ -252,6 +296,18 @@ export const OrderDetailsModal = ({ order, isOpen, onClose }) => {
           </div>
         </div>
       </div>
+
+      <TaskDetailsModal
+        task={selectedTask}
+        taskType="assigned"
+        isOpen={!!selectedTask}
+        onClose={() => setSelectedTask(null)}
+        onOpenOrder={(orderId) => {
+          if (String(orderId) === String(order?.id)) {
+             setSelectedTask(null);
+          }
+        }}
+      />
     </Modal>
   );
 };

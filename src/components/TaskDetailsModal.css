@@ -1,0 +1,177 @@
+/* =========================================================
+   TASK DETAILS — Elite Liquid Glass
+   ========================================================= */
+
+.task-details-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+  max-height: 75vh;
+  max-height: 75dvh;
+}
+
+@media (min-width: 992px) {
+  .task-details-grid {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: var(--sp-8);
+    max-height: 70vh;
+  }
+}
+
+.details-main {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-right: var(--sp-4);
+}
+
+.details-section {
+  margin-bottom: var(--sp-8);
+}
+
+.details-section h4 {
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--text-tertiary);
+  margin-bottom: var(--sp-4);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  padding-bottom: var(--sp-2);
+  font-weight: 800;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--sp-4);
+}
+
+@media (min-width: 480px) {
+  .info-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.info-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(0, 0, 0, 0.03);
+  border-radius: var(--radius-lg);
+  transition: all 0.3s var(--ease-out);
+}
+
+.info-item:hover {
+  background: #fff;
+  border-color: rgba(var(--accent-rgb), 0.2);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-card);
+}
+
+.info-item svg {
+  color: var(--accent);
+  margin-top: 2px;
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 4px rgba(var(--accent-rgb), 0.2));
+}
+
+.info-content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.info-content label {
+  font-size: var(--fs-xs);
+  color: var(--text-tertiary);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+}
+
+.info-content span {
+  font-size: var(--fs-body);
+  font-weight: 800;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+/* ===== SIDEBAR (Activity Timeline) ===== */
+.details-sidebar {
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(20px);
+  border-radius: var(--radius-xl);
+  padding: var(--sp-6);
+  border: 1px solid rgba(0, 0, 0, 0.03);
+  box-shadow: var(--shadow-inner);
+}
+
+.sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--sp-6);
+}
+
+.sidebar-header h4 {
+  margin: 0;
+  font-size: var(--fs-h3);
+  font-weight: 950;
+  color: var(--text-primary);
+  letter-spacing: -0.03em;
+}
+
+.refresh-btn {
+  font-size: var(--fs-xs);
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  color: var(--text-secondary);
+  padding: 8px 16px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  font-weight: 800;
+  transition: all 0.2s ease;
+}
+
+.refresh-btn:hover {
+  background: var(--bg-elevated);
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: var(--accent-glow-sm);
+}
+
+.activity-scroll {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  max-height: 480px;
+  padding-right: var(--sp-2);
+}
+
+.description-box {
+  padding: var(--sp-4);
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  border-radius: var(--radius-lg);
+  font-size: var(--fs-body);
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: var(--sp-6);
+}
+
+/* ===== SCROLLBARS ===== */
+.details-main::-webkit-scrollbar, 
+.activity-scroll::-webkit-scrollbar { 
+  width: 4px; 
+}
+
+.details-main::-webkit-scrollbar-thumb, 
+.activity-scroll::-webkit-scrollbar-thumb { 
+  background: rgba(0, 0, 0, 0.1); 
+  border-radius: 10px; 
+}

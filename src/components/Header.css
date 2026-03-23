@@ -59,7 +59,7 @@
   align-items: center;
 }
 
-.search-icon {
+.header-search-icon {
   position: absolute;
   left: var(--sp-3);
   top: 50%;

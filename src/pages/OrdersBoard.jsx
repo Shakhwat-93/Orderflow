@@ -1,16 +1,20 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
-import { Search, Filter, Calendar, ChevronDown, ChevronLeft, ChevronRight, Download, Plus, MoreHorizontal, Globe } from 'lucide-react';
+import { Search, Filter, Calendar, ChevronDown, ChevronLeft, ChevronRight, Download, Plus, MoreHorizontal, Globe, X, AlertTriangle, Printer, Trash2, CheckCircle, Clock } from 'lucide-react';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
 import { OrderDetailsModal } from '../components/OrderDetailsModal';
 import { Input } from '../components/Input';
 import { DateRangePicker } from '../components/DateRangePicker';
 import { OrderRow } from '../components/OrderRow';
+import { OrderEditModal } from '../components/OrderEditModal';
 import './OrdersBoard.css';
+import '../components/BulkActions.css';
 
 
 const PRODUCT_CHECKPOINTS = [
@@ -48,20 +52,33 @@ const DELIVERY_ZONES = [
 const BD_PHONE_REGEX = /^01\d{9}$/;
 
 export const OrdersBoard = () => {
-  const { userRoles, isAdmin, hasAnyRole } = useAuth();
-  const {
-    orders,
-    loading,
-    page,
-    setPage,
-    setFilters,
-    totalCount,
-    pageSize,
-    filters,
-    updateOrderStatus,
-    addOrder,
-    autoDistributeOrders,
-    toyBoxes
+  const { userRoles, isAdmin, hasAnyRole, updatePresenceContext } = useAuth();
+  
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    updatePresenceContext('Browsing Orders');
+    
+    // Check for global "New Order" trigger
+    const queryParams = new URLSearchParams(location.search);
+    if (queryParams.get('openModal') === 'new') {
+      setIsNewOrderModalOpen(true);
+      // Clean up URL
+      queryParams.delete('openModal');
+      navigate({ search: queryParams.toString() }, { replace: true });
+    }
+
+    const handleGlobalNewOrder = () => setIsNewOrderModalOpen(true);
+    window.addEventListener('open-new-order-modal', handleGlobalNewOrder);
+    
+    return () => window.removeEventListener('open-new-order-modal', handleGlobalNewOrder);
+  }, [updatePresenceContext, location.search, navigate]);
+
+  const { 
+    orders, loading, totalCount, page, setPage, setFilters, 
+    fetchOrderLogs, fetchStats, stats, addOrder, deleteOrder, fraudFlags, automationFlags,
+    pageSize, filters, updateOrderStatus, autoDistributeOrders, toyBoxes
   } = useOrders();
 
   const [distributing, setDistributing] = useState(false);
@@ -69,6 +86,44 @@ export const OrdersBoard = () => {
   const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [isNewOrderModalOpen, setIsNewOrderModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedOrderForEdit, setSelectedOrderForEdit] = useState(null);
+  const [selectedOrderIds, setSelectedOrderIds] = useState([]);
+
+  const handleSelectOrder = (id) => {
+    setSelectedOrderIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedOrderIds.length === orders.length) {
+      setSelectedOrderIds([]);
+    } else {
+      setSelectedOrderIds(orders.map(o => o.id));
+    }
+  };
+
+  const handleBulkStatusChange = async (status) => {
+    if (!window.confirm(`Change ${selectedOrderIds.length} orders to ${status}?`)) return;
+    for (const id of selectedOrderIds) {
+      await updateOrderStatus(id, status);
+    }
+    setSelectedOrderIds([]);
+  };
+
+  const handleBulkDelete = async () => {
+    if (!window.confirm(`Permanently delete ${selectedOrderIds.length} selected orders?`)) return;
+    for (const id of selectedOrderIds) {
+      await deleteOrder(id);
+    }
+    setSelectedOrderIds([]);
+  };
+
+  const handleOpenEditModal = (order) => {
+    setSelectedOrderForEdit(order);
+    setIsEditModalOpen(true);
+  };
 
   const statusTabsRef = useRef(null);
   const checkpointsRef = useRef(null);
@@ -456,7 +511,14 @@ export const OrdersBoard = () => {
           <table className="management-table premium-table">
             <thead>
               <tr>
-                <th className="checkbox-col"><input type="checkbox" className="premium-checkbox" /></th>
+                <th className="checkbox-col">
+                  <input 
+                    type="checkbox" 
+                    className="premium-checkbox" 
+                    checked={orders.length > 0 && selectedOrderIds.length === orders.length}
+                    onChange={handleSelectAll}
+                  />
+                </th>
                 <th>Order ID</th>
                 <th>Order Date</th>
                 <th>Customer Info</th>
@@ -468,15 +530,22 @@ export const OrdersBoard = () => {
                 <th></th>
               </tr>
             </thead>
-            <tbody>
-              {Array.isArray(orders) && orders.map(order => (
-                <OrderRow
-                  key={order.id}
-                  order={order}
-                  onDetails={handleRowClick}
-                  onStatusChange={updateOrderStatus}
-                />
-              ))}
+            <tbody className="orders-table-body">
+              <AnimatePresence mode="popLayout">
+                {Array.isArray(orders) && orders.map(order => (
+                  <OrderRow
+                    key={order.id}
+                    order={order}
+                    onDetails={handleRowClick}
+                    onStatusChange={updateOrderStatus}
+                    onEdit={handleOpenEditModal}
+                    isSelected={selectedOrderIds.includes(order.id)}
+                    onSelect={handleSelectOrder}
+                    fraudFlag={fraudFlags[order.id]}
+                    automationFlag={automationFlags[order.id]}
+                  />
+                ))}
+              </AnimatePresence>
               {(!orders || orders.length === 0) && (
                 <tr>
                   <td colSpan="10" className="empty-state-cell">
@@ -505,6 +574,16 @@ export const OrdersBoard = () => {
               <div className="card-mobile-body">
                 <div className="mobile-customer-info">
                   <strong>{order.customer_name}</strong>
+                  {fraudFlags[order.id] && (
+                    <div className="fraud-alert-icon" title={fraudFlags[order.id].message}>
+                      <AlertTriangle size={14} color="#ff4d4d" />
+                    </div>
+                  )}
+                  {automationFlags[order.id] && (
+                    <div className="automation-alert-icon" title={automationFlags[order.id].reason}>
+                      <Clock size={14} color="#ffd700" />
+                    </div>
+                  )}
                   <span>{order.phone}</span>
                 </div>
                 <div className="mobile-product-info">
@@ -560,7 +639,37 @@ export const OrdersBoard = () => {
               </Button>
             </div>
           </div>
-        )}
+      )}
+
+      {/* ── Bulk Action Bar ── */}
+      {selectedOrderIds.length > 0 && (
+        <div className="bulk-action-bar-container">
+          <div className="bulk-action-bar liquid-glass">
+            <div className="bulk-info">
+              <div className="selection-count">{selectedOrderIds.length}</div>
+              <div className="selection-text">Selected</div>
+            </div>
+            <div className="bulk-actions-group">
+              <Button variant="ghost" size="sm" className="bulk-btn" onClick={() => handleBulkStatusChange('Confirmed')}>
+                <CheckCircle size={14} /> Confirm
+              </Button>
+              <Button variant="ghost" size="sm" className="bulk-btn" onClick={() => handleBulkStatusChange('Pending Call')}>
+                <Clock size={14} /> Pend Call
+              </Button>
+              <Button variant="ghost" size="sm" className="bulk-btn">
+                <Printer size={14} /> Print Labels
+              </Button>
+              <div className="bulk-divider" />
+              <Button variant="ghost" size="sm" className="bulk-btn delete" onClick={handleBulkDelete}>
+                <Trash2 size={14} /> Delete
+              </Button>
+            </div>
+            <button className="bulk-close" onClick={() => setSelectedOrderIds([])}>
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
       </Card>
 
 
@@ -847,6 +956,12 @@ export const OrdersBoard = () => {
           setSelectedOrderId(null);
         }}
         order={currentOrder}
+      />
+
+      <OrderEditModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        order={selectedOrderForEdit}
       />
     </div>
   );

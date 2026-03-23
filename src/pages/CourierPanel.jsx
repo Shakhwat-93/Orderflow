@@ -5,7 +5,8 @@ import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { Modal } from '../components/Modal';
-import { Search, Truck, CheckCircle, Package, ClipboardCheck } from 'lucide-react';
+import { OrderEditModal } from '../components/OrderEditModal';
+import { Search, Truck, CheckCircle, Package, ClipboardCheck, Edit2 } from 'lucide-react';
 import './CourierPanel.css';
 
 export const CourierPanel = () => {
@@ -17,27 +18,35 @@ export const CourierPanel = () => {
   const [activeOrderId, setActiveOrderId] = useState(null);
   const [trackingIdInput, setTrackingIdInput] = useState('');
 
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedOrderForEdit, setSelectedOrderForEdit] = useState(null);
+
+  const handleOpenEditModal = (order) => {
+    setSelectedOrderForEdit(order);
+    setIsEditModalOpen(true);
+  };
+
   // Show only Courier Ready orders (factory-approved, stock verified)
   const courierQueue = orders.filter(
     o => o.status === 'Courier Ready' &&
-      (o.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        o.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        o.phone.includes(searchTerm))
+      ((o.id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (o.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (o.phone || '').includes(searchTerm))
   );
 
-  const withTrackingCount = courierQueue.filter(o => Boolean(o.trackingId)).length;
+  const withTrackingCount = courierQueue.filter(o => Boolean(o.tracking_id)).length;
   const pendingTrackingCount = courierQueue.length - withTrackingCount;
 
   const handleOpenTrackingModal = (order) => {
     setActiveOrderId(order.id);
-    setTrackingIdInput(order.trackingId || '');
+    setTrackingIdInput(order.tracking_id || '');
     setIsModalOpen(true);
   };
 
   const handleSaveTracking = (e) => {
     e.preventDefault();
     if (activeOrderId && trackingIdInput) {
-      editOrder(activeOrderId, { trackingId: trackingIdInput });
+      editOrder(activeOrderId, { tracking_id: trackingIdInput });
     }
     setIsModalOpen(false);
   };
@@ -131,18 +140,18 @@ export const CourierPanel = () => {
               {courierQueue.map(order => (
                 <tr key={order.id}>
                   <td className="order-id-cell">{order.id}</td>
-                  <td className="customer-name">{order.customerName}</td>
+                  <td className="customer-name">{order.customer_name}</td>
                   <td className="phone-cell">{order.phone}</td>
                   <td className="product-name">
                     <div className="product-stack">
-                      <span>{order.product}</span>
-                      <span className="product-size-pill">Size {order.size}</span>
+                      <span>{order.product_name}</span>
+                      {order.size && <span className="product-size-pill">Size {order.size}</span>}
                     </div>
                   </td>
                   <td className="tracking-cell">
-                    {order.trackingId ? (
+                    {order.tracking_id ? (
                       <span className="tracking-badge">
-                        <Truck size={14} /> {order.trackingId}
+                        <Truck size={14} /> {order.tracking_id}
                       </span>
                     ) : (
                       <span className="text-tertiary text-sm italic">Not Assigned</span>
@@ -154,6 +163,13 @@ export const CourierPanel = () => {
                   <td>
                     <div className="dispatch-action-grid">
                       <button
+                        className="courier-action-btn edit"
+                        onClick={() => handleOpenEditModal(order)}
+                        title="Edit Order Details"
+                      >
+                        <Edit2 size={16} /> <span>Edit</span>
+                      </button>
+                      <button
                         className="courier-action-btn tracking"
                         onClick={() => handleOpenTrackingModal(order)}
                         title="Add/Edit Tracking ID"
@@ -163,8 +179,8 @@ export const CourierPanel = () => {
                       <button
                         className="courier-action-btn submit"
                         onClick={() => handleSubmitToCourier(order.id)}
-                        disabled={!order.trackingId}
-                        title={!order.trackingId ? "Requires Tracking ID first" : "Submit to Courier"}
+                        disabled={!order.tracking_id}
+                        title={!order.tracking_id ? "Requires Tracking ID first" : "Submit to Courier"}
                       >
                         <CheckCircle size={16} /> <span>Dispatch</span>
                       </button>
@@ -212,6 +228,12 @@ export const CourierPanel = () => {
           </div>
         </form>
       </Modal>
+
+      <OrderEditModal 
+        isOpen={isEditModalOpen} 
+        onClose={() => setIsEditModalOpen(false)} 
+        order={selectedOrderForEdit} 
+      />
     </div>
   );
 };
