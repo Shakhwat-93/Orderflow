@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
+import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
@@ -12,7 +14,7 @@ export const Profile = () => {
   const fileInputRef = useRef(null);
 
   const [name, setName] = useState('');
-  const [passwords, setPasswords] = useState({ new: '', confirm: '' });
+  const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' });
   const [loading, setLoading] = useState({ profile: false, password: false, avatar: false });
   const [message, setMessage] = useState({ type: '', text: '' });
 
@@ -41,14 +43,40 @@ export const Profile = () => {
   const handlePasswordUpdate = async (e) => {
     e.preventDefault();
     if (passwords.new !== passwords.confirm) {
-      setMessage({ type: 'error', text: 'Passwords do not match!' });
+      setMessage({ type: 'error', text: 'New passwords do not match!' });
       return;
     }
+    if (passwords.new.length < 6) {
+      setMessage({ type: 'error', text: 'Password must be at least 6 characters.' });
+      return;
+    }
+
     setLoading(prev => ({ ...prev, password: true }));
     try {
+      // 1. Verify Current Password by attempting a re-login
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: profile?.email || user?.email,
+        password: passwords.current,
+      });
+
+      if (authError) {
+        throw new Error('Verification failed: Current password is incorrect.');
+      }
+
+      // 2. Update to New Password
       await updatePassword(passwords.new);
-      setPasswords({ new: '', confirm: '' });
+      
+      setPasswords({ current: '', new: '', confirm: '' });
       setMessage({ type: 'success', text: 'Password changed successfully!' });
+
+      // Log the security change
+      await api.logActivity({
+        action_type: 'PASSWORD_CHANGE',
+        changed_by_user_id: user?.id,
+        changed_by_user_name: profile?.name || 'User',
+        action_description: `${profile?.name || 'User'} updated their password`
+      });
+
     } catch (error) {
       setMessage({ type: 'error', text: error.message });
     } finally {
@@ -145,6 +173,15 @@ export const Profile = () => {
             </div>
             <form onSubmit={handlePasswordUpdate} className="security-form">
               <Input 
+                label="Current Password"
+                type="password"
+                placeholder="Verify your identity"
+                value={passwords.current}
+                onChange={e => setPasswords({ ...passwords, current: e.target.value })}
+                required
+              />
+              <div className="password-divider" />
+              <Input 
                 label="New Password"
                 type="password"
                 placeholder="Min 6 characters"
@@ -153,16 +190,18 @@ export const Profile = () => {
                 required
               />
               <Input 
-                label="Confirm Password"
+                label="Confirm New Password"
                 type="password"
                 placeholder="Repeat new password"
                 value={passwords.confirm}
                 onChange={e => setPasswords({ ...passwords, confirm: e.target.value })}
                 required
               />
-              <Button type="submit" variant="ghost" disabled={loading.password}>
-                {loading.password ? 'Changing...' : 'Change Password'}
-              </Button>
+              <div className="form-actions-premium">
+                <Button type="submit" variant="ghost" disabled={loading.password}>
+                  {loading.password ? 'Verifying & Changing...' : 'Change Password'}
+                </Button>
+              </div>
             </form>
           </Card>
         </div>

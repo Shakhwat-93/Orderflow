@@ -44,6 +44,15 @@ export const UserManagement = () => {
     status: 'active'
   });
 
+  const [resetPasswordData, setResetPasswordData] = useState({
+    userId: '',
+    userName: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+
   const [addFormData, setAddFormData] = useState({
     name: '',
     email: '',
@@ -180,6 +189,48 @@ export const UserManagement = () => {
     }
   };
 
+  const handleResetPasswordClick = (user) => {
+    setResetPasswordData({
+      userId: user.id,
+      userName: user.name,
+      newPassword: '',
+      confirmPassword: ''
+    });
+    setIsResetModalOpen(true);
+  };
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    if (resetPasswordData.newPassword !== resetPasswordData.confirmPassword) {
+      alert("Passwords do not match!");
+      return;
+    }
+    if (resetPasswordData.newPassword.length < 6) {
+      alert("Password must be at least 6 characters.");
+      return;
+    }
+
+    setIsResetting(true);
+    try {
+      await api.adminResetPassword(resetPasswordData.userId, resetPasswordData.newPassword);
+      
+      const adminName = currentProfile?.name || currentUser?.email || 'Admin';
+      await api.logActivity({
+        action_type: 'PASSWORD_RESET',
+        changed_by_user_id: currentUser?.id,
+        changed_by_user_name: adminName,
+        action_description: `${adminName} reset the password for ${resetPasswordData.userName}`
+      });
+
+      alert(`Password for ${resetPasswordData.userName} has been reset successfully.`);
+      setIsResetModalOpen(false);
+    } catch (error) {
+      alert("Error resetting password: " + error.message);
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
 
   if (!isAdmin) {
     return (
@@ -281,6 +332,15 @@ export const UserManagement = () => {
                     </td>
                     <td data-label="Actions" className="text-right">
                       <div className="action-buttons">
+                        <Button 
+                          variant="ghost" 
+                          size="small"
+                          onClick={() => handleResetPasswordClick(user)}
+                          title="Reset Password"
+                          className="reset-action"
+                        >
+                          <Shield size={16} />
+                        </Button>
                         <Button 
                           variant="ghost" 
                           size="small"
@@ -438,6 +498,50 @@ export const UserManagement = () => {
             </Button>
             <Button type="submit" variant="primary">
               Create Account
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Reset Password Modal */}
+      <Modal
+        isOpen={isResetModalOpen}
+        onClose={() => !isResetting && setIsResetModalOpen(false)}
+        title={`Reset Password: ${resetPasswordData.userName}`}
+      >
+        <form onSubmit={handleResetPassword} className="reset-password-form">
+          <div className="modal-hint warning">
+            <AlertCircle size={16} />
+            <span>You are about to change the security credentials for this user. This will take effect immediately.</span>
+          </div>
+          
+          <Input 
+            label="New Password"
+            type="password"
+            placeholder="Min 6 characters"
+            value={resetPasswordData.newPassword}
+            onChange={e => setResetPasswordData({...resetPasswordData, newPassword: e.target.value})}
+            required
+            minLength={6}
+            autoFocus
+          />
+          
+          <Input 
+            label="Confirm New Password"
+            type="password"
+            placeholder="Repeat new password"
+            value={resetPasswordData.confirmPassword}
+            onChange={e => setResetPasswordData({...resetPasswordData, confirmPassword: e.target.value})}
+            required
+            minLength={6}
+          />
+
+          <div className="modal-actions">
+            <Button type="button" variant="ghost" onClick={() => setIsResetModalOpen(false)} disabled={isResetting}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" disabled={isResetting}>
+              {isResetting ? 'Resetting...' : 'Confirm Reset'}
             </Button>
           </div>
         </form>

@@ -54,4 +54,16 @@
 .avatar-loader { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.6); display: flex; align-items: center; justify-content: center; }
 .avatar-loader::after { content: ''; width: 28px; height: 28px; border: 3px solid var(--accent); border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; }
 
+/* Password Enhancements */
+.password-divider { height: 1px; background: rgba(255, 255, 255, 0.05); margin: var(--sp-2) 0; }
+.form-actions-premium { margin-top: var(--sp-2); display: flex; justify-content: flex-end; }
+.modal-hint.warning {
+  background: rgba(245, 158, 11, 0.08); color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.15);
+  padding: var(--sp-3); border-radius: var(--radius-sm);
+  display: flex; gap: var(--sp-3); align-items: flex-start;
+  font-size: var(--fs-small); line-height: 1.4; margin-bottom: var(--sp-4);
+}
+.reset-action:hover { color: #fbbf24 !important; }
+
 @keyframes slideIn { from { transform: translateY(-12px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }

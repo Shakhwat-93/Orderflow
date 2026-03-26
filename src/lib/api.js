@@ -1229,20 +1229,29 @@ ${rawText}`;
   // --- User Management (Admin Only) ---
 
   async adminCreateUser(userData) {
-    const { data, error } = await supabase.functions.invoke('create-user-admin', {
-      body: userData
+    const { data, error } = await supabase.functions.invoke('admin-auth-actions', {
+      body: { action: 'create-user', userData }
     });
 
-    console.log("DEBUG: AdminCreateUser Response", { data, error });
+    console.log("DEBUG: adminCreateUser Response", { data, error });
 
-    // If Supabase client returned an error (likely network or function crash)
     if (error) throw error;
+    if (data?.error) throw new Error(data.error);
 
-    // Handle our custom success flag
-    if (data?.success === false) {
-      console.error("DEBUG: Function Error Body", data);
-      throw new Error(data.error || 'Unknown function error');
-    }
+    return data;
+  },
+
+  async adminResetPassword(userId, newPassword) {
+    const { data, error } = await supabase.functions.invoke('admin-auth-actions', {
+      body: { 
+        action: 'reset-password', 
+        userId, 
+        password: newPassword 
+      }
+    });
+
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
 
     return data;
   },
