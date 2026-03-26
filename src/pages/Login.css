@@ -59,3 +59,39 @@
   margin-left: var(--sp-1);
   font-family: inherit;
 }
+
+/* ── Login Resolving Overlay (after clicking Sign In) ── */
+.login-resolving {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-main);
+}
+.login-resolving-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+.login-resolve-icon {
+  width: 56px; height: 56px;
+  border-radius: 16px;
+  background: var(--accent-gradient);
+  box-shadow: var(--accent-glow-sm);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff;
+}
+.login-resolve-spinner {
+  color: var(--accent);
+  animation: lr-spin 0.8s linear infinite;
+}
+.login-resolving-inner p {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+@keyframes lr-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

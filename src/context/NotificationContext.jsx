@@ -5,7 +5,7 @@ import { useAuth } from './AuthContext';
 
 const NotificationContext = createContext(null);
 
-const VAPID_PUBLIC_KEY = 'BG7cmtt8dKAkYF3ttUgtgPlU_qvdm4_QbPrKRwqecdcWs_YG_hJRsgY_II6UpbloAghk_c2iSZPnsdm5yKkE1nWY';
+const VAPID_PUBLIC_KEY = 'BIjAQuz9toINRqF0hTFAn4Yv7H0aVyx3nmmiUiR58pM59sqrYKW2CncLTSe0HqNsfqkq9jbzlK5yjqvCg2nWVag';
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);

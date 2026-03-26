@@ -14,26 +14,26 @@ export const AIBriefing = ({ stats, avgCallDelay, slaRate }) => {
   const getBriefingNarrative = () => {
     if (stats.pending > 10) {
       return (
-        <>
-          It's a busy day! You have <strong>{stats.pending} orders</strong> waiting for a call. 
-          Your current average call delay is <strong>{avgCallDelay} minutes</strong>. 
-          We need to speed up to hit the 30m SLA target (currently at <strong>{slaRate}%</strong>).
-        </>
+        <p className="narrative-text">
+          It's a busy day! You have <span className="stat-highlight alert">{stats.pending} orders</span> waiting for a call. 
+          Your current average call delay is <span className="stat-highlight">{avgCallDelay} minutes</span>. 
+          We need to speed up to hit the 30m SLA target (currently at <span className="stat-highlight warning">{slaRate}%</span>).
+        </p>
       );
     } else if (stats.pending > 0) {
       return (
-        <>
-          Steady flow today. <strong>{stats.pending} orders</strong> are in the queue. 
-          The team is doing great with a <strong>{slaRate}% SLA success rate</strong>. 
-          Factory is currently processing <strong>{stats.processing} items</strong>.
-        </>
+        <p className="narrative-text">
+          Steady flow today. <span className="stat-highlight info">{stats.pending} orders</span> are in the queue. 
+          The team is doing great with a <span className="stat-highlight success">{slaRate}% SLA success rate</span>. 
+          Factory is currently processing <span className="stat-highlight info">{stats.processing} items</span>.
+        </p>
       );
     } else {
       return (
-        <>
+        <p className="narrative-text">
           All caught up! No orders are currently waiting in the call queue. 
-          Revenue for today has reached <strong>৳{stats.addedTodayRevenue?.toLocaleString() || '0'}</strong>.
-        </>
+          Revenue for today has reached <span className="stat-highlight success">৳{stats.addedTodayRevenue?.toLocaleString() || '0'}</span>.
+        </p>
       );
     }
   };
@@ -97,13 +97,15 @@ export const AIBriefing = ({ stats, avgCallDelay, slaRate }) => {
         
         <div className="briefing-actions">
           {getSuggestions().map(sug => (
-            <div key={sug.id} className="action-suggestion" onClick={() => window.location.href = sug.action}>
+            <button key={sug.id} className="action-suggestion" onClick={() => window.location.href = sug.action}>
               <div className="suggestion-icon">
                 {sug.icon}
               </div>
-              <span>{sug.text}</span>
-              <ArrowRight size={14} style={{ marginLeft: 'auto', opacity: 0.5 }} />
-            </div>
+              <span className="suggestion-text">{sug.text}</span>
+              <div className="suggestion-arrow">
+                <ArrowRight size={14} />
+              </div>
+            </button>
           ))}
         </div>
       </div>

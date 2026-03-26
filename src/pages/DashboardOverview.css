@@ -2,8 +2,15 @@
 .dashboard-overview {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-5);
-  animation: dashIn 0.5s var(--ease-out);
+  gap: var(--sp-6);
+  animation: dashIn 0.8s var(--ease-out);
+}
+
+.page-header {
+  margin-bottom: var(--sp-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
 }
 
 /* ===== METRICS GRID ===== */

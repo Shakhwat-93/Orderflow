@@ -15,8 +15,18 @@ const AVAILABLE_ROLES = [
   'Moderator',
   'Call Team',
   'Courier Team',
-  'Factory Team'
+  'Factory Team',
+  'Digital Marketer'
 ];
+
+const ROLE_DESCRIPTIONS = {
+  'Admin': 'Full system access — orders, users, reports, all panels',
+  'Moderator': 'Order management and inventory access',
+  'Call Team': 'Handles incoming customer calls and order confirmations',
+  'Courier Team': 'Manages deliveries and shipment tracking',
+  'Factory Team': 'Manages production tasks and factory workflow',
+  'Digital Marketer': 'Tracks daily ad spend, campaign performance, and reports',
+};
 
 export const UserManagement = () => {
   const { user: currentUser, profile: currentProfile, isAdmin, updateProfile } = useAuth();
@@ -355,6 +365,7 @@ export const UserManagement = () => {
                     >
                       <div className="role-option-info">
                         <span className="role-name">{role}</span>
+                        <span className="role-desc">{ROLE_DESCRIPTIONS[role]}</span>
                       </div>
                       {isAssigned ? <Check size={20} className="check-icon" /> : <div className="check-placeholder" />}
                     </div>

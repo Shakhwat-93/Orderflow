@@ -30,6 +30,7 @@ export const AuthProvider = ({ children }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) {
+        setLoading(true); // ← Always show loading until roles are resolved
         fetchProfile(session.user.id);
       } else {
         setProfile(null);
@@ -77,9 +78,12 @@ export const AuthProvider = ({ children }) => {
       setProfile(profileData);
 
       if (!rolesError && rolesData) {
-        setUserRoles(rolesData.map(r => r.role_id));
+        const roles = rolesData.map(r => r.role_id);
+        setUserRoles(roles);
+        return roles; // ← Return so callers can use for redirect
       } else {
         setUserRoles([]);
+        return [];
       }
     } catch (error) {
       console.error('Error fetching profile:', error.message);

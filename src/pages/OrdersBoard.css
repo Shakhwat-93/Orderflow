@@ -206,8 +206,9 @@
 @media (max-width: 767px) {
   .unified-filter-bar {
     flex-direction: column;
-    gap: 0;
+    gap: var(--sp-2);
     align-items: stretch;
+    padding: var(--sp-2);
   }
 
   .filter-divider {

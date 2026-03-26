@@ -198,7 +198,7 @@ export const Header = ({ onMenuToggle, isSidebarOpen }) => {
           {isNotifOpen && (
             <div className="notifications-panel-standard">
               <div className="panel-header-standard">
-                <h3>AI Notification Center</h3>
+                <h3>Notifications</h3>
                 <div className="header-actions-group">
                   <button className="see-all-btn" onClick={() => setIsNotifOpen(false)}>See All</button>
                   <button className="clear-all-btn-icon" onClick={(e) => { e.stopPropagation(); clearAllNotifications(); }}>Clear</button>

@@ -12,6 +12,7 @@ import {
   Users,
   Package,
   ClipboardList,
+  Megaphone,
   X
 } from 'lucide-react';
 
@@ -28,6 +29,7 @@ const menuItems = [
   { path: '/users', label: 'User Management', icon: Users, roles: ['Admin'] },
   { path: '/inventory', label: 'Inventory', icon: Package, roles: ['Admin', 'Moderator'] },
   { path: '/reports', label: 'Reports', icon: BarChart3, roles: ['Admin'] },
+  { path: '/digital-marketer', label: 'Digital Marketer', icon: Megaphone, roles: ['Admin', 'Digital Marketer'] },
   { path: '/tasks', label: 'Tasks', icon: ClipboardList },
 ];
 
