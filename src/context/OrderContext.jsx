@@ -40,6 +40,20 @@ export const OrderProvider = ({ children }) => {
   filtersRef.current = filters;
   const fetchIdRef = useRef(0); // Dedup concurrent fetches
 
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Initialize from cache for instant-on feeling
+  useEffect(() => {
+    const cachedStats = localStorage.getItem('of_dashboard_stats');
+    const cachedOrders = localStorage.getItem('of_recent_orders');
+    if (cachedStats) {
+      try { setStats(JSON.parse(cachedStats)); } catch (e) { console.warn('Cache error:', e); }
+    }
+    if (cachedOrders) {
+      try { setOrders(JSON.parse(cachedOrders)); } catch (e) { console.warn('Cache error:', e); }
+    }
+  }, []);
+
   const fetchOrders = useCallback(async (overridePage) => {
     if (!user) return;
     const currentPage = overridePage ?? pageRef.current;
@@ -48,9 +62,13 @@ export const OrderProvider = ({ children }) => {
     try {
       const data = await api.getOrders(currentPage, pageSize, filtersRef.current);
       const count = await api.getOrdersCount(filtersRef.current);
-      if (id === fetchIdRef.current) { // Only apply if still latest
+      if (id === fetchIdRef.current) { 
         setOrders(data);
         setTotalCount(count);
+        // Cache partial orders for dashboard quick-look
+        if (currentPage === 1) {
+          localStorage.setItem('of_recent_orders', JSON.stringify(data.slice(0, 10)));
+        }
       }
     } catch (error) {
       console.error('Error fetching orders:', error);
@@ -62,58 +80,51 @@ export const OrderProvider = ({ children }) => {
     if (!user) return;
     try {
       const data = await api.getDashboardStats();
-      setStats(prev => ({ ...prev, ...data }));
+      setStats(prev => {
+        const newStats = { ...prev, ...data };
+        localStorage.setItem('of_dashboard_stats', JSON.stringify(newStats));
+        return newStats;
+      });
     } catch (error) {
       console.error('Error fetching stats:', error);
     }
   }, [user]);
 
-  const fetchInventory = useCallback(async (invFilters = {}) => {
+  // Combined initialization for smoother loading
+  const initializeData = useCallback(async () => {
     if (!user) return;
     try {
-      const data = await api.getInventory(invFilters);
-      setInventory(data);
-    } catch (error) {
-      console.error('Error fetching inventory:', error);
+      await Promise.all([
+        fetchOrders(1),
+        fetchStats(),
+        fetchInventory(),
+        fetchToyBoxes()
+      ]);
+    } finally {
+      setIsInitialized(true);
     }
-  }, [user]);
-
-  const fetchToyBoxes = useCallback(async () => {
-    if (!user) return;
-    try {
-      const data = await api.getToyBoxInventory();
-      setToyBoxes(data);
-    } catch (error) {
-      console.error('Error fetching Toy Box inventory:', error);
-    }
-  }, [user]);
+  }, [user, fetchOrders, fetchStats, fetchInventory, fetchToyBoxes]);
 
   // Main effect — runs on mount + user change only
   useEffect(() => {
     if (!user) {
       setOrders([]);
+      setIsInitialized(false);
       return;
     }
 
-    fetchOrders();
-    fetchStats();
-    fetchInventory();
-    fetchToyBoxes();
+    initializeData();
 
-    // Realtime subscription 
+    // Realtime subscriptions
     const ordersSubscription = supabase
       .channel('public:orders')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
         if (payload.eventType === 'INSERT') {
           setOrders((prev) => [payload.new, ...prev]);
-          
-          // PLAY ORDER SOUND
           try {
             const audio = new Audio('/ordersound.mp3');
-            audio.play().catch(e => console.warn('Audio play failed (blocked by browser?):', e));
-          } catch (err) {
-            console.error('Audio initialization error:', err);
-          }
+            audio.play().catch(e => console.warn('Audio blocked:', e));
+          } catch (err) { console.error('Audio error:', err); }
         } else if (payload.eventType === 'UPDATE') {
           setOrders((prev) => prev.map(order => order.id === payload.new.id ? payload.new : order));
         } else if (payload.eventType === 'DELETE') {
@@ -142,8 +153,7 @@ export const OrderProvider = ({ children }) => {
       supabase.removeChannel(inventorySubscription);
       supabase.removeChannel(toyBoxSubscription);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, initializeData]);
 
   // Fraud & Automation Detection Effect
   useEffect(() => {
@@ -398,6 +408,10 @@ export const OrderProvider = ({ children }) => {
     let queued = 0;
     const stockDeductions = {}; // { toyBoxNumber: totalDeducted }
 
+    // Fetch courier config once
+    const courierConfig = await api.getSystemConfig('courier_steadfast');
+    const autoDispatch = courierConfig?.is_enabled && courierConfig?.auto_dispatch;
+
     for (const order of confirmedOrders) {
       const items = order.ordered_items || [];
       const hasToyBox = items.length > 0 && items.some(item => {
@@ -407,53 +421,73 @@ export const OrderProvider = ({ children }) => {
         return true; // Legacy items were always toy box IDs
       });
 
+      let targetStatus = 'Courier Ready';
+      let isMatched = false;
+
       if (!hasToyBox) {
         // No toybox items → direct to Courier Ready
-        await supabase.from('orders').update({ status: 'Courier Ready', updated_at: new Date().toISOString() }).eq('id', order.id);
-        distributed++;
-        continue;
-      }
-
-      // Check if all toy box items have enough stock (accounting for pending deductions)
-      let allInStock = true;
-      const orderDeductions = [];
-
-      for (const item of items) {
-        const isItemToyBox = typeof item === 'object' 
-          ? ((item.name || '').toUpperCase().includes('TOY BOX') || item.isToyBox)
-          : true; // Legacy
-          
-        if (!isItemToyBox) continue;
-
-        // Try to find the box number
-        let boxNum = null;
-        if (typeof item === 'object') {
-          const boxMatch = (item.name || '').match(/#(\d+)/);
-          boxNum = item.toyBoxNumber || (boxMatch ? parseInt(boxMatch[1]) : null);
-        } else {
-          boxNum = Number(item);
-        }
-
-        if (boxNum != null) {
-          const available = (stockMap[boxNum]?.qty || 0) - (stockDeductions[boxNum] || 0);
-          if (available < (item.quantity || 1)) {
-            allInStock = false;
-            break;
-          }
-          orderDeductions.push({ boxNum, qty: item.quantity || 1 });
-        }
-      }
-
-      if (allInStock && orderDeductions.length > 0) {
-        // Reserve stock
-        for (const ded of orderDeductions) {
-          stockDeductions[ded.boxNum] = (stockDeductions[ded.boxNum] || 0) + ded.qty;
-        }
-        await supabase.from('orders').update({ status: 'Courier Ready', updated_at: new Date().toISOString() }).eq('id', order.id);
-        distributed++;
+        targetStatus = 'Courier Ready';
+        isMatched = true;
       } else {
-        // Not enough stock or no box number detected → Factory Queue
-        await supabase.from('orders').update({ status: 'Factory Queue', updated_at: new Date().toISOString() }).eq('id', order.id);
+        // Check if all toy box items have enough stock (accounting for pending deductions)
+        let allInStock = true;
+        const orderDeductions = [];
+
+        for (const item of items) {
+          const isItemToyBox = typeof item === 'object' 
+            ? ((item.name || '').toUpperCase().includes('TOY BOX') || item.isToyBox)
+            : true; // Legacy
+            
+          if (!isItemToyBox) continue;
+
+          // Try to find the box number
+          let boxNum = null;
+          if (typeof item === 'object') {
+            const boxMatch = (item.name || '').match(/#(\d+)/);
+            boxNum = item.toyBoxNumber || (boxMatch ? parseInt(boxMatch[1]) : null);
+          } else {
+            boxNum = Number(item);
+          }
+
+          if (boxNum != null) {
+            const available = (stockMap[boxNum]?.qty || 0) - (stockDeductions[boxNum] || 0);
+            if (available < (item.quantity || 1)) {
+              allInStock = false;
+              break;
+            }
+            orderDeductions.push({ boxNum, qty: item.quantity || 1 });
+          }
+        }
+
+        if (allInStock && orderDeductions.length > 0) {
+          // Reserve stock
+          for (const ded of orderDeductions) {
+            stockDeductions[ded.boxNum] = (stockDeductions[ded.boxNum] || 0) + ded.qty;
+          }
+          targetStatus = 'Courier Ready';
+          isMatched = true;
+        } else {
+          // Not enough stock or no box number detected → Factory Queue
+          targetStatus = 'Factory Queue';
+          isMatched = false;
+        }
+      }
+
+      // Update status
+      await supabase.from('orders').update({ status: targetStatus, updated_at: new Date().toISOString() }).eq('id', order.id);
+      
+      if (isMatched) {
+        distributed++;
+        // Trigger Auto Dispatch to Courier if enabled and matched
+        if (autoDispatch) {
+          try {
+            await api.dispatchToCourier(order.id);
+          } catch (dispatchErr) {
+            console.error(`Auto-dispatch failed for ${order.id}:`, dispatchErr);
+            // We don't throw here to avoid stopping the whole loop
+          }
+        }
+      } else {
         queued++;
       }
     }

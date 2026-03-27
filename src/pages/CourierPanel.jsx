@@ -177,6 +177,23 @@ export const CourierPanel = () => {
                         <Truck size={16} /> <span>Tracking</span>
                       </button>
                       <button
+                        className="courier-action-btn steadfast"
+                        onClick={async () => {
+                          try {
+                            const btn = document.activeElement;
+                            btn.classList.add('loading');
+                            await api.dispatchToCourier(order.id);
+                            btn.classList.remove('loading');
+                          } catch (err) {
+                            alert('Steadfast Dispatch Failed: ' + err.message);
+                            document.activeElement.classList.remove('loading');
+                          }
+                        }}
+                        title="Submit to Steadfast API"
+                      >
+                        <Truck size={16} /> <span>Steadfast</span>
+                      </button>
+                      <button
                         className="courier-action-btn submit"
                         onClick={() => handleSubmitToCourier(order.id)}
                         disabled={!order.tracking_id}

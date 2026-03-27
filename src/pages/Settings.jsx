@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../lib/api';
 import { DateRangePicker } from '../components/DateRangePicker';
@@ -11,7 +11,11 @@ import {
   Loader2,
   ShieldAlert,
   Database,
-  ArrowRight
+  ArrowRight,
+  Truck,
+  Zap,
+  Key,
+  Save
 } from 'lucide-react';
 
 export const Settings = () => {
@@ -22,6 +26,49 @@ export const Settings = () => {
   const [error, setError] = useState(null);
   const [resetScope, setResetScope] = useState('all');
   const [resetDateRange, setResetDateRange] = useState({ start: null, end: null });
+
+  // Courier Settings State
+  const [isCourierLoading, setIsCourierLoading] = useState(true);
+  const [isSavingCourier, setIsSavingCourier] = useState(false);
+  const [courierSuccess, setCourierSuccess] = useState(false);
+  const [courierConfig, setCourierConfig] = useState({
+    api_key: '',
+    secret_key: '',
+    is_enabled: false,
+    auto_dispatch: false
+  });
+
+  useEffect(() => {
+    loadCourierConfig();
+  }, []);
+
+  const loadCourierConfig = async () => {
+    setIsCourierLoading(true);
+    try {
+      const config = await api.getSystemConfig('courier_steadfast');
+      if (config) {
+        setCourierConfig(config);
+      }
+    } catch (err) {
+      console.error('Failed to load courier config:', err);
+    } finally {
+      setIsCourierLoading(false);
+    }
+  };
+
+  const handleSaveCourier = async () => {
+    setIsSavingCourier(true);
+    setError(null);
+    try {
+      await api.updateSystemConfig('courier_steadfast', courierConfig);
+      setCourierSuccess(true);
+      setTimeout(() => setCourierSuccess(false), 3000);
+    } catch (err) {
+      setError('Failed to save courier configuration.');
+    } finally {
+      setIsSavingCourier(false);
+    }
+  };
 
   const handleResetSystem = async () => {
     setIsResetLoading(true);
@@ -62,6 +109,94 @@ export const Settings = () => {
       </header>
 
       <div className="settings-grid">
+        {/* Courier Integration Card */}
+        <section className="settings-card courier-card">
+          <div className="card-header">
+            <Truck size={20} />
+            <h2>Courier Integration (Steadfast)</h2>
+          </div>
+          <div className="card-body">
+            {isCourierLoading ? (
+              <div className="card-loader">
+                <Loader2 className="animate-spin" size={24} />
+                <p>Loading integration settings...</p>
+              </div>
+            ) : (
+              <div className="courier-settings-form">
+                <div className="form-group">
+                  <label><Key size={14} /> API Key</label>
+                  <input 
+                    type="password" 
+                    value={courierConfig.api_key}
+                    onChange={(e) => setCourierConfig({...courierConfig, api_key: e.target.value})}
+                    placeholder="Enter Steadfast API Key"
+                    className="premium-input"
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label><ShieldAlert size={14} /> Secret Key</label>
+                  <input 
+                    type="password" 
+                    value={courierConfig.secret_key}
+                    onChange={(e) => setCourierConfig({...courierConfig, secret_key: e.target.value})}
+                    placeholder="Enter Steadfast Secret Key"
+                    className="premium-input"
+                  />
+                </div>
+
+                <div className="toggles-group">
+                  <div className="setting-toggle">
+                    <div className="toggle-info">
+                      <h3>Enable Integration</h3>
+                      <p>Allow system to talk to Steadfast API.</p>
+                    </div>
+                    <label className="switch">
+                      <input 
+                        type="checkbox" 
+                        checked={courierConfig.is_enabled}
+                        onChange={(e) => setCourierConfig({...courierConfig, is_enabled: e.target.checked})}
+                      />
+                      <span className="slider round"></span>
+                    </label>
+                  </div>
+
+                  <div className="setting-toggle">
+                    <div className="toggle-info">
+                      <h3>Auto-Dispatch</h3>
+                      <p>Submit to courier as soon as stock matches.</p>
+                    </div>
+                    <label className="switch">
+                      <input 
+                        type="checkbox" 
+                        checked={courierConfig.auto_dispatch}
+                        onChange={(e) => setCourierConfig({...courierConfig, auto_dispatch: e.target.checked})}
+                      />
+                      <span className="slider round"></span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="form-actions">
+                  <button 
+                    className={`save-btn ${courierSuccess ? 'success' : ''}`}
+                    onClick={handleSaveCourier}
+                    disabled={isSavingCourier}
+                  >
+                    {isSavingCourier ? (
+                      <Loader2 className="animate-spin" size={18} />
+                    ) : courierSuccess ? (
+                      <><CheckCircle size={18} /> Saved!</>
+                    ) : (
+                      <><Save size={18} /> Save Settings</>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+
         <section className="settings-card">
           <div className="card-header">
             <Database size={20} />

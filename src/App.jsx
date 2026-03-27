@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { OrderProvider } from './context/OrderContext';
+import { OrderProvider, useOrders } from './context/OrderContext';
 import { TaskProvider } from './context/TaskContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { DashboardLayout } from './components/DashboardLayout';
@@ -68,9 +68,11 @@ const SkeletonScreen = () => (
 
 
 const ProtectedRoute = ({ children }) => {
-  const { user, loading, isUnauthorized } = useAuth();
+  const { user, loading: authLoading, isUnauthorized } = useAuth();
+  const { isInitialized } = useOrders();
   
-  if (loading) {
+  // Show skeleton until both Auth and initial Data are ready
+  if (authLoading || (user && !isInitialized)) {
     return <SkeletonScreen />;
   }
   

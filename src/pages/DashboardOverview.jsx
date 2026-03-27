@@ -52,7 +52,7 @@ export const DashboardOverview = () => {
       <AIBriefing stats={stats} avgCallDelay={avgCallDelay} slaRate={slaRate} />
 
       <div className="metrics-grid">
-        <Card className="metric-card floating success-glow">
+        <Card className="metric-card floating success-glow" style={{ animationDelay: '0.1s' }}>
           <div className="glass-layer" />
           <div className="metric-icon-wrapper">
             <TrendingUp size={24} />
@@ -65,7 +65,7 @@ export const DashboardOverview = () => {
           </div>
         </Card>
 
-        <Card className="metric-card floating indigo-glow">
+        <Card className="metric-card floating indigo-glow" style={{ animationDelay: '0.2s' }}>
           <div className="glass-layer" />
           <div className="metric-icon-wrapper">
             <ShoppingBag size={24} />
@@ -76,7 +76,7 @@ export const DashboardOverview = () => {
           </div>
         </Card>
 
-        <Card className="metric-card floating teal-glow">
+        <Card className="metric-card floating teal-glow" style={{ animationDelay: '0.3s' }}>
           <div className="glass-layer" />
           <div className="metric-icon-wrapper">
             <BarChart3 size={24} />
@@ -89,7 +89,7 @@ export const DashboardOverview = () => {
           </div>
         </Card>
 
-        <Card className="metric-card floating neutral-glow">
+        <Card className="metric-card floating neutral-glow" style={{ animationDelay: '0.4s' }}>
           <div className="glass-layer" />
           <div className="metric-icon-wrapper">
             <Package size={24} />

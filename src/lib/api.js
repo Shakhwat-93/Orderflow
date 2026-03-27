@@ -1123,23 +1123,37 @@ ${rawText}`;
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    // Get true total count without payload
-    const { count: total } = await supabase.from('orders').select('*', { count: 'exact', head: true });
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    const todayStr = now.toDateString();
 
-    // Fetch only recent orders for rich stats to save huge bandwidth
-    const { data: recentOrders, error } = await supabase
-      .from('orders')
-      .select('status, amount, phone, product_name, created_at, updated_at, source')
-      .gte('created_at', thirtyDaysAgo.toISOString());
+    // Parallelize all primary queries for maximum performance
+    const [
+      { count: total }, 
+      { data: recentOrders, error: ordersError },
+      { data: todayConfirmLogs }
+    ] = await Promise.all([
+      supabase.from('orders').select('*', { count: 'exact', head: true }),
+      supabase.from('orders')
+        .select('status, amount, phone, product_name, created_at, updated_at, source')
+        .gte('created_at', thirtyDaysAgo.toISOString()),
+      supabase.from('order_activity_logs')
+        .select('new_status,timestamp,action_type')
+        .eq('action_type', 'STATUS_CHANGE')
+        .eq('new_status', 'Confirmed')
+        .gte('timestamp', todayStart.toISOString())
+        .lte('timestamp', todayEnd.toISOString())
+    ]);
 
-    if (error) throw error;
+    if (ordersError) throw ordersError;
 
     const orders = recentOrders || [];
     
     const successfulStatuses = ['Confirmed', 'Completed', 'Shipped', 'Factory Processing'];
     const completedOrders = orders.filter(o => successfulStatuses.includes(o.status));
     
-    // These counts now reflect the last 30 days strictly, which is better for real-world dashboards anyway
+    // These counts now reflect the last 30 days strictly
     const completed = orders.filter(o => o.status === 'Completed').length;
     const confirmedCount = orders.filter(o => o.status === 'Confirmed').length;
     const cancelledCount = orders.filter(o => o.status === 'Cancelled').length;
@@ -1157,19 +1171,7 @@ ${rawText}`;
     const uniqueProducts = new Set(orders.map(o => o.product_name).filter(Boolean));
     const totalProducts = uniqueProducts.size;
 
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-    const todayStr = now.toDateString();
     const addedTodayCount = orders.filter(o => new Date(o.created_at).toDateString() === todayStr).length;
-
-    const { data: todayConfirmLogs } = await supabase
-      .from('order_activity_logs')
-      .select('new_status,timestamp,action_type')
-      .eq('action_type', 'STATUS_CHANGE')
-      .eq('new_status', 'Confirmed')
-      .gte('timestamp', todayStart.toISOString())
-      .lte('timestamp', todayEnd.toISOString());
 
     const confirmedTodayCount =
       (todayConfirmLogs && Array.isArray(todayConfirmLogs) && todayConfirmLogs.length > 0)
@@ -1596,94 +1598,78 @@ ${rawText}`;
     if (!isAdmin) throw new Error('Unauthorized: Only Admins can reset the system.');
 
     const scope = options.scope || 'all';
+    const dateRange = options.dateRange || {};
 
-    if (scope === 'date-range') {
-      const startInput = options?.dateRange?.start;
-      const endInput = options?.dateRange?.end;
-
-      if (!startInput || !endInput) {
-        throw new Error('Start and end dates are required for date-range reset.');
+    try {
+      if (scope === 'all') {
+        const { error: ordersErr } = await supabase.from('orders').delete().not('id', 'is', null);
+        const { error: logsErr } = await supabase.from('order_activity_logs').delete().not('id', 'is', null);
+        const { error: notifsErr } = await supabase.from('notifications').delete().not('id', 'is', null);
+        if (ordersErr || logsErr || notifsErr) throw new Error('Full reset failed.');
+      } else if (scope === 'date-range' && dateRange.start && dateRange.end) {
+        const start = new Date(dateRange.start).toISOString();
+        const end = new Date(dateRange.end).toISOString();
+        await supabase.from('orders').delete().gte('created_at', start).lte('created_at', end);
+        await supabase.from('order_activity_logs').delete().gte('timestamp', start).lte('timestamp', end);
+        await supabase.from('notifications').delete().gte('created_at', start).lte('created_at', end);
       }
-
-      const start = new Date(startInput);
-      const end = new Date(endInput);
-
-      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-        throw new Error('Invalid date range.');
-      }
-
-      if (start > end) {
-        throw new Error('Start date must be before end date.');
-      }
-
-      // make end inclusive for the full day
-      end.setHours(23, 59, 59, 999);
-
-      const startIso = start.toISOString();
-      const endIso = end.toISOString();
-
-      // Orders by created_at
-      const { error: ordersErr } = await supabase
-        .from('orders')
-        .delete()
-        .gte('created_at', startIso)
-        .lte('created_at', endIso);
-      if (ordersErr) throw ordersErr;
-
-      // Activity logs by timestamp
-      const { error: logsErr } = await supabase
-        .from('order_activity_logs')
-        .delete()
-        .gte('timestamp', startIso)
-        .lte('timestamp', endIso);
-      if (logsErr) throw logsErr;
-
-      // Notifications by created_at
-      const { error: notificationsErr } = await supabase
-        .from('notifications')
-        .delete()
-        .gte('created_at', startIso)
-        .lte('created_at', endIso);
-      if (notificationsErr) throw notificationsErr;
-
-      return {
-        success: true,
-        scope: 'date-range',
-        range: { start: startIso, end: endIso }
-      };
+      return { success: true };
+    } catch (err) {
+      console.error('Reset error:', err);
+      throw err;
     }
+  },
 
-    // 1. Clear Transactional Tables
-    const tablesToClear = ['orders', 'order_activity_logs', 'notifications'];
-    for (const table of tablesToClear) {
-      const { error } = await supabase
-        .from(table)
-        .delete()
-        .not('id', 'is', null);
-      if (error) throw error;
+  /**
+   * Dispatch an order to the integrated courier (Steadfast)
+   */
+  async dispatchToCourier(orderId) {
+    const { data: { session } } = await supabase.auth.getSession();
+    const { data, error } = await supabase.functions.invoke('courier-api', {
+      body: { orderId },
+      headers: {
+        Authorization: `Bearer ${session?.access_token}`
+      }
+    });
+
+    if (error) {
+      console.error('Courier Dispatch Error:', error);
+      throw error;
     }
+    return data;
+  },
 
-    // 2. Reset Inventory Levels
-    const { error: invErr } = await supabase
-      .from('inventory')
-      .update({ current_stock: 0 })
-      .not('id', 'is', null);
-    if (invErr) throw invErr;
+  /**
+   * Get system configurations (e.g., courier settings)
+   */
+  async getSystemConfig(key) {
+    const { data, error } = await supabase
+      .from('system_configs')
+      .select('value')
+      .eq('key', key)
+      .single();
 
-    // 3. Reset Toy Box Stock
-    const { error: toyErr } = await supabase
-      .from('toy_box_inventory')
-      .update({ stock_quantity: 0 })
-      .not('id', 'is', null);
-    if (toyErr) throw toyErr;
+    if (error && error.code !== 'PGRST116') throw error;
+    return data?.value || null;
+  },
 
-    return { success: true };
+  /**
+   * Update system configurations
+   */
+  async updateSystemConfig(key, value) {
+    const { data, error } = await supabase
+      .from('system_configs')
+      .upsert({ key, value, updated_at: new Date().toISOString() })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   },
 
   // ──────────────────────────────────────────────
   // TASK MANAGEMENT
   // ──────────────────────────────────────────────
-
   async logTaskActivity(taskId, taskType, actionType, actionDescription, oldStatus = null, newStatus = null) {
     try {
       const { data: userSession } = await supabase.auth.getSession();
