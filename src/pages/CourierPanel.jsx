@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useOrders } from '../context/OrderContext';
+import { api } from '../lib/api';
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
