@@ -342,6 +342,7 @@ export const OrderProvider = ({ children }) => {
 
     try {
       // Notify before deletion to ensure we have data
+      /* 
       await api.createNotification({
         type: 'ORDER_DELETED',
         title: 'Order Deleted',
@@ -349,6 +350,7 @@ export const OrderProvider = ({ children }) => {
         data: { orderId, customer: order?.customer_name },
         actor_name: currentUserName
       });
+      */
 
       const { error } = await supabase
         .from('orders')

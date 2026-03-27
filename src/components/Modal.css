@@ -40,7 +40,7 @@
   .modal-overlay { align-items: center; padding: var(--sp-6); }
   .modal-content {
     border-radius: var(--radius-xl);
-    max-width: 600px;
+    max-width: 850px;
     max-height: 85vh;
     animation: modalPopIn 0.4s var(--ease-out);
   }

@@ -1,313 +1,262 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
 import { Modal } from './Modal';
 import { Badge } from './Badge';
-import { ActivityTimeline } from './ActivityTimeline';
-import { useOrders } from '../context/OrderContext';
-import { useAuth } from '../context/AuthContext';
-import { useTasks } from '../context/TaskContext';
 import { Button } from './Button';
 import { 
-  User, Phone, MapPin, Package, Tag, Hash, 
-  Calendar, Globe, StickyNote, DollarSign, Target, ExternalLink
+  User, Phone, MapPin, Package, Calendar, Clock, 
+  History, Edit2, X, Clipboard, ExternalLink, 
+  Truck, CheckCircle2, AlertCircle, Info 
 } from 'lucide-react';
-import { TaskDetailsModal } from './TaskDetailsModal';
+import { api } from '../lib/api';
 import './OrderDetailsModal.css';
 
-export const OrderDetailsModal = ({ order, isOpen, onClose }) => {
-  const { fetchOrderLogs, updateOrderStatus, editOrder, addTrackingID } = useOrders();
-  const { assignedTasks, updateAssignedTask } = useTasks();
-  const { hasRole, isAdmin } = useAuth();
-  const [logs, setLogs] = useState([]);
+export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
+  const [activityLogs, setActivityLogs] = useState([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
-  const [newTrackingId, setNewTrackingId] = useState('');
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [selectedTask, setSelectedTask] = useState(null);
-
-  const orderTasks = assignedTasks ? assignedTasks.filter(t => t.related_order_id === String(order?.id)) : [];
 
   useEffect(() => {
     if (isOpen && order?.id) {
-      loadLogs();
-
-      // Subscribe to realtime logs for this specific order
-      const logsSubscription = supabase
-        .channel(`order-logs-${order.id}`)
-        .on(
-          'postgres_changes', 
-          { 
-            event: 'INSERT', 
-            schema: 'public', 
-            table: 'order_activity_logs',
-            filter: `order_id=eq.${order.id}`
-          }, 
-          (payload) => {
-            setLogs(prev => [payload.new, ...prev]);
-          }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(logsSubscription);
+      const fetchLogs = async () => {
+        setIsLoadingLogs(true);
+        try {
+          const logs = await api.getOrderActivity(order.id);
+          setActivityLogs(logs || []);
+        } catch (err) {
+          console.error('Failed to fetch activity logs:', err);
+        } finally {
+          setIsLoadingLogs(false);
+        }
       };
+      fetchLogs();
+    } else {
+        setActivityLogs([]);
     }
   }, [isOpen, order?.id]);
 
-  const loadLogs = async () => {
-    setIsLoadingLogs(true);
-    const data = await fetchOrderLogs(order.id);
-    setLogs(data);
-    setIsLoadingLogs(false);
-  };
-
   if (!order) return null;
 
-  const getStatusBadgeVariant = (status) => {
-    switch (status) {
-      case 'New': return 'new';
-      case 'Pending Call': return 'pending-call';
-      case 'Confirmed': return 'confirmed';
-      case 'Cancelled': return 'cancelled';
-      case 'Courier Submitted': return 'courier';
-      case 'Factory Processing': return 'factory';
-      case 'Completed': return 'completed';
-      default: return 'default';
-    }
+  const getStatusVariant = (status) => {
+    const s = String(status || '').toLowerCase();
+    if (['confirmed', 'completed', 'delivered'].includes(s)) return 'success';
+    if (['cancelled', 'returned', 'failed'].includes(s)) return 'danger';
+    if (['pending', 'new', 'hold', 'pending call'].includes(s)) return 'warning';
+    return 'neutral';
   };
 
-  const handleStatusUpdate = async (newStatus) => {
-    setIsUpdating(true);
-    await updateOrderStatus(order.id, newStatus);
-    setIsUpdating(false);
-  };
-
-  const handleTrackingUpdate = async (e) => {
-    e.preventDefault();
-    if (!newTrackingId) return;
-    setIsUpdating(true);
-    await addTrackingID(order.id, newTrackingId);
-    setNewTrackingId('');
-    setIsUpdating(false);
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
+    // User gets a silent copy or you could add a toast here
   };
 
   return (
     <Modal 
       isOpen={isOpen} 
       onClose={onClose} 
-      title={`Order Details: #${order.id}`}
-      size="large"
+      title={`Order Details: #${order.id.replace('ORD-', '')}`}
     >
-      <div className="order-details-grid">
-        <div className="details-main">
-          {/* Customer Info Section */}
-          <section className="details-section">
-            <h4>Customer Information</h4>
-            <div className="info-grid">
-              <div className="info-item">
-                <User size={18} />
-                <div className="info-content">
-                  <label>Name</label>
-                  <span>{order.customer_name}</span>
+      <div className="order-details-elite">
+        {/* Header Summary Card */}
+        <div className="details-summary-grid">
+          <div className="summary-main-card glass-card">
+            <div className="card-header-flex">
+              <div className="order-main-info">
+                <span className="order-label">Order Reference</span>
+                <div className="order-id-copy" onClick={() => copyToClipboard(order.id)}>
+                  <h3>{order.id}</h3>
+                  <Clipboard size={14} className="copy-icon" />
                 </div>
               </div>
-              <div className="info-item">
-                <Phone size={18} />
-                <div className="info-content">
-                  <label>Phone</label>
-                  <span>{order.phone}</span>
-                </div>
-              </div>
-              <div className="info-item full-width">
-                <MapPin size={18} />
-                <div className="info-content">
-                  <label>Address</label>
-                  <span>{order.address || 'No address provided'}</span>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* Product Info Section */}
-          <section className="details-section">
-            <h4>Order Information</h4>
-            <div className="info-grid">
-              <div className="info-item">
-                <Package size={18} />
-                <div className="info-content">
-                  <label>Product</label>
-                  <span>{order.product_name}</span>
-                </div>
-              </div>
-              <div className="info-item">
-                <Tag size={18} />
-                <div className="info-content">
-                  <label>Size</label>
-                  <span>{order.size || 'N/A'}</span>
-                </div>
-              </div>
-              <div className="info-item">
-                <Hash size={18} />
-                <div className="info-content">
-                  <label>Quantity</label>
-                  <span>{order.quantity}</span>
-                </div>
-              </div>
-              <div className="info-item">
-                <DollarSign size={18} />
-                <div className="info-content">
-                  <label>Amount</label>
-                  <span>${order.amount || '0.00'}</span>
-                </div>
-              </div>
-              <div className="info-item">
-                <Globe size={18} />
-                <div className="info-content">
-                  <label>Source</label>
-                  <span>{order.source}</span>
-                </div>
-              </div>
-              <div className="info-item">
-                <Calendar size={18} />
-                <div className="info-content">
-                  <label>Created At</label>
-                  <span>{new Date(order.created_at).toLocaleString()}</span>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="details-section">
-            <h4>Status & Tracking</h4>
-            <div className="status-tracking-wrap">
-              <Badge variant={getStatusBadgeVariant(order.status)}>
+              <Badge variant={getStatusVariant(order.status)} className="status-badge-elite">
                 {order.status}
               </Badge>
-              {order.tracking_id && (
-                <div className="tracking-info">
-                  <label>Tracking ID:</label>
-                  <code>{order.tracking_id}</code>
+            </div>
+            
+            <div className="quick-meta-row">
+              <div className="meta-item">
+                <Calendar size={14} />
+                <span>{new Date(order.created_at).toLocaleDateString()}</span>
+              </div>
+              <div className="meta-item">
+                <Clock size={14} />
+                <span>{new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+              <div className="meta-item">
+                <Info size={14} />
+                <span>Source: {order.source || 'Direct'}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="amount-focus-card glass-card">
+            <span className="order-label">Total Amount</span>
+            <div className="amount-value">৳{Number(order.amount || 0).toLocaleString()}</div>
+            <div className="shipping-info">
+              {order.shipping_zone} 
+              <span className="fee">({order.shipping_zone === 'Inside Dhaka' ? '৳80' : '৳150'})</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Content Sections */}
+        <div className="details-content-sections">
+          
+          <div className="section-row">
+            {/* Customer Info */}
+            <div className="details-section-card glass-card half">
+              <div className="section-title">
+                <User size={18} className="text-accent" />
+                <span>Customer Information</span>
+              </div>
+              <div className="info-list">
+                <div className="info-item">
+                  <span className="info-label">Name</span>
+                  <span className="info-value">{order.customer_name}</span>
                 </div>
-              )}
+                <div className="info-item">
+                  <span className="info-label">Phone</span>
+                  <div className="info-value-flex">
+                    <span className="info-value">{order.phone}</span>
+                    <a href={`tel:${order.phone}`} className="action-circle-btn">
+                      <Phone size={14} />
+                    </a>
+                  </div>
+                </div>
+                <div className="info-item vertical">
+                  <span className="info-label">Delivery Address</span>
+                  <div className="address-box">
+                    <MapPin size={14} className="text-tertiary" />
+                    <span>{order.address}</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="quick-actions">
-              {(isAdmin || hasRole('Call Team')) && ['New', 'Pending Call'].includes(order.status) && (
-                <div className="action-group">
-                  <Button variant="confirmed" size="small" onClick={() => handleStatusUpdate('Confirmed')} disabled={isUpdating}>
-                    Confirm Order
-                  </Button>
-                  <Button variant="cancelled" size="small" onClick={() => handleStatusUpdate('Cancelled')} disabled={isUpdating}>
-                    Cancel Order
-                  </Button>
-                </div>
-              )}
-
-              {(isAdmin || hasRole('Courier Team')) && order.status === 'Confirmed' && (
-                <div className="action-group vertical">
-                  <form onSubmit={handleTrackingUpdate} className="tracking-form">
-                    <input 
-                      type="text" 
-                      placeholder="Enter Tracking ID..." 
-                      value={newTrackingId}
-                      onChange={e => setNewTrackingId(e.target.value)}
-                      className="inline-input"
-                    />
-                    <Button variant="primary" size="small" type="submit" disabled={isUpdating || !newTrackingId}>
-                      Update & Ship
-                    </Button>
-                  </form>
-                  <Button variant="courier" size="small" onClick={() => handleStatusUpdate('Courier Submitted')} disabled={isUpdating}>
-                    Mark as Shipped
-                  </Button>
-                </div>
-              )}
-
-              {(isAdmin || hasRole('Factory Team')) && ['Confirmed', 'Courier Submitted'].includes(order.status) && (
-                <div className="action-group">
-                  <Button variant="factory" size="small" onClick={() => handleStatusUpdate('Factory Processing')} disabled={isUpdating}>
-                    Start Processing
-                  </Button>
-                  <Button variant="completed" size="small" onClick={() => handleStatusUpdate('Completed')} disabled={isUpdating}>
-                    Mark Completed
-                  </Button>
-                </div>
-              )}
-            </div>
-          </section>
-
-          {/* ── Order Tasks Section ── */}
-          {orderTasks.length > 0 && (
-            <section className="details-section order-tasks-section">
-              <h4>Linked Tasks</h4>
-              <div className="linked-tasks-list">
-                {orderTasks.map(task => (
-                  <div key={task.id} className={`linked-task-item ${task.status}`}>
-                    <div className="task-header">
-                      <span className="task-title">{task.title}</span>
-                      <Badge variant={
-                        task.status === 'completed' ? 'completed' : 
-                        task.status === 'in_progress' ? 'factory' : 'default'
-                      }>
-                        {task.status.replace('_', ' ')}
-                      </Badge>
+            {/* Product Info */}
+            <div className="details-section-card glass-card half">
+              <div className="section-title">
+                <Package size={18} className="text-accent" />
+                <span>Ordered Products</span>
+              </div>
+              <div className="product-scroll-list">
+                {Array.isArray(order.ordered_items) && order.ordered_items.length > 0 ? (
+                  order.ordered_items.map((item, idx) => (
+                    <div key={idx} className="order-product-card glass-card">
+                      <div className="product-qty-badge">{item.quantity}x</div>
+                      <div className="product-main-info">
+                        <div className="product-name-row">
+                          <span className="name">{item.name}</span>
+                          {item.toyBoxNumber && <span className="box-tag">Box #{item.toyBoxNumber}</span>}
+                        </div>
+                        {item.size && <div className="product-meta-detail">Size: <span className="highlight">{item.size}</span></div>}
+                      </div>
+                      <div className="product-price-column">
+                        <div className="unit-price">@৳{Number(item.price || 0).toLocaleString()}</div>
+                        <div className="total-price">৳{Number((item.price || 0) * (item.quantity || 1)).toLocaleString()}</div>
+                      </div>
                     </div>
-                    {task.description && <p className="task-desc-small">{task.description}</p>}
-                    <div className="task-actions" style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: 'var(--sp-2)' }}>
-                      <Button variant="ghost" size="small" onClick={() => setSelectedTask(task)}>
-                        <Target size={14} style={{ marginRight: '4px' }} /> Details
-                      </Button>
-                      {task.status === 'pending' && (
-                        <Button variant="outline" size="small" onClick={() => updateAssignedTask(task.id, { status: 'in_progress' })}>
-                          Start
-                        </Button>
-                      )}
-                      {task.status === 'in_progress' && (
-                        <Button variant="primary" size="small" onClick={() => updateAssignedTask(task.id, { status: 'completed' })}>
-                          Complete
-                        </Button>
-                      )}
+                  ))
+                ) : (
+                  <div className="order-product-card glass-card">
+                    <div className="product-qty-badge">{order.quantity || 1}x</div>
+                    <div className="product-main-info">
+                      <div className="product-name-row">
+                        <span className="name">{order.product_name}</span>
+                      </div>
+                      {order.size && <div className="product-meta-detail">Size: <span className="highlight">{order.size}</span></div>}
+                    </div>
+                    <div className="product-price-column">
+                      <div className="total-price">৳{Number(order.amount || 0).toLocaleString()}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {order.notes && (
+                <div className="order-notes-box">
+                  <span className="notes-label">Internal Notes:</span>
+                  <p>{order.notes}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Delivery & Logistics */}
+          {order.tracking_id && (
+            <div className="details-section-card glass-card full-width">
+              <div className="section-title">
+                <Truck size={18} className="text-accent" />
+                <span>Logistics & Courier Details</span>
+              </div>
+              <div className="logistics-grid">
+                <div className="log-item">
+                  <span className="info-label">Courier Service</span>
+                  <span className="info-value">Steadfast Logistics</span>
+                </div>
+                <div className="log-item">
+                  <span className="info-label">Tracking Number</span>
+                  <div className="tracking-badge-group">
+                    <code>{order.tracking_id}</code>
+                    <a 
+                      href={`https://portal.steadfast.com.bd/tracking/${order.tracking_id}`} 
+                      target="_blank" 
+                      rel="noreferrer"
+                      className="tracking-external-link"
+                    >
+                      <ExternalLink size={14} /> <span>Portal</span>
+                    </a>
+                  </div>
+                </div>
+                <div className="log-item">
+                  <span className="info-label">Current Status</span>
+                  <Badge variant={getStatusVariant(order.courier_status)}>{order.courier_status || 'Checking...'}</Badge>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Timeline */}
+          <div className="details-section-card glass-card full-width">
+            <div className="section-title">
+              <History size={18} className="text-accent" />
+              <span>Activity Timeline & Audit Trail</span>
+            </div>
+            {isLoadingLogs ? (
+              <div className="timeline-loading">Syncing history...</div>
+            ) : activityLogs.length === 0 ? (
+              <div className="timeline-empty">No activity records found for this order.</div>
+            ) : (
+              <div className="elite-timeline">
+                {activityLogs.map((log, i) => (
+                  <div key={log.id || i} className="timeline-entry">
+                    <div className="entry-point" />
+                    <div className="entry-content">
+                      <div className="entry-header">
+                        <span className="entry-time">
+                          {new Date(log.timestamp).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                        </span>
+                        <div className="entry-user">
+                          <div className="mini-avatar">{(log.changed_by_user_name || 'S').charAt(0)}</div>
+                          <span>{log.changed_by_user_name || 'System'}</span>
+                        </div>
+                      </div>
+                      <div className="entry-desc">{log.action_description}</div>
                     </div>
                   </div>
                 ))}
               </div>
-            </section>
-          )}
-
-          {order.notes && (
-            <section className="details-section">
-              <h4>Notes</h4>
-              <div className="notes-box">
-                <StickyNote size={18} />
-                <p>{order.notes}</p>
-              </div>
-            </section>
-          )}
+            )}
+          </div>
         </div>
 
-        <div className="details-sidebar">
-          <div className="sidebar-header">
-            <h4>Activity History</h4>
-            <button className="refresh-btn" onClick={loadLogs} disabled={isLoadingLogs}>
-              {isLoadingLogs ? 'Loading...' : 'Refresh'}
-            </button>
-          </div>
-          <div className="activity-scroll">
-            <ActivityTimeline logs={logs} />
-          </div>
+        {/* Footer Actions */}
+        <div className="details-footer-actions">
+           <Button variant="secondary" onClick={onClose} icon={<X size={18} />}>Close Window</Button>
+           {onEdit && (
+             <Button variant="primary" onClick={() => { onClose(); onEdit(order); }} icon={<Edit2 size={18} />}>
+               Edit Order Data
+             </Button>
+           )}
         </div>
       </div>
-
-      <TaskDetailsModal
-        task={selectedTask}
-        taskType="assigned"
-        isOpen={!!selectedTask}
-        onClose={() => setSelectedTask(null)}
-        onOpenOrder={(orderId) => {
-          if (String(orderId) === String(order?.id)) {
-             setSelectedTask(null);
-          }
-        }}
-      />
     </Modal>
   );
 };

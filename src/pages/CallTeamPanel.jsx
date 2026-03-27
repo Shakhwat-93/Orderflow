@@ -4,6 +4,7 @@ import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { OrderRow } from '../components/OrderRow';
 import { OrderEditModal } from '../components/OrderEditModal';
+import { OrderDetailsModal } from '../components/OrderDetailsModal';
 import { DateRangePicker } from '../components/DateRangePicker';
 import { Search, PhoneCall, CheckCircle, XCircle, Clock, PhoneMissed, Globe, ChevronLeft, ChevronRight, Edit2, Loader2, PhoneOff, PhoneForwarded } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -45,12 +46,18 @@ export const CallTeamPanel = () => {
   const [dateRange, setDateRange] = useState({ start: null, end: null });
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [selectedOrderForEdit, setSelectedOrderForEdit] = useState(null);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
   const [loggingAttemptId, setLoggingAttemptId] = useState(null);
 
   const handleOpenEditModal = (order) => {
-    setSelectedOrderForEdit(order);
+    setSelectedOrder(order);
     setIsEditModalOpen(true);
+  };
+
+  const handleRowClick = (order) => {
+    setSelectedOrder(order);
+    setIsDetailsModalOpen(true);
   };
 
   const handleLogAttempt = async (orderId, attemptStatus) => {
@@ -150,23 +157,6 @@ export const CallTeamPanel = () => {
         <button className="strip-arrow right" onClick={() => scrollContainer(statusTabsRef, 'right')}><ChevronRight size={16} /></button>
       </div>
 
-      {/* Unified Filter Bar */}
-      <div className="unified-filter-bar">
-        <div className="filter-search">
-          <Search size={16} className="search-icon" />
-          <input type="text" placeholder="Search ID, name or phone..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-        </div>
-        <div className="filter-divider" />
-        <div className="filter-select-group">
-          <Globe size={14} className="select-icon" />
-          <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}>
-            <option value="All">All Sources</option>
-            {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-        <div className="filter-divider" />
-        <DateRangePicker value={dateRange} onChange={setDateRange} />
-      </div>
 
       {/* Product Checkpoints */}
       <div className="scrollable-strip-wrapper">
@@ -189,8 +179,28 @@ export const CallTeamPanel = () => {
 
       {/* Orders Table with Call Actions */}
       <Card className="table-card liquid-glass" noPadding>
-        <div className="mod-table-header">
-          <span className="order-count-badge">{filteredOrders.length} orders</span>
+        <div className="table-search-bar">
+          <div className="search-input-wrapper">
+            <Search className="search-icon" size={18} />
+            <input
+              type="text"
+              placeholder="Search ID, name or phone..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="search-field"
+            />
+          </div>
+          <div className="filter-actions-group">
+            <div className="filter-select-group">
+              <Globe size={14} className="select-icon" />
+              <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}>
+                <option value="All">All Sources</option>
+                {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <DateRangePicker value={dateRange} onChange={setDateRange} />
+            <span className="order-count-badge">{filteredOrders.length} orders</span>
+          </div>
         </div>
         <div className="table-container">
           <table className="management-table">
@@ -208,11 +218,11 @@ export const CallTeamPanel = () => {
             </thead>
             <tbody>
               {filteredOrders.map(order => (
-                <tr key={order.id} className="order-row">
+                <tr key={order.id} className="order-row cursor-pointer hover:bg-slate-50/50" onClick={() => handleRowClick(order)}>
                   <td className="order-id-cell">#{(order.id || '').replace('ORD-', '')}</td>
                   <td className="customer-name">{order.customer_name}</td>
                   <td className="phone-cell">
-                    <a href={`tel:${order.phone}`} className="phone-link">
+                    <a href={`tel:${order.phone}`} className="phone-link" onClick={(e) => e.stopPropagation()}>
                       <PhoneCall size={14} /> {order.phone}
                     </a>
                   </td>
@@ -249,12 +259,12 @@ export const CallTeamPanel = () => {
                   <td>
                     {['New', 'Pending Call', 'Confirmed'].includes(order.status) ? (
                       <div className="call-action-grid">
-                        <button className="call-action-btn edit" onClick={() => handleOpenEditModal(order)} title="Edit Order">
+                        <button className="call-action-btn edit" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(order); }} title="Edit Order">
                           <Edit2 size={16} /> <span>Edit</span>
                         </button>
                         {['New', 'Pending Call'].includes(order.status) && (
                           <>
-                            <button className="call-action-btn confirm" onClick={() => handleAction(order.id, 'confirm')} title="Confirm Order">
+                            <button className="call-action-btn confirm" onClick={(e) => { e.stopPropagation(); handleAction(order.id, 'confirm'); }} title="Confirm Order">
                               <CheckCircle size={16} /> <span>Confirm</span>
                             </button>
                             {loggingAttemptId === order.id ? (
@@ -263,18 +273,18 @@ export const CallTeamPanel = () => {
                               </button>
                             ) : (
                               <>
-                                <button className="call-action-btn not-reachable" onClick={() => handleLogAttempt(order.id, 'No Answer')} title="Log: No Answer (Remains Pending)">
+                                <button className="call-action-btn not-reachable" onClick={(e) => { e.stopPropagation(); handleLogAttempt(order.id, 'No Answer'); }} title="Log: No Answer (Remains Pending)">
                                   <PhoneMissed size={16} /> <span>No Answer</span>
                                 </button>
-                                <button className="call-action-btn busy" onClick={() => handleLogAttempt(order.id, 'Busy / Rejected')} title="Log: Busy/Rejected (Remains Pending)">
+                                <button className="call-action-btn busy" onClick={(e) => { e.stopPropagation(); handleLogAttempt(order.id, 'Busy / Rejected'); }} title="Log: Busy/Rejected (Remains Pending)">
                                   <PhoneOff size={16} /> <span>Busy</span>
                                 </button>
-                                <button className="call-action-btn follow-up" onClick={() => handleLogAttempt(order.id, 'Call Back Later')} title="Log: Call Back Later (Remains Pending)">
+                                <button className="call-action-btn follow-up" onClick={(e) => { e.stopPropagation(); handleLogAttempt(order.id, 'Call Back Later'); }} title="Log: Call Back Later (Remains Pending)">
                                   <Clock size={16} /> <span>Call Back</span>
                                 </button>
                               </>
                             )}
-                            <button className="call-action-btn cancel" onClick={() => handleAction(order.id, 'cancel')} title="Cancel Order">
+                            <button className="call-action-btn cancel" onClick={(e) => { e.stopPropagation(); handleAction(order.id, 'cancel'); }} title="Cancel Order">
                               <XCircle size={16} /> <span>Cancel</span>
                             </button>
                           </>
@@ -301,7 +311,14 @@ export const CallTeamPanel = () => {
       <OrderEditModal 
         isOpen={isEditModalOpen} 
         onClose={() => setIsEditModalOpen(false)} 
-        order={selectedOrderForEdit} 
+        order={selectedOrder} 
+      />
+
+      <OrderDetailsModal 
+        isOpen={isDetailsModalOpen} 
+        onClose={() => setIsDetailsModalOpen(false)} 
+        order={selectedOrder}
+        onEdit={handleOpenEditModal}
       />
     </div>
   );

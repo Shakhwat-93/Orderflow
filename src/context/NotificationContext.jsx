@@ -105,7 +105,22 @@ export const NotificationProvider = ({ children }) => {
     }
   }, []);
 
+  const recentlyShownToastsRef = useRef(new Set());
   const addToast = useCallback((notif) => {
+    // Prevent duplicate toasts for the same notification ID within a short window
+    // This fixes the '2 bar' issue where broadcast and postgres listeners both fire
+    if (notif.id && recentlyShownToastsRef.current.has(notif.id)) {
+      return;
+    }
+    
+    if (notif.id) {
+      recentlyShownToastsRef.current.add(notif.id);
+      // Clean up after 10 seconds
+      setTimeout(() => {
+        recentlyShownToastsRef.current.delete(notif.id);
+      }, 10000);
+    }
+
     const id = Date.now();
     setToasts(prev => [...prev, { ...notif, id }]);
     playNotificationSound(notif.type);

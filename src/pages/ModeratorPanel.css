@@ -88,54 +88,7 @@
 .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 
 /* Table Header */
-.mod-table-header {
-  padding: var(--sp-4) var(--sp-5);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-3);
-}
-
-.search-box {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  max-width: 400px;
-}
-
-.search-box .filter-icon {
-  color: var(--text-tertiary);
-  flex-shrink: 0;
-}
-
-.glass-input {
-  width: 100%;
-  padding: 10px 0;
-  background: transparent;
-  border: none;
-  outline: none;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  font-family: inherit;
-}
-
-.glass-input::placeholder {
-  color: var(--text-tertiary);
-  font-weight: 500;
-}
-
-.order-count-badge {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text-tertiary);
-  padding: 4px 12px;
-  background: #f1f5f9;
-  border-radius: 100px;
-  white-space: nowrap;
-}
+/* Table Header handled by global ELITE TABLE SYSTEM in index.css */
 
 /* Table */
 .table-container { overflow-x: auto; padding: var(--sp-2); }

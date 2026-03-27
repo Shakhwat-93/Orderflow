@@ -5,6 +5,7 @@ import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
 import { Search, Truck, RotateCcw, ExternalLink, Calendar, User, Phone, MapPin } from 'lucide-react';
+import { OrderDetailsModal } from '../components/OrderDetailsModal';
 import './SteadfastPanel.css';
 
 export const SteadfastPanel = () => {
@@ -12,6 +13,13 @@ export const SteadfastPanel = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState({}); // { orderId: 'syncing' | 'done' | 'error' }
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+
+  const handleRowClick = (order) => {
+    setSelectedOrder(order);
+    setIsDetailsModalOpen(true);
+  };
 
   // Filter orders that have been dispatched to Steadfast (have tracking_id)
   const steadfastOrders = orders.filter(
@@ -122,7 +130,7 @@ export const SteadfastPanel = () => {
             </thead>
             <tbody>
               {steadfastOrders.map(order => (
-                <tr key={order.id} className="tracking-row">
+                <tr key={order.id} className="tracking-row cursor-pointer hover:bg-slate-50/50" onClick={() => handleRowClick(order)}>
                   <td>
                     <div className="order-id-cell">
                       <span className="id-badge">{order.id}</span>
@@ -143,6 +151,7 @@ export const SteadfastPanel = () => {
                         target="_blank" 
                         rel="noreferrer"
                         className="external-link"
+                        onClick={(e) => e.stopPropagation()}
                       >
                         <ExternalLink size={14} />
                       </a>
@@ -161,7 +170,7 @@ export const SteadfastPanel = () => {
                   <td>
                     <button 
                       className={`sync-btn ${syncStatus[order.id] || ''}`}
-                      onClick={() => handleSyncStatus(order.id, order.tracking_id)}
+                      onClick={(e) => { e.stopPropagation(); handleSyncStatus(order.id, order.tracking_id); }}
                       disabled={syncStatus[order.id] === 'syncing'}
                     >
                       <RotateCcw size={16} className={syncStatus[order.id] === 'syncing' ? 'animate-spin' : ''} />
@@ -180,6 +189,12 @@ export const SteadfastPanel = () => {
           </table>
         </div>
       </Card>
+
+      <OrderDetailsModal 
+        isOpen={isDetailsModalOpen} 
+        onClose={() => setIsDetailsModalOpen(false)} 
+        order={selectedOrder}
+      />
     </div>
   );
 };

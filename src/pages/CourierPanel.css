@@ -96,12 +96,7 @@
   letter-spacing: -0.03em;
 }
 
-.queue-helper-text {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: var(--fs-small);
-  font-weight: 700;
-}
+/* Helper text is now handled by global index.css */
 
 .product-stack {
   display: flex;

@@ -7,6 +7,7 @@ import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { Modal } from '../components/Modal';
 import { OrderEditModal } from '../components/OrderEditModal';
+import { OrderDetailsModal } from '../components/OrderDetailsModal';
 import { Search, Truck, CheckCircle, Package, ClipboardCheck, Edit2 } from 'lucide-react';
 import './CourierPanel.css';
 
@@ -20,11 +21,17 @@ export const CourierPanel = () => {
   const [trackingIdInput, setTrackingIdInput] = useState('');
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [selectedOrderForEdit, setSelectedOrderForEdit] = useState(null);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
 
   const handleOpenEditModal = (order) => {
-    setSelectedOrderForEdit(order);
+    setSelectedOrder(order);
     setIsEditModalOpen(true);
+  };
+
+  const handleRowClick = (order) => {
+    setSelectedOrder(order);
+    setIsDetailsModalOpen(true);
   };
 
   // Show only Courier Ready orders (factory-approved, stock verified)
@@ -108,19 +115,20 @@ export const CourierPanel = () => {
       </div>
 
       <Card className="table-card liquid-glass" noPadding>
-        <div className="mod-table-header">
-          <div className="search-box">
-            <Search size={18} className="filter-icon" />
+        <div className="table-search-bar">
+          <div className="search-input-wrapper">
+            <Search className="search-icon" size={18} />
             <input
               type="text"
               placeholder="Search by ID, name or phone..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="glass-input"
+              className="search-field"
             />
           </div>
           <p className="queue-helper-text">
-            Assign tracking first, then dispatch to courier.
+            <Truck size={14} style={{ display: 'inline', marginRight: '6px' }} />
+            Assign tracking ID first, then dispatch to courier.
           </p>
         </div>
 
@@ -139,7 +147,7 @@ export const CourierPanel = () => {
             </thead>
             <tbody>
               {courierQueue.map(order => (
-                <tr key={order.id}>
+                <tr key={order.id} className="cursor-pointer hover:bg-slate-50/50" onClick={() => handleRowClick(order)}>
                   <td className="order-id-cell">{order.id}</td>
                   <td className="customer-name">{order.customer_name}</td>
                   <td className="phone-cell">{order.phone}</td>
@@ -165,21 +173,22 @@ export const CourierPanel = () => {
                     <div className="dispatch-action-grid">
                       <button
                         className="courier-action-btn edit"
-                        onClick={() => handleOpenEditModal(order)}
+                        onClick={(e) => { e.stopPropagation(); handleOpenEditModal(order); }}
                         title="Edit Order Details"
                       >
                         <Edit2 size={16} /> <span>Edit</span>
                       </button>
                       <button
                         className="courier-action-btn tracking"
-                        onClick={() => handleOpenTrackingModal(order)}
+                        onClick={(e) => { e.stopPropagation(); handleOpenTrackingModal(order); }}
                         title="Add/Edit Tracking ID"
                       >
                         <Truck size={16} /> <span>Tracking</span>
                       </button>
                       <button
                         className="courier-action-btn steadfast"
-                        onClick={async () => {
+                        onClick={async (e) => {
+                          e.stopPropagation();
                           try {
                             const btn = document.activeElement;
                             btn.classList.add('loading');
@@ -196,7 +205,7 @@ export const CourierPanel = () => {
                       </button>
                       <button
                         className="courier-action-btn submit"
-                        onClick={() => handleSubmitToCourier(order.id)}
+                        onClick={(e) => { e.stopPropagation(); handleSubmitToCourier(order.id); }}
                         disabled={!order.tracking_id}
                         title={!order.tracking_id ? "Requires Tracking ID first" : "Submit to Courier"}
                       >
@@ -250,7 +259,14 @@ export const CourierPanel = () => {
       <OrderEditModal 
         isOpen={isEditModalOpen} 
         onClose={() => setIsEditModalOpen(false)} 
-        order={selectedOrderForEdit} 
+        order={selectedOrder} 
+      />
+
+      <OrderDetailsModal 
+        isOpen={isDetailsModalOpen} 
+        onClose={() => setIsDetailsModalOpen(false)} 
+        order={selectedOrder}
+        onEdit={handleOpenEditModal}
       />
     </div>
   );

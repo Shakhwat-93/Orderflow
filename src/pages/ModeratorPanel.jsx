@@ -6,6 +6,7 @@ import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
 import { OrderRow } from '../components/OrderRow';
 import { OrderEditModal } from '../components/OrderEditModal';
+import { OrderDetailsModal } from '../components/OrderDetailsModal';
 import { DateRangePicker } from '../components/DateRangePicker';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import { 
@@ -72,7 +73,18 @@ export const ModeratorPanel = () => {
   
   // Modal States
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [selectedOrderForEdit, setSelectedOrderForEdit] = useState(null);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+
+  const handleOpenEditModal = (order) => {
+    setSelectedOrder(order);
+    setIsEditModalOpen(true);
+  };
+
+  const handleRowClick = (order) => {
+    setSelectedOrder(order);
+    setIsDetailsModalOpen(true);
+  };
 
   const scrollContainer = (ref, direction) => {
     if (ref.current) {
@@ -102,14 +114,7 @@ export const ModeratorPanel = () => {
     return matchesSearch && matchesStatus && matchesProduct && matchesSource && matchesDate;
   });
 
-  const handleOpenEditModal = (order = null) => {
-    setSelectedOrderForEdit(order);
-    setIsEditModalOpen(true);
-  };
 
-  const handleRowClick = (order) => {
-    handleOpenEditModal(order);
-  };
 
   return (
     <div className="moderator-panel">
@@ -194,23 +199,6 @@ export const ModeratorPanel = () => {
         <button className="strip-arrow right" onClick={() => scrollContainer(statusTabsRef, 'right')}><ChevronRight size={16} /></button>
       </div>
 
-      {/* Unified Filter Bar */}
-      <div className="unified-filter-bar">
-        <div className="filter-search">
-          <Search size={16} className="search-icon" />
-          <input type="text" placeholder="Search ID, name or phone..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-        </div>
-        <div className="filter-divider" />
-        <div className="filter-select-group">
-          <Globe size={14} className="select-icon" />
-          <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}>
-            <option value="All">All Sources</option>
-            {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-        <div className="filter-divider" />
-        <DateRangePicker value={dateRange} onChange={setDateRange} />
-      </div>
 
       {/* Product Checkpoints */}
       <div className="scrollable-strip-wrapper">
@@ -233,8 +221,28 @@ export const ModeratorPanel = () => {
 
       {/* Orders Table */}
       <Card className="table-card liquid-glass" noPadding>
-        <div className="mod-table-header">
-          <span className="order-count-badge">{filteredOrders.length} orders</span>
+        <div className="table-search-bar">
+          <div className="search-input-wrapper">
+            <Search className="search-icon" size={18} />
+            <input
+              type="text"
+              placeholder="Search ID, name or phone..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="search-field"
+            />
+          </div>
+          <div className="filter-actions-group">
+            <div className="filter-select-group">
+              <Globe size={14} className="select-icon" />
+              <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}>
+                <option value="All">All Sources</option>
+                {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <DateRangePicker value={dateRange} onChange={setDateRange} />
+            <span className="order-count-badge">{filteredOrders.length} orders</span>
+          </div>
         </div>
         <div className="orders-table-wrapper desktop-only">
           <table className="management-table premium-table">
@@ -254,7 +262,13 @@ export const ModeratorPanel = () => {
             </thead>
             <tbody>
               {filteredOrders.map(order => (
-                <OrderRow key={order.id} order={order} onStatusChange={updateOrderStatus} onEdit={handleRowClick} />
+                <OrderRow 
+                  key={order.id} 
+                  order={order} 
+                  onStatusChange={updateOrderStatus} 
+                  onEdit={handleOpenEditModal} 
+                  onDetails={handleRowClick}
+                />
               ))}
               {filteredOrders.length === 0 && (
                 <tr><td colSpan="10" className="empty-state-cell">No orders found matching your filters.</td></tr>
@@ -267,7 +281,14 @@ export const ModeratorPanel = () => {
       <OrderEditModal 
         isOpen={isEditModalOpen} 
         onClose={() => setIsEditModalOpen(false)} 
-        order={selectedOrderForEdit} 
+        order={selectedOrder} 
+      />
+
+      <OrderDetailsModal 
+        isOpen={isDetailsModalOpen} 
+        onClose={() => setIsDetailsModalOpen(false)} 
+        order={selectedOrder}
+        onEdit={handleOpenEditModal}
       />
     </div>
   );

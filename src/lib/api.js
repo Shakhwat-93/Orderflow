@@ -740,6 +740,7 @@ ${rawText}`;
     });
 
     // Notify
+    /* 
     await this.createNotification({
       type: 'ORDER_UPDATED',
       title: 'Order Details Modified',
@@ -747,6 +748,7 @@ ${rawText}`;
       data: { orderId, changes },
       actor_name: userName
     });
+    */
 
     return data;
   },
@@ -807,6 +809,7 @@ ${rawText}`;
     });
 
     // Notify
+    /* 
     await this.createNotification({
       type: 'STATUS_CHANGE',
       title: 'Order Status Updated',
@@ -814,6 +817,7 @@ ${rawText}`;
       data: { orderId, oldStatus: oldData?.status, newStatus },
       actor_name: userName
     });
+    */
 
     return data;
   },
@@ -889,6 +893,7 @@ ${rawText}`;
     });
 
     // Notify
+    /* 
     await this.createNotification({
       type: 'TRACKING_ADDED',
       title: 'Tracking ID Added',
@@ -896,6 +901,7 @@ ${rawText}`;
       data: { orderId, trackingId },
       actor_name: userName
     });
+    */
 
     return data;
   },
@@ -1852,6 +1858,7 @@ ${rawText}`;
 
     // Notify the assigned user
     try {
+      /* 
       await this.createNotification({
         type: 'TASK_ASSIGNED',
         title: 'New Task Assigned',
@@ -1864,6 +1871,7 @@ ${rawText}`;
           dueDate: data.due_date
         }
       });
+      */
     } catch (notifError) {
       console.error('Failed to send task notification:', notifError);
     }
@@ -1908,6 +1916,7 @@ ${rawText}`;
         const targetUserId = isAssigneeUpdating ? oldTask.assigned_by : oldTask.assigned_to;
         const targetRole = isAssigneeUpdating ? 'Assigner' : 'Assignee';
 
+        /* 
         await this.createNotification({
           type: 'TASK_UPDATED',
           title: `Task ${updates.status.replace('_', ' ')}`,
@@ -1921,6 +1930,7 @@ ${rawText}`;
             targetRole
           }
         });
+        */
       } catch (notifErr) {
         console.error('Task update notification failed:', notifErr);
       }

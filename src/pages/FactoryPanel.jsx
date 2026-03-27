@@ -5,6 +5,7 @@ import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
 import { OrderEditModal } from '../components/OrderEditModal';
+import { OrderDetailsModal } from '../components/OrderDetailsModal';
 import { Search, Loader2, CheckCircle, PackageSearch, Zap, AlertTriangle, Package, ArrowRight, Edit2 } from 'lucide-react';
 import './FactoryPanel.css';
 
@@ -21,11 +22,17 @@ export const FactoryPanel = () => {
   const [activeTab, setActiveTab] = useState('confirmed'); // 'confirmed' | 'queued'
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [selectedOrderForEdit, setSelectedOrderForEdit] = useState(null);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
 
   const handleOpenEditModal = (order) => {
-    setSelectedOrderForEdit(order);
+    setSelectedOrder(order);
     setIsEditModalOpen(true);
+  };
+
+  const handleRowClick = (order) => {
+    setSelectedOrder(order);
+    setIsDetailsModalOpen(true);
   };
 
   // Confirmed = incoming, Factory Queue = waiting for stock
@@ -165,16 +172,19 @@ export const FactoryPanel = () => {
       </div>
 
       <Card className="table-card liquid-glass" noPadding>
-        <div className="mod-table-header">
-          <div className="search-box">
-            <Search size={18} className="filter-icon" />
+        <div className="table-search-bar">
+          <div className="search-input-wrapper">
+            <Search className="search-icon" size={18} />
             <input
               type="text"
-              placeholder="Search by ID, product or customer..."
+              placeholder="Search ID, product or customer..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="glass-input"
+              className="search-field"
             />
+          </div>
+          <div className="filter-actions-group">
+            <span className="order-count-badge">{displayOrders.length} orders</span>
           </div>
         </div>
         
@@ -195,7 +205,7 @@ export const FactoryPanel = () => {
                 const isToyBox = (order.product_name || '').toUpperCase().includes('TOY BOX');
                 
                 return (
-                  <tr key={order.id} className="factory-row">
+                  <tr key={order.id} className="factory-row cursor-pointer hover:bg-slate-50/50" onClick={() => handleRowClick(order)}>
                     <td className="order-id-cell">#{(order.id || '').replace('ORD-', '')}</td>
                     <td className="customer-cell">
                       <div className="customer-info">
@@ -236,18 +246,18 @@ export const FactoryPanel = () => {
                     </td>
                     <td>
                       <div className="factory-action-grid">
-                        <button className="factory-action-btn edit" onClick={() => handleOpenEditModal(order)} title="Edit Order">
+                        <button className="factory-action-btn edit" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(order); }} title="Edit Order">
                           <Edit2 size={16} /> <span>Edit</span>
                         </button>
                         {order.status === 'Confirmed' && stock.matched && (
-                          <button className="factory-action-btn send" onClick={() => handleManualSend(order.id)} title="Send to Courier Ready">
+                          <button className="factory-action-btn send" onClick={(e) => { e.stopPropagation(); handleManualSend(order.id); }} title="Send to Courier Ready">
                             <ArrowRight size={16} /> <span>Approve for Delivery</span>
                           </button>
                         )}
                         {order.status === 'Factory Queue' && (
-                          <button className="factory-action-btn retry" onClick={() => handleRetryDistribute(order.id)} title="Retry Distribution">
-                            <Zap size={16} /> <span>Re-check Stock</span>
-                          </button>
+                          <button className="factory-action-btn retry" onClick={(e) => { e.stopPropagation(); handleRetryDistribute(order.id); }} title="Retry Distribution">
+                             <Zap size={16} /> <span>Re-check Stock</span>
+                           </button>
                         )}
                         {order.status === 'Confirmed' && !stock.matched && (
                           <span className="text-tertiary italic">Waiting for stock</span>
@@ -279,7 +289,14 @@ export const FactoryPanel = () => {
       <OrderEditModal 
         isOpen={isEditModalOpen} 
         onClose={() => setIsEditModalOpen(false)} 
-        order={selectedOrderForEdit} 
+        order={selectedOrder} 
+      />
+
+      <OrderDetailsModal 
+        isOpen={isDetailsModalOpen} 
+        onClose={() => setIsDetailsModalOpen(false)} 
+        order={selectedOrder}
+        onEdit={handleOpenEditModal}
       />
     </div>
   );

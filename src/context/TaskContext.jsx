@@ -133,6 +133,7 @@ export const TaskProvider = ({ children }) => {
         const lastNotified = notified[task.id];
         if (lastNotified !== todayStr) {
           // Trigger local-first notification via API so it persists and broadcasts
+          /* 
           try {
             await api.createNotification({
               type: 'TASK_DEADLINE',
@@ -147,6 +148,7 @@ export const TaskProvider = ({ children }) => {
           } catch (e) {
             console.error('Deadline notification failed:', e);
           }
+          */
         }
       }
 
