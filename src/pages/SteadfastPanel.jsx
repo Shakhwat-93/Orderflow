@@ -44,13 +44,42 @@ export const SteadfastPanel = () => {
   };
 
   const handleSyncAll = async () => {
+    if (isSyncing) return;
     setIsSyncing(true);
-    const toSync = steadfastOrders.slice(0, 10); // Batch limit for safety
-    for (const order of toSync) {
-      await handleSyncStatus(order.id, order.tracking_id);
+    const toSync = steadfastOrders.slice(0, 10); // Batch limit for stability
+    
+    try {
+      // Use Promise.all for concurrent execution as requested
+      await Promise.all(
+        toSync.map(order => handleSyncStatus(order.id, order.tracking_id))
+      );
+    } catch (err) {
+      console.error('Batch sync failed:', err);
+    } finally {
+      setIsSyncing(false);
     }
-    setIsSyncing(false);
   };
+
+  // --- Automatic Background Sync ---
+  // Periodically refresh status for orders that aren't in a final state
+  useEffect(() => {
+    // Only poll if there are active orders to sync
+    const activeOrders = steadfastOrders.filter(o => 
+      o.tracking_id && 
+      !['delivered', 'cancelled', 'returned'].includes(String(o.courier_status).toLowerCase())
+    ).slice(0, 5); // Just sync the top 5 most recent active ones to save API quota
+
+    if (activeOrders.length === 0) return;
+
+    const interval = setInterval(() => {
+      console.log('Steadfast Hub: Triggering automatic background sync...');
+      activeOrders.forEach(order => {
+        handleSyncStatus(order.id, order.tracking_id);
+      });
+    }, 60000); // 60 seconds
+
+    return () => clearInterval(interval);
+  }, [steadfastOrders]);
 
   const getStatusVariant = (status) => {
     const s = String(status || '').toLowerCase();
