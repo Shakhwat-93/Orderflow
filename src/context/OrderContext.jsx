@@ -90,6 +90,26 @@ export const OrderProvider = ({ children }) => {
     }
   }, [user]);
 
+  const fetchInventory = useCallback(async (invFilters = {}) => {
+    if (!user) return;
+    try {
+      const data = await api.getInventory(invFilters);
+      setInventory(data);
+    } catch (error) {
+      console.error('Error fetching inventory:', error);
+    }
+  }, [user]);
+
+  const fetchToyBoxes = useCallback(async () => {
+    if (!user) return;
+    try {
+      const data = await api.getToyBoxInventory();
+      setToyBoxes(data);
+    } catch (error) {
+      console.error('Error fetching Toy Box inventory:', error);
+    }
+  }, [user]);
+
   // Combined initialization for smoother loading
   const initializeData = useCallback(async () => {
     if (!user) return;
@@ -556,6 +576,7 @@ export const OrderProvider = ({ children }) => {
       autoDistributeOrders,
       previewInvoiceStockUpdate,
       applyInvoiceStockUpdate,
+      isInitialized,
       fraudFlags,
       automationFlags,
       velocityMetrics,
