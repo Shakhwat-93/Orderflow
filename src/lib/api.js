@@ -1626,10 +1626,7 @@ ${rawText}`;
   async dispatchToCourier(orderId) {
     const { data: { session } } = await supabase.auth.getSession();
     const { data, error } = await supabase.functions.invoke('courier-api', {
-      body: { orderId },
-      headers: {
-        Authorization: `Bearer ${session?.access_token}`
-      }
+      body: { orderId }
     });
 
     if (error) {
