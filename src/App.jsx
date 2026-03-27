@@ -24,6 +24,7 @@ const Profile = lazy(() => import('./pages/Profile').then(m => ({ default: m.Pro
 const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
 const TaskBoard = lazy(() => import('./pages/TaskBoard').then(m => ({ default: m.TaskBoard })));
 const DigitalMarketerPanel = lazy(() => import('./pages/DigitalMarketerPanel').then(m => ({ default: m.DigitalMarketerPanel })));
+const SteadfastPanel = lazy(() => import('./pages/SteadfastPanel').then(m => ({ default: m.SteadfastPanel })));
 
 // ── Premium Skeleton Loading Screen ──
 const SkeletonScreen = () => (
@@ -125,6 +126,7 @@ function App() {
                   <Route path="settings" element={<Settings />} />
                   <Route path="tasks" element={<TaskBoard />} />
                   <Route path="digital-marketer" element={<RoleRoute roles={['Admin', 'Digital Marketer']}><DigitalMarketerPanel /></RoleRoute>} />
+                  <Route path="steadfast" element={<RoleRoute roles={['Admin', 'Courier Team', 'Moderator']}><SteadfastPanel /></RoleRoute>} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Route>
               </Routes>

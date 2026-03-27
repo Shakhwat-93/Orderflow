@@ -26,6 +26,7 @@ const menuItems = [
   { path: '/call-team', label: 'Call Team Panel', icon: Headphones, roles: ['Admin', 'Call Team'] },
   { path: '/factory', label: 'Factory Panel', icon: Factory, roles: ['Admin', 'Factory Team'] },
   { path: '/courier', label: 'Courier Panel', icon: Truck, roles: ['Admin', 'Courier Team'] },
+  { path: '/steadfast', label: 'Steadfast Hub', icon: Truck, roles: ['Admin', 'Courier Team', 'Moderator'] },
   { path: '/users', label: 'User Management', icon: Users, roles: ['Admin'] },
   { path: '/inventory', label: 'Inventory', icon: Package, roles: ['Admin', 'Moderator'] },
   { path: '/reports', label: 'Reports', icon: BarChart3, roles: ['Admin'] },

@@ -1637,6 +1637,21 @@ ${rawText}`;
   },
 
   /**
+   * Get the real-time status of a Steadfast parcel
+   */
+  async getSteadfastStatus(orderId, trackingCode) {
+    const { data, error } = await supabase.functions.invoke('courier-status', {
+      body: { orderId, trackingCode }
+    });
+
+    if (error) {
+      console.error('Steadfast Status Error:', error);
+      throw error;
+    }
+    return data;
+  },
+
+  /**
    * Get system configurations (e.g., courier settings)
    */
   async getSystemConfig(key) {
