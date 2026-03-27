@@ -400,9 +400,12 @@ export const OrderProvider = ({ children }) => {
 
     for (const order of confirmedOrders) {
       const items = order.ordered_items || [];
-      const hasToyBox = items.length > 0 && items.some(item => 
-        (item.name || '').toUpperCase().includes('TOY BOX') || item.isToyBox
-      );
+      const hasToyBox = items.length > 0 && items.some(item => {
+        if (typeof item === 'object') {
+          return (item.name || '').toUpperCase().includes('TOY BOX') || item.isToyBox;
+        }
+        return true; // Legacy items were always toy box IDs
+      });
 
       if (!hasToyBox) {
         // No toybox items → direct to Courier Ready
@@ -416,12 +419,20 @@ export const OrderProvider = ({ children }) => {
       const orderDeductions = [];
 
       for (const item of items) {
-        const isItemToyBox = (item.name || '').toUpperCase().includes('TOY BOX') || item.isToyBox;
+        const isItemToyBox = typeof item === 'object' 
+          ? ((item.name || '').toUpperCase().includes('TOY BOX') || item.isToyBox)
+          : true; // Legacy
+          
         if (!isItemToyBox) continue;
 
         // Try to find the box number
-        const boxMatch = (item.name || '').match(/#(\d+)/);
-        const boxNum = item.toyBoxNumber || (boxMatch ? parseInt(boxMatch[1]) : null);
+        let boxNum = null;
+        if (typeof item === 'object') {
+          const boxMatch = (item.name || '').match(/#(\d+)/);
+          boxNum = item.toyBoxNumber || (boxMatch ? parseInt(boxMatch[1]) : null);
+        } else {
+          boxNum = Number(item);
+        }
 
         if (boxNum != null) {
           const available = (stockMap[boxNum]?.qty || 0) - (stockDeductions[boxNum] || 0);

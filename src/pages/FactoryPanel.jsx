@@ -54,7 +54,13 @@ export const FactoryPanel = () => {
     const stockMap = {};
     toyBoxes.forEach(b => { stockMap[b.toy_box_number] = b.stock_quantity; });
 
-    const missing = items.filter(num => (stockMap[num] || 0) < 1);
+    const missing = items.filter(item => {
+      // Handle both legacy (number/string) and new (object) formats
+      const boxNum = typeof item === 'object' ? item.toyBoxNumber : item;
+      if (boxNum == null) return false; // Not a toy box item or no number assigned
+      return (stockMap[boxNum] || 0) < 1;
+    });
+
     return {
       matched: missing.length === 0,
       label: missing.length === 0 ? 'Stock OK' : `${missing.length} Missing`,
@@ -204,11 +210,17 @@ export const FactoryPanel = () => {
                       </div>
                       {isToyBox && (order.ordered_items || []).length > 0 && (
                         <div className="item-pills">
-                          {(order.ordered_items || []).map(num => (
-                            <span key={num} className={`item-pill ${(toyBoxes.find(b => b.toy_box_number === num)?.stock_quantity || 0) < 1 ? 'out' : ''}`}>
-                              #{num}
-                            </span>
-                          ))}
+                          {(order.ordered_items || []).map((item, idx) => {
+                            const boxNum = typeof item === 'object' ? item.toyBoxNumber : item;
+                            if (boxNum == null) return null;
+                            const isOut = (toyBoxes.find(b => b.toy_box_number === boxNum)?.stock_quantity || 0) < 1;
+                            
+                            return (
+                              <span key={`${order.id}-item-${idx}`} className={`item-pill ${isOut ? 'out' : ''}`}>
+                                #{boxNum}
+                              </span>
+                            );
+                          })}
                         </div>
                       )}
                     </td>
