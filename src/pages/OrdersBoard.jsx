@@ -436,54 +436,31 @@ export const OrdersBoard = () => {
         <div className="page-header orders-header elite-enterprise-header">
           <div className="header-main-stack">
             <div className="title-group-elite">
-              <h1 className="premium-title-enterprise">Orders Management</h1>
-              <p className="premium-subtitle-enterprise">System-wide pipeline & relationship management</p>
-            </div>
-            
-            <div className="enterprise-hero-metrics">
-              <div className="metric-indicator">
-                <span className="m-label">Added Today</span>
-                <span className="m-value">{stats?.addedTodayCount ?? 0}</span>
-              </div>
-              <div className="metric-divider" />
-              <div className="metric-indicator highlight">
-                <div className="label-row">
-                  <span className="pulse-dot"></span>
-                  <span className="m-label">Ready to Fulfill</span>
-                </div>
-                <span className="m-value">{stats?.confirmedTodayCount ?? 0}</span>
-              </div>
+              <h1 className="premium-title-enterprise">
+                <span className="text-dark">Orders </span>
+                <span className="text-accent-green">Management</span>
+              </h1>
+              <p className="premium-subtitle-enterprise">Full control over your order pipeline and customer records.</p>
             </div>
           </div>
 
           <div className="header-actions-enterprise">
-            <Button variant="ghost" className="action-btn-minimal">
-              <Download size={18} /> <span>Export</span>
+            <Button variant="ghost" className="export-btn-light">
+              <Download size={18} /> <span>Export CSV</span>
             </Button>
             
-            <div className="action-divider-v" />
-
             <Button
               variant="secondary"
-              className="action-btn-stealth"
+              className="action-btn-green"
               onClick={handleAutoDistribute}
               disabled={distributing}
             >
-              {distributing ? 'Processing...' : 'Auto Distribute'}
+              {distributing ? 'Processing...' : 'AUTO DISTRIBUTE ORDERS'}
             </Button>
 
             {hasAnyRole(['Admin', 'Moderator']) && (
               <>
-                <Button
-                  variant="secondary"
-                  className="action-btn-stealth"
-                  onClick={() => setIsBulkCreatorOpen(true)}
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'linear-gradient(135deg, rgba(99,102,241,0.1), rgba(168,85,247,0.1))', border: '1px solid rgba(99,102,241,0.35)', color: '#6366f1', fontWeight: 700 }}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                  <span>Bulk Create</span>
-                </Button>
-                <Button variant="primary" className="action-btn-primary-enterprise" onClick={() => setIsNewOrderModalOpen(true)}>
+                <Button variant="primary" className="action-btn-green" onClick={() => setIsNewOrderModalOpen(true)}>
                   <Plus size={18} />
                   <span>New Order</span>
                 </Button>
