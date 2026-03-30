@@ -7,96 +7,174 @@
 }
 
 .unified-filter-bar {
-  background: var(--bg-surface);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--shadow-premium);
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
+
+/* ── Elite Enterprise Header ── */
+.elite-enterprise-header {
+  background: transparent;
+  border: none;
+  padding: 16px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  box-shadow: none;
+}
+
+[data-theme='dark'] .elite-enterprise-header {
+  background: #0a0a0c;
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  padding: 32px;
+  border-radius: 28px;
+}
+
+.title-group-elite .premium-title-enterprise {
+  font-size: 2.25rem;
+  font-weight: 950;
+  letter-spacing: -0.03em;
+  margin: 0;
+  line-height: 1.1;
+}
+
+.text-dark { color: #1e293b; }
+.text-accent-indigo { color: #6366f1; }
+[data-theme='dark'] .text-dark { color: #fff; }
+
+.title-group-elite .premium-subtitle-enterprise {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  margin-top: 8px;
+  opacity: 0.8;
+}
+
+.header-actions-enterprise {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.action-btn-green {
+  background: #6366f1 !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+  border-radius: 100px !important;
+  padding: 10px 24px !important;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.3) !important;
+  border: none !important;
+  font-size: 14px;
+  text-transform: uppercase;
+  transition: all 0.2s ease;
+}
+
+.action-btn-green:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4) !important;
+}
+
+@media (min-width: 1024px) {
+  .elite-enterprise-header {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+}
+
 
 .mod-metrics-grid {
   display: grid; 
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
-  gap: var(--sp-4); 
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); 
+  gap: 24px; 
 }
 
-/* Premium Metric Cards */
+/* Elite Vibrant Metric Cards */
 .metric-card {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  padding: var(--sp-8) var(--sp-4);
-  background: var(--bg-surface);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-2xl);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 28px 24px;
+  border-radius: 24px;
   position: relative;
   overflow: hidden;
+  border: none !important;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
 }
 
 .metric-card:hover {
-  transform: translateY(-4px);
-  border-color: rgba(255, 255, 255, 0.15);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  transform: translateY(-5px);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
 }
 
-.metric-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: radial-gradient(circle at top, rgba(255,255,255,0.03) 0%, transparent 70%);
-  pointer-events: none;
-}
+/* Vibrancy Gradients */
+.metric-card.success-glow { background: linear-gradient(135deg, #b832c7, #ed428e) !important; }
+.metric-card.indigo-glow { background: linear-gradient(135deg, #f96c14, #ed3f2b) !important; }
+.metric-card.teal-glow { background: linear-gradient(135deg, #22c55e, #0d9488) !important; }
 
 .metric-content {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: var(--sp-2);
-  text-align: center;
+  gap: 18px;
   z-index: 2;
-}
-
-.metric-icon-wrap {
-  width: 54px;
-  height: 54px;
-  border-radius: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1), 0 8px 16px rgba(0, 0, 0, 0.2);
-  margin-bottom: var(--sp-4);
   position: relative;
 }
 
-.metric-icon-wrap::after {
-  content: '';
+.metric-icon-wrap.vibrancy-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(4px);
+}
+
+.vibrant-label { 
+  display: block;
+  font-size: 0.75rem; 
+  font-weight: 800; 
+  color: rgba(255, 255, 255, 0.9);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 2px;
+}
+
+.vibrant-value { 
+  font-size: 1.85rem; 
+  font-weight: 900; 
+  color: #fff; 
+  line-height: 1;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.vibrant-currency {
+  color: rgba(255, 255, 255, 0.8);
+  margin-right: -2px;
+}
+
+/* Decorative Decorations */
+.card-decoration {
   position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  box-shadow: inset 0px 2px 4px rgba(255, 255, 255, 0.05);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  z-index: 1;
   pointer-events: none;
 }
 
-.metric-label { 
-  font-size: 0.85rem; 
-  font-weight: 700; 
-  color: var(--text-tertiary); 
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.metric-value { 
-  font-size: 2.5rem; 
-  font-weight: 900; 
-  color: var(--text-primary); 
-  line-height: 1;
-  letter-spacing: -0.03em;
-}
-
 .chart-card {
+  background: #fff;
+  border: 1px solid #f1f5f9;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+}
+
+[data-theme='dark'] .chart-card {
   background: var(--bg-surface);
   border: 1px solid var(--glass-border);
   box-shadow: var(--shadow-premium);
@@ -165,24 +243,21 @@
   border: 1px solid rgba(239, 68, 68, 0.2);
 }
 
-/* Calc */
-.total-calculator {
-  background: var(--bg-surface);
-  border: 1px solid var(--glass-border);
+.table-card {
+  background: #fff;
+  border: 1px solid #f1f5f9;
+  border-radius: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
 }
 
-.calc-row { border-bottom: 1px solid var(--glass-border); }
-.delivery-row { background: rgba(16, 185, 129, 0.05); }
-.grand-total-row { background: rgba(124, 58, 237, 0.08); }
-
-.auto-calc-toggle {
-  background: var(--bg-elevated);
-  border: 1px solid var(--glass-border);
+[data-theme='dark'] .table-card {
+  background: rgba(var(--bg-surface-rgb), 0.3);
+  border-color: var(--glass-border);
 }
 
-.calc-input-container {
-  background: var(--bg-elevated);
-  border: 1px solid var(--glass-border);
+.empty-state-cell {
+  padding: 48px;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-weight: 500;
 }
-
-.calc-input { color: var(--text-primary); }

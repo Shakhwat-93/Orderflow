@@ -160,88 +160,111 @@
 }
 
 .metric-card {
-  padding: var(--sp-6) var(--sp-6);
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--sp-4);
+  padding: 18px 22px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
   position: relative;
-  border-radius: 24px;
+  border-radius: 14px !important;
   overflow: hidden;
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  border: none;
-  color: #fff; /* White text for vibrant cards */
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  border: none !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1) !important;
 }
 
-.metric-card.success-glow { background: linear-gradient(135deg, #ec4899, #f43f5e); }
-.metric-card.indigo-glow { background: linear-gradient(135deg, #f97316, #ef4444); }
-.metric-card.teal-glow { background: linear-gradient(135deg, #10b981, #059669); }
-.metric-card.neutral-glow { background: linear-gradient(135deg, #06b6d4, #0891b2); }
-.metric-card.orange-glow { background: linear-gradient(135deg, #3b82f6, #2563eb); }
-.metric-card.cyan-glow { background: linear-gradient(135deg, #6366f1, #4f46e5); }
-.metric-card.purple-glow { background: linear-gradient(135deg, #a855f7, #7c3aed); }
-.metric-card.warning-glow { background: linear-gradient(135deg, #f59e0b, #d97706); }
+.metric-card:hover {
+  transform: translateY(-4px) !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15) !important;
+}
 
-.metric-card .metric-info { color: #fff; align-items: flex-start; text-align: left; }
-.metric-card .metric-label { color: rgba(255, 255, 255, 0.8); font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; }
-.metric-card .metric-value { color: #fff; font-size: 2.2rem; }
-.metric-card .currency-icon-elite { color: rgba(255, 255, 255, 0.6) !important; filter: none; }
+.metric-top-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  z-index: 2;
+  position: relative;
+}
+
+.metric-bottom-row {
+  display: flex;
+  justify-content: center;
+  z-index: 2;
+  position: relative;
+  margin-top: 4px;
+}
+
+/* Gradients based strictly on user reference image */
+.metric-card.success-glow { background: linear-gradient(135deg, #b832c7, #ed428e) !important; } /* Magenta to Pink */
+.metric-card.indigo-glow { background: linear-gradient(135deg, #f96c14, #ed3f2b) !important; } /* Bright Orange to Red */
+.metric-card.teal-glow { background: linear-gradient(135deg, #22c55e, #0d9488) !important; } /* Vibrant Green/Teal */
+.metric-card.neutral-glow { background: linear-gradient(135deg, #06b6d4, #0284c7) !important; } /* Ocean Blue */
+.metric-card.orange-glow { background: linear-gradient(135deg, #0ea5e9, #3b82f6) !important; } /* Solid Blue */
+.metric-card.cyan-glow { background: linear-gradient(135deg, #6366f1, #4f46e5) !important; } /* Indigo */
+.metric-card.purple-glow { background: linear-gradient(135deg, #a855f7, #8b5cf6) !important; } /* Purple */
+.metric-card.warning-glow { background: linear-gradient(135deg, #f59e0b, #ea580c) !important; } /* Deep Orange */
+.metric-card.danger-glow { background: linear-gradient(135deg, #dc2626, #991b1b) !important; } /* Red */
+.metric-card.processing-glow { background: linear-gradient(135deg, #14b8a6, #047857) !important; } /* Teal-Emerald */
+
+.metric-label { 
+  color: #fff !important; 
+  font-weight: 700 !important; 
+  font-size: 13px !important; 
+  background: transparent !important;
+}
+
+.metric-value { 
+  color: #fff !important; 
+  font-size: 1.9rem !important;
+  gap: 8px;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  display: flex;
+  align-items: center;
+}
+
+.currency-icon-elite { 
+  color: rgba(255, 255, 255, 0.9) !important; 
+  filter: none; 
+}
 
 .metric-icon-wrapper {
-  width: 44px; 
-  height: 44px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(10px);
+  width: 38px; 
+  height: 38px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.15);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
 }
 
-.metric-info { 
-  display: flex; 
-  flex-direction: column; 
-  gap: 2px; 
+/* ── Decorative Shapes ── */
+.card-decoration {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
   z-index: 1;
-  align-items: center;
-  text-align: center;
-  flex: 1;
 }
 
-.metric-label {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-  letter-spacing: 0.01em;
+.card-decoration.top-right {
+  width: 90px;
+  height: 90px;
+  top: -30px;
+  right: -30px;
 }
 
-.metric-value {
-  font-size: 1.8rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  line-height: normal;
-  letter-spacing: -0.02em;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.card-decoration.bottom-left {
+  width: 70px;
+  height: 70px;
+  bottom: -35px;
+  left: -20px;
 }
 
-.currency {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--text-tertiary);
-  margin-right: 4px;
-}
-
-/* ── Dribbble Concept Glowing Shapes (Vibrant Upgrade) ── */
-/* ── TOTAL BLACK Dashboard Consistency ── */
+/* Dark Mode Overrides */
 [data-theme='dark'] .metric-card {
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
-}
-
-[data-theme='dark'] .metric-card .metric-label {
-  color: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4) !important;
 }
 
 /* ===== CHARTS ===== */

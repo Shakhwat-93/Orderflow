@@ -17,6 +17,19 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
 
   useEffect(() => {
     if (isOpen && order?.id) {
+      // --- Track Recently Viewed for Premium Search ---
+      const savedViewed = JSON.parse(localStorage.getItem('premium_search_viewed') || '[]');
+      const newItem = { 
+        id: order.id, 
+        label: order.customer_name || 'Unnamed Order', 
+        sub: `#${order.id.replace('ORD-', '')}`,
+        type: 'order'
+      };
+      
+      const newViewed = [newItem, ...savedViewed.filter(item => item.id !== order.id)].slice(0, 10);
+      localStorage.setItem('premium_search_viewed', JSON.stringify(newViewed));
+      // ------------------------------------------------
+
       const fetchLogs = async () => {
         setIsLoadingLogs(true);
         try {

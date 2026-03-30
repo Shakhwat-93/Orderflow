@@ -6,7 +6,8 @@ import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
 import { OrderEditModal } from '../components/OrderEditModal';
 import { OrderDetailsModal } from '../components/OrderDetailsModal';
-import { Search, Loader2, CheckCircle, PackageSearch, Zap, AlertTriangle, Package, ArrowRight, Edit2 } from 'lucide-react';
+import { Search, Loader2, CheckCircle, PackageSearch, Zap, AlertTriangle, Package, ArrowRight, Edit2, Sparkles } from 'lucide-react';
+import { PremiumSearch } from '../components/PremiumSearch';
 import './FactoryPanel.css';
 
 export const FactoryPanel = () => {
@@ -173,16 +174,29 @@ export const FactoryPanel = () => {
 
       <Card className="table-card liquid-glass" noPadding>
         <div className="table-search-bar">
-          <div className="elite-search-wrapper">
-            <Search className="elite-search-icon" size={18} />
-            <input
-              type="text"
-              placeholder="Search ID, product or customer..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="elite-search-input"
-            />
-          </div>
+          <PremiumSearch
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search ID, product or customer..."
+            suggestions={
+              searchTerm ? orders.filter(o => 
+                o.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (o.product_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (o.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase())
+              ).slice(0, 5).map(o => ({
+                id: o.id,
+                label: o.customer_name,
+                sub: `${o.id} • ${o.product_name}`,
+                type: 'order',
+                original: o
+              })) : []
+            }
+            onSuggestionClick={(item) => {
+              if (item.type === 'order') {
+                handleRowClick(item.original);
+              }
+            }}
+          />
           <div className="filter-actions-group">
             <span className="order-count-badge">{displayOrders.length} orders</span>
           </div>

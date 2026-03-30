@@ -11,8 +11,9 @@ import { DateRangePicker } from '../components/DateRangePicker';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import { 
   Edit2, Trash2, Plus, Search, Package, DollarSign, ShoppingCart, 
-  Globe, ChevronDown, ChevronLeft, ChevronRight, Wand2, Trash, Truck, MapPin, X
+  Globe, ChevronDown, ChevronLeft, ChevronRight, Wand2, Trash, Truck, MapPin, X, Sparkles
 } from 'lucide-react';
+import { PremiumSearch } from '../components/PremiumSearch';
 import CurrencyIcon from '../components/CurrencyIcon';
 import api from '../lib/api';
 import './ModeratorPanel.css';
@@ -45,7 +46,7 @@ const PRODUCT_CHECKPOINTS = [
   { id: 'gymbag', name: 'Gym bag', color: '#b91c1c' },
   { id: 'vlogger', name: 'VLOGGER FOR FREE', color: '#334155' },
   { id: 'mmb', name: 'MMB', color: '#c084fc' },
-  { id: 'quran', name: 'Quran', color: '#84cc16' },
+  { id: 'quran', name: 'Quran', color: '#6366f1' },
   { id: 'waistbag', name: 'WAIST BAG', color: '#134e4a' },
   { id: 'bagpack', name: 'BAGPACK', color: '#3b82f6' },
   { id: 'moshari', name: 'Moshari', color: '#22c55e' }
@@ -119,51 +120,68 @@ export const ModeratorPanel = () => {
 
   return (
     <div className="moderator-panel">
-      <div className="page-header">
-        <div>
-          <h1>Moderator Dashboard</h1>
-          <p>Manage incoming orders, verify details, and route for processing.</p>
+      <div className="page-header orders-header elite-enterprise-header">
+        <div className="header-main-stack">
+          <div className="title-group-elite">
+            <h1 className="premium-title-enterprise">
+              <span className="text-dark">Moderator </span>
+              <span className="text-accent-indigo">Panel</span>
+            </h1>
+            <p className="premium-subtitle-enterprise">Manage incoming orders, verify details, and route for processing.</p>
+          </div>
         </div>
-        <Button variant="primary" onClick={() => handleOpenEditModal(null)}>
-          <Plus size={18} /> Add New Order
-        </Button>
+        
+        <div className="header-actions-enterprise">
+          <Button variant="primary" className="action-btn-green" onClick={() => handleOpenEditModal(null)}>
+            <Plus size={18} /> Add New Order
+          </Button>
+        </div>
       </div>
 
       {/* Metrics Row */}
       <div className="mod-metrics-grid">
-        <Card className="metric-card liquid-glass">
+        <div className="metric-card success-glow relative overflow-hidden">
+          <div className="card-decoration" style={{ width: '100px', height: '100px', top: '-30px', right: '-30px' }}></div>
+          <div className="card-decoration" style={{ width: '60px', height: '60px', bottom: '-20px', left: '-10px', opacity: 0.05 }}></div>
           <div className="metric-content">
-            <div className="metric-icon-wrap" style={{ background: 'rgba(var(--accent-rgb), 0.1)' }}>
-              <ShoppingCart size={20} style={{ color: 'var(--accent)' }} />
+            <div className="metric-icon-wrap vibrancy-icon">
+              <ShoppingCart size={22} color="#fff" />
             </div>
-            <div>
-              <span className="metric-label">Total Orders</span>
-              <div className="metric-value">{orders.length}</div>
+            <div className="metric-info-group">
+              <span className="metric-label vibrant-label">Total Orders</span>
+              <div className="metric-value vibrant-value">{orders.length}</div>
             </div>
           </div>
-        </Card>
-        <Card className="metric-card liquid-glass">
+        </div>
+        <div className="metric-card indigo-glow relative overflow-hidden">
+          <div className="card-decoration" style={{ width: '120px', height: '120px', top: '-40px', right: '-40px' }}></div>
+          <div className="card-decoration" style={{ width: '80px', height: '80px', bottom: '-30px', left: '-20px', opacity: 0.08 }}></div>
           <div className="metric-content">
-            <div className="metric-icon-wrap" style={{ background: 'rgba(59, 130, 246, 0.1)' }}>
-              <Package size={20} style={{ color: '#3b82f6' }} />
+            <div className="metric-icon-wrap vibrancy-icon">
+              <Package size={22} color="#fff" />
             </div>
-            <div>
-              <span className="metric-label">Added Today</span>
-              <div className="metric-value">{stats.addedTodayCount}</div>
+            <div className="metric-info-group">
+              <span className="metric-label vibrant-label">Added Today</span>
+              <div className="metric-value vibrant-value">{stats.addedTodayCount}</div>
             </div>
           </div>
-        </Card>
-        <Card className="metric-card liquid-glass">
+        </div>
+        <div className="metric-card teal-glow relative overflow-hidden">
+          <div className="card-decoration" style={{ width: '110px', height: '110px', top: '-35px', right: '-35px' }}></div>
+          <div className="card-decoration" style={{ width: '70px', height: '70px', bottom: '-25px', left: '-15px', opacity: 0.06 }}></div>
           <div className="metric-content">
-            <div className="metric-icon-wrap" style={{ background: 'rgba(16, 185, 129, 0.1)' }}>
-              <DollarSign size={20} style={{ color: '#10b981' }} />
+            <div className="metric-icon-wrap vibrancy-icon">
+              <DollarSign size={22} color="#fff" />
             </div>
-            <div>
-              <span className="metric-label">Revenue Today</span>
-              <div className="metric-value"><CurrencyIcon size={20} className="currency-icon-elite" />{orders.reduce((s, o) => s + (parseFloat(o.amount) || 0), 0).toLocaleString()}</div>
+            <div className="metric-info-group">
+              <span className="metric-label vibrant-label">Revenue Today</span>
+              <div className="metric-value vibrant-value">
+                <CurrencyIcon size={22} className="vibrant-currency" />
+                {orders.reduce((s, o) => s + (parseFloat(o.amount) || 0), 0).toLocaleString()}
+              </div>
             </div>
           </div>
-        </Card>
+        </div>
         <Card className="metric-card liquid-glass chart-card" noPadding style={{ padding: '24px' }}>
           <h3 className="chart-title" style={{ marginBottom: '8px', fontSize: '1.2rem', fontWeight: 800 }}>By Source</h3>
           <div className="chart-wrapper pie-chart-wrapper" style={{ minHeight: 250, position: 'relative' }}>
@@ -184,8 +202,8 @@ export const ModeratorPanel = () => {
                   cy="50%"
                   innerRadius={60}
                   outerRadius={80}
-                  fill="rgba(255, 255, 255, 0.02)"
-                  stroke="rgba(255, 255, 255, 0.05)"
+                  fill={document.documentElement.getAttribute('data-theme') === 'dark' ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.02)'}
+                  stroke={document.documentElement.getAttribute('data-theme') === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'}
                   isAnimationActive={false}
                   filter="url(#inset-shadow-mod)"
                 />
@@ -204,14 +222,22 @@ export const ModeratorPanel = () => {
                     <Cell key={`cell-${index}`} fill={entry.color} filter="url(#premium-glow-mod)" />
                   ))}
                 </Pie>
-                <RechartsTooltip contentStyle={{ backgroundColor: 'rgba(28,29,36,0.95)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', color: '#fff' }} />
+                <RechartsTooltip 
+                  contentStyle={{ 
+                    backgroundColor: document.documentElement.getAttribute('data-theme') === 'dark' ? 'rgba(28,29,36,0.95)' : '#fff', 
+                    borderRadius: '12px', 
+                    border: '1px solid ' + (document.documentElement.getAttribute('data-theme') === 'dark' ? 'rgba(255,255,255,0.1)' : '#e2e8f0'), 
+                    boxShadow: '0 10px 30px rgba(0,0,0,0.1)', 
+                    color: document.documentElement.getAttribute('data-theme') === 'dark' ? '#fff' : '#1e293b' 
+                  }} 
+                />
               </PieChart>
             </ResponsiveContainer>
             <div className="pie-legend" style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginTop: '16px' }}>
               {stats.sourceDistribution.map(s => (
                 <div key={s.name} className="legend-item" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span className="legend-dot" style={{ backgroundColor: s.color, width: '10px', height: '10px', borderRadius: '50%', boxShadow: `0 0 10px ${s.color}` }}></span>
-                  <span className="legend-label" style={{ color: '#8c8d96', fontSize: '0.85rem', fontWeight: 600 }}>{s.name} ({s.value})</span>
+                  <span className="legend-dot" style={{ backgroundColor: s.color, width: '10px', height: '10px', borderRadius: '50%', boxShadow: `0 0 10px ${s.color}40` }}></span>
+                  <span className="legend-label" style={{ color: document.documentElement.getAttribute('data-theme') === 'dark' ? '#a1a1aa' : '#475569', fontSize: '0.85rem', fontWeight: 700 }}>{s.name} ({s.value})</span>
                 </div>
               ))}
             </div>
@@ -252,50 +278,67 @@ export const ModeratorPanel = () => {
         <button className="strip-arrow right" onClick={() => scrollContainer(checkpointsRef, 'right')}><ChevronRight size={16} /></button>
       </div>
 
+      {/* Unified Filter Bar */}
+      <div className="unified-filter-bar" style={{ marginBottom: '16px' }}>
+        <PremiumSearch
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search ID, name or phone..."
+          suggestions={
+            searchTerm ? orders.filter(o => 
+              o.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              o.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              o.phone?.includes(searchTerm)
+            ).slice(0, 5).map(o => ({
+              id: o.id,
+              label: o.customer_name,
+              sub: o.id,
+              type: 'order',
+              original: o
+            })) : []
+          }
+          onSuggestionClick={(item) => {
+            if (item.type === 'order') {
+              handleRowClick(item.original);
+            }
+          }}
+        />
+        
+        <div className="elite-select-wrapper">
+          <Globe size={14} className="elite-select-icon" />
+          <select 
+            className="elite-select-field"
+            value={sourceFilter} 
+            onChange={(e) => setSourceFilter(e.target.value)}
+          >
+            <option value="All">All Sources</option>
+            {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <ChevronDown size={14} className="ml-auto opacity-50" />
+        </div>
+        
+        <DateRangePicker value={dateRange} onChange={setDateRange} />
+        <span className="order-count-badge" style={{ padding: '0 12px', fontWeight: 700, color: 'var(--text-secondary)' }}>
+          {filteredOrders.length} orders
+        </span>
+      </div>
+
       {/* Orders Table */}
       <Card className="table-card liquid-glass" noPadding>
-        <div className="table-search-bar">
-          <div className="elite-search-wrapper">
-            <Search className="elite-search-icon" size={18} />
-            <input
-              type="text"
-              placeholder="Search ID, name or phone..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="elite-search-input"
-            />
-          </div>
-          <div className="filter-actions-group">
-            <div className="elite-select-wrapper">
-              <Globe size={14} className="elite-select-icon" />
-              <select 
-                className="elite-select-field"
-                value={sourceFilter} 
-                onChange={(e) => setSourceFilter(e.target.value)}
-              >
-                <option value="All">All Sources</option>
-                {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-              <ChevronDown size={14} className="ml-auto opacity-50" />
-            </div>
-            <DateRangePicker value={dateRange} onChange={setDateRange} />
-            <span className="order-count-badge">{filteredOrders.length} orders</span>
-          </div>
-        </div>
         <div className="orders-table-wrapper desktop-only">
           <table className="management-table premium-table">
             <thead>
               <tr>
                 <th className="checkbox-col"><input type="checkbox" className="premium-checkbox" /></th>
-                <th>Order ID</th>
-                <th>Order Date</th>
-                <th>Customer Info</th>
-                <th>Total Price</th>
-                <th>Items</th>
-                <th>Payment Status</th>
-                <th>Shipping</th>
-                <th>Status</th>
-                <th></th>
+                <th className="id-col">Order ID</th>
+                <th className="date-col">Order Date</th>
+                <th className="customer-col">Customer Info</th>
+                <th className="amount-col">Total Price</th>
+                <th className="items-col">Items</th>
+                <th className="payment-status-col">Payment Status</th>
+                <th className="shipping-col">Shipping</th>
+                <th className="status-col">Status</th>
+                <th className="actions-col"></th>
               </tr>
             </thead>
             <tbody>

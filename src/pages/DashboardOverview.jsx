@@ -79,118 +79,148 @@ export const DashboardOverview = () => {
 
       <div className="metrics-grid">
         <Card className="metric-card floating success-glow" style={{ animationDelay: '0.1s' }}>
-          <div className="glass-layer" />
-          <div className="metric-icon-wrapper">
-            <TrendingUp size={24} />
-          </div>
-          <div className="metric-info">
-            <span className="metric-label">Total Revenue</span>
+          <div className="card-decoration top-right"></div>
+          <div className="card-decoration bottom-left"></div>
+          <div className="metric-top-row">
+            <div className="metric-icon-wrapper">
+              <TrendingUp size={22} />
+            </div>
             <span className="metric-value">
-              <CurrencyIcon size={20} className="currency-icon-elite" style={{ color: 'inherit' }} />
+              <CurrencyIcon size={24} className="currency-icon-elite" style={{ color: 'inherit' }} />
               {stats.revenue?.toLocaleString() || '0'}
             </span>
+          </div>
+          <div className="metric-bottom-row">
+            <span className="metric-label">Total Revenue</span>
           </div>
         </Card>
 
         <Card className="metric-card floating indigo-glow" style={{ animationDelay: '0.2s' }}>
-          <div className="glass-layer" />
-          <div className="metric-icon-wrapper">
-            <ShoppingBag size={24} />
-          </div>
-          <div className="metric-info">
-            <span className="metric-label">Total Orders</span>
+          <div className="card-decoration top-right"></div>
+          <div className="card-decoration bottom-left"></div>
+          <div className="metric-top-row">
+            <div className="metric-icon-wrapper">
+              <ShoppingBag size={22} />
+            </div>
             <span className="metric-value">{stats.total}</span>
+          </div>
+          <div className="metric-bottom-row">
+            <span className="metric-label">Total Orders</span>
           </div>
         </Card>
 
         <Card className="metric-card floating teal-glow" style={{ animationDelay: '0.3s' }}>
-          <div className="glass-layer" />
-          <div className="metric-icon-wrapper">
-            <BarChart3 size={24} />
-          </div>
-          <div className="metric-info">
-            <span className="metric-label">Avg. Order Value</span>
+          <div className="card-decoration top-right"></div>
+          <div className="card-decoration bottom-left"></div>
+          <div className="metric-top-row">
+            <div className="metric-icon-wrapper">
+              <BarChart3 size={22} />
+            </div>
             <span className="metric-value">
-              <CurrencyIcon size={20} className="currency-icon-elite" style={{ color: 'inherit' }} />
+              <CurrencyIcon size={24} className="currency-icon-elite" style={{ color: 'inherit' }} />
               {Math.round(stats.averageOrderValue || 0).toLocaleString()}
             </span>
+          </div>
+          <div className="metric-bottom-row">
+            <span className="metric-label">Avg. Order Value</span>
           </div>
         </Card>
 
         <Card className="metric-card floating neutral-glow" style={{ animationDelay: '0.4s' }}>
-          <div className="glass-layer" />
-          <div className="metric-icon-wrapper">
-            <Package size={24} />
-          </div>
-          <div className="metric-info">
-            <span className="metric-label">Total Products</span>
+          <div className="card-decoration top-right"></div>
+          <div className="card-decoration bottom-left"></div>
+          <div className="metric-top-row">
+            <div className="metric-icon-wrapper">
+              <Package size={22} />
+            </div>
             <span className="metric-value">{stats.totalProducts}</span>
+          </div>
+          <div className="metric-bottom-row">
+            <span className="metric-label">Total Products</span>
           </div>
         </Card>
 
         <Card className="metric-card floating purple-glow">
-          <div className="glass-layer" />
-          <div className="metric-icon-wrapper">
-            <Users size={24} />
-          </div>
-          <div className="metric-info">
-            <span className="metric-label">Total Customers</span>
+          <div className="card-decoration top-right"></div>
+          <div className="card-decoration bottom-left"></div>
+          <div className="metric-top-row">
+            <div className="metric-icon-wrapper">
+              <Users size={22} />
+            </div>
             <span className="metric-value">{stats.totalCustomers}</span>
+          </div>
+          <div className="metric-bottom-row">
+            <span className="metric-label">Total Customers</span>
           </div>
         </Card>
 
         <Card className="metric-card floating warning-glow">
-          <div className="glass-layer" />
-          <div className="metric-icon-wrapper">
-            <Clock size={24} />
-          </div>
-          <div className="metric-info">
-            <span className="metric-label">Pending Orders</span>
+          <div className="card-decoration top-right"></div>
+          <div className="card-decoration bottom-left"></div>
+          <div className="metric-top-row">
+            <div className="metric-icon-wrapper">
+              <Clock size={22} />
+            </div>
             <span className="metric-value">{stats.pending}</span>
+          </div>
+          <div className="metric-bottom-row">
+            <span className="metric-label">Pending Orders</span>
           </div>
         </Card>
 
         <Card className="metric-card floating processing-glow">
-          <div className="glass-layer" />
-          <div className="metric-icon-wrapper">
-            <RefreshCw size={24} />
-          </div>
-          <div className="metric-info">
-            <span className="metric-label">Processing Orders</span>
+          <div className="card-decoration top-right"></div>
+          <div className="card-decoration bottom-left"></div>
+          <div className="metric-top-row">
+            <div className="metric-icon-wrapper">
+              <RefreshCw size={22} />
+            </div>
             <span className="metric-value">{stats.processing}</span>
+          </div>
+          <div className="metric-bottom-row">
+            <span className="metric-label">Processing Orders</span>
           </div>
         </Card>
 
         <Card className="metric-card floating danger-glow">
-          <div className="glass-layer" />
-          <div className="metric-icon-wrapper">
-            <XCircle size={24} />
-          </div>
-          <div className="metric-info">
-            <span className="metric-label">Cancel Orders</span>
+          <div className="card-decoration top-right"></div>
+          <div className="card-decoration bottom-left"></div>
+          <div className="metric-top-row">
+            <div className="metric-icon-wrapper">
+              <XCircle size={22} />
+            </div>
             <span className="metric-value">{stats.cancelledCount}</span>
+          </div>
+          <div className="metric-bottom-row">
+            <span className="metric-label">Cancel Orders</span>
           </div>
         </Card>
 
         <Card className="metric-card floating orange-glow">
-          <div className="glass-layer" />
-          <div className="metric-icon-wrapper">
-            <Zap size={24} />
-          </div>
-          <div className="metric-info">
-            <span className="metric-label">Avg. Call Delay</span>
+          <div className="card-decoration top-right"></div>
+          <div className="card-decoration bottom-left"></div>
+          <div className="metric-top-row">
+            <div className="metric-icon-wrapper">
+              <Zap size={22} />
+            </div>
             <span className="metric-value">{avgCallDelay}m</span>
+          </div>
+          <div className="metric-bottom-row">
+            <span className="metric-label">Avg. Call Delay</span>
           </div>
         </Card>
 
         <Card className="metric-card floating cyan-glow">
-          <div className="glass-layer" />
-          <div className="metric-icon-wrapper">
-            <ShieldCheck size={24} />
-          </div>
-          <div className="metric-info">
-            <span className="metric-label">30m SLA Rate</span>
+          <div className="card-decoration top-right"></div>
+          <div className="card-decoration bottom-left"></div>
+          <div className="metric-top-row">
+            <div className="metric-icon-wrapper">
+              <ShieldCheck size={22} />
+            </div>
             <span className="metric-value">{slaRate}%</span>
+          </div>
+          <div className="metric-bottom-row">
+            <span className="metric-label">30m SLA Rate</span>
           </div>
         </Card>
       </div>

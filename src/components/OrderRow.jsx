@@ -157,10 +157,10 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
 
       <td className="payment-status-cell">
         <Badge 
-          variant={order.payment_status === 'Paid' ? 'completed' : 'cancelled'}
-          className={order.payment_status === 'Paid' ? 'glass-neon-emerald' : 'glass-neon-rose'}
+          variant="default"
+          className={order.payment_status === 'Paid' ? 'badge-paid' : 'badge-unpaid'}
         >
-          {order.payment_status || 'Unpaid'}
+          {(order.payment_status || 'UNPAID').toUpperCase()}
         </Badge>
       </td>
 

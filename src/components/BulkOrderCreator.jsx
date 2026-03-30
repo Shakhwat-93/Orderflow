@@ -27,7 +27,7 @@ const PRODUCT_PRICES = {
 const PRODUCT_COLORS = {
   'TOY BOX': '#f97316', 'ORGANIZER': '#059669', 'Travel bag': '#1d4ed8',
   'TOY BOX + ORG': '#5b21b6', 'Gym bag': '#b91c1c', 'VLOGGER FOR FREE': '#334155',
-  'MMB': '#a855f7', 'Quran': '#84cc16', 'WAIST BAG': '#0d9488',
+  'MMB': '#a855f7', 'Quran': '#6366f1', 'WAIST BAG': '#0d9488',
   'BAGPACK': '#3b82f6', 'Moshari': '#22c55e'
 };
 

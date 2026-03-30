@@ -1696,21 +1696,8 @@ ${rawText}`;
     return data;
   },
 
-  /**
-   * Check customer delivery success ratio via Steadfast Fraud Check API
-   */
-  async checkCustomerRatio(phone) {
-    if (!phone) return null;
-    const { data, error } = await supabase.functions.invoke('courier-ratio-check', {
-      body: { phone }
-    });
 
-    if (error) {
-      console.error('Ratio Check Error:', error);
-      return null;
-    }
-    return data;
-  },
+
 
   /**
    * Get system configurations (e.g., courier settings)

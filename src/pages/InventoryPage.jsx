@@ -7,21 +7,10 @@ import { Input } from '../components/Input';
 import { Modal } from '../components/Modal';
 import CurrencyIcon from '../components/CurrencyIcon';
 import {
-  Search,
-  Plus,
-  Package,
-  AlertTriangle,
-  ArrowUpRight,
-  ArrowDownRight,
-  Edit2,
-  Trash2,
-  Tag,
-  Bot,
-  Loader2,
-  CheckCircle2,
-  CircleAlert,
-  ChevronDown
+  Search, Plus, Package, AlertTriangle, ArrowUpRight, ArrowDownRight,
+  Edit2, Trash2, Tag, Bot, Loader2, CheckCircle2, CircleAlert, ChevronDown, Sparkles
 } from 'lucide-react';
+import { PremiumSearch } from '../components/PremiumSearch';
 import './InventoryPage.css';
 
 const CATEGORIES = ['All', 'TOY BOX', 'ORGANIZER', 'Bags', 'Accessories', 'Religious', 'Other'];
@@ -253,16 +242,28 @@ export const InventoryPage = () => {
 
       <div className="inventory-controls-strip">
         <div className="unified-filter-bar glass">
-          <div className="elite-search-wrapper">
-            <Search size={18} className="elite-search-icon" />
-            <input
-              type="text"
-              placeholder="Search by name or SKU..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="elite-search-input"
-            />
-          </div>
+          <PremiumSearch
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search products by name or SKU..."
+            suggestions={
+              searchTerm ? (inventory || []).filter(p => 
+                p.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                p.sku?.toLowerCase().includes(searchTerm.toLowerCase())
+              ).slice(0, 5).map(p => ({
+                id: p.id,
+                label: p.name,
+                sub: `SKU: ${p.sku || 'N/A'} — Stock: ${p.current_stock}`,
+                type: 'product',
+                original: p
+              })) : []
+            }
+            onSuggestionClick={(item) => {
+              if (item.type === 'product') {
+                setSearchTerm(item.label);
+              }
+            }}
+          />
           <div className="filter-divider"></div>
           <div className="category-scroll-container">
             <div className="category-tabs-mini">

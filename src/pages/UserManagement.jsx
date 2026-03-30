@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   Calendar, Building, Phone as PhoneIcon, User as UserIcon, 
   Shield, Check, X, AlertCircle, Plus, Search, Mail, 
-  Edit2, Power, Trash2, MoreHorizontal, ShieldCheck, ChevronDown 
+  Edit2, Power, Trash2, MoreHorizontal, ShieldCheck, ChevronDown, Sparkles 
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import api from '../lib/api';
@@ -14,6 +14,7 @@ import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
 import { Badge } from '../components/Badge';
 import { Input } from '../components/Input';
+import { PremiumSearch } from '../components/PremiumSearch';
 import './UserManagement.css';
 
 const AVAILABLE_ROLES = [
@@ -266,16 +267,28 @@ export const UserManagement = () => {
           </div>
 
           <div className="header-actions">
-            <div className="elite-search-wrapper">
-              <Search size={18} className="elite-search-icon" />
-              <input 
-                type="text" 
-                placeholder="Search candidates/staff..." 
-                className="elite-search-input"
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-              />
-            </div>
+            <PremiumSearch
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              placeholder="Search candidates/staff..."
+              suggestions={
+                searchTerm ? users.filter(u => 
+                  u.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  u.email?.toLowerCase().includes(searchTerm.toLowerCase())
+                ).slice(0, 5).map(u => ({
+                  id: u.id,
+                  label: u.name,
+                  sub: u.email,
+                  type: 'user',
+                  original: u
+                })) : []
+              }
+              onSuggestionClick={(item) => {
+                if (item.type === 'user') {
+                  setSearchTerm(item.label);
+                }
+              }}
+            />
             
             <Button 
               variant="primary" 

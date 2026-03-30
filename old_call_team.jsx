@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+﻿import { useState, useRef, useEffect } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
@@ -7,9 +7,8 @@ import { OrderEditModal } from '../components/OrderEditModal';
 import CurrencyIcon from '../components/CurrencyIcon';
 import { OrderDetailsModal } from '../components/OrderDetailsModal';
 import { DateRangePicker } from '../components/DateRangePicker';
-import { Search, PhoneCall, CheckCircle, XCircle, Clock, PhoneMissed, Globe, ChevronDown, ChevronLeft, ChevronRight, Edit2, Loader2, PhoneOff, PhoneForwarded, ShieldCheck, ShieldAlert, Shield, UserCheck, RotateCcw, Truck } from 'lucide-react';
+import { Search, PhoneCall, CheckCircle, XCircle, Clock, PhoneMissed, Globe, ChevronDown, ChevronLeft, ChevronRight, Edit2, Loader2, PhoneOff, PhoneForwarded } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useCourierRatio } from '../context/CourierRatioContext';
 import api from '../lib/api';
 import { SLATimer } from '../components/SLATimer';
 import './CallTeamPanel.css';
@@ -23,7 +22,7 @@ const PRODUCT_CHECKPOINTS = [
   { id: 'gymbag', name: 'Gym bag', color: '#b91c1c' },
   { id: 'vlogger', name: 'VLOGGER FOR FREE', color: '#334155' },
   { id: 'mmb', name: 'MMB', color: '#c084fc' },
-  { id: 'quran', name: 'Quran', color: '#6366f1' },
+  { id: 'quran', name: 'Quran', color: '#84cc16' },
   { id: 'waistbag', name: 'WAIST BAG', color: '#134e4a' },
   { id: 'bagpack', name: 'BAGPACK', color: '#3b82f6' },
   { id: 'moshari', name: 'Moshari', color: '#22c55e' }
@@ -51,9 +50,6 @@ export const CallTeamPanel = () => {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [loggingAttemptId, setLoggingAttemptId] = useState(null);
-  
-  // ── Globabl Ratio Cache & Auto-fetch ──
-  const { ratios, checkPhone } = useCourierRatio();
 
   const handleOpenEditModal = (order) => {
     setSelectedOrder(order);
@@ -113,16 +109,6 @@ export const CallTeamPanel = () => {
     return matchesSearch && matchesStatus && matchesProduct && matchesSource && matchesDate;
   });
 
-  // Auto-queue visible phones for checking
-  useEffect(() => {
-    const unchecked = [...new Set(
-      filteredOrders
-        .map(o => o.phone)
-        .filter(p => p && !ratios[p]?.fetched && !ratios[p]?.loading)
-    )];
-    unchecked.forEach(p => checkPhone(p));
-  }, [filteredOrders, checkPhone, ratios]);
-
   const pendingCount = orders.filter(o => ['New', 'Pending Call'].includes(o.status)).length;
   const confirmedToday = typeof stats?.confirmedTodayCount === 'number'
     ? stats.confirmedTodayCount
@@ -139,82 +125,6 @@ export const CallTeamPanel = () => {
       case 'schedule_followup': updateOrderStatus(orderId, 'Pending Call'); break;
       default: break;
     }
-  };
-
-  const renderTrustBadge = (phone) => {
-    const d = ratios[phone];
-    if (!d || d.loading) return <div className="trust-skeleton" style={{ width: 80, height: 20, borderRadius: 6, marginTop: 4 }} />;
-
-    const refreshBtn = (
-      <button
-        className="trust-refresh-btn"
-        onClick={e => { e.stopPropagation(); checkPhone(phone, true); }}
-        title="Re-check"
-        style={{ marginLeft: 4, opacity: 0.5, cursor: 'pointer', background: 'none', border: 'none' }}
-      >
-        <RotateCcw size={10} />
-      </button>
-    );
-
-    if (d.error) return (
-      <div className="trust-badge-wrapper" style={{ marginTop: 4, display: 'flex', alignItems: 'center' }}>
-        <Badge variant="neutral" className="trust-badge" style={{ fontSize: 11 }}>Unknown</Badge>
-        {refreshBtn}
-      </div>
-    );
-
-    if (d.total === 0) return (
-      <div className="trust-badge-wrapper" style={{ marginTop: 4, display: 'flex', alignItems: 'center' }}>
-        <Badge variant="neutral" className="trust-badge" style={{ fontSize: 11 }}>
-          <UserCheck size={11} /> New
-        </Badge>
-        {refreshBtn}
-      </div>
-    );
-
-    let detailsStr = `Overall: ${d.success_count} Delivered / ${d.total} Total (${d.ratio}%)\n\n`;
-    const couriers = d.couriers || {};
-    for (const [key, c] of Object.entries(couriers)) {
-      if (c && typeof c === 'object' && c.total_parcel > 0) {
-        detailsStr += `• ${c.name || key}: ${c.success_parcel} Del / ${c.total_parcel} Tot (${c.success_ratio}%)\n`;
-      }
-    }
-
-    let badgeVariant = 'danger';
-    let BadgeIcon = ShieldAlert;
-    if (d.riskLevel === 'low') { badgeVariant = 'success'; BadgeIcon = ShieldCheck; }
-    else if (d.riskLevel === 'medium') { badgeVariant = 'warning'; BadgeIcon = Shield; }
-
-    return (
-      <div className="trust-badge-wrapper" style={{ marginTop: 4 }}>
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <Badge variant={badgeVariant} className="trust-badge" title={detailsStr} style={{ fontSize: 11, cursor: 'help' }}>
-            <BadgeIcon size={11} /> {d.ratio}% Success
-          </Badge>
-          {refreshBtn}
-        </div>
-        
-        {couriers && Object.keys(couriers).length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
-            {Object.entries(couriers).map(([key, c]) => {
-              if (!c || c.total_parcel === 0) return null;
-              const isGood = c.success_ratio >= 80;
-              const isWarn = c.success_ratio >= 55 && c.success_ratio < 80;
-              return (
-                <div key={key} style={{
-                  fontSize: '10px', padding: '2px 4px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '2px',
-                  background: isGood ? '#dcfce7' : isWarn ? '#fef08a' : '#fee2e2',
-                  color: isGood ? '#166534' : isWarn ? '#854d0e' : '#991b1b',
-                  border: `1px solid ${isGood ? '#bbf7d0' : isWarn ? '#fde047' : '#fecaca'}`
-                }}>
-                  <Truck size={8} /> <strong>{c.name || key}:</strong> {c.success_ratio}% ({c.success_parcel})
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    );
   };
 
   return (
@@ -317,13 +227,10 @@ export const CallTeamPanel = () => {
                 <tr key={order.id} className="order-row cursor-pointer hover:bg-slate-50/50" onClick={() => handleRowClick(order)}>
                   <td className="order-id-cell">#{(order.id || '').replace('ORD-', '')}</td>
                   <td className="customer-name">{order.customer_name}</td>
-                  <td className="phone-cell" style={{ maxWidth: '280px' }}>
-                    <div className="phone-stack">
-                      <a href={`tel:${order.phone}`} className="phone-link" onClick={(e) => e.stopPropagation()}>
-                        <PhoneCall size={14} /> {order.phone}
-                      </a>
-                      {renderTrustBadge(order.phone)}
-                    </div>
+                  <td className="phone-cell">
+                    <a href={`tel:${order.phone}`} className="phone-link" onClick={(e) => e.stopPropagation()}>
+                      <PhoneCall size={14} /> {order.phone}
+                    </a>
                   </td>
                   <td className="product-name">
                     {order.product_name}

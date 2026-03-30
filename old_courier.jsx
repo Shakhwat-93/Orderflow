@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useOrders } from '../context/OrderContext';
 import api from '../lib/api';
 import { Card } from '../components/Card';
@@ -8,8 +8,7 @@ import { Input } from '../components/Input';
 import { Modal } from '../components/Modal';
 import { OrderEditModal } from '../components/OrderEditModal';
 import { OrderDetailsModal } from '../components/OrderDetailsModal';
-import { Search, Truck, CheckCircle, Package, ClipboardCheck, Edit2, ShieldCheck, ShieldAlert, Shield, RotateCcw, Clock, UserCheck } from 'lucide-react';
-import { useCourierRatio } from '../context/CourierRatioContext';
+import { Search, Truck, CheckCircle, Package, ClipboardCheck, Edit2, ShieldCheck, ShieldAlert, Shield, RotateCcw, Clock } from 'lucide-react';
 import './CourierPanel.css';
 
 export const CourierPanel = () => {
@@ -24,9 +23,7 @@ export const CourierPanel = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
-
-  // ── Globabl Ratio Cache & Auto-fetch ──
-  const { ratios, checkPhone } = useCourierRatio();
+  const [ratios, setRatios] = useState({}); // { [phone]: { ratio, total, riskLevel, loading } }
 
   const handleOpenEditModal = (order) => {
     setSelectedOrder(order);
@@ -67,85 +64,94 @@ export const CourierPanel = () => {
     updateOrderStatus(orderId, 'Courier Submitted');
   };
 
+  // --- Trust Score Sync ---
+  const fetchRatioForPhone = async (phone, force = false) => {
+    if (!phone || (!force && ratios[phone]?.fetched)) return;
+    
+    setRatios(prev => ({ ...prev, [phone]: { ...prev[phone], loading: true } }));
+    try {
+      const data = await api.checkCustomerRatio(phone);
+      console.log(`[Trust Audit] ${phone}:`, data);
+      
+      if (data && data.success) {
+        if (data.isLimitReached) {
+          setRatios(prev => ({ ...prev, [phone]: { ...prev[phone], isLimitReached: true, loading: false, fetched: true } }));
+          return;
+        }
+        setRatios(prev => ({ ...prev, [phone]: { ...data.stats, loading: false, fetched: true, isLimitReached: false } }));
+      } else {
+        setRatios(prev => ({ ...prev, [phone]: { ratio: 0, total: 0, riskLevel: 'unknown', loading: false, fetched: true } }));
+      }
+    } catch (err) {
+      console.error('Ratio fetch failed:', err);
+      setRatios(prev => ({ ...prev, [phone]: { loading: false, error: true, fetched: true } }));
+    }
+  };
+
   useEffect(() => {
-    // Auto-queue visible phones for checking
-    const visiblePhones = [...new Set(courierQueue.map(o => o.phone).filter(p => p && !ratios[p]?.fetched && !ratios[p]?.loading))];
-    visiblePhones.forEach((phone) => checkPhone(phone));
-  }, [courierQueue, checkPhone, ratios]);
+    // Aggressively limited auto-fetch to conserve the strict 5-search quota
+    // We only auto-fetch the VERY FIRST 2 orders with a long delay
+    const visiblePhones = [...new Set(courierQueue.slice(0, 2).map(o => o.phone).filter(Boolean))];
+    visiblePhones.forEach((phone, index) => {
+      setTimeout(() => fetchRatioForPhone(phone), index * 3000);
+    });
+  }, [courierQueue.length]);
 
   const renderTrustScore = (phone) => {
-    const d = ratios[phone];
-    if (!d || d.loading) return <div className="trust-skeleton" style={{ width: 80, height: 20, borderRadius: 6, marginTop: 4 }} />;
-
+    const data = ratios[phone];
+    if (!data || data.loading) return <div className="trust-skeleton" />;
+    
+    const { ratio, total, riskLevel, delivered, fetched, isLimitReached } = data;
+    
+    // Manual Refresh Trigger
     const refreshBtn = (
-      <button
-        className="trust-refresh-btn"
-        onClick={e => { e.stopPropagation(); checkPhone(phone, true); }}
+      <button 
+        className="trust-refresh-btn" 
+        onClick={(e) => { e.stopPropagation(); fetchRatioForPhone(phone, true); }}
         title="Re-check history"
-        style={{ marginLeft: 4, opacity: 0.5, cursor: 'pointer', background: 'none', border: 'none' }}
       >
         <RotateCcw size={10} />
       </button>
     );
 
-    if (d.error) return (
-      <div className="trust-badge-wrapper" style={{ marginTop: 4, display: 'flex', alignItems: 'center' }}>
-        <Badge variant="neutral" className="trust-badge" style={{ fontSize: 11 }}>Unknown</Badge>
-        {refreshBtn}
-      </div>
-    );
-
-    if (d.total === 0) return (
-      <div className="trust-badge-wrapper" style={{ marginTop: 4, display: 'flex', alignItems: 'center' }}>
-        <Badge variant="neutral" className="trust-badge" style={{ fontSize: 11 }}>
-          <UserCheck size={11} /> New Customer
+    if (isLimitReached) return (
+      <div className="trust-badge-wrapper">
+        <Badge variant="warning" className="trust-badge" title="Steadfast API limit reached (5 lookups). Try again later.">
+          <Clock size={12} /> Limit Reached
         </Badge>
         {refreshBtn}
       </div>
     );
 
-    let detailsStr = `Overall: ${d.success_count} Delivered / ${d.total} Total (${d.ratio}%)\n\n`;
-    const couriers = d.couriers || {};
-    for (const [key, c] of Object.entries(couriers)) {
-      if (c && typeof c === 'object' && c.total_parcel > 0) {
-        detailsStr += `• ${c.name || key}: ${c.success_parcel} Del / ${c.total_parcel} Tot (${c.success_ratio}%)\n`;
-      }
-    }
+    if (total === 0 && fetched) return (
+      <div className="trust-badge-wrapper">
+        <Badge variant="neutral" className="trust-badge">First Timer</Badge>
+        {refreshBtn}
+      </div>
+    );
 
-    let badgeVariant = 'danger';
-    let BadgeIcon = ShieldAlert;
-    let extraClass = 'high-risk';
-    if (d.riskLevel === 'low') { badgeVariant = 'success'; BadgeIcon = ShieldCheck; extraClass = 'elite'; }
-    else if (d.riskLevel === 'medium') { badgeVariant = 'warning'; BadgeIcon = Shield; extraClass = ''; }
-
+    if (riskLevel === 'low') return (
+      <div className="trust-badge-wrapper">
+        <Badge variant="success" className="trust-badge elite" title={`${delivered} Delivered / ${total} Total`}>
+          <ShieldCheck size={12} /> {ratio}% Success
+        </Badge>
+        {refreshBtn}
+      </div>
+    );
+    if (riskLevel === 'medium') return (
+      <div className="trust-badge-wrapper">
+        <Badge variant="warning" className="trust-badge" title={`${delivered} Delivered / ${total} Total`}>
+          <Shield size={12} /> {ratio}% Success
+        </Badge>
+        {refreshBtn}
+      </div>
+    );
     return (
-      <div className="trust-badge-wrapper" style={{ marginTop: 4 }}>
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <Badge variant={badgeVariant} className={`trust-badge ${extraClass}`} title={detailsStr} style={{ fontSize: 11, cursor: 'help' }}>
-            <BadgeIcon size={11} /> {d.ratio}% Success
-          </Badge>
-          {refreshBtn}
-        </div>
-        
-        {couriers && Object.keys(couriers).length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
-            {Object.entries(couriers).map(([key, c]) => {
-              if (!c || c.total_parcel === 0) return null;
-              const isGood = c.success_ratio >= 80;
-              const isWarn = c.success_ratio >= 55 && c.success_ratio < 80;
-              return (
-                <div key={key} style={{
-                  fontSize: '10px', padding: '2px 4px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '2px',
-                  background: isGood ? '#dcfce7' : isWarn ? '#fef08a' : '#fee2e2',
-                  color: isGood ? '#166534' : isWarn ? '#854d0e' : '#991b1b',
-                  border: `1px solid ${isGood ? '#bbf7d0' : isWarn ? '#fde047' : '#fecaca'}`
-                }}>
-                  <Truck size={8} /> <strong>{c.name || key}:</strong> {c.success_ratio}% ({c.success_parcel})
-                </div>
-              );
-            })}
-          </div>
-        )}
+      <div className="trust-badge-wrapper">
+        <Badge variant="danger" className="trust-badge high-risk" title={`${delivered} Delivered / ${total} Total`}>
+          <ShieldAlert size={12} /> {ratio}% Success
+        </Badge>
+        {refreshBtn}
       </div>
     );
   };

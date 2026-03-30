@@ -4,8 +4,9 @@ import api from '../lib/api';
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
-import { Search, Truck, RotateCcw, ExternalLink, Calendar, User, Phone, MapPin, RefreshCw } from 'lucide-react';
+import { Search, Truck, RotateCcw, ExternalLink, Calendar, User, Phone, MapPin, RefreshCw, Sparkles } from 'lucide-react';
 import { OrderDetailsModal } from '../components/OrderDetailsModal';
+import { PremiumSearch } from '../components/PremiumSearch';
 import { PackingSlip } from '../components/PackingSlip';
 import './SteadfastPanel.css';
 
@@ -202,16 +203,29 @@ export const SteadfastPanel = () => {
 
       <Card className="table-card overflow-hidden">
         <div className="table-search-bar">
-          <div className="elite-search-wrapper">
-            <Search className="elite-search-icon" size={18} />
-            <input 
-              type="text" 
-              placeholder="Search by ID, Customer, Courier ID or Tracking..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="elite-search-input"
-            />
-          </div>
+          <PremiumSearch
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search by ID, name or tracking..."
+            suggestions={
+              searchTerm ? orders.filter(o => 
+                o.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (o.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (o.tracking_id || '').toLowerCase().includes(searchTerm.toLowerCase())
+              ).slice(0, 5).map(o => ({
+                id: o.id,
+                label: o.customer_name,
+                sub: `${o.id} • ${o.tracking_id || 'No Tracking'}`,
+                type: 'order',
+                original: o
+              })) : []
+            }
+            onSuggestionClick={(item) => {
+              if (item.type === 'order') {
+                handleRowClick(item.original);
+              }
+            }}
+          />
           <div className="date-filter-group">
             <button 
               className={`filter-pill ${dateFilter === 'today' ? 'active' : ''}`}

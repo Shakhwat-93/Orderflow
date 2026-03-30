@@ -5,6 +5,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { OrderProvider, useOrders } from './context/OrderContext';
 import { TaskProvider } from './context/TaskContext';
 import { NotificationProvider } from './context/NotificationContext';
+import { CourierRatioProvider } from './context/CourierRatioContext';
 import { DashboardLayout } from './components/DashboardLayout';
 import { AccessRestricted } from './components/AccessRestricted';
 import { ChatBot } from './components/ChatBot';
@@ -110,8 +111,9 @@ function App() {
         <AuthProvider>
           <NotificationProvider>
             <OrderProvider>
-              <TaskProvider>
-              <Suspense fallback={<SkeletonScreen />}>
+              <CourierRatioProvider>
+                <TaskProvider>
+                <Suspense fallback={<SkeletonScreen />}>
                 <Routes>
                   <Route path="/login" element={<Login />} />
                   <Route path="/" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
@@ -135,7 +137,8 @@ function App() {
               </Suspense>
               <ChatBot />
               <CommandPalette />
-              </TaskProvider>
+                </TaskProvider>
+              </CourierRatioProvider>
             </OrderProvider>
           </NotificationProvider>
         </AuthProvider>

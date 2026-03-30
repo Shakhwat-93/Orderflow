@@ -5,11 +5,12 @@ import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
-import { Search, Globe, ChevronDown, ChevronLeft, ChevronRight, CheckCircle, Clock, Printer, Trash2, X, AlertTriangle, Edit2, Plus, Download, Calendar, MoreHorizontal, Phone } from 'lucide-react';
+import { Search, Globe, ChevronDown, ChevronLeft, ChevronRight, CheckCircle, Clock, Printer, Trash2, X, AlertTriangle, Edit2, Plus, Download, Calendar, MoreHorizontal, Phone, Sparkles } from 'lucide-react';
 import CurrencyIcon from '../components/CurrencyIcon';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
 import { OrderDetailsModal } from '../components/OrderDetailsModal';
+import { PremiumSearch } from '../components/PremiumSearch';
 import { Input } from '../components/Input';
 import { DateRangePicker } from '../components/DateRangePicker';
 import { OrderRow } from '../components/OrderRow';
@@ -29,7 +30,7 @@ const PRODUCT_CHECKPOINTS = [
   { id: 'gymbag', name: 'Gym bag', color: '#b91c1c' }, // Red
   { id: 'vlogger', name: 'VLOGGER FOR FREE', color: '#334155' }, // Dark Slate
   { id: 'mmb', name: 'MMB', color: '#c084fc' }, // Light Purple
-  { id: 'quran', name: 'Quran', color: '#84cc16' }, // Lime
+  { id: 'quran', name: 'Quran', color: '#6366f1' }, // Lime
   { id: 'waistbag', name: 'WAIST BAG', color: '#134e4a' }, // Dark Teal
   { id: 'bagpack', name: 'BAGPACK', color: '#3b82f6' }, // Bright Blue
   { id: 'moshari', name: 'Moshari', color: '#22c55e' }  // Bright Green
@@ -438,7 +439,7 @@ export const OrdersBoard = () => {
             <div className="title-group-elite">
               <h1 className="premium-title-enterprise">
                 <span className="text-dark">Orders </span>
-                <span className="text-accent-green">Management</span>
+                <span className="text-accent-indigo">Management</span>
               </h1>
               <p className="premium-subtitle-enterprise">Full control over your order pipeline and customer records.</p>
             </div>
@@ -493,16 +494,30 @@ export const OrdersBoard = () => {
 
       {/* ── Unified Filter Bar ── */}
       <div className="unified-filter-bar">
-        <div className="elite-search-wrapper">
-          <Search size={18} className="elite-search-icon" />
-          <input
-            type="text"
-            className="elite-search-input"
-            placeholder="Search ID, name or phone..."
-            value={filters.searchTerm}
-            onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
-          />
-        </div>
+        <PremiumSearch
+          value={filters.searchTerm}
+          onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
+          placeholder="Search ID, name or phone..."
+          suggestions={
+            filters.searchTerm ? orders.filter(o => 
+              o.id.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
+              o.customer_name?.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
+              o.phone?.includes(filters.searchTerm)
+            ).slice(0, 5).map(o => ({
+              id: o.id,
+              label: o.customer_name,
+              sub: o.id,
+              type: 'order',
+              original: o
+            })) : []
+          }
+          onSuggestionClick={(item) => {
+            if (item.type === 'order') {
+              setSelectedOrder(item.original);
+              setIsDetailsModalOpen(true);
+            }
+          }}
+        />
 
         <div className="elite-select-wrapper">
           <Globe size={16} className="elite-select-icon" />
@@ -563,15 +578,15 @@ export const OrdersBoard = () => {
                     onChange={handleSelectAll}
                   />
                 </th>
-                <th>Order ID</th>
-                <th>Order Date</th>
-                <th>Customer Info</th>
-                <th>Total Price</th>
-                <th>Items</th>
-                <th>Payment Status</th>
-                <th>Shipping</th>
-                <th>Status</th>
-                <th></th>
+                <th className="id-col">Order ID</th>
+                <th className="date-col">Order Date</th>
+                <th className="customer-col">Customer Info</th>
+                <th className="amount-col">Total Price</th>
+                <th className="items-col">Items</th>
+                <th className="payment-status-col">Payment Status</th>
+                <th className="shipping-col">Shipping</th>
+                <th className="status-col">Status</th>
+                <th className="actions-col"></th>
               </tr>
             </thead>
             <tbody className="orders-table-body">
