@@ -666,6 +666,8 @@ ${rawText}`;
       console.error('Order creation log failed:', sideEffectError);
     }
 
+    // Notify
+    /* 
     try {
       await this.createNotification({
         type: 'ORDER_CREATED',
@@ -682,6 +684,7 @@ ${rawText}`;
     } catch (sideEffectError) {
       console.error('Order creation notification failed:', sideEffectError);
     }
+    */
 
     return data;
   },
@@ -1639,6 +1642,31 @@ ${rawText}`;
       console.error('Courier Dispatch Error:', error);
       throw error;
     }
+
+    // Capture metadata on success
+    // The Edge Function returns { success, trackingCode, consignmentId, details }
+    const consignmentId = data?.consignmentId || data?.details?.consignment?.consignment_id || data?.details?.id;
+    const trackingCode = data?.trackingCode || data?.details?.consignment?.tracking_code || data?.details?.tracking_code;
+    const courierStatus = data?.details?.consignment?.status || data?.details?.status || 'pending';
+    
+    // The Edge Function already updates the database, but we perform a 
+    // client-side sync update here to be absolutely sure and handle any race conditions.
+    const { error: updateError } = await supabase
+      .from('orders')
+      .update({
+        dispatched_at: new Date().toISOString(),
+        courier_name: 'Steadfast',
+        tracking_id: trackingCode || null,
+        courier_assigned_id: consignmentId ? String(consignmentId) : null,
+        courier_status: courierStatus,
+        status: 'Courier Submitted'
+      })
+      .eq('id', orderId);
+
+    if (updateError) {
+      console.error('Failed to update dispatch metadata:', updateError);
+    }
+
     return data;
   },
 
@@ -1653,6 +1681,33 @@ ${rawText}`;
     if (error) {
       console.error('Steadfast Status Error:', error);
       throw error;
+    }
+
+    // Auto-backfill Consignment ID if it exists and is missing in our system
+    const consignmentId = data?.consignment_id || data?.id;
+    if (consignmentId) {
+      await supabase
+        .from('orders')
+        .update({ courier_assigned_id: String(consignmentId) })
+        .eq('id', orderId)
+        .is('courier_assigned_id', null);
+    }
+
+    return data;
+  },
+
+  /**
+   * Check customer delivery success ratio via Steadfast Fraud Check API
+   */
+  async checkCustomerRatio(phone) {
+    if (!phone) return null;
+    const { data, error } = await supabase.functions.invoke('courier-ratio-check', {
+      body: { phone }
+    });
+
+    if (error) {
+      console.error('Ratio Check Error:', error);
+      return null;
     }
     return data;
   },

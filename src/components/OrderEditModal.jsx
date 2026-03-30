@@ -5,8 +5,10 @@ import { Button } from './Button';
 import { Modal } from './Modal';
 import { Wand2, Truck, MapPin, X, Plus, Package, Users, AlertTriangle, History, CheckCircle2, PhoneCall, Clock } from 'lucide-react';
 import api from '../lib/api';
+import CurrencyIcon from './CurrencyIcon';
 import { useAuth } from '../context/AuthContext';
 import './OrderHistoryTimeline.css';
+import './OrderEditModal.css';
 
 const PRODUCT_OPTIONS = [
   'TOY BOX', 'ORGANIZER', 'Travel bag', 'TOY BOX + ORG', 'Gym bag',
@@ -385,7 +387,7 @@ export const OrderEditModal = ({ isOpen, onClose, order = null }) => {
 
         <div className="total-display">
           <span>Total Amount:</span>
-          <strong>৳{formData.amount}</strong>
+          <strong><CurrencyIcon size={16} className="currency-icon-elite" />{formData.amount}</strong>
         </div>
 
         <Input label="Order Notes" placeholder="Special instructions..." value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} isTextarea className="full-width-input" />

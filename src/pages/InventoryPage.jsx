@@ -5,6 +5,7 @@ import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { Modal } from '../components/Modal';
+import CurrencyIcon from '../components/CurrencyIcon';
 import {
   Search,
   Plus,
@@ -18,7 +19,8 @@ import {
   Bot,
   Loader2,
   CheckCircle2,
-  CircleAlert
+  CircleAlert,
+  ChevronDown
 } from 'lucide-react';
 import './InventoryPage.css';
 
@@ -251,13 +253,14 @@ export const InventoryPage = () => {
 
       <div className="inventory-controls-strip">
         <div className="unified-filter-bar glass">
-          <div className="search-box">
-            <Search size={18} className="search-icon" />
+          <div className="elite-search-wrapper">
+            <Search size={18} className="elite-search-icon" />
             <input
               type="text"
               placeholder="Search by name or SKU..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              className="elite-search-input"
             />
           </div>
           <div className="filter-divider"></div>
@@ -318,7 +321,7 @@ export const InventoryPage = () => {
                     <td data-label="Category"><span className="category-pill">{item.category}</span></td>
                     <td data-label="Price">
                       <div className="price-cell">
-                        <span className="currency-symbol">৳</span>
+                        <CurrencyIcon size={12} className="currency-icon-elite" />
                         <span className="amount-val">{Number(item.unit_price).toLocaleString()}</span>
                       </div>
                     </td>
@@ -415,17 +418,24 @@ export const InventoryPage = () => {
           <Input label="Product Name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required placeholder="Enter full product name" />
           <div className="form-grid">
             <Input label="SKU / Identifer" value={formData.sku} onChange={(e) => setFormData({ ...formData, sku: e.target.value })} placeholder="SKU-XXX" />
-            <div className="select-group">
+            <div className="elite-select-wrapper">
               <label className="input-label">Category</label>
-              <select className="premium-select" value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })}>
+              <select className="elite-select" value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })}>
                 {CATEGORIES.filter(c => c !== 'All').map(c => <option key={c} value={c}>{c}</option>)}
               </select>
+              <ChevronDown size={14} className="elite-select-chevron" />
             </div>
           </div>
           <div className="form-grid three-cols">
             <Input label="Initial Inventory" type="number" value={formData.current_stock} onChange={(e) => setFormData({ ...formData, current_stock: parseInt(e.target.value) })} required />
             <Input label="Min Alert Level" type="number" value={formData.min_stock_level} onChange={(e) => setFormData({ ...formData, min_stock_level: parseInt(e.target.value) })} required />
-            <Input label="Unit Price (৳)" type="number" value={formData.unit_price} onChange={(e) => setFormData({ ...formData, unit_price: parseFloat(e.target.value) })} required />
+            <Input 
+              label={<>Unit Price (<CurrencyIcon size={12} className="currency-icon-elite" />)</>} 
+              type="number" 
+              value={formData.unit_price} 
+              onChange={(e) => setFormData({ ...formData, unit_price: parseFloat(e.target.value) })} 
+              required 
+            />
           </div>
           <div className="modal-footer-actions">
             <Button variant="ghost" type="button" onClick={() => setIsProductModalOpen(false)}>Cancel</Button>

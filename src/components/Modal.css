@@ -90,6 +90,28 @@
 .modal-body::-webkit-scrollbar { width: 4px; }
 .modal-body::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.1); border-radius: 10px; }
 
+[data-theme='dark'] .modal-content {
+  background: #08090b !important;
+  border-color: rgba(255, 255, 255, 0.05) !important;
+  box-shadow: 0 10px 50px rgba(0, 0, 0, 0.8) !important;
+}
+
+[data-theme='dark'] .modal-close-btn {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+}
+
+[data-theme='dark'] .modal-close-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  border-color: var(--accent);
+}
+
+[data-theme='dark'] .modal-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.05);
+}
+
 @keyframes modalOverlayIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes modalSlideUp { from { opacity: 0; transform: translateY(100%); } to { opacity: 1; transform: translateY(0); } }
 @keyframes modalPopIn { from { opacity: 0; transform: scale(0.95) translateY(16px); } to { opacity: 1; transform: scale(1) translateY(0); } }

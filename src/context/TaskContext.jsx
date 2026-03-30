@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { api } from '../lib/api';
+import api from '../lib/api';
 import { useAuth } from './AuthContext';
 
 const TaskContext = createContext(null);

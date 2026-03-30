@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { api } from '../lib/api';
+import api from '../lib/api';
 import {
   User,
   ShieldCheck,
@@ -51,34 +51,37 @@ export const ActiveUsers = () => {
     return `Active ${days} day ago`;
   };
 
+  const loadUsers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*');
+
+      if (error) throw error;
+      const normalized = (data || []).map((u) => ({
+        id: u.id,
+        name: u.name || u.full_name || null,
+        full_name: u.full_name || null,
+        email: u.email || null,
+        avatar_url: u.avatar_url || null,
+        created_at: u.created_at || null,
+        updated_at: u.updated_at || null,
+        last_active_at: u.last_active_at || null,
+        status: u.status,
+        is_active: u.is_active
+      }));
+      setAllUsers(normalized);
+    } catch (error) {
+      console.error('Failed loading users for presence:', error);
+      setAllUsers([]);
+    }
+  };
+
   useEffect(() => {
-    const loadUsers = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('users')
-          .select('*');
-
-        if (error) throw error;
-        const normalized = (data || []).map((u) => ({
-          id: u.id,
-          name: u.name || u.full_name || null,
-          full_name: u.full_name || null,
-          email: u.email || null,
-          avatar_url: u.avatar_url || null,
-          created_at: u.created_at || null,
-          updated_at: u.updated_at || null,
-          last_active_at: u.last_active_at || null,
-          status: u.status,
-          is_active: u.is_active
-        }));
-        setAllUsers(normalized);
-      } catch (error) {
-        console.error('Failed loading users for presence:', error);
-        setAllUsers([]);
-      }
-    };
-
     loadUsers();
+    // Periodically refresh the user list to pick up DB heartbeat updates (last_active_at)
+    const interval = setInterval(loadUsers, 60000); // Every minute
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -119,6 +122,14 @@ export const ActiveUsers = () => {
 
     const merged = (allUsers || []).map((u) => {
       const online = onlineMap.get(u.id);
+      
+      // Determine effective online status
+      // We check if they are in the Presence channel OR have been active in DB in last 3 mins
+      const dbLastActive = u.last_active_at ? new Date(u.last_active_at).getTime() : 0;
+      const isRecentlyActiveInDb = (Date.now() - dbLastActive) < 180000; // 3 minutes
+      
+      const isOnline = !!online || isRecentlyActiveInDb;
+
       if (online) {
         return {
           ...u,
@@ -131,7 +142,7 @@ export const ActiveUsers = () => {
       return {
         ...u,
         roles: u.roles || [],
-        isOnline: false,
+        isOnline,
         lastActiveAt: u.last_active_at || lastSeenMap[u.id] || u.updated_at || u.created_at || null
       };
     });

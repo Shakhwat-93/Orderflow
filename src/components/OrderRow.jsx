@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import ReactDOM from 'react-dom';
 import { Badge } from './Badge';
 import { MoreHorizontal, Mail, Phone, ShoppingCart, Tag, Copy, Check, ChevronDown, Edit2, AlertTriangle, Clock } from 'lucide-react';
+import CurrencyIcon from './CurrencyIcon';
 import './OrderRow.css';
 
 export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected, onSelect, fraudFlag, automationFlag }) => {
@@ -52,13 +53,12 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
 
   return (
     <motion.tr 
-      className="order-row clickable-row" 
+      className={`order-row clickable-row ${isSelected ? 'row-selected' : ''}`} 
       onClick={() => onDetails(order)}
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, x: -20 }}
-      transition={{ duration: 0.2 }}
-      whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.05)' }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
     >
       <td className="checkbox-cell" onClick={(e) => e.stopPropagation()}>
         <input 
@@ -78,11 +78,11 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
               onClick={(e) => handleCopy(e, order.id)}
               title="Copy ID"
             >
-              {copied ? <Check size={12} /> : <Copy size={12} />}
+              {copied ? <Check size={12} strokeWidth={3} /> : <Copy size={12} />}
             </button>
           </div>
           <div className="category-tag">
-            <Tag size={10} /> Ecommerce
+            <Tag size={10} strokeWidth={2.5} /> Ecommerce
           </div>
         </div>
       </td>
@@ -93,7 +93,7 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
             {new Date(order.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
           </span>
           <span className="secondary-time">
-            at {new Date(order.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+            {new Date(order.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
           </span>
         </div>
       </td>
@@ -104,34 +104,40 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
             <strong>{order.customer_name}</strong>
             {fraudFlag && (
               <div className="fraud-alert-icon" title={fraudFlag.message}>
-                <AlertTriangle size={14} color="#ff4d4d" />
+                <AlertTriangle size={14} className="text-error neon-drop" />
               </div>
             )}
             {automationFlag && (
               <div className="automation-alert-icon" title={automationFlag.reason}>
-                <Clock size={14} color="#ffd700" />
+                <Clock size={14} className="text-warning neon-drop" />
               </div>
             )}
           </div>
           <div className="customer-meta">
-            <div className="meta-item"><Phone size={12} /> {order.phone}</div>
-            <div className="meta-item email"><Mail size={12} /> {order.email || 'no-email@example.com'}</div>
+            <div className="meta-item">
+              <Phone size={11} strokeWidth={2.5} /> 
+              <span>{order.phone}</span>
+            </div>
+            <div className="meta-item email">
+              <Mail size={11} strokeWidth={2.5} /> 
+              <span>{order.email || 'no-email@example.com'}</span>
+            </div>
           </div>
         </div>
       </td>
 
       <td className="amount-cell">
         <div className="amount-block">
-          <span className="currency">৳</span>
+          <CurrencyIcon size={12} className="currency-icon-elite" />
           <span className="amount-text">{Number(order.amount || 0).toLocaleString()}</span>
         </div>
       </td>
 
       <td className="items-cell">
         <div className="items-count-display">
-          <div className="items-count-badge">
-            {String(order.items || 1).padStart(2, '0')}
-            <ChevronDown size={14} className="badge-chevron" />
+          <div className="items-count-badge glass-focus" onClick={(e) => e.stopPropagation()}>
+            <span>{String(order.items || 1).padStart(2, '0')}</span>
+            <ChevronDown size={12} strokeWidth={3} />
           </div>
           {order.ordered_items && order.ordered_items.length > 0 && (
             <div className="serial-pills">
@@ -150,33 +156,42 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
       </td>
 
       <td className="payment-status-cell">
-        <Badge variant={order.payment_status === 'Paid' ? 'completed' : 'cancelled'}>
+        <Badge 
+          variant={order.payment_status === 'Paid' ? 'completed' : 'cancelled'}
+          className={order.payment_status === 'Paid' ? 'glass-neon-emerald' : 'glass-neon-rose'}
+        >
           {order.payment_status || 'Unpaid'}
         </Badge>
       </td>
 
       <td className="shipping-cell">
-        <div className="shipping-text">
-          {order.shipping_zone || 'Outside dhaka'}
+        <div className="shipping-badge">
+          <span>{order.shipping_zone || 'Outside Dhaka'}</span>
         </div>
       </td>
 
       <td className="status-cell" onClick={(e) => e.stopPropagation()}>
         <div className="status-dropdown-container" ref={statusBtnRef}>
           <button 
-            className={`status-trigger-pill ${getStatusBadgeVariant(order.status)}`}
+            className={`status-trigger-pill badge-${getStatusBadgeVariant(order.status)}`}
             onClick={toggleStatusMenu}
           >
             <span>{order.status}</span>
-            <ChevronDown size={14} />
+            <ChevronDown size={12} strokeWidth={3} />
           </button>
           
           {showStatusMenu && ReactDOM.createPortal(
             <>
               <div className="status-dropdown-backdrop" onClick={() => setShowStatusMenu(false)} />
               <div 
-                className="status-menu-dropdown liquid-glass"
-                style={{ position: 'fixed', top: menuPos.top, left: menuPos.left, zIndex: 99999 }}
+                className="status-menu-dropdown liquid-glass animate-in fade-in zoom-in duration-200"
+                style={{ 
+                  position: 'fixed', 
+                  top: menuPos.top, 
+                  left: menuPos.left, 
+                  zIndex: 99999,
+                  transformOrigin: 'top left'
+                }}
               >
                 {ORDER_STATUSES.map(status => (
                   <button 
@@ -198,8 +213,8 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
       </td>
 
       <td className="actions-cell" onClick={(e) => { e.stopPropagation(); onEdit && onEdit(order); }}>
-        <button className="row-action-btn edit-btn" title="Edit Order">
-          <Edit2 size={16} />
+        <button className="edit-btn" title="Edit Order">
+          <Edit2 size={14} strokeWidth={2.5} />
         </button>
       </td>
     </motion.tr>

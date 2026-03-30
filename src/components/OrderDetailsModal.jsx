@@ -7,7 +7,8 @@ import {
   History, Edit2, X, Clipboard, ExternalLink, 
   Truck, CheckCircle2, AlertCircle, Info 
 } from 'lucide-react';
-import { api } from '../lib/api';
+import CurrencyIcon from './CurrencyIcon';
+import api from '../lib/api';
 import './OrderDetailsModal.css';
 
 export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
@@ -89,10 +90,16 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
 
           <div className="amount-focus-card glass-card">
             <span className="order-label">Total Amount</span>
-            <div className="amount-value">৳{Number(order.amount || 0).toLocaleString()}</div>
+            <div className="amount-value">
+              <CurrencyIcon size={20} className="currency-icon-elite" />
+              {Number(order.amount || 0).toLocaleString()}
+            </div>
             <div className="shipping-info">
               {order.shipping_zone} 
-              <span className="fee">({order.shipping_zone === 'Inside Dhaka' ? '৳80' : '৳150'})</span>
+              <span className="fee">
+                (<CurrencyIcon size={12} className="currency-icon-elite" />
+                {order.shipping_zone === 'Inside Dhaka' ? '80' : '150'})
+              </span>
             </div>
           </div>
         </div>
@@ -150,8 +157,8 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
                         {item.size && <div className="product-meta-detail">Size: <span className="highlight">{item.size}</span></div>}
                       </div>
                       <div className="product-price-column">
-                        <div className="unit-price">@৳{Number(item.price || 0).toLocaleString()}</div>
-                        <div className="total-price">৳{Number((item.price || 0) * (item.quantity || 1)).toLocaleString()}</div>
+                        <div className="unit-price">@<CurrencyIcon size={10} className="currency-icon-elite" />{Number(item.price || 0).toLocaleString()}</div>
+                        <div className="total-price"><CurrencyIcon size={12} className="currency-icon-elite" />{Number((item.price || 0) * (item.quantity || 1)).toLocaleString()}</div>
                       </div>
                     </div>
                   ))
@@ -165,7 +172,10 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
                       {order.size && <div className="product-meta-detail">Size: <span className="highlight">{order.size}</span></div>}
                     </div>
                     <div className="product-price-column">
-                      <div className="total-price">৳{Number(order.amount || 0).toLocaleString()}</div>
+                      <div className="total-price">
+                        <CurrencyIcon size={12} className="currency-icon-elite" />
+                        {Number(order.amount || 0).toLocaleString()}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -192,17 +202,31 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
                   <span className="info-value">Steadfast Logistics</span>
                 </div>
                 <div className="log-item">
+                  <span className="info-label">Steadfast ID</span>
+                  <div className="tracking-badge-group">
+                    <div className="tracking-id-copy" onClick={() => copyToClipboard(order.courier_assigned_id)}>
+                      <code>{order.courier_assigned_id || 'Sync Required'}</code>
+                      <Clipboard size={12} className="copy-icon" />
+                    </div>
+                  </div>
+                </div>
+                <div className="log-item">
                   <span className="info-label">Tracking Number</span>
                   <div className="tracking-badge-group">
-                    <code>{order.tracking_id}</code>
-                    <a 
-                      href={`https://portal.steadfast.com.bd/tracking/${order.tracking_id}`} 
-                      target="_blank" 
-                      rel="noreferrer"
-                      className="tracking-external-link"
-                    >
-                      <ExternalLink size={14} /> <span>Portal</span>
-                    </a>
+                    <div className="tracking-id-copy" onClick={() => copyToClipboard(order.tracking_id)}>
+                      <code>{order.tracking_id || 'N/A'}</code>
+                      <Clipboard size={12} className="copy-icon" />
+                    </div>
+                    {order.tracking_id && (
+                      <a 
+                        href={`https://portal.steadfast.com.bd/tracking/${order.tracking_id}`} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="tracking-external-link"
+                      >
+                        <ExternalLink size={14} /> <span>Portal</span>
+                        </a>
+                    )}
                   </div>
                 </div>
                 <div className="log-item">

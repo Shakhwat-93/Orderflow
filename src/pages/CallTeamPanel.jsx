@@ -4,11 +4,12 @@ import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { OrderRow } from '../components/OrderRow';
 import { OrderEditModal } from '../components/OrderEditModal';
+import CurrencyIcon from '../components/CurrencyIcon';
 import { OrderDetailsModal } from '../components/OrderDetailsModal';
 import { DateRangePicker } from '../components/DateRangePicker';
-import { Search, PhoneCall, CheckCircle, XCircle, Clock, PhoneMissed, Globe, ChevronLeft, ChevronRight, Edit2, Loader2, PhoneOff, PhoneForwarded } from 'lucide-react';
+import { Search, PhoneCall, CheckCircle, XCircle, Clock, PhoneMissed, Globe, ChevronDown, ChevronLeft, ChevronRight, Edit2, Loader2, PhoneOff, PhoneForwarded } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { api } from '../lib/api';
+import api from '../lib/api';
 import { SLATimer } from '../components/SLATimer';
 import './CallTeamPanel.css';
 
@@ -178,25 +179,30 @@ export const CallTeamPanel = () => {
       </div>
 
       {/* Orders Table with Call Actions */}
-      <Card className="table-card liquid-glass" noPadding>
+      <Card className="table-card" noPadding>
         <div className="table-search-bar">
-          <div className="search-input-wrapper">
-            <Search className="search-icon" size={18} />
+          <div className="elite-search-wrapper">
+            <Search className="elite-search-icon" size={18} />
             <input
               type="text"
               placeholder="Search ID, name or phone..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="search-field"
+              className="elite-search-input"
             />
           </div>
           <div className="filter-actions-group">
-            <div className="filter-select-group">
-              <Globe size={14} className="select-icon" />
-              <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}>
+            <div className="elite-select-wrapper">
+              <Globe size={14} className="elite-select-icon" />
+              <select 
+                className="elite-select-field"
+                value={sourceFilter} 
+                onChange={(e) => setSourceFilter(e.target.value)}
+              >
                 <option value="All">All Sources</option>
                 {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
+              <ChevronDown size={14} className="ml-auto opacity-50" />
             </div>
             <DateRangePicker value={dateRange} onChange={setDateRange} />
             <span className="order-count-badge">{filteredOrders.length} orders</span>
@@ -213,7 +219,7 @@ export const CallTeamPanel = () => {
                 <th>Amount</th>
                 <th>Status</th>
                 <th>SLA & Attempts</th>
-                <th>Call Actions</th>
+                <th className="actions-col-enterprise">Call Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -230,7 +236,10 @@ export const CallTeamPanel = () => {
                     {order.product_name}
                     {order.size && <span className="size-tag">{order.size}</span>}
                   </td>
-                  <td className="amount-cell-text">৳{Number(order.amount || 0).toLocaleString()}</td>
+                  <td className="amount-cell-text">
+                    <CurrencyIcon size={12} className="currency-icon-elite" />
+                    {Number(order.amount || 0).toLocaleString()}
+                  </td>
                   <td>
                     <Badge variant={
                       order.status === 'New' ? 'new' :
@@ -256,38 +265,41 @@ export const CallTeamPanel = () => {
                       )}
                     </div>
                   </td>
-                  <td>
+                  <td className="actions-col-enterprise">
                     {['New', 'Pending Call', 'Confirmed'].includes(order.status) ? (
-                      <div className="call-action-grid">
-                        <button className="call-action-btn edit" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(order); }} title="Edit Order">
-                          <Edit2 size={16} /> <span>Edit</span>
+                      <div className="action-strip-enterprise">
+                        <button className="elite-action-btn edit" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(order); }} title="Edit Order">
+                          <Edit2 size={14} />
                         </button>
+                        
                         {['New', 'Pending Call'].includes(order.status) && (
-                          <>
-                            <button className="call-action-btn confirm" onClick={(e) => { e.stopPropagation(); handleAction(order.id, 'confirm'); }} title="Confirm Order">
-                              <CheckCircle size={16} /> <span>Confirm</span>
+                          <div className="result-group-enterprise">
+                            <button className="elite-action-btn confirm" onClick={(e) => { e.stopPropagation(); handleAction(order.id, 'confirm'); }} title="Confirm Order">
+                              <CheckCircle size={14} />
                             </button>
+                            
                             {loggingAttemptId === order.id ? (
-                              <button className="call-action-btn disabled" disabled>
-                                <Loader2 size={16} className="spin" /> <span>Logging...</span>
+                              <button className="elite-action-btn loading" disabled>
+                                <Loader2 size={14} className="spin" />
                               </button>
                             ) : (
                               <>
-                                <button className="call-action-btn not-reachable" onClick={(e) => { e.stopPropagation(); handleLogAttempt(order.id, 'No Answer'); }} title="Log: No Answer (Remains Pending)">
-                                  <PhoneMissed size={16} /> <span>No Answer</span>
+                                <button className="elite-action-btn result" onClick={(e) => { e.stopPropagation(); handleLogAttempt(order.id, 'No Answer'); }} title="No Answer">
+                                  <PhoneMissed size={14} />
                                 </button>
-                                <button className="call-action-btn busy" onClick={(e) => { e.stopPropagation(); handleLogAttempt(order.id, 'Busy / Rejected'); }} title="Log: Busy/Rejected (Remains Pending)">
-                                  <PhoneOff size={16} /> <span>Busy</span>
+                                <button className="elite-action-btn result" onClick={(e) => { e.stopPropagation(); handleLogAttempt(order.id, 'Busy / Rejected'); }} title="Busy">
+                                  <PhoneOff size={14} />
                                 </button>
-                                <button className="call-action-btn follow-up" onClick={(e) => { e.stopPropagation(); handleLogAttempt(order.id, 'Call Back Later'); }} title="Log: Call Back Later (Remains Pending)">
-                                  <Clock size={16} /> <span>Call Back</span>
+                                <button className="elite-action-btn result" onClick={(e) => { e.stopPropagation(); handleLogAttempt(order.id, 'Call Back Later'); }} title="Call Back">
+                                  <Clock size={14} />
                                 </button>
                               </>
                             )}
-                            <button className="call-action-btn cancel" onClick={(e) => { e.stopPropagation(); handleAction(order.id, 'cancel'); }} title="Cancel Order">
-                              <XCircle size={16} /> <span>Cancel</span>
+                            
+                            <button className="elite-action-btn cancel" onClick={(e) => { e.stopPropagation(); handleAction(order.id, 'cancel'); }} title="Cancel Order">
+                              <XCircle size={14} />
                             </button>
-                          </>
+                          </div>
                         )}
                       </div>
                     ) : (

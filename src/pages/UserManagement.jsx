@@ -1,11 +1,17 @@
 import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { 
+  Calendar, Building, Phone as PhoneIcon, User as UserIcon, 
+  Shield, Check, X, AlertCircle, Plus, Search, Mail, 
+  Edit2, Power, Trash2, MoreHorizontal, ShieldCheck, ChevronDown 
+} from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { api } from '../lib/api';
+import api from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
-import { User, Shield, Check, X, AlertCircle, Plus, Search, Mail, Edit2, Power, Trash2, MoreVertical, ShieldCheck } from 'lucide-react';
 import { Badge } from '../components/Badge';
 import { Input } from '../components/Input';
 import './UserManagement.css';
@@ -29,7 +35,10 @@ const ROLE_DESCRIPTIONS = {
 };
 
 export const UserManagement = () => {
-  const { user: currentUser, profile: currentProfile, isAdmin, updateProfile } = useAuth();
+  const { user: currentUser, profile: currentProfile, isAdmin } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -69,7 +78,6 @@ export const UserManagement = () => {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      // Fetch users and their roles
       const [{ data: usersData }, { data: rolesData }] = await Promise.all([
         supabase.from('users').select('*'),
         supabase.from('user_roles').select('*')
@@ -111,9 +119,8 @@ export const UserManagement = () => {
     }
   };
 
-
   const handleDeleteUser = async (user) => {
-    if (user.id === (supabase.auth.getUser()?.id)) {
+    if (user.id === currentUser?.id) {
       alert("You cannot delete your own admin account.");
       return;
     }
@@ -131,7 +138,6 @@ export const UserManagement = () => {
   const handleAddUser = async (e) => {
     e.preventDefault();
     try {
-      // Call administrative Edge Function for secure creation
       await api.adminCreateUser({
         name: addFormData.name,
         email: addFormData.email,
@@ -142,7 +148,6 @@ export const UserManagement = () => {
       setIsAddModalOpen(false);
       setAddFormData({ name: '', email: '', password: '', role: 'Call Team' });
       
-      // Log the addition
       const adminName = currentProfile?.name || currentUser?.email || 'Admin';
       await api.logActivity({
         action_type: 'USER_CREATE',
@@ -173,7 +178,6 @@ export const UserManagement = () => {
 
       await api.updateUserRoles(userId, newRoles, isAdmin);
 
-      // Log the role change
       const adminName = currentProfile?.name || currentUser?.email || 'Admin';
       const targetUser = users.find(u => u.id === userId);
       await api.logActivity({
@@ -231,7 +235,6 @@ export const UserManagement = () => {
     }
   };
 
-
   if (!isAdmin) {
     return (
       <div className="access-denied">
@@ -249,124 +252,130 @@ export const UserManagement = () => {
 
   return (
     <div className="user-management">
-      <div className="page-header">
-        <div>
-          <h1>User Management</h1>
-          <p>Assign roles, manage account status, and edit team profiles.</p>
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="user-header-container"
+      >
+        <div className="page-header users-header elite-glass">
+          <div className="header-content-left">
+            <div className="title-group">
+              <h1 className="premium-title">{filteredUsers.length} Team Members</h1>
+              <p className="premium-subtitle">Manage roles, security, and profile details for your staff.</p>
+            </div>
+          </div>
+
+          <div className="header-actions">
+            <div className="elite-search-wrapper">
+              <Search size={18} className="elite-search-icon" />
+              <input 
+                type="text" 
+                placeholder="Search candidates/staff..." 
+                className="elite-search-input"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+              />
+            </div>
+            
+            <Button 
+              variant="primary" 
+              className="add-member-btn-elite premium-glow-btn" 
+              onClick={() => setIsAddModalOpen(true)}
+            >
+              <Plus size={20} />
+              <span className="btn-text">Add Candidate</span>
+            </Button>
+          </div>
         </div>
-        <Button variant="primary" onClick={() => setIsAddModalOpen(true)}>
-          <Plus size={18} /> Add Team Member
-        </Button>
+      </motion.div>
+
+      <div className="user-grid-container">
+        {loading ? (
+          <div className="loading-state-elite">
+            <div className="shimmer-card"></div>
+            <div className="shimmer-card"></div>
+            <div className="shimmer-card"></div>
+          </div>
+        ) : filteredUsers.length === 0 ? (
+          <div className="empty-state-elite">
+            <AlertCircle size={48} />
+            <h3>No Members Found</h3>
+            <p>Try adjusting your search or filters.</p>
+          </div>
+        ) : (
+          <motion.div 
+            className="user-cards-grid"
+            initial="hidden"
+            animate="visible"
+            variants={{
+              visible: { transition: { staggerChildren: 0.1 } }
+            }}
+          >
+            {filteredUsers.map(user => (
+              <motion.div 
+                key={user.id}
+                variants={{
+                  hidden: { opacity: 0, scale: 0.95, y: 20 },
+                  visible: { opacity: 1, scale: 1, y: 0 }
+                }}
+                className={`elite-user-card ${user.status === 'inactive' ? 'deactivated' : ''}`}
+              >
+                <div className="card-top">
+                  <div className="user-profile-compact">
+                    <div className="avatar-wrapper-elite">
+                      <div className="avatar-circle-elite">
+                        {user.avatar_url ? (
+                          <img src={user.avatar_url} alt="" />
+                        ) : (
+                          <div className="initials-elite">{user.name?.charAt(0).toUpperCase()}</div>
+                        )}
+                        <div className={`status-dot ${user.status === 'active' ? 'online' : 'offline'}`}></div>
+                      </div>
+                    </div>
+                    <div className="user-main-info">
+                      <h3 className="user-name-elite">{user.name}</h3>
+                      <span className="user-primary-role">{(userRoles[user.id] || [])[0] || 'Member'}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="card-actions-popover">
+                    <Button variant="ghost" size="small" className="dot-menu-btn">
+                      <MoreHorizontal size={20} />
+                    </Button>
+                    <div className="popover-menu-elite">
+                      <button onClick={() => handleEditUser(user)}><Edit2 size={14} /> Edit Profile</button>
+                      <button onClick={() => handleResetPasswordClick(user)}><Shield size={14} /> Reset Pass</button>
+                      <button className="del" onClick={() => handleDeleteUser(user)}><Trash2 size={14} /> Remove</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card-details-grid">
+                  <div className="detail-item">
+                    <span className="detail-label">Department</span>
+                    <span className="detail-value">{(userRoles[user.id] || [])[0] || 'Staff'} Team</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Hired Date</span>
+                    <span className="detail-value">{new Date(user.created_at).toLocaleDateString()}</span>
+                  </div>
+                </div>
+
+                <div className="card-contact-info">
+                  <div className="contact-row">
+                    <Mail size={14} className="contact-icon" />
+                    <span className="contact-text">{user.email}</span>
+                  </div>
+                  <div className="contact-row">
+                    <PhoneIcon size={14} className="contact-icon" />
+                    <span className="contact-text">(229) 555-0109</span>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
       </div>
-
-      <Card className="user-management-card" noPadding>
-        <div className="table-header">
-          <div className="header-search">
-            <Search size={18} />
-            <input 
-              type="text" 
-              placeholder="Filter by name or email..." 
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <div className="user-count">
-            {filteredUsers.length} total users
-          </div>
-        </div>
-
-        <div className="user-table-wrapper">
-          <table className="user-table">
-            <thead>
-              <tr>
-                <th>Member</th>
-                <th className="desktop-only">Contact</th>
-                <th>Roles</th>
-                <th>Status</th>
-                <th className="text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan="5" className="loading-state">Loading team members...</td>
-                </tr>
-              ) : filteredUsers.length === 0 ? (
-                <tr>
-                  <td colSpan="5" className="empty-state">No users found matching your search.</td>
-                </tr>
-              ) : (
-                filteredUsers.map(user => (
-                  <tr key={user.id} className={user.status === 'inactive' ? 'row-deactivated' : ''}>
-                    <td data-label="Member">
-                      <div className="user-cell">
-                        <div className="user-avatar-sm">
-                          {user.avatar_url ? (
-                            <img src={user.avatar_url} alt="" />
-                          ) : (
-                            user.name?.charAt(0).toUpperCase()
-                          )}
-                        </div>
-                        <div className="user-name-cell">
-                          <span className="name">{user.name}</span>
-                          <span className="mobile-only subtext">{user.email}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td data-label="Contact" className="desktop-only">
-                      <span className="email-text">{user.email}</span>
-                    </td>
-                    <td data-label="Roles">
-                      <div className="role-badges">
-                        {(userRoles[user.id] || []).map(role => (
-                          <Badge key={role} variant="primary" className="compact-badge">
-                            {role}
-                          </Badge>
-                        ))}
-                      </div>
-                    </td>
-                    <td data-label="Status">
-                      <Badge variant={user.status === 'active' ? 'completed' : 'cancelled'}>
-                        {user.status === 'active' ? 'Active' : 'Deactivated'}
-                      </Badge>
-                    </td>
-                    <td data-label="Actions" className="text-right">
-                      <div className="action-buttons">
-                        <Button 
-                          variant="ghost" 
-                          size="small"
-                          onClick={() => handleResetPasswordClick(user)}
-                          title="Reset Password"
-                          className="reset-action"
-                        >
-                          <Shield size={16} />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="small"
-                          onClick={() => handleEditUser(user)}
-                          title="Edit User"
-                        >
-                          <Edit2 size={16} />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="small"
-                          className="delete-action"
-                          onClick={() => handleDeleteUser(user)}
-                          title="Delete User"
-                        >
-                          <Trash2 size={16} />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
 
       {/* Edit User Modal */}
       <Modal
@@ -479,10 +488,10 @@ export const UserManagement = () => {
             required
             minLength={6}
           />
-          <div className="select-wrapper">
+          <div className="elite-select-wrapper">
             <label className="input-label">Initial Role</label>
             <select 
-              className="premium-select"
+              className="elite-select"
               value={addFormData.role}
               onChange={e => setAddFormData({...addFormData, role: e.target.value})}
               required
@@ -491,6 +500,7 @@ export const UserManagement = () => {
                 <option key={role} value={role}>{role}</option>
               ))}
             </select>
+            <ChevronDown size={14} className="elite-select-chevron" />
           </div>
           <div className="modal-actions">
             <Button type="button" variant="ghost" onClick={() => setIsAddModalOpen(false)}>

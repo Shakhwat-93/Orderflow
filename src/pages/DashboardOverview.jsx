@@ -8,12 +8,14 @@ import { useTasks } from '../context/TaskContext';
 import { Card } from '../components/Card';
 import { 
   Clock, Globe, Facebook, CheckCircle2, XCircle, TrendingUp, ShoppingBag, 
-  BarChart3, Package, Users, RefreshCw, Zap, ShieldCheck, ClipboardList
+  BarChart3, Package, Users, RefreshCw, Zap, ShieldCheck, ClipboardList,
+  Calendar, History
 } from 'lucide-react';
 
 import { ActiveUsers } from '../components/ActiveUsers';
 import { LiveActivityFeed } from '../components/LiveActivityFeed';
 import { AIBriefing } from '../components/AIBriefing';
+import CurrencyIcon from '../components/CurrencyIcon';
 import { useAuth } from '../context/AuthContext';
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
@@ -22,7 +24,7 @@ import './DashboardOverview.css';
 export const DashboardOverview = () => {
   const { stats, orders } = useOrders();
   const { myPendingAssigned, myIncompleteDailyCount } = useTasks();
-  const { updatePresenceContext } = useAuth();
+  const { updatePresenceContext, profile } = useAuth();
 
   // SLA Calculations
   const ordersWithCalls = orders?.filter(o => o.first_call_time) || [];
@@ -44,9 +46,33 @@ export const DashboardOverview = () => {
 
   return (
     <div className="dashboard-overview">
-      <div className="page-header">
-        <h1>Dashboard Overview</h1>
-        <p>Real-time analytics and order performance.</p>
+      <div className="welcome-banner-premium">
+        <div className="banner-content">
+          <div className="welcome-text-group">
+            <h1 className="banner-title">Welcome back! 👋</h1>
+            <p className="banner-subtitle">Here's what's happening with your business today.</p>
+          </div>
+          <div className="banner-stats-group">
+            <div className="banner-stat-glass">
+              <Calendar size={18} className="stat-icon" />
+              <div className="stat-text">
+                <span className="label">Today</span>
+                <span className="value">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</span>
+              </div>
+            </div>
+            <div className="banner-stat-glass mobile-hide">
+              <History size={18} className="stat-icon" />
+              <div className="stat-text">
+                <span className="label">Last Used</span>
+                <span className="value">Just now</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="banner-abstract-shapes">
+          <div className="shape s1" />
+          <div className="shape s2" />
+        </div>
       </div>
 
       <AIBriefing stats={stats} avgCallDelay={avgCallDelay} slaRate={slaRate} />
@@ -60,7 +86,8 @@ export const DashboardOverview = () => {
           <div className="metric-info">
             <span className="metric-label">Total Revenue</span>
             <span className="metric-value">
-              <span className="currency">৳</span>{stats.revenue?.toLocaleString() || '0'}
+              <CurrencyIcon size={20} className="currency-icon-elite" style={{ color: 'inherit' }} />
+              {stats.revenue?.toLocaleString() || '0'}
             </span>
           </div>
         </Card>
@@ -84,7 +111,8 @@ export const DashboardOverview = () => {
           <div className="metric-info">
             <span className="metric-label">Avg. Order Value</span>
             <span className="metric-value">
-              <span className="currency">৳</span>{Math.round(stats.averageOrderValue || 0).toLocaleString()}
+              <CurrencyIcon size={20} className="currency-icon-elite" style={{ color: 'inherit' }} />
+              {Math.round(stats.averageOrderValue || 0).toLocaleString()}
             </span>
           </div>
         </Card>
@@ -170,7 +198,7 @@ export const DashboardOverview = () => {
       {/* My Tasks Widget */}
       <Link to="/tasks" className="task-dashboard-widget liquid-glass" style={{ textDecoration: 'none', color: 'inherit' }}>
         <div className="task-widget-inner">
-          <div className="task-widget-icon" style={{ background: 'rgba(var(--accent-rgb), 0.1)', color: 'var(--accent)' }}>
+          <div className="task-widget-icon">
             <ClipboardList size={22} />
           </div>
           <div className="task-widget-info">
@@ -217,23 +245,45 @@ export const DashboardOverview = () => {
               <div className="card-header">
                 <h3>Orders by Source</h3>
               </div>
-              <div className="chart-container centered">
+              <div className="chart-container centered" style={{ position: 'relative' }}>
                 <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
+                    <defs>
+                      <filter id="premium-glow" x="-20%" y="-20%" width="140%" height="140%">
+                        <feGaussianBlur stdDeviation="6" result="blur" />
+                        <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                      </filter>
+                      <filter id="inset-shadow" x="-20%" y="-20%" width="140%" height="140%">
+                        <feDropShadow dx="0" dy="2" stdDeviation="4" floodColor="#000" floodOpacity="0.5" />
+                      </filter>
+                    </defs>
+                    <Pie
+                      data={[{value: 100}]}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={70}
+                      outerRadius={90}
+                      fill="rgba(255, 255, 255, 0.02)"
+                      stroke="rgba(255, 255, 255, 0.05)"
+                      isAnimationActive={false}
+                      filter="url(#inset-shadow)"
+                    />
                     <Pie
                       data={stats.sourceDistribution}
                       cx="50%"
                       cy="50%"
-                      innerRadius={60}
-                      outerRadius={80}
-                      paddingAngle={5}
+                      innerRadius={70}
+                      outerRadius={90}
+                      paddingAngle={8}
+                      cornerRadius={20}
                       dataKey="value"
+                      stroke="none"
                     >
                       {stats.sourceDistribution.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
+                        <Cell key={`cell-${index}`} fill={entry.color} filter="url(#premium-glow)" />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip contentStyle={{ backgroundColor: 'rgba(28,29,36,0.95)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }} />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="pie-legend">

@@ -132,3 +132,27 @@
   color: #94a3b8;
   font-size: 14px;
 }
+
+/* --- DARK MODE OVERRIDES (Total Black Premium) --- */
+[data-theme='dark'] .order-history-section { border-top-color: rgba(255, 255, 255, 0.05); }
+[data-theme='dark'] .audit-badge {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-tertiary);
+}
+[data-theme='dark'] .audit-badge.highlight {
+  background: rgba(124, 58, 237, 0.1);
+  border-color: rgba(124, 58, 237, 0.2);
+  color: #c084fc;
+}
+[data-theme='dark'] .timeline-item { border-left-color: rgba(255, 255, 255, 0.05); }
+[data-theme='dark'] .timeline-dot {
+  background: var(--bg-main);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+[data-theme='dark'] .timeline-user .user-avatar-mini {
+  background: rgba(255, 255, 255, 0.05);
+  color: #e2e8f0;
+}
+[data-theme='dark'] .timeline-time,
+[data-theme='dark'] .timeline-user { color: var(--text-tertiary); }

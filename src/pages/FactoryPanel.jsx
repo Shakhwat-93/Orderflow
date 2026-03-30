@@ -173,14 +173,14 @@ export const FactoryPanel = () => {
 
       <Card className="table-card liquid-glass" noPadding>
         <div className="table-search-bar">
-          <div className="search-input-wrapper">
-            <Search className="search-icon" size={18} />
+          <div className="elite-search-wrapper">
+            <Search className="elite-search-icon" size={18} />
             <input
               type="text"
               placeholder="Search ID, product or customer..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="search-field"
+              className="elite-search-input"
             />
           </div>
           <div className="filter-actions-group">

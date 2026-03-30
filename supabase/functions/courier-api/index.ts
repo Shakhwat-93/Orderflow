@@ -82,13 +82,17 @@ Deno.serve(async (req: Request) => {
     const result = await response.json();
 
     if (response.ok && result.status === 200) {
-      const trackingCode = result.consignment?.tracking_code || result.tracking_code;
+      const consignment = result.consignment || result;
+      const trackingCode = consignment.tracking_code;
+      const consignmentId = consignment.consignment_id || consignment.id;
       
-      // 5. Update Order with Tracking ID
+      // 5. Update Order with Tracking ID and Consignment ID
       await supabaseClient
         .from('orders')
         .update({ 
           tracking_id: trackingCode,
+          courier_assigned_id: consignmentId ? String(consignmentId) : null,
+          courier_name: 'Steadfast',
           status: 'Courier Submitted',
           updated_at: new Date().toISOString()
         })
@@ -98,11 +102,16 @@ Deno.serve(async (req: Request) => {
       await supabaseClient.from('order_activity_logs').insert({
         order_id: orderId,
         action_type: 'COURIER_DISPATCH',
-        action_description: `Order successfully submitted to Steadfast. Tracking: ${trackingCode}`,
+        action_description: `Order successfully submitted to Steadfast. Consignment ID: ${consignmentId}, Tracking: ${trackingCode}`,
         changed_by_user_name: 'Steadfast Automation'
       });
 
-      return new Response(JSON.stringify({ success: true, trackingCode, details: result }), {
+      return new Response(JSON.stringify({ 
+        success: true, 
+        trackingCode, 
+        consignmentId,
+        details: result 
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     } else {

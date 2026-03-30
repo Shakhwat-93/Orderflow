@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { api } from '../lib/api';
+import api from '../lib/api';
 import { Modal } from './Modal';
 import { Badge } from './Badge';
 import { ActivityTimeline } from './ActivityTimeline';

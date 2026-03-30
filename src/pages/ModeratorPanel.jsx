@@ -11,8 +11,9 @@ import { DateRangePicker } from '../components/DateRangePicker';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import { 
   Edit2, Trash2, Plus, Search, Package, DollarSign, ShoppingCart, 
-  Globe, ChevronLeft, ChevronRight, Wand2, Trash, Truck, MapPin, X
+  Globe, ChevronDown, ChevronLeft, ChevronRight, Wand2, Trash, Truck, MapPin, X
 } from 'lucide-react';
+import CurrencyIcon from '../components/CurrencyIcon';
 import api from '../lib/api';
 import './ModeratorPanel.css';
 
@@ -159,26 +160,58 @@ export const ModeratorPanel = () => {
             </div>
             <div>
               <span className="metric-label">Revenue Today</span>
-              <div className="metric-value">৳{orders.reduce((s, o) => s + (parseFloat(o.amount) || 0), 0).toLocaleString()}</div>
+              <div className="metric-value"><CurrencyIcon size={20} className="currency-icon-elite" />{orders.reduce((s, o) => s + (parseFloat(o.amount) || 0), 0).toLocaleString()}</div>
             </div>
           </div>
         </Card>
-        <Card className="metric-card liquid-glass chart-card">
-          <h3 className="chart-title">By Source</h3>
-          <div className="chart-wrapper pie-chart-wrapper" style={{ minHeight: 250 }}>
+        <Card className="metric-card liquid-glass chart-card" noPadding style={{ padding: '24px' }}>
+          <h3 className="chart-title" style={{ marginBottom: '8px', fontSize: '1.2rem', fontWeight: 800 }}>By Source</h3>
+          <div className="chart-wrapper pie-chart-wrapper" style={{ minHeight: 250, position: 'relative' }}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={stats.sourceDistribution} cx="50%" cy="50%" innerRadius={30} outerRadius={50} paddingAngle={5} dataKey="value">
-                  {stats.sourceDistribution.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                <defs>
+                  <filter id="premium-glow-mod" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="6" result="blur" />
+                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                  </filter>
+                  <filter id="inset-shadow-mod" x="-20%" y="-20%" width="140%" height="140%">
+                    <feDropShadow dx="0" dy="2" stdDeviation="4" floodColor="#000" floodOpacity="0.5" />
+                  </filter>
+                </defs>
+                <Pie
+                  data={[{value: 100}]}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  fill="rgba(255, 255, 255, 0.02)"
+                  stroke="rgba(255, 255, 255, 0.05)"
+                  isAnimationActive={false}
+                  filter="url(#inset-shadow-mod)"
+                />
+                <Pie
+                  data={stats.sourceDistribution}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={8}
+                  cornerRadius={20}
+                  dataKey="value"
+                  stroke="none"
+                >
+                  {stats.sourceDistribution.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} filter="url(#premium-glow-mod)" />
+                  ))}
                 </Pie>
-                <RechartsTooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }} />
+                <RechartsTooltip contentStyle={{ backgroundColor: 'rgba(28,29,36,0.95)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', color: '#fff' }} />
               </PieChart>
             </ResponsiveContainer>
-            <div className="pie-legend">
+            <div className="pie-legend" style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginTop: '16px' }}>
               {stats.sourceDistribution.map(s => (
-                <div key={s.name} className="legend-item">
-                  <span className="legend-dot" style={{ backgroundColor: s.color }}></span>
-                  <span className="legend-label">{s.name} ({s.value})</span>
+                <div key={s.name} className="legend-item" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span className="legend-dot" style={{ backgroundColor: s.color, width: '10px', height: '10px', borderRadius: '50%', boxShadow: `0 0 10px ${s.color}` }}></span>
+                  <span className="legend-label" style={{ color: '#8c8d96', fontSize: '0.85rem', fontWeight: 600 }}>{s.name} ({s.value})</span>
                 </div>
               ))}
             </div>
@@ -222,23 +255,28 @@ export const ModeratorPanel = () => {
       {/* Orders Table */}
       <Card className="table-card liquid-glass" noPadding>
         <div className="table-search-bar">
-          <div className="search-input-wrapper">
-            <Search className="search-icon" size={18} />
+          <div className="elite-search-wrapper">
+            <Search className="elite-search-icon" size={18} />
             <input
               type="text"
               placeholder="Search ID, name or phone..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="search-field"
+              className="elite-search-input"
             />
           </div>
           <div className="filter-actions-group">
-            <div className="filter-select-group">
-              <Globe size={14} className="select-icon" />
-              <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}>
+            <div className="elite-select-wrapper">
+              <Globe size={14} className="elite-select-icon" />
+              <select 
+                className="elite-select-field"
+                value={sourceFilter} 
+                onChange={(e) => setSourceFilter(e.target.value)}
+              >
                 <option value="All">All Sources</option>
                 {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
+              <ChevronDown size={14} className="ml-auto opacity-50" />
             </div>
             <DateRangePicker value={dateRange} onChange={setDateRange} />
             <span className="order-count-badge">{filteredOrders.length} orders</span>

@@ -23,12 +23,17 @@
 }
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.7);
+  background: var(--bg-surface);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  border: 1px solid var(--glass-border);
   border-radius: 16px;
   padding: var(--sp-5);
   box-shadow: var(--shadow-premium);
+}
+
+[data-theme='dark'] .glass-card {
+  background: #0d0d0f;
+  border-color: rgba(255, 255, 255, 0.05);
 }
 
 .card-header-flex {
@@ -87,8 +92,13 @@
   flex-direction: column;
   justify-content: center;
   align-items: flex-end;
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  background: var(--bg-elevated);
   text-align: right;
+  border: 1px solid var(--glass-border);
+}
+
+[data-theme='dark'] .amount-focus-card {
+  background: #141416;
 }
 
 .amount-value {
@@ -177,7 +187,8 @@
   display: flex;
   gap: 10px;
   padding: 12px;
-  background: rgba(0,0,0,0.03);
+  background: var(--bg-elevated);
+  border: 1px solid var(--glass-border);
   border-radius: 12px;
   font-size: 13px;
   line-height: 1.5;
@@ -197,16 +208,21 @@
   align-items: center;
   gap: 12px;
   padding: 10px;
-  background: white;
+  background: var(--bg-elevated);
   border-radius: 10px;
-  border: 1px solid rgba(0,0,0,0.03);
+  border: 1px solid var(--glass-border);
+}
+
+[data-theme='dark'] .order-product-item {
+  background: #141416;
 }
 
 .product-qty {
   font-weight: 800;
   color: var(--text-tertiary);
   font-size: 12px;
-  background: #f1f5f9;
+  background: var(--bg-surface);
+  border: 1px solid var(--glass-border);
   padding: 4px 8px;
   border-radius: 6px;
 }

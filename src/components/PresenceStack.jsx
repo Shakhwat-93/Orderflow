@@ -6,6 +6,14 @@ import './PresenceStack.css';
 export const PresenceStack = () => {
   const { onlineUsers, user } = useAuth();
   
+  const [isSyncing, setIsSyncing] = React.useState(true);
+  
+  React.useEffect(() => {
+    // Give presence a moment to connect before showing count
+    const timer = setTimeout(() => setIsSyncing(false), 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
   // Filter out current user if you want, or keep it. Let's keep all for now.
   // Sort: Admin first, then by name
   const sortedUsers = [...onlineUsers].sort((a, b) => {
@@ -61,7 +69,7 @@ export const PresenceStack = () => {
         )}
       </div>
       <div className="presence-label desktop-only-flex">
-        {onlineUsers.length} Online
+        {isSyncing ? 'Syncing...' : `${onlineUsers.length} Online`}
       </div>
     </div>
   );

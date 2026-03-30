@@ -5,7 +5,8 @@ import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
-import { Search, Filter, Calendar, ChevronDown, ChevronLeft, ChevronRight, Download, Plus, MoreHorizontal, Globe, X, AlertTriangle, Printer, Trash2, CheckCircle, Clock } from 'lucide-react';
+import { Search, Globe, ChevronDown, ChevronLeft, ChevronRight, CheckCircle, Clock, Printer, Trash2, X, AlertTriangle, Edit2, Plus, Download, Calendar, MoreHorizontal, Phone } from 'lucide-react';
+import CurrencyIcon from '../components/CurrencyIcon';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
 import { OrderDetailsModal } from '../components/OrderDetailsModal';
@@ -13,8 +14,10 @@ import { Input } from '../components/Input';
 import { DateRangePicker } from '../components/DateRangePicker';
 import { OrderRow } from '../components/OrderRow';
 import { OrderEditModal } from '../components/OrderEditModal';
+import BulkOrderCreator from '../components/BulkOrderCreator';
 import './OrdersBoard.css';
 import '../components/BulkActions.css';
+import api from '../lib/api';
 
 
 const PRODUCT_CHECKPOINTS = [
@@ -82,13 +85,39 @@ export const OrdersBoard = () => {
   } = useOrders();
 
   const [distributing, setDistributing] = useState(false);
+  const [deepLinkOrder, setDeepLinkOrder] = useState(null);
 
   const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [isNewOrderModalOpen, setIsNewOrderModalOpen] = useState(false);
+  const [isBulkCreatorOpen, setIsBulkCreatorOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedOrderForEdit, setSelectedOrderForEdit] = useState(null);
   const [selectedOrderIds, setSelectedOrderIds] = useState([]);
+
+  // Deep Link Observer: Handle direct order modal triggers
+  useEffect(() => {
+    const queryParams = new URLSearchParams(location.search);
+    const viewOrderId = queryParams.get('viewOrder');
+    
+    if (viewOrderId) {
+      const existing = orders.find(o => o.id === viewOrderId);
+      if (existing) {
+        setSelectedOrderId(viewOrderId);
+        setIsDetailsModalOpen(true);
+        queryParams.delete('viewOrder');
+        navigate({ search: queryParams.toString() }, { replace: true });
+      } else {
+        api.getOrderById(viewOrderId).then(order => {
+          setDeepLinkOrder(order);
+          setSelectedOrderId(viewOrderId);
+          setIsDetailsModalOpen(true);
+          queryParams.delete('viewOrder');
+          navigate({ search: queryParams.toString() }, { replace: true });
+        }).catch(err => console.error('Deep link fetch error:', err));
+      }
+    }
+  }, [location.search, orders, navigate]);
 
   const handleSelectOrder = (id) => {
     setSelectedOrderIds(prev => 
@@ -136,8 +165,8 @@ export const OrdersBoard = () => {
   };
 
   const currentOrder = useMemo(() =>
-    orders.find(o => o.id === selectedOrderId),
-    [orders, selectedOrderId]
+    orders.find(o => o.id === selectedOrderId) || deepLinkOrder,
+    [orders, selectedOrderId, deepLinkOrder]
   );
 
 
@@ -399,31 +428,70 @@ export const OrdersBoard = () => {
 
   return (
     <div className="orders-management">
-      <div className="page-header orders-header">
-        <div>
-          <h1>Orders Management</h1>
-          <p>Full control over your order pipeline and customer records.</p>
-        </div>
-        <div className="header-actions">
-          <Button variant="ghost">
-            <Download size={18} /> Export CSV
-          </Button>
-          <Button
-            variant="primary"
-            className="auto-distribute-btn"
-            onClick={handleAutoDistribute}
-            disabled={distributing}
-            style={{ background: 'var(--accent-gradient)', border: 'none' }}
-          >
-            {distributing ? 'Distributing...' : 'AUTO DISTRIBUTE ORDERS'}
-          </Button>
-          {hasAnyRole(['Admin', 'Moderator']) && (
-            <Button variant="primary" onClick={() => setIsNewOrderModalOpen(true)}>
-              <Plus size={18} /> <span className="desktop-only">New Order</span>
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="orders-header-container"
+      >
+        <div className="page-header orders-header elite-enterprise-header">
+          <div className="header-main-stack">
+            <div className="title-group-elite">
+              <h1 className="premium-title-enterprise">Orders Management</h1>
+              <p className="premium-subtitle-enterprise">System-wide pipeline & relationship management</p>
+            </div>
+            
+            <div className="enterprise-hero-metrics">
+              <div className="metric-indicator">
+                <span className="m-label">Added Today</span>
+                <span className="m-value">{stats?.addedTodayCount ?? 0}</span>
+              </div>
+              <div className="metric-divider" />
+              <div className="metric-indicator highlight">
+                <div className="label-row">
+                  <span className="pulse-dot"></span>
+                  <span className="m-label">Ready to Fulfill</span>
+                </div>
+                <span className="m-value">{stats?.confirmedTodayCount ?? 0}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="header-actions-enterprise">
+            <Button variant="ghost" className="action-btn-minimal">
+              <Download size={18} /> <span>Export</span>
             </Button>
-          )}
+            
+            <div className="action-divider-v" />
+
+            <Button
+              variant="secondary"
+              className="action-btn-stealth"
+              onClick={handleAutoDistribute}
+              disabled={distributing}
+            >
+              {distributing ? 'Processing...' : 'Auto Distribute'}
+            </Button>
+
+            {hasAnyRole(['Admin', 'Moderator']) && (
+              <>
+                <Button
+                  variant="secondary"
+                  className="action-btn-stealth"
+                  onClick={() => setIsBulkCreatorOpen(true)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'linear-gradient(135deg, rgba(99,102,241,0.1), rgba(168,85,247,0.1))', border: '1px solid rgba(99,102,241,0.35)', color: '#6366f1', fontWeight: 700 }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                  <span>Bulk Create</span>
+                </Button>
+                <Button variant="primary" className="action-btn-primary-enterprise" onClick={() => setIsNewOrderModalOpen(true)}>
+                  <Plus size={18} />
+                  <span>New Order</span>
+                </Button>
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* ── Status Tabs ── */}
       <div className="scrollable-strip-wrapper">
@@ -448,30 +516,29 @@ export const OrdersBoard = () => {
 
       {/* ── Unified Filter Bar ── */}
       <div className="unified-filter-bar">
-        <div className="filter-search">
-          <Search size={16} className="search-icon" />
+        <div className="elite-search-wrapper">
+          <Search size={18} className="elite-search-icon" />
           <input
             type="text"
+            className="elite-search-input"
             placeholder="Search ID, name or phone..."
             value={filters.searchTerm}
             onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
           />
         </div>
 
-        <div className="filter-divider" />
-
-        <div className="filter-select-group">
-          <Globe size={14} className="select-icon" />
+        <div className="elite-select-wrapper">
+          <Globe size={16} className="elite-select-icon" />
           <select
+            className="elite-select-field"
             value={filters.source}
             onChange={(e) => handleFilterChange('source', e.target.value)}
           >
             <option value="All">All Sources</option>
             {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
+          <ChevronDown size={14} className="ml-auto opacity-50" />
         </div>
-
-        <div className="filter-divider" />
 
         <DateRangePicker
           value={filters.dateRange}
@@ -557,43 +624,81 @@ export const OrdersBoard = () => {
           </table>
         </div>
 
-        {/* Mobile Card View */}
+        {/* Mobile Card View (Elite Upgrade) */}
         <div className="orders-mobile-list mobile-only">
           {Array.isArray(orders) && orders.map(order => (
             <div
               key={order.id}
-              className="order-mobile-card liquid-glass"
+              className="order-mobile-card elite-card"
               onClick={() => handleRowClick(order)}
             >
-              <div className="card-mobile-header">
-                <span className="order-id">{order.id}</span>
+              <div className="card-header-elite">
+                <div className="id-group">
+                  <span className="order-id">#{order.id.replace('ORD-', '')}</span>
+                  <div className="card-flags">
+                    {fraudFlags[order.id] && (
+                      <AlertTriangle size={14} className="flag-icon fraud" />
+                    )}
+                    {automationFlags[order.id] && (
+                      <Clock size={14} className="flag-icon auto" />
+                    )}
+                  </div>
+                </div>
                 <Badge variant={getStatusBadgeVariant(order.status)}>
                   {order.status}
                 </Badge>
               </div>
-              <div className="card-mobile-body">
-                <div className="mobile-customer-info">
-                  <strong>{order.customer_name}</strong>
-                  {fraudFlags[order.id] && (
-                    <div className="fraud-alert-icon" title={fraudFlags[order.id].message}>
-                      <AlertTriangle size={14} color="#ff4d4d" />
-                    </div>
-                  )}
-                  {automationFlags[order.id] && (
-                    <div className="automation-alert-icon" title={automationFlags[order.id].reason}>
-                      <Clock size={14} color="#ffd700" />
-                    </div>
-                  )}
-                  <span>{order.phone}</span>
+
+              <div className="card-body-elite">
+                <div className="customer-primary-box">
+                  <h3 className="customer-name-large">{order.customer_name}</h3>
+                  <div className="phone-row">
+                    <Phone size={12} />
+                    <span>{order.phone}</span>
+                  </div>
                 </div>
-                <div className="mobile-product-info">
-                  <span className="product-name">{order.product_name}</span>
-                  <span className="product-meta">{order.size} • {order.source}</span>
+
+                <div className="details-grid-elite">
+                  <div className="detail-box-elite">
+                    <span className="detail-label">Product</span>
+                    <span className="detail-value product">{order.product_name}</span>
+                    <span className="detail-subvalue">{order.size || 'No Size'} • {order.source}</span>
+                  </div>
+                  <div className="detail-box-elite">
+                    <span className="detail-label">Logistics</span>
+                    <span className="detail-value">
+                      <CurrencyIcon size={12} className="currency-icon-elite" />
+                      {Number(order.amount || 0).toLocaleString()}
+                    </span>
+                    <span className="detail-subvalue">{order.shipping_zone || 'Outside Dhaka'}</span>
+                  </div>
                 </div>
               </div>
-              <div className="card-mobile-footer">
-                <span className="date">{order.created_at ? new Date(order.created_at).toLocaleDateString() : 'N/A'}</span>
-                <button className="mobile-action-btn">Details</button>
+
+              <div className="card-footer-elite">
+                <span className="created-at">
+                  {order.created_at ? new Date(order.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : 'N/A'}
+                </span>
+                <div className="footer-actions">
+                  <button 
+                    className="details-btn-mobile"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRowClick(order);
+                    }}
+                  >
+                    View Details
+                  </button>
+                  <button 
+                    className="edit-btn-mobile"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenEditModal(order);
+                    }}
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                </div>
               </div>
             </div>
           ))}
@@ -747,7 +852,10 @@ export const OrdersBoard = () => {
                     aria-pressed={isActive}
                   >
                     <span className="zone-name">{zone.value}</span>
-                    <span className="zone-charge">৳{zone.charge.toLocaleString()}</span>
+                    <span className="zone-charge">
+                      <CurrencyIcon size={12} className="currency-icon-elite" />
+                      {zone.charge.toLocaleString()}
+                    </span>
                   </button>
                 );
               })}
@@ -879,8 +987,8 @@ export const OrdersBoard = () => {
                       <button type="button" className="qty-btn" onClick={() => updateLineQuantity(line.line_id, (line.quantity || 1) + 1)}>+</button>
                     </div>
                     <div className="line-item-price">
-                      <span>৳{Number(line.unit_price || 0).toLocaleString()}</span>
-                      <strong>৳{Number(line.line_total || 0).toLocaleString()}</strong>
+                      <span><CurrencyIcon size={10} className="currency-icon-elite" />{Number(line.unit_price || 0).toLocaleString()}</span>
+                      <strong><CurrencyIcon size={12} className="currency-icon-elite" />{Number(line.line_total || 0).toLocaleString()}</strong>
                     </div>
                     <div className="line-item-actions">
                       <button type="button" className="line-action-btn" onClick={() => handleEditLine(line)}>Edit</button>
@@ -913,19 +1021,19 @@ export const OrdersBoard = () => {
           <div className="delivery-summary-box">
             <div className="delivery-summary-row">
               <span>Product Amount</span>
-              <strong>৳{orderSubtotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong>
+              <strong><CurrencyIcon size={14} className="currency-icon-elite" />{orderSubtotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong>
             </div>
             <div className="delivery-summary-row">
               <span>Delivery Charge</span>
               <strong>
                 {formData.shipping_zone
-                  ? `৳${deliveryCharge.toLocaleString()}`
+                  ? <><CurrencyIcon size={14} className="currency-icon-elite" />{deliveryCharge.toLocaleString()}</>
                   : 'Select zone'}
               </strong>
             </div>
             <div className="delivery-summary-row total">
               <span>Payable Total</span>
-              <strong>৳{payableTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong>
+              <strong><CurrencyIcon size={16} className="currency-icon-elite" />{payableTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong>
             </div>
           </div>
 
@@ -962,6 +1070,11 @@ export const OrdersBoard = () => {
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         order={selectedOrderForEdit}
+      />
+
+      <BulkOrderCreator
+        isOpen={isBulkCreatorOpen}
+        onClose={() => setIsBulkCreatorOpen(false)}
       />
     </div>
   );

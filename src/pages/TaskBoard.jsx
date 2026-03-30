@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTasks } from '../context/TaskContext';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { api } from '../lib/api';
+import api from '../lib/api';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Badge } from '../components/Badge';
@@ -15,7 +15,7 @@ import { CreateTaskOverlay } from '../components/CreateTaskOverlay';
 import {
   ClipboardList, CheckCircle2, Check, Circle, Plus, Trash2, Calendar, Clock,
   AlertTriangle, ArrowRight, User, Users, Zap, ListChecks, Target,
-  ChevronRight, Loader2, MessageSquare, Link2, Bell, Search, Home, MoreHorizontal
+  ChevronRight, Loader2, MessageSquare, Link2, Bell, Search, Home, MoreHorizontal, ChevronDown
 } from 'lucide-react';
 import './TaskBoard.css';
 
@@ -116,16 +116,17 @@ const AssignedTaskCard = ({ task, onView, onStatusUpdate }) => {
           <span>{task.assigned_to_name || 'Unassigned'}</span>
         </div>
         <div className="task-actions">
-          <div className="premium-select-wrapper">
+          <div className="elite-select-wrapper">
             <select 
               value={task.status} 
               onChange={(e) => onStatusUpdate(e.target.value)}
-              className={`task-status-select ${task.status}`}
+              className="elite-select"
             >
               <option value="pending">Pending</option>
               <option value="in_progress">In Progress</option>
               <option value="completed">Completed</option>
             </select>
+            <ChevronDown size={14} className="elite-select-chevron" />
           </div>
           <Button variant="ghost" size="small" onClick={onView} className="details-btn">
             Details
@@ -588,38 +589,50 @@ export const TaskBoard = () => {
         >
           <div className="filter-group">
             <label>Assigned To</label>
-            <select 
-              value={adminFilters.user} 
-              onChange={(e) => setAdminFilters(prev => ({ ...prev, user: e.target.value }))}
-            >
-              <option value="all">All Team Members</option>
-              {allUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-            </select>
+            <div className="elite-select-wrapper mini">
+              <select 
+                value={adminFilters.user} 
+                onChange={(e) => setAdminFilters(prev => ({ ...prev, user: e.target.value }))}
+                className="elite-select"
+              >
+                <option value="all">All Team Members</option>
+                {allUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </select>
+              <ChevronDown size={14} className="elite-select-chevron" />
+            </div>
           </div>
           <div className="filter-group">
             <label>Status</label>
-            <select 
-              value={adminFilters.status} 
-              onChange={(e) => setAdminFilters(prev => ({ ...prev, status: e.target.value }))}
-            >
-              <option value="all">All Statuses</option>
-              <option value="pending">Pending</option>
-              <option value="in_progress">In Progress</option>
-              <option value="completed">Completed</option>
-            </select>
+            <div className="elite-select-wrapper mini">
+              <select 
+                value={adminFilters.status} 
+                onChange={(e) => setAdminFilters(prev => ({ ...prev, status: e.target.value }))}
+                className="elite-select"
+              >
+                <option value="all">All Statuses</option>
+                <option value="pending">Pending</option>
+                <option value="in_progress">In Progress</option>
+                <option value="completed">Completed</option>
+              </select>
+              <ChevronDown size={14} className="elite-select-chevron" />
+            </div>
           </div>
           <div className="filter-group">
             <label>Priority</label>
-            <select 
-              value={adminFilters.priority} 
-              onChange={(e) => setAdminFilters(prev => ({ ...prev, priority: e.target.value }))}
-            >
-              <option value="all">All Priorities</option>
-              <option value="urgent">Urgent</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
+            <div className="elite-select-wrapper mini">
+              <select 
+                value={adminFilters.priority} 
+                onChange={(e) => setAdminFilters(prev => ({ ...prev, priority: e.target.value }))}
+                className="elite-select"
+              >
+                <option value="all">All Priorities</option>
+                <option value="urgent">Urgent</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+              <ChevronDown size={14} className="elite-select-chevron" />
+            </div>
           </div>
         </motion.div>
       )}

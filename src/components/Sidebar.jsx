@@ -13,10 +13,13 @@ import {
   Package,
   ClipboardList,
   Megaphone,
-  X
+  X,
+  Sun,
+  Moon
 } from 'lucide-react';
 
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import './Sidebar.css';
 
 const menuItems = [
@@ -38,6 +41,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
 
   const location = useLocation();
   const { hasAnyRole, signOut } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   const filteredItems = menuItems.filter(item => 
     !item.roles || hasAnyRole(item.roles)
@@ -50,11 +54,22 @@ export const Sidebar = ({ isOpen, onClose }) => {
           <div className="logo-icon">O</div>
           <span className="logo-text">OrderFlow</span>
         </div>
-        {onClose && (
-          <button className="sidebar-close mobile-only" onClick={onClose}>
-            <X size={24} />
+        
+        <div className="header-actions">
+          <button 
+            className="theme-toggle" 
+            onClick={toggleTheme}
+            title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+          >
+            {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
           </button>
-        )}
+
+          {onClose && (
+            <button className="sidebar-close" onClick={onClose}>
+              <X size={24} />
+            </button>
+          )}
+        </div>
       </div>
 
       

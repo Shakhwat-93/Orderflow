@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useOrders } from '../context/OrderContext';
-import { api } from '../lib/api';
+import api from '../lib/api';
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
@@ -8,11 +8,11 @@ import { Input } from '../components/Input';
 import { Modal } from '../components/Modal';
 import { OrderEditModal } from '../components/OrderEditModal';
 import { OrderDetailsModal } from '../components/OrderDetailsModal';
-import { Search, Truck, CheckCircle, Package, ClipboardCheck, Edit2 } from 'lucide-react';
+import { Search, Truck, CheckCircle, Package, ClipboardCheck, Edit2, ShieldCheck, ShieldAlert, Shield, RotateCcw, Clock } from 'lucide-react';
 import './CourierPanel.css';
 
 export const CourierPanel = () => {
-  const { orders, updateOrderStatus, editOrder } = useOrders();
+  const { orders, updateOrderStatus, editOrder, dispatchToCourier } = useOrders();
   const [searchTerm, setSearchTerm] = useState('');
 
   // Modal State for Tracking ID
@@ -23,6 +23,7 @@ export const CourierPanel = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [ratios, setRatios] = useState({}); // { [phone]: { ratio, total, riskLevel, loading } }
 
   const handleOpenEditModal = (order) => {
     setSelectedOrder(order);
@@ -61,6 +62,98 @@ export const CourierPanel = () => {
 
   const handleSubmitToCourier = (orderId) => {
     updateOrderStatus(orderId, 'Courier Submitted');
+  };
+
+  // --- Trust Score Sync ---
+  const fetchRatioForPhone = async (phone, force = false) => {
+    if (!phone || (!force && ratios[phone]?.fetched)) return;
+    
+    setRatios(prev => ({ ...prev, [phone]: { ...prev[phone], loading: true } }));
+    try {
+      const data = await api.checkCustomerRatio(phone);
+      console.log(`[Trust Audit] ${phone}:`, data);
+      
+      if (data && data.success) {
+        if (data.isLimitReached) {
+          setRatios(prev => ({ ...prev, [phone]: { ...prev[phone], isLimitReached: true, loading: false, fetched: true } }));
+          return;
+        }
+        setRatios(prev => ({ ...prev, [phone]: { ...data.stats, loading: false, fetched: true, isLimitReached: false } }));
+      } else {
+        setRatios(prev => ({ ...prev, [phone]: { ratio: 0, total: 0, riskLevel: 'unknown', loading: false, fetched: true } }));
+      }
+    } catch (err) {
+      console.error('Ratio fetch failed:', err);
+      setRatios(prev => ({ ...prev, [phone]: { loading: false, error: true, fetched: true } }));
+    }
+  };
+
+  useEffect(() => {
+    // Aggressively limited auto-fetch to conserve the strict 5-search quota
+    // We only auto-fetch the VERY FIRST 2 orders with a long delay
+    const visiblePhones = [...new Set(courierQueue.slice(0, 2).map(o => o.phone).filter(Boolean))];
+    visiblePhones.forEach((phone, index) => {
+      setTimeout(() => fetchRatioForPhone(phone), index * 3000);
+    });
+  }, [courierQueue.length]);
+
+  const renderTrustScore = (phone) => {
+    const data = ratios[phone];
+    if (!data || data.loading) return <div className="trust-skeleton" />;
+    
+    const { ratio, total, riskLevel, delivered, fetched, isLimitReached } = data;
+    
+    // Manual Refresh Trigger
+    const refreshBtn = (
+      <button 
+        className="trust-refresh-btn" 
+        onClick={(e) => { e.stopPropagation(); fetchRatioForPhone(phone, true); }}
+        title="Re-check history"
+      >
+        <RotateCcw size={10} />
+      </button>
+    );
+
+    if (isLimitReached) return (
+      <div className="trust-badge-wrapper">
+        <Badge variant="warning" className="trust-badge" title="Steadfast API limit reached (5 lookups). Try again later.">
+          <Clock size={12} /> Limit Reached
+        </Badge>
+        {refreshBtn}
+      </div>
+    );
+
+    if (total === 0 && fetched) return (
+      <div className="trust-badge-wrapper">
+        <Badge variant="neutral" className="trust-badge">First Timer</Badge>
+        {refreshBtn}
+      </div>
+    );
+
+    if (riskLevel === 'low') return (
+      <div className="trust-badge-wrapper">
+        <Badge variant="success" className="trust-badge elite" title={`${delivered} Delivered / ${total} Total`}>
+          <ShieldCheck size={12} /> {ratio}% Success
+        </Badge>
+        {refreshBtn}
+      </div>
+    );
+    if (riskLevel === 'medium') return (
+      <div className="trust-badge-wrapper">
+        <Badge variant="warning" className="trust-badge" title={`${delivered} Delivered / ${total} Total`}>
+          <Shield size={12} /> {ratio}% Success
+        </Badge>
+        {refreshBtn}
+      </div>
+    );
+    return (
+      <div className="trust-badge-wrapper">
+        <Badge variant="danger" className="trust-badge high-risk" title={`${delivered} Delivered / ${total} Total`}>
+          <ShieldAlert size={12} /> {ratio}% Success
+        </Badge>
+        {refreshBtn}
+      </div>
+    );
   };
 
   return (
@@ -116,14 +209,14 @@ export const CourierPanel = () => {
 
       <Card className="table-card liquid-glass" noPadding>
         <div className="table-search-bar">
-          <div className="search-input-wrapper">
-            <Search className="search-icon" size={18} />
+          <div className="elite-search-wrapper">
+            <Search className="elite-search-icon" size={18} />
             <input
               type="text"
               placeholder="Search by ID, name or phone..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="search-field"
+              className="elite-search-input"
             />
           </div>
           <p className="queue-helper-text">
@@ -150,7 +243,12 @@ export const CourierPanel = () => {
                 <tr key={order.id} className="cursor-pointer hover:bg-slate-50/50" onClick={() => handleRowClick(order)}>
                   <td className="order-id-cell">{order.id}</td>
                   <td className="customer-name">{order.customer_name}</td>
-                  <td className="phone-cell">{order.phone}</td>
+                  <td className="phone-cell">
+                    <div className="phone-stack">
+                      <span>{order.phone}</span>
+                      {renderTrustScore(order.phone)}
+                    </div>
+                  </td>
                   <td className="product-name">
                     <div className="product-stack">
                       <span>{order.product_name}</span>
@@ -189,14 +287,14 @@ export const CourierPanel = () => {
                         className="courier-action-btn steadfast"
                         onClick={async (e) => {
                           e.stopPropagation();
+                          const btn = e.currentTarget;
+                          btn.classList.add('loading');
                           try {
-                            const btn = document.activeElement;
-                            btn.classList.add('loading');
-                            await api.dispatchToCourier(order.id);
-                            btn.classList.remove('loading');
+                            await dispatchToCourier(order.id);
                           } catch (err) {
                             alert('Steadfast Dispatch Failed: ' + err.message);
-                            document.activeElement.classList.remove('loading');
+                          } finally {
+                            btn.classList.remove('loading');
                           }
                         }}
                         title="Submit to Steadfast API"

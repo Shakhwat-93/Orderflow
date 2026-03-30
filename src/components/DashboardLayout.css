@@ -1,12 +1,43 @@
-/* ===== OVERLAY — Dark ===== */
+/* ===== LAYOUT — CoachPro Inspired ===== */
 .sidebar-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   z-index: 1000;
-  animation: overlayIn 0.25s ease;
+  animation: overlayIn 0.3s var(--ease-out);
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100vh;
+  height: 100dvh;
+}
+
+@media (min-width: 768px) {
+  .main-content {
+    height: calc(100vh - var(--sp-8));
+    height: calc(100dvh - var(--sp-8));
+    padding-left: var(--sp-2);
+  }
+}
+
+.content-scrollable {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--sp-4);
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (min-width: 768px) {
+  .content-scrollable {
+    padding: var(--sp-6) var(--sp-2);
+  }
 }
 
 @keyframes overlayIn {

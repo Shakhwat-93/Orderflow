@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { api } from '../lib/api';
+import api from '../lib/api';
 import { useAuth } from './AuthContext';
 import { fraudDetection } from '../utils/fraudDetection';
 import { automationRules } from '../utils/automationRules';
@@ -331,6 +331,17 @@ export const OrderProvider = ({ children }) => {
     }
   };
 
+  const dispatchToCourier = async (orderId) => {
+    try {
+      await api.dispatchToCourier(orderId);
+      // fetchOrders() can be called here if Realtime is too slow, 
+      // but the update in api.js + Supabase Realtime should handle it.
+    } catch (error) {
+      console.error('Manual dispatch failed:', error);
+      throw error;
+    }
+  };
+
   const deleteOrder = async (orderId) => {
     if (!isAdmin) {
       console.error('Unauthorized delete attempt');
@@ -582,6 +593,7 @@ export const OrderProvider = ({ children }) => {
       fraudFlags,
       automationFlags,
       velocityMetrics,
+      dispatchToCourier,
     }}>
       {children}
     </OrderContext.Provider>

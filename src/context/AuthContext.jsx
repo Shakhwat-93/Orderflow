@@ -1,6 +1,6 @@
-import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { api } from '../lib/api';
+import api from '../lib/api';
 
 const AuthContext = createContext({});
 
@@ -203,8 +203,18 @@ export const AuthProvider = ({ children }) => {
 
   const [onlineUsers, setOnlineUsers] = useState([]);
 
+  // Use refs to avoid stale closures in heartbeat interval
+  const profileRef = useRef(profile);
+  const rolesRef = useRef(userRoles);
+  const contextRef = useRef(presenceContext);
+
+  useEffect(() => { profileRef.current = profile; }, [profile]);
+  useEffect(() => { rolesRef.current = userRoles; }, [userRoles]);
+  useEffect(() => { contextRef.current = presenceContext; }, [presenceContext]);
+
+  // Use a stable reference for the channel to avoid redundant joins
   useEffect(() => {
-    if (!profile || !user) return;
+    if (!user) return;
 
     const channel = supabase.channel('online-users', {
       config: {
@@ -213,22 +223,6 @@ export const AuthProvider = ({ children }) => {
         },
       },
     });
-
-    const updatePresence = async () => {
-      if (channel.state === 'joined') {
-        await channel.track({
-          online_at: new Date().toISOString(),
-          profile: {
-            id: user.id,
-            name: profile.name,
-            roles: userRoles,
-            avatar_url: profile.avatar_url,
-            email: profile.email,
-            context: presenceContext
-          }
-        });
-      }
-    };
 
     channel
       .on('presence', { event: 'sync' }, () => {
@@ -252,21 +246,76 @@ export const AuthProvider = ({ children }) => {
         setOnlineUsers(uniqueUsers);
       })
       .on('presence', { event: 'join', key: user.id }, () => {
-        console.log('You have joined the presence channel');
+        console.log('Successfully joined presence channel');
       })
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          await updatePresence();
-        }
-      });
+      .subscribe();
 
-    // Re-track when context changes
-    updatePresence();
+    const trackPresence = async () => {
+      const currentProfile = profileRef.current;
+      if (!currentProfile || channel.state !== 'joined') return;
+      try {
+        await channel.track({
+          online_at: new Date().toISOString(),
+          profile: {
+            id: user.id,
+            name: currentProfile.name,
+            roles: rolesRef.current,
+            avatar_url: currentProfile.avatar_url,
+            email: currentProfile.email,
+            context: contextRef.current
+          }
+        });
+      } catch (err) {
+        console.warn('Presence tracking failed:', err);
+      }
+    };
 
+    // Heartbeat for Realtime Presence (Keep the channel alive and metadata fresh)
+    const heartbeatInterval = setInterval(trackPresence, 30000);
+
+    // Heartbeat for Database Persistence (fallback for "Active X mins ago")
+    const dbPersistenceInterval = setInterval(async () => {
+       if (user?.id) {
+         try {
+           await supabase.from('users').update({ 
+             last_active_at: new Date().toISOString() 
+           }).eq('id', user.id);
+         } catch (err) {
+           console.warn('Failed to update last_active_at:', err);
+         }
+       }
+    }, 120000); // Every 2 minutes
+    
+    // Initial track
+    const timer = setTimeout(trackPresence, 1000);
+    
     return () => {
+      clearInterval(heartbeatInterval);
+      clearInterval(dbPersistenceInterval);
+      clearTimeout(timer);
       channel.unsubscribe();
     };
-  }, [profile, user, userRoles, presenceContext]);
+  }, [user?.id]); // Only re-subscribe if user ID changes
+
+  // Separate effect for tracking metadata updates to the existing channel
+  useEffect(() => {
+    if (!user || !profile) return;
+    
+    const channel = supabase.getChannels().find(c => c.name === 'online-users');
+    if (channel && channel.state === 'joined') {
+      channel.track({
+        online_at: new Date().toISOString(),
+        profile: {
+          id: user.id,
+          name: profile.name,
+          roles: userRoles,
+          avatar_url: profile.avatar_url,
+          email: profile.email,
+          context: presenceContext
+        }
+      });
+    }
+  }, [profile, userRoles, presenceContext]); // Update tracking on metadata changes
 
   const updatePresenceContext = useCallback((newContext, details = null) => {
     setPresenceContext(prev => {

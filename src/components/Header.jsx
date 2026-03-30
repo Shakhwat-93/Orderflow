@@ -7,6 +7,7 @@ import { useNotifications } from '../context/NotificationContext';
 import { Link, useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
 import { PresenceStack } from './PresenceStack';
+import { GlobalSearchModal } from './GlobalSearchModal';
 
 export const Header = ({ onMenuToggle, isSidebarOpen }) => {
   const { profile, userRoles, isAdmin, signOut } = useAuth();
@@ -24,6 +25,7 @@ export const Header = ({ onMenuToggle, isSidebarOpen }) => {
   const navigate = useNavigate();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('Today');
 
   const filterNotifs = (allNotifs, tab) => {
@@ -108,13 +110,14 @@ export const Header = ({ onMenuToggle, isSidebarOpen }) => {
         </button>
       )}
 
-      {/* Search — hidden on very small screens, always present on desktop */}
-      <div className="header-search desktop-only-flex">
+      {/* Command Palette Trigger — Universal Search Hub */}
+      <div className="header-search desktop-only-flex" onClick={() => setIsSearchOpen(true)}>
         <Search className="header-search-icon" size={18} />
         <input
           type="text"
-          placeholder="Search orders, customers..."
+          placeholder="Search orders, customers (Ctrl+K)"
           className="search-input"
+          readOnly
         />
       </div>
 
@@ -184,8 +187,8 @@ export const Header = ({ onMenuToggle, isSidebarOpen }) => {
       )}
 
       <div className="header-actions">
-        {/* Search toggle for mobile */}
-        <button className="icon-badge-btn mobile-only">
+        {/* Unified Mobile Search Trigger */}
+        <button className="icon-badge-btn mobile-only" onClick={() => setIsSearchOpen(true)}>
           <Search size={18} />
         </button>
 
@@ -294,6 +297,12 @@ export const Header = ({ onMenuToggle, isSidebarOpen }) => {
           </div>
         </div>
       </div>
+
+      {/* Global Command Palette */}
+      <GlobalSearchModal 
+        isOpen={isSearchOpen} 
+        onClose={() => setIsSearchOpen(false)} 
+      />
     </header>
   );
 };

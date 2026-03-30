@@ -140,3 +140,30 @@
   font-size: 0.7rem;
   font-weight: 500;
 }
+
+/* Dark Mode Overrides */
+[data-theme='dark'] .presence-stack {
+  background: rgba(0, 0, 0, 0.4);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme='dark'] .stack-avatar-wrapper {
+  border-color: #0d1117;
+  background: #1c1d24;
+}
+
+[data-theme='dark'] .avatar-extra {
+  background: #1c1d24;
+  border-color: #0d1117;
+}
+
+[data-theme='dark'] .stack-role-badge {
+  background: #0d1117;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme='dark'] .presence-tooltip {
+  background: #0d1117;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}

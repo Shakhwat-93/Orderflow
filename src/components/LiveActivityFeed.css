@@ -197,3 +197,47 @@
   margin-top: 1rem;
   font-size: 0.9rem;
 }
+
+/* --- DARK MODE (Total Black Premium) --- */
+[data-theme='dark'] .live-activity-feed {
+  background: var(--bg-main);
+  border-color: var(--glass-border);
+}
+
+[data-theme='dark'] .feed-header {
+  border-bottom-color: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme='dark'] .live-badge {
+  background: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+[data-theme='dark'] .live-badge::before {
+  background: #f87171;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+}
+
+[data-theme='dark'] .marker-line {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme='dark'] .action-type {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+[data-theme='dark'] .status-chip {
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+[data-theme='dark'] .activity-desc {
+  color: #e2e8f0;
+}
+
+[data-theme='dark'] .activity-time {
+  color: var(--text-tertiary);
+}

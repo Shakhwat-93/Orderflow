@@ -680,3 +680,94 @@
   color: #6b7280;
   line-height: 1.4;
 }
+
+/* =====================================
+   DARK NEUMORPHISM OVERRIDES
+   ===================================== */
+[data-theme='dark'] .notif-tabs-container {
+  background: #18191f;
+  border: 1px solid rgba(255, 255, 255, 0.015);
+  box-shadow: var(--neu-pressed);
+}
+
+[data-theme='dark'] .notif-tab {
+  color: var(--text-secondary);
+}
+
+[data-theme='dark'] .notif-tab.active {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  box-shadow: var(--neu-raised-sm);
+  border: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+[data-theme='dark'] .tab-count {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-tertiary);
+}
+
+[data-theme='dark'] .active .tab-count {
+  background: var(--accent);
+  color: #111;
+  box-shadow: var(--accent-glow-sm);
+}
+
+[data-theme='dark'] .notif-item-standard {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02) !important;
+}
+
+[data-theme='dark'] .notif-item-standard:not(:last-child)::after {
+  display: none;
+}
+
+[data-theme='dark'] .notif-item-standard:hover {
+  background: rgba(255, 255, 255, 0.02);
+  box-shadow: var(--neu-raised-sm);
+  z-index: 2;
+}
+
+[data-theme='dark'] .notif-item-standard.unread {
+  background: rgba(var(--accent-rgb), 0.06);
+  border-left-color: var(--accent) !important;
+}
+
+[data-theme='dark'] .notif-item-standard.unread:hover {
+  background: rgba(var(--accent-rgb), 0.1);
+}
+
+[data-theme='dark'] .notif-circular-icon {
+  background: #0f1014 !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: rgba(255, 255, 255, 0.35) !important;
+}
+
+[data-theme='dark'] .notif-actor-standard {
+  background: rgba(var(--accent-rgb), 0.15);
+  color: #ffffff;
+  border: 1px solid rgba(var(--accent-rgb), 0.2);
+}
+
+[data-theme='dark'] .unread .notif-title-text {
+  color: #ffffff;
+}
+
+[data-theme='dark'] .notif-time-standard {
+  color: var(--text-tertiary);
+}
+
+[data-theme='dark'] .notif-message-standard {
+  color: var(--text-secondary);
+}
+
+[data-theme='dark'] .panel-footer-standard {
+  border-top-color: rgba(255, 255, 255, 0.03);
+}
+
+[data-theme='dark'] .panel-footer-standard a {
+  color: var(--text-primary);
+}
+
+[data-theme='dark'] .panel-footer-standard a:hover {
+  color: var(--accent);
+}

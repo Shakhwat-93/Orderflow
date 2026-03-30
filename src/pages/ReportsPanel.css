@@ -1,77 +1,123 @@
-/* ===== REPORTS — Dark ===== */
-.reports-panel { display: flex; flex-direction: column; gap: var(--sp-6); animation: panelIn 0.5s var(--ease-out); }
-
-.page-header { 
+/* ===== REPORTS — Total Black Premium ===== */
+.reports-panel { 
   display: flex; 
   flex-direction: column; 
-  gap: var(--sp-4); 
-  margin-bottom: var(--sp-2);
+  gap: var(--sp-6); 
+  animation: panelIn 0.5s var(--ease-out); 
 }
 
-@media (min-width: 1024px) {
-  .page-header { 
-    flex-direction: row; 
-    align-items: center; 
-    justify-content: space-between; 
-  }
+.chart-title-wrap h3 {
+  font-size: var(--fs-h2);
+  font-weight: 950;
+  color: var(--text-primary);
+  letter-spacing: -0.03em;
 }
-
-.header-controls { 
-  display: flex; 
-  flex-direction: column; 
-  gap: var(--sp-3); 
-  align-items: flex-start;
-}
-
-@media (min-width: 768px) {
-  .header-controls { 
-    align-items: flex-end;
-  }
-}
-
-.export-actions { display: flex; gap: var(--sp-3); width: 100%; }
-.export-actions .btn { flex: 1; }
-@media (min-width: 768px) { .export-actions { width: auto; } .export-actions .btn { flex: none; } }
-.reports-grid { display: flex; flex-direction: column; gap: var(--sp-5); }
-.report-chart-large { padding: var(--sp-5); }
-@media (min-width: 768px) { .report-chart-large { padding: var(--sp-8); } }
-.reports-secondary-grid { display: grid; grid-template-columns: 1fr; gap: var(--sp-5); }
-@media (min-width: 768px) { .reports-secondary-grid { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); } }
-.report-card { display: flex; flex-direction: column; }
-.report-chart-container { flex: 1; width: 100%; position: relative; min-height: 0; }
-.report-chart-container.centered { display: flex; flex-direction: column; align-items: center; justify-content: center; }
-.chart-title-wrap { display: flex; align-items: center; gap: var(--sp-3); }
-.chart-title-wrap h3 { font-size: var(--fs-h2); font-weight: 800; color: var(--text-primary); margin: 0; }
 
 /* Velocity & Bottlenecks */
-.velocity-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--sp-4); margin-bottom: var(--sp-6); }
-.velocity-card { padding: var(--sp-5); border-radius: 20px; display: flex; flex-direction: column; gap: var(--sp-2); position: relative; overflow: hidden; }
-.velocity-card .label { font-size: var(--fs-sm); color: var(--text-tertiary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-.velocity-card .value { font-size: 2.5rem; font-weight: 900; color: var(--text-primary); line-height: 1; }
-.velocity-card .unit { font-size: var(--fs-md); color: var(--text-secondary); margin-left: var(--sp-1); }
-.velocity-card .trend { font-size: var(--fs-xs); margin-top: var(--sp-2); display: flex; align-items: center; gap: var(--sp-1); }
-.velocity-card .trend.good { color: var(--success); }
-.velocity-card .trend.warn { color: var(--warning); }
+.velocity-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-6);
+}
 
-.bottlenecks-section { margin-top: var(--sp-4); }
+.velocity-card {
+  padding: 24px !important;
+  border-radius: 20px;
+  background: var(--bg-surface);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-premium);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s var(--ease-out);
+}
+
+.velocity-card:hover {
+  transform: translateY(-4px);
+  background: var(--bg-elevated);
+}
+
+.velocity-card .label {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.velocity-card .value {
+  font-size: 2.5rem;
+  font-weight: 950;
+  color: var(--text-primary);
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.velocity-card .unit {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+/* Bottlenecks */
 .bottleneck-alert { 
-  display: flex; align-items: center; gap: var(--sp-4); 
-  padding: var(--sp-4) var(--sp-5); border-radius: 16px; 
-  background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.15);
-  margin-bottom: var(--sp-3); animation: slideIn 0.4s var(--ease-out);
+  display: flex;
+  align-items: center;
+  gap: 16px; 
+  padding: 16px 20px;
+  border-radius: 16px; 
+  background: rgba(239, 68, 68, 0.05);
+  border: 1px solid rgba(239, 68, 68, 0.1);
+  margin-bottom: 12px;
 }
-.bottleneck-alert.medium { background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.15); }
-.bottleneck-alert .icon-wrap { 
-  width: 40px; height: 40px; border-radius: 10px; 
-  display: flex; align-items: center; justify-content: center;
-  background: rgba(239, 68, 68, 0.1); color: #ef4444;
-}
-.bottleneck-alert.medium .icon-wrap { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
-.bottleneck-alert .content { flex: 1; }
-.bottleneck-alert .title { font-weight: 700; font-size: var(--fs-md); }
-.bottleneck-alert .msg { font-size: var(--fs-sm); opacity: 0.8; }
 
-@keyframes slideIn {
-  from { opacity: 0; transform: translateX(-20px); }
-  to { opacity: 1; transform: translateX(0); }
+.bottleneck-alert.medium {
+  background: rgba(245, 158, 11, 0.05);
+  border: 1px solid rgba(245, 158, 11, 0.1);
+}
+
+.bottleneck-alert .icon-wrap { 
+  width: 40px;
+  height: 40px;
+  border-radius: 12px; 
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.bottleneck-alert.medium .icon-wrap {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+}
+
+.bottleneck-alert .title {
+  color: var(--text-primary);
+  font-weight: 800;
+  font-size: 14px;
+}
+
+.bottleneck-alert .msg {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+/* Export Buttons */
+.export-actions .btn {
+  background: var(--bg-surface);
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
+}
+
+.export-actions .btn:hover {
+  background: var(--bg-elevated);
+}
+
+@media (max-width: 768px) {
+  .velocity-card .value { font-size: 2rem; }
 }

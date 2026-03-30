@@ -1,8 +1,11 @@
 import React from 'react';
 import { Sparkles, ArrowRight, AlertCircle, Clock, CheckCircle2, TrendingUp } from 'lucide-react';
+import CurrencyIcon from './CurrencyIcon';
+import { useAuth } from '../context/AuthContext';
 import './AIBriefing.css';
 
 export const AIBriefing = ({ stats, avgCallDelay, slaRate }) => {
+  const { profile } = useAuth();
   // Logic to generate narrative based on stats
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -32,7 +35,7 @@ export const AIBriefing = ({ stats, avgCallDelay, slaRate }) => {
       return (
         <p className="narrative-text">
           All caught up! No orders are currently waiting in the call queue. 
-          Revenue for today has reached <span className="stat-highlight success">৳{stats.addedTodayRevenue?.toLocaleString() || '0'}</span>.
+          Revenue for today has reached <span className="stat-highlight success"><CurrencyIcon size={14} className="currency-icon-elite" />{stats.addedTodayRevenue?.toLocaleString() || '0'}</span>.
         </p>
       );
     }
@@ -86,7 +89,7 @@ export const AIBriefing = ({ stats, avgCallDelay, slaRate }) => {
         </div>
         <div className="briefing-title">
           <span className="briefing-subtitle">Intel Intelligence</span>
-          <h2>{getGreeting()}, Chief.</h2>
+          <h2>{getGreeting()}, {profile?.name?.split(' ')[0] || 'Partner'}.</h2>
         </div>
       </div>
 
@@ -108,6 +111,11 @@ export const AIBriefing = ({ stats, avgCallDelay, slaRate }) => {
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="briefing-abstract-shapes">
+        <div className="shape s1" />
+        <div className="shape s2" />
       </div>
     </div>
   );

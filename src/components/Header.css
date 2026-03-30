@@ -1,8 +1,8 @@
 /* ===== UNIFIED HEADER — Dark Premium ===== */
 .header {
   height: 56px;
-  background: #ffffff;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  background: var(--bg-main);
+  border-bottom: 1px solid var(--glass-border);
   display: flex;
   align-items: center;
   gap: var(--sp-2);
@@ -17,8 +17,8 @@
 @media (min-width: 768px) {
   .header {
     height: 72px;
-    background: #ffffff;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    background: var(--bg-main);
+    border-bottom: 1px solid var(--glass-border);
     padding: 0 40px;
     margin-bottom: var(--sp-2);
   }
@@ -73,8 +73,8 @@
   height: 40px;
   padding-left: 36px;
   padding-right: var(--sp-3);
-  background: rgba(0, 0, 0, 0.02);
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  background: var(--bg-surface);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-pill);
   outline: none;
   transition: all var(--transition-fast);
@@ -166,8 +166,8 @@
   height: 38px;
   min-width: 38px;
   border-radius: var(--radius-sm);
-  background: rgba(0, 0, 0, 0.02);
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  background: var(--bg-surface);
+  border: 1px solid var(--glass-border);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -187,7 +187,7 @@
 
 @media (hover: hover) {
   .icon-badge-btn:hover {
-    background: rgba(0, 0, 0, 0.04);
+    background: var(--bg-elevated);
     color: var(--accent);
   }
 }
@@ -212,13 +212,13 @@
 }
 
 .share-btn {
-  background: #f3f4f6;
+  background: var(--bg-elevated);
   border: none;
   border-radius: 100px;
   padding: 8px 20px;
   font-size: 15px;
   font-weight: 700;
-  color: #111;
+  color: var(--text-primary);
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
@@ -227,7 +227,7 @@
 }
 
 .share-btn:hover {
-  background: #e5e7eb;
+  background: var(--bg-surface);
   transform: translateY(-1px);
 }
 
@@ -244,7 +244,7 @@
   height: 46px;
   border-radius: 50%;
   padding: 2.5px;
-  background: linear-gradient(white, white) padding-box,
+  background: linear-gradient(var(--bg-main), var(--bg-main)) padding-box,
     conic-gradient(from 0deg, #ff4d4d, #f97316, #eab308, #22c55e, #3b82f6, #a855f7, #ff4d4d) border-box;
   border: 2.5px solid transparent;
   display: flex;
@@ -275,9 +275,9 @@
   top: calc(100% + 12px);
   right: 0;
   width: 240px;
-  background: #ffffff;
+  background: var(--bg-surface);
   border-radius: 20px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--shadow-premium);
   padding: 10px;
   display: flex;
   flex-direction: column;
@@ -317,8 +317,8 @@
 }
 
 .dropdown-item:hover {
-  background: #f3f4f6;
-  color: #111;
+  background: var(--bg-elevated);
+  color: var(--accent);
 }
 
 .dropdown-item span {
@@ -352,9 +352,9 @@
 }
 
 .dropdown-item.logout {
-  color: #111;
+  color: var(--text-primary);
 }
 
 .dropdown-item.logout svg {
-  color: #111;
+  color: var(--text-primary);
 }
