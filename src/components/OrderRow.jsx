@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import ReactDOM from 'react-dom';
 import { Badge } from './Badge';
-import { MoreHorizontal, Mail, Phone, ShoppingCart, Tag, Copy, Check, ChevronDown, Edit2, AlertTriangle, Clock } from 'lucide-react';
+import { MoreHorizontal, Mail, Phone, ShoppingCart, Tag, Copy, Check, ChevronDown, Edit2, AlertTriangle, Clock, Eye } from 'lucide-react';
 import CurrencyIcon from './CurrencyIcon';
 import './OrderRow.css';
 
@@ -118,10 +118,6 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
               <Phone size={11} strokeWidth={2.5} /> 
               <span>{order.phone}</span>
             </div>
-            <div className="meta-item email">
-              <Mail size={11} strokeWidth={2.5} /> 
-              <span>{order.email || 'no-email@example.com'}</span>
-            </div>
           </div>
         </div>
       </td>
@@ -133,27 +129,7 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
         </div>
       </td>
 
-      <td className="items-cell">
-        <div className="items-count-display">
-          <div className="items-count-badge glass-focus" onClick={(e) => e.stopPropagation()}>
-            <span>{String(order.items || 1).padStart(2, '0')}</span>
-            <ChevronDown size={12} strokeWidth={3} />
-          </div>
-          {order.ordered_items && order.ordered_items.length > 0 && (
-            <div className="serial-pills">
-              {order.ordered_items.map((item, idx) => {
-                if (typeof item === 'number' || typeof item === 'string') {
-                  return <span key={idx} className="serial-pill">{item}</span>;
-                }
-                if (item?.isToyBox && item?.toyBoxNumber) {
-                  return <span key={idx} className="serial-pill">{item.toyBoxNumber}</span>;
-                }
-                return null;
-              })}
-            </div>
-          )}
-        </div>
-      </td>
+
 
       <td className="payment-status-cell">
         <Badge 
@@ -162,12 +138,6 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
         >
           {(order.payment_status || 'UNPAID').toUpperCase()}
         </Badge>
-      </td>
-
-      <td className="shipping-cell">
-        <div className="shipping-badge">
-          <span>{order.shipping_zone || 'Outside Dhaka'}</span>
-        </div>
       </td>
 
       <td className="status-cell" onClick={(e) => e.stopPropagation()}>
@@ -212,10 +182,15 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
         </div>
       </td>
 
-      <td className="actions-cell" onClick={(e) => { e.stopPropagation(); onEdit && onEdit(order); }}>
-        <button className="edit-btn" title="Edit Order">
-          <Edit2 size={14} strokeWidth={2.5} />
-        </button>
+      <td className="actions-cell">
+        <div className="action-btn-group">
+          <button className="action-icon-btn" title="View Details" onClick={(e) => { e.stopPropagation(); onDetails(order); }}>
+            <Eye size={14} strokeWidth={2.5} />
+          </button>
+          <button className="action-icon-btn highlight" title="Edit Order" onClick={(e) => { e.stopPropagation(); onEdit && onEdit(order); }}>
+            <Edit2 size={14} strokeWidth={2.5} />
+          </button>
+        </div>
       </td>
     </motion.tr>
   );

@@ -1,13 +1,13 @@
 /* ===== ORDER ROW — Elite Stealth Premium ===== */
 .order-row {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  border-bottom: 1px solid #f1f5f9 !important;
+  border-bottom: 1px solid var(--glass-border);
   position: relative;
-  background: #fff;
+  background: var(--bg-surface);
 }
 
 [data-theme='dark'] .order-row {
-  border-bottom: 1px solid var(--glass-border) !important;
+  border-bottom: 1px solid var(--glass-border);
   background: transparent;
 }
 
@@ -25,7 +25,7 @@
 }
 
 .order-row:hover {
-  background: #f8fafc !important;
+  background: var(--item-hover-bg) !important;
   transform: translateX(2px);
 }
 
@@ -92,7 +92,8 @@
   flex-direction: column;
   gap: 3px;
   padding: 4px 0;
-  max-width: 180px;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .customer-name {
@@ -105,10 +106,14 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .customer-name strong {
   font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .customer-meta {
@@ -124,6 +129,9 @@
   font-size: 11px;
   font-weight: 500;
   color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .meta-item svg {
@@ -386,6 +394,54 @@
   border-left: 2px solid var(--accent) !important;
 }
 
+/* Custom Action Button Group */
+.action-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.action-icon-btn {
+  background: rgba(100, 116, 139, 0.1);
+  border: 1px solid rgba(100, 116, 139, 0.2);
+  color: var(--text-secondary);
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.action-icon-btn:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+.action-icon-btn.highlight:hover {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+[data-theme='dark'] .action-icon-btn {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+[data-theme='dark'] .action-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+[data-theme='dark'] .action-icon-btn.highlight:hover {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
 /* ===== MOBILE ELITE CARDS ===== */
 @media (max-width: 900px) {
   .order-row {
@@ -428,9 +484,7 @@
   }
 
   .order-row .amount-cell, 
-  .order-row .items-cell,
-  .order-row .payment-status-cell,
-  .order-row .shipping-cell {
+  .order-row .payment-status-cell {
     display: flex !important;
     align-items: center;
     justify-content: space-between;
@@ -438,9 +492,7 @@
   }
 
   .order-row .amount-cell::before { content: "Total:"; color: var(--text-tertiary); font-weight: 600; }
-  .order-row .items-cell::before { content: "Items:"; color: var(--text-tertiary); font-weight: 600; }
   .order-row .payment-status-cell::before { content: "Payment:"; color: var(--text-tertiary); font-weight: 600; }
-  .order-row .shipping-cell::before { content: "Logistics:"; color: var(--text-tertiary); font-weight: 600; }
 
   .order-row .status-cell {
     margin-top: 16px;
@@ -466,21 +518,25 @@
   flex-direction: column;
   gap: 2px;
   line-height: 1.2;
+  white-space: nowrap;
 }
 
 .primary-date {
   font-size: 13px;
   font-weight: 800;
-  color: #1e293b;
+  color: var(--text-primary);
+  white-space: nowrap;
 }
 
 [data-theme='dark'] .primary-date {
-  color: #f1f5f9;
+  color: var(--text-primary);
 }
 
 .secondary-time {
   font-size: 11px;
   font-weight: 600;
-  color: #64748b;
+  color: var(--text-tertiary);
   opacity: 0.8;
+  white-space: nowrap;
 }
+
