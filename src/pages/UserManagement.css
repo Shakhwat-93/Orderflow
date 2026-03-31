@@ -1,35 +1,32 @@
 .user-header-container {
-  padding: 8px 4px;
-  margin-bottom: 24px;
+  padding: 0;
+  margin-bottom: var(--sp-5);
 }
 
 .users-header.elite-glass {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: 24px;
-  padding: 24px;
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.08),
-              inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+  background: var(--bg-surface);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  padding: var(--sp-6) var(--sp-8);
+  box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--sp-5);
 }
 
 .premium-title {
-  font-size: 1.75rem;
-  font-weight: 950;
-  color: #0f172a;
-  letter-spacing: -0.03em;
-  margin: 0 0 4px 0;
-  line-height: 1.1;
+  font-size: var(--fs-display);
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.025em;
+  margin: 0 0 4px;
+  line-height: 1.15;
 }
 
 .premium-subtitle {
-  font-size: 14px;
-  color: #64748b;
-  font-weight: 600;
+  font-size: var(--fs-body);
+  color: var(--text-secondary);
+  font-weight: 500;
   margin: 0;
 }
 
@@ -67,16 +64,18 @@
 }
 
 .elite-user-card {
-  background: #fff;
-  border: 1px solid #f1f5f9;
-  border-radius: 24px;
-  padding: 24px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: var(--bg-surface);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  padding: var(--sp-6);
+  transition: transform var(--anim-smooth) var(--ease-out),
+              box-shadow var(--anim-smooth) ease,
+              border-color var(--anim-fast) ease;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--sp-5);
   position: relative;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+  box-shadow: var(--shadow-card);
 }
 
 .elite-user-card:hover {

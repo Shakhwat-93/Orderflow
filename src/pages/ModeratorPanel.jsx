@@ -329,16 +329,15 @@ export const ModeratorPanel = () => {
           <table className="management-table premium-table">
             <thead>
               <tr>
-                <th className="checkbox-col"><input type="checkbox" className="premium-checkbox" /></th>
-                <th className="id-col">Order ID</th>
-                <th className="date-col">Order Date</th>
-                <th className="customer-col">Customer Info</th>
-                <th className="amount-col">Total Price</th>
+                <th className="id-col">Order</th>
+                <th className="date-col">Date</th>
+                <th className="customer-col">Customer</th>
+                <th className="payment-status-col">Payment</th>
+                <th className="amount-col">Total</th>
+                <th className="shipping-col">Delivery</th>
                 <th className="items-col">Items</th>
-                <th className="payment-status-col">Payment Status</th>
-                <th className="shipping-col">Shipping</th>
-                <th className="status-col">Status</th>
-                <th className="actions-col"></th>
+                <th className="status-col">Fulfilment</th>
+                <th className="actions-col">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -374,3 +373,5 @@ export const ModeratorPanel = () => {
     </div>
   );
 };
+
+export default ModeratorPanel;

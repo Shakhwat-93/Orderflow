@@ -3,11 +3,29 @@ import { supabase } from '../lib/supabase';
 
 const CourierRatioContext = createContext(null);
 
+const CACHE_KEY = '__orderflow_courier_ratios';
+
 export const CourierRatioProvider = ({ children }) => {
-  const [ratios, setRatios] = useState({});
+  const [ratios, setRatios] = useState(() => {
+    try {
+      const cached = localStorage.getItem(CACHE_KEY);
+      return cached ? JSON.parse(cached) : {};
+    } catch (e) {
+      return {};
+    }
+  });
   const inFlight = useRef(new Set());
   const queue = useRef([]);
   const isProcessing = useRef(false);
+  const ratiosRef = useRef(ratios);
+
+  // Sync cache when ratios update
+  useEffect(() => {
+    ratiosRef.current = ratios;
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify(ratios));
+    } catch (e) { /* ignore storage errors */ }
+  }, [ratios]);
 
   // Core fetch function
   const fetchRatio = async (phone) => {
@@ -31,11 +49,17 @@ export const CourierRatioProvider = ({ children }) => {
     while (queue.current.length > 0) {
       const { phone, force } = queue.current.shift();
 
-      // Skip if already fetched and we're not forcing a refresh
-      setRatios(prev => {
-        if (!force && prev[phone]?.fetched) return prev;
-        return { ...prev, [phone]: { ...prev[phone], loading: true, fetched: false } };
-      });
+      // Check synchronous cache (ref) entirely bypassing React's batched update delay
+      if (!force && ratiosRef.current[phone]?.fetched) {
+        inFlight.current.delete(phone);
+        continue; // Bails out IMMEDIATELY, zero API call!
+      }
+
+      // If we made it here, we actually need to fetch
+      setRatios(prev => ({ 
+        ...prev, 
+        [phone]: { ...prev[phone], loading: true, fetched: false } 
+      }));
 
       const result = await fetchRatio(phone);
 

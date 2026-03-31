@@ -4,7 +4,9 @@ import { sendChatMessage, invalidateChatCache } from '../lib/chatService';
 import { useAuth } from '../context/AuthContext';
 import './ChatBot.css';
 
-const NOVA_ICON = '/nova-ai-icon.png';
+import novaAiIcon from '../assets/nova-ai-logo.png';
+
+const NOVA_ICON = novaAiIcon;
 
 const WELCOME_MESSAGE = {
   role: 'assistant',

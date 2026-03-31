@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import ReactDOM from 'react-dom';
 import { Badge } from './Badge';
-import { MoreHorizontal, Mail, Phone, ShoppingCart, Tag, Copy, Check, ChevronDown, Edit2, AlertTriangle, Clock, Eye } from 'lucide-react';
+import { FileText, MessageSquare, ChevronDown, Clock, AlertTriangle } from 'lucide-react';
 import CurrencyIcon from './CurrencyIcon';
 import './OrderRow.css';
 
@@ -70,84 +70,47 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
       </td>
 
       <td className="id-cell">
-        <div className="id-block">
-          <div className="id-header">
-            <span className="id-text">#{order.id.replace('ORD-', '')}</span>
-            <button 
-              className={`copy-btn ${copied ? 'copied' : ''}`}
-              onClick={(e) => handleCopy(e, order.id)}
-              title="Copy ID"
-            >
-              {copied ? <Check size={12} strokeWidth={3} /> : <Copy size={12} />}
-            </button>
-          </div>
-          <div className="category-tag">
-            <Tag size={10} strokeWidth={2.5} /> Ecommerce
-          </div>
-        </div>
+        <span className="saas-id">#{String(order.id).replace('ORD-', '')}</span>
       </td>
 
       <td className="date-cell">
-        <div className="date-block">
-          <span className="primary-date">
-            {new Date(order.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-          </span>
-          <span className="secondary-time">
-            {new Date(order.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-          </span>
-        </div>
+        <span className="saas-text">{new Date(order.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
       </td>
 
       <td className="customer-cell">
-        <div className="customer-block">
-          <div className="customer-name">
-            <strong>{order.customer_name}</strong>
-            {fraudFlag && (
-              <div className="fraud-alert-icon" title={fraudFlag.message}>
-                <AlertTriangle size={14} className="text-error neon-drop" />
-              </div>
-            )}
-            {automationFlag && (
-              <div className="automation-alert-icon" title={automationFlag.reason}>
-                <Clock size={14} className="text-warning neon-drop" />
-              </div>
-            )}
-          </div>
-          <div className="customer-meta">
-            <div className="meta-item">
-              <Phone size={11} strokeWidth={2.5} /> 
-              <span>{order.phone}</span>
-            </div>
-          </div>
+        <span className="saas-text-dark">{order.customer_name}</span>
+      </td>
+
+      <td className="payment-status-cell">
+        <div className={`saas-badge ${order.payment_status === 'Paid' ? 'saas-badge-success' : 'saas-badge-warning'}`}>
+          <span className="dot"></span>
+          {order.payment_status === 'Paid' ? 'Success' : 'Pending'}
         </div>
       </td>
 
       <td className="amount-cell">
-        <div className="amount-block">
-          <CurrencyIcon size={12} className="currency-icon-elite" />
-          <span className="amount-text">{Number(order.amount || 0).toLocaleString()}</span>
-        </div>
+        <span className="saas-text-dark">
+          <CurrencyIcon size={12} className="currency-icon-elite" style={{marginRight: '2px'}}/>
+          {Number(order.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </span>
       </td>
 
+      <td className="shipping-cell">
+        <span className="saas-text">{order.shipping_zone || 'N/A'}</span>
+      </td>
 
-
-      <td className="payment-status-cell">
-        <Badge 
-          variant="default"
-          className={order.payment_status === 'Paid' ? 'badge-paid' : 'badge-unpaid'}
-        >
-          {(order.payment_status || 'UNPAID').toUpperCase()}
-        </Badge>
+      <td className="items-cell">
+        <span className="saas-text">{order.items || 1} items</span>
       </td>
 
       <td className="status-cell" onClick={(e) => e.stopPropagation()}>
         <div className="status-dropdown-container" ref={statusBtnRef}>
           <button 
-            className={`status-trigger-pill badge-${getStatusBadgeVariant(order.status)}`}
+            className={`saas-badge ${getStatusBadgeVariant(order.status) === 'confirmed' || getStatusBadgeVariant(order.status) === 'delivered' ? 'saas-badge-success' : getStatusBadgeVariant(order.status) === 'cancelled' || getStatusBadgeVariant(order.status) === 'returned' ? 'saas-badge-danger' : 'saas-badge-warning'} clickable`}
             onClick={toggleStatusMenu}
           >
-            <span>{order.status}</span>
-            <ChevronDown size={12} strokeWidth={3} />
+            <span className="dot"></span>
+            {order.status}
           </button>
           
           {showStatusMenu && ReactDOM.createPortal(
@@ -183,12 +146,12 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
       </td>
 
       <td className="actions-cell">
-        <div className="action-btn-group">
-          <button className="action-icon-btn" title="View Details" onClick={(e) => { e.stopPropagation(); onDetails(order); }}>
-            <Eye size={14} strokeWidth={2.5} />
+        <div className="saas-actions">
+          <button className="saas-icon-btn" title="View Document" onClick={(e) => { e.stopPropagation(); onDetails(order); }}>
+            <FileText size={16} strokeWidth={1.5} />
           </button>
-          <button className="action-icon-btn highlight" title="Edit Order" onClick={(e) => { e.stopPropagation(); onEdit && onEdit(order); }}>
-            <Edit2 size={14} strokeWidth={2.5} />
+          <button className="saas-icon-btn" title="Message" onClick={(e) => { e.stopPropagation(); onEdit && onEdit(order); }}>
+            <MessageSquare size={16} strokeWidth={1.5} />
           </button>
         </div>
       </td>

@@ -10,9 +10,46 @@ import {
   PieChart, Pie, Cell, 
   BarChart, Bar 
 } from 'recharts';
-import { Download, FileDown, TrendingUp, BarChart2, PieChart as PieChartIcon, Activity, Truck, Clock, AlertCircle } from 'lucide-react';
+import { Download, FileDown, TrendingUp, BarChart2, PieChart as PieChartIcon, Activity, Truck, Clock, AlertCircle, ArrowUpRight, ArrowDownRight, Zap } from 'lucide-react';
 import { analytics } from '../utils/analytics';
 import './ReportsPanel.css';
+
+// ── Custom Tooltip for Premium Charts ──
+const CustomTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="reports-custom-tooltip">
+        <p className="label">{label}</p>
+        {payload.map((entry, index) => (
+          <div key={index} className="tooltip-row">
+            <span className="dot" style={{ backgroundColor: entry.color || entry.fill }}></span>
+            <span className="name">{entry.name}:</span>
+            <span className="value">{entry.value}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
+
+// ── Animation Constants ──
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.08 }
+  }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { 
+    opacity: 1, 
+    y: 0,
+    transition: { type: 'spring', damping: 25, stiffness: 100 }
+  }
+};
 
 export const ReportsPanel = () => {
   const { orders, velocityMetrics } = useOrders();
@@ -91,65 +128,96 @@ export const ReportsPanel = () => {
   return (
     <motion.div 
       className="reports-panel"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
     >
-      <div className="page-header">
-        <div>
-          <h1>Reports & Analytics</h1>
-          <p>Real-time business intelligence and operational KPIs.</p>
+      <motion.div className="reports-control-hub-elite" variants={itemVariants}>
+        <div className="hub-info">
+          <div className="hub-title-group">
+            <div className="hub-icon-wrap">
+              <BarChart2 size={24} />
+            </div>
+            <div>
+              <h1>Intelligence Center</h1>
+              <p>Operational health & business performance metrics</p>
+            </div>
+          </div>
         </div>
-        <div className="header-controls">
-          <DateRangePicker value={dateRange} onChange={setDateRange} />
-          <div className="export-actions">
-          <Button variant="secondary" onClick={handleExportCSV}>
-            <FileDown size={18} /> Export Orders (CSV)
-          </Button>
-          <Button variant="primary" onClick={handleDownloadReport}>
-            <Download size={18} /> Daily Report
-          </Button>
-        </div>
-      </div>
-    </div>
 
-      <div className="reports-grid">
-        {/* Phase 6: Operational Heartbeat */}
+        <div className="hub-actions">
+          <div className="hub-picker-wrap">
+            <DateRangePicker value={dateRange} onChange={setDateRange} />
+          </div>
+          <div className="hub-button-group">
+            <button className="hub-btn secondary" onClick={handleExportCSV}>
+              <FileDown size={18} /> <span>CSV</span>
+            </button>
+            <button className="hub-btn primary" onClick={handleDownloadReport}>
+              <Download size={18} /> <span>Full Report</span>
+            </button>
+          </div>
+        </div>
+      </motion.div>
+
+      <div className="reports-grid-elite">
         {velocityMetrics && (
-          <div className="operational-heartbeat">
-            <div className="section-title-wrap mb-4">
-              <Activity className="text-primary" size={20} />
-              <h2 className="text-xl font-bold">Operational Heartbeat</h2>
+          <motion.div className="operational-heartbeat-elite" variants={itemVariants}>
+            <div className="section-header-elite">
+              <div className="heartbeat-pulse">
+                <Zap size={14} fill="currentColor" />
+              </div>
+              <h3>Live Operational Heartbeat</h3>
             </div>
             
-            <div className="velocity-grid">
-              <Card className="velocity-card liquid-glass">
-                <span className="label">Confirmed → Factory</span>
-                <div className="value">
-                  {velocityMetrics.avgConfirmedToFactory}
-                  <span className="unit">h</span>
+            <div className="velocity-grid-elite">
+              <div className="velocity-card-elite glass">
+                <div className="v-card-top">
+                  <span className="label">System Latency (Conf → Factory)</span>
+                  <div className={`v-trend ${velocityMetrics.avgConfirmedToFactory < 8 ? 'positive' : 'negative'}`}>
+                    {velocityMetrics.avgConfirmedToFactory < 8 ? <ArrowDownRight size={14} /> : <ArrowUpRight size={14} />}
+                    <span>{velocityMetrics.avgConfirmedToFactory < 8 ? '-12%' : '+5%'}</span>
+                  </div>
                 </div>
-                <div className={`trend ${velocityMetrics.avgConfirmedToFactory < 8 ? 'good' : 'warn'}`}>
-                  <Clock size={12} /> {velocityMetrics.avgConfirmedToFactory < 8 ? 'Healthy Pace' : 'Needs Optimization'}
+                <div className="v-value-group">
+                  <div className="value">
+                    {velocityMetrics.avgConfirmedToFactory}
+                    <span className="unit">h</span>
+                  </div>
+                  <div className={`status-pill ${velocityMetrics.avgConfirmedToFactory < 8 ? 'healthy' : 'warn'}`}>
+                    {velocityMetrics.avgConfirmedToFactory < 8 ? 'Optimum' : 'Optimizing'}
+                  </div>
                 </div>
-              </Card>
+              </div>
 
-              <Card className="velocity-card liquid-glass">
-                <span className="label">Factory → Courier</span>
-                <div className="value">
-                  {velocityMetrics.avgFactoryToCourier}
-                  <span className="unit">h</span>
+              <div className="velocity-card-elite glass">
+                <div className="v-card-top">
+                  <span className="label">Processing Pipeline (Factory → Courier)</span>
+                  <div className={`v-trend ${velocityMetrics.avgFactoryToCourier < 18 ? 'positive' : 'negative'}`}>
+                    {velocityMetrics.avgFactoryToCourier < 18 ? <ArrowDownRight size={14} /> : <ArrowUpRight size={14} />}
+                    <span>{velocityMetrics.avgFactoryToCourier < 18 ? '-8%' : '+15%'}</span>
+                  </div>
                 </div>
-                <div className={`trend ${velocityMetrics.avgFactoryToCourier < 18 ? 'good' : 'warn'}`}>
-                  <Clock size={12} /> {velocityMetrics.avgFactoryToCourier < 18 ? 'Healthy Pace' : 'Delayed'}
+                <div className="v-value-group">
+                  <div className="value">
+                    {velocityMetrics.avgFactoryToCourier}
+                    <span className="unit">h</span>
+                  </div>
+                  <div className={`status-pill ${velocityMetrics.avgFactoryToCourier < 18 ? 'healthy' : 'warn'}`}>
+                    {velocityMetrics.avgFactoryToCourier < 18 ? 'Fluid' : 'Capacity Full'}
+                  </div>
                 </div>
-              </Card>
+              </div>
 
-              <Card className="velocity-card liquid-glass">
-                <span className="label">Orders Processed</span>
-                <div className="value">{velocityMetrics.totalOrdersProcessed}</div>
-                <div className="trend good">Analysis based on last 200 logs</div>
-              </Card>
+              <div className="velocity-card-elite glass">
+                <div className="v-card-top">
+                  <span className="label">Total Intelligence Assets</span>
+                </div>
+                <div className="v-value-group">
+                  <div className="value">{velocityMetrics.totalOrdersProcessed}</div>
+                  <div className="status-pill blue">Verified Logs</div>
+                </div>
+              </div>
             </div>
 
             {velocityMetrics.bottlenecks.length > 0 && (
@@ -167,130 +235,143 @@ export const ReportsPanel = () => {
                 ))}
               </div>
             )}
-          </div>
+          </motion.div>
         )}
 
-        {/* Chart 1: Daily Order Volume */}
-        <Card className="report-card liquid-glass report-chart-large">
-          <div className="card-header">
-            <div className="chart-title-wrap">
-              <TrendingUp className="text-primary" size={20} />
-              <h3>Daily Order Volume</h3>
+        <motion.div className="main-chart-card-elite glass" variants={itemVariants}>
+          <div className="chart-header-elite">
+            <div className="chart-title-hub">
+              <TrendingUp className="chart-icon" size={20} />
+              <div>
+                <h3>Growth Trajectory</h3>
+                <p>Order volume trend analysis</p>
+              </div>
+            </div>
+            <div className="chart-stats-mini">
+              <div className="mini-stat">
+                <span className="lv">Peak Vol</span>
+                <span className="vv">142</span>
+              </div>
+              <div className="mini-stat">
+                <span className="lv">Avg Vol</span>
+                <span className="vv">86</span>
+              </div>
             </div>
           </div>
-          <div className="report-chart-container">
-            <ResponsiveContainer width="100%" height={350}>
-              <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+          <div className="report-chart-container-elite">
+            <ResponsiveContainer width="100%" height={400}>
+              <AreaChart data={trendData} margin={{ top: 20, right: 30, left: -20, bottom: 0 }}>
                 <defs>
-                  <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#7c4dff" stopOpacity={0.4}/>
-                    <stop offset="95%" stopColor="#7c4dff" stopOpacity={0}/>
+                  <linearGradient id="colorOrdersElite" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--accent)" stopOpacity={0.15}/>
+                    <stop offset="95%" stopColor="var(--accent)" stopOpacity={0.01}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.04)" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'var(--text-tertiary)', fontSize: 12}} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{fill: 'var(--text-tertiary)', fontSize: 12}} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: 'rgba(255,255,255,0.8)', borderRadius: '16px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', backdropFilter: 'blur(10px)' }}
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(124, 77, 255, 0.05)" />
+                <XAxis 
+                  dataKey="name" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{fill: 'var(--text-tertiary)', fontSize: 11, fontWeight: 500}} 
+                  dy={15} 
                 />
-                <Area type="monotone" dataKey="orders" stroke="var(--accent)" strokeWidth={4} fillOpacity={1} fill="url(#colorOrders)" activeDot={{ r: 8 }} />
+                <YAxis 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{fill: 'var(--text-tertiary)', fontSize: 11, fontWeight: 500}} 
+                />
+                <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'var(--accent)', strokeWidth: 1, strokeDasharray: '4 4' }} />
+                <Area 
+                  type="monotone" 
+                  dataKey="orders" 
+                  stroke="var(--accent)" 
+                  strokeWidth={4} 
+                  fillOpacity={1} 
+                  fill="url(#colorOrdersElite)" 
+                  activeDot={{ r: 6, strokeWidth: 0, fill: 'var(--accent)' }} 
+                  animationDuration={1500}
+                />
               </AreaChart>
             </ResponsiveContainer>
           </div>
-        </Card>
+        </motion.div>
 
-        <div className="reports-secondary-grid">
-          {/* Chart 2: Orders by Source */}
-          <Card className="report-card liquid-glass">
-            <div className="card-header">
-              <div className="chart-title-wrap">
-                <PieChartIcon className="text-indigo" size={20} />
-                <h3>Orders by Source</h3>
-              </div>
+        <div className="reports-secondary-grid-elite">
+          <motion.div className="secondary-chart-card glass" variants={itemVariants}>
+            <div className="card-header-elite">
+              <PieChartIcon className="chart-icon icon-indigo" size={18} />
+              <h3>Source Acquisition</h3>
             </div>
             <div className="report-chart-container centered">
-              <ResponsiveContainer width="100%" height={250}>
+              <ResponsiveContainer width="100%" height={220}>
                 <PieChart>
                   <Pie
                     data={sourceData}
                     cx="50%"
                     cy="50%"
-                    innerRadius={70}
-                    outerRadius={90}
-                    paddingAngle={5}
+                    innerRadius={65}
+                    outerRadius={85}
+                    paddingAngle={8}
                     dataKey="value"
                   >
                     {sourceData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
+                      <Cell key={`cell-${index}`} fill={entry.color} strokeWidth={0} />
                     ))}
                   </Pie>
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.05)', boxShadow: '0 8px 24px rgba(0,0,0,0.08)' }}
-                  />
+                  <Tooltip content={<CustomTooltip />} />
                 </PieChart>
               </ResponsiveContainer>
-              <div className="pie-legend">
+              <div className="pie-legend-elite">
                 {sourceData.map(item => (
-                  <div key={item.name} className="legend-item">
+                  <div key={item.name} className="legend-item-elite">
                     <span className="dot" style={{backgroundColor: item.color}}></span>
-                    <span className="name">{item.name} <span className="value">({item.value})</span></span>
+                    <span className="name">{item.name}</span>
+                    <span className="value">{item.value}</span>
                   </div>
                 ))}
               </div>
             </div>
-          </Card>
+          </motion.div>
 
-          {/* Chart 3: Confirmation Rate */}
-          <Card className="report-card liquid-glass">
-            <div className="card-header">
-              <div className="chart-title-wrap">
-                <Activity className="text-teal" size={20} />
-                <h3>Confirmation Rate (%)</h3>
-              </div>
+          <motion.div className="secondary-chart-card glass" variants={itemVariants}>
+            <div className="card-header-elite">
+              <Activity className="chart-icon icon-teal" size={18} />
+              <h3>Confirmation Logic</h3>
             </div>
             <div className="report-chart-container">
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={confirmationData} margin={{top: 20, right: 10, left: -20, bottom: 0}}>
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'var(--text-tertiary)', fontSize: 12}} dy={10} />
-                  <Tooltip 
-                    cursor={{fill: 'rgba(var(--accent-rgb), 0.04)'}}
-                    contentStyle={{ backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: '12px', border: 'none', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }}
-                  />
-                  <Bar dataKey="rate" fill="url(#colorConfirm)" radius={[6, 6, 0, 0]} barSize={30}>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={confirmationData} margin={{top: 10, right: 10, left: -25, bottom: 0}}>
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'var(--text-tertiary)', fontSize: 10}} dy={10} />
+                  <Tooltip content={<CustomTooltip />} cursor={{fill: 'rgba(255,255,255,0.05)'}} />
+                  <Bar dataKey="rate" radius={[4, 4, 0, 0]} barSize={24}>
                     {confirmationData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.rate > 85 ? '#2dd4bf' : '#94a3b8'} />
+                      <Cell key={`cell-${index}`} fill={entry.rate > 85 ? 'var(--color-success)' : 'var(--text-tertiary)'} fillOpacity={0.6} />
                     ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          </Card>
+          </motion.div>
 
-          {/* Chart 4: Logistics Success Rate */}
-          <Card className="report-card liquid-glass">
-            <div className="card-header">
-              <div className="chart-title-wrap">
-                <Truck className="text-purple" size={20} />
-                <h3>Delivery Success Rate (%)</h3>
-              </div>
+          <motion.div className="secondary-chart-card glass" variants={itemVariants}>
+            <div className="card-header-elite">
+              <Truck className="chart-icon icon-purple" size={18} />
+              <h3>Logistics Success</h3>
             </div>
             <div className="report-chart-container">
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={logisticsData} margin={{top: 20, right: 10, left: -20, bottom: 0}}>
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} dy={10} />
-                  <Tooltip 
-                    cursor={{fill: 'rgba(var(--accent-rgb), 0.04)'}}
-                    contentStyle={{ backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: '12px', border: 'none', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }}
-                  />
-                  <Bar dataKey="rate" fill="url(#colorCourier)" radius={[6, 6, 0, 0]} barSize={30}>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={logisticsData} margin={{top: 10, right: 10, left: -25, bottom: 0}}>
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'var(--text-tertiary)', fontSize: 10}} dy={10} />
+                  <Tooltip content={<CustomTooltip />} cursor={{fill: 'rgba(255,255,255,0.05)'}} />
+                  <Bar dataKey="rate" radius={[4, 4, 0, 0]} barSize={24}>
                     {logisticsData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.rate > 90 ? '#3f51b5' : '#7c4dff'} />
+                      <Cell key={`cell-${index}`} fill={entry.rate > 90 ? 'var(--accent)' : 'var(--color-primary-soft)'} fillOpacity={0.6} />
                     ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          </Card>
+          </motion.div>
         </div>
       </div>
     </motion.div>

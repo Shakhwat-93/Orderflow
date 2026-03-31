@@ -15,9 +15,21 @@ import { CreateTaskOverlay } from '../components/CreateTaskOverlay';
 import {
   ClipboardList, CheckCircle2, Check, Circle, Plus, Trash2, Calendar, Clock,
   AlertTriangle, ArrowRight, User, Users, Zap, ListChecks, Target,
-  ChevronRight, Loader2, MessageSquare, Link2, Bell, Search, Home, MoreHorizontal, ChevronDown
+  ChevronRight, Loader2, MessageSquare, Link2, Bell, Search, Home, MoreHorizontal, ChevronDown,
+  Layout, Kanban, List, TrendingUp, Activity, ShieldCheck
 } from 'lucide-react';
 import './TaskBoard.css';
+
+// ── Animation & Layout Constants ──
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0, transition: { type: 'spring', damping: 25, stiffness: 100 } }
+};
 
 const PRIORITY_CONFIG = {
   urgent: { color: '#ef4444', label: 'Urgent', icon: AlertTriangle },
@@ -34,46 +46,39 @@ const DailyTaskCard = ({ task, completed, completingId, onComplete, onUncomplete
   const PriorityIcon = PRIORITY_CONFIG[task.priority]?.icon || Circle;
   
   return (
-    <Card className={`daily-task-card liquid-glass ${completed ? 'completed' : ''}`}>
+    <Card className={`daily-task-card liquid-glass obsidian-glass ${completed ? 'completed' : ''}`}>
+      <div className="task-glow-edge" style={{ backgroundColor: PRIORITY_CONFIG[task.priority]?.color }}></div>
       <div className="task-card-header">
         <div className="task-info">
           <button
-            className={`custom-checkbox ${completed ? 'is-checked' : ''}`}
+            className={`custom-checkbox-elite ${completed ? 'is-checked' : ''}`}
             onClick={() => completed ? onUncomplete(task.id) : onComplete(task.id)}
             disabled={completingId === task.id}
           >
             {completingId === task.id ? (
-              <Loader2 size={14} className="spin" />
+              <Loader2 size={12} className="spin" />
             ) : completed ? (
-              <Check size={14} strokeWidth={3} />
+              <Check size={12} strokeWidth={4} />
             ) : null}
           </button>
           <div className="title-desc">
             <h4 className={completed ? 'line-through' : ''}>{task.title}</h4>
-            {task.description && <p className="task-description">{task.description}</p>}
+            {task.description && <p className="task-description-limit">{task.description}</p>}
           </div>
         </div>
-        <div className="task-actions-top">
-          <span
-            className="priority-badge"
-            style={{ 
-              color: PRIORITY_CONFIG[task.priority]?.color,
-              backgroundColor: `${PRIORITY_CONFIG[task.priority]?.color}12`,
-              borderColor: `${PRIORITY_CONFIG[task.priority]?.color}25`
-            }}
-          >
-            <PriorityIcon size={12} />
-            {PRIORITY_CONFIG[task.priority]?.label}
-          </span>
-          <button className="premium-nav-arrow" onClick={onView} title="View Details">
-            <ChevronRight size={16} strokeWidth={2.5} />
-          </button>
-        </div>
+        <button className="premium-nav-arrow-elite" onClick={onView}>
+          <ChevronRight size={14} />
+        </button>
       </div>
-      <div className="card-footer">
-        <span className="task-meta-item">
-          <Users size={12} /> {task.assigned_role}
-        </span>
+
+      <div className="card-footer-elite">
+        <div className="footer-tag">
+          <Users size={11} /> <span>{task.assigned_role}</span>
+        </div>
+        <div className="p-badge-mini" style={{ color: PRIORITY_CONFIG[task.priority]?.color }}>
+          <PriorityIcon size={10} />
+          <span>{task.priority}</span>
+        </div>
       </div>
     </Card>
   );
@@ -84,109 +89,143 @@ const AssignedTaskCard = ({ task, onView, onStatusUpdate }) => {
   const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== 'completed';
 
   return (
-    <Card className={`assigned-task-card liquid-glass ${task.status} ${isOverdue ? 'overdue' : ''}`}>
-      <div className="task-card-header">
-        <Badge 
-          className="priority-badge"
-          style={{ 
-            color: PRIORITY_CONFIG[task.priority]?.color,
-            backgroundColor: `${PRIORITY_CONFIG[task.priority]?.color}12`,
-            borderColor: `${PRIORITY_CONFIG[task.priority]?.color}25`
-          }}
-        >
-          <PriorityIcon size={12} />
-          <span>{PRIORITY_CONFIG[task.priority]?.label}</span>
-        </Badge>
-        {task.due_date && !isNaN(new Date(task.due_date).getTime()) && (
-          <span className={`due-date ${isOverdue ? 'overdue-text' : ''}`}>
-            <Calendar size={14} />
-            {new Date(task.due_date).toLocaleDateString()}
-          </span>
+    <Card className={`assigned-task-card-elite obsidian-glass ${task.status} ${isOverdue ? 'overdue' : ''}`}>
+      <div className="task-glow-edge" style={{ backgroundColor: PRIORITY_CONFIG[task.priority]?.color }}></div>
+      <div className="card-top-elite">
+        <div className="priority-group">
+          <div className="p-dot" style={{ backgroundColor: PRIORITY_CONFIG[task.priority]?.color }}></div>
+          <span className="p-label">{task.priority}</span>
+        </div>
+        {task.due_date && (
+          <div className={`due-label ${isOverdue ? 'crit' : ''}`}>
+            <Clock size={12} />
+            <span>{new Date(task.due_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+          </div>
         )}
       </div>
       
-      <div className="assigned-task-content">
-        <h3>{task.title}</h3>
-        {task.description && <p className="task-description">{task.description}</p>}
+      <div className="card-content-elite">
+        <h3 onClick={onView}>{task.title}</h3>
+        {task.description && <p className="desc-text">{task.description}</p>}
+        {task.status !== 'completed' && (
+          <div className="card-progress-bar">
+            <div className="progress-bg">
+              <div 
+                className="progress-fill" 
+                style={{ width: task.status === 'in_progress' ? '45%' : '5%', backgroundColor: PRIORITY_CONFIG[task.priority]?.color }}
+              ></div>
+            </div>
+          </div>
+        )}
       </div>
       
-      <div className="card-footer">
-        <div className="task-meta-item">
-          <User size={14} />
-          <span>{task.assigned_to_name || 'Unassigned'}</span>
-        </div>
-        <div className="task-actions">
-          <div className="elite-select-wrapper">
-            <select 
-              value={task.status} 
-              onChange={(e) => onStatusUpdate(e.target.value)}
-              className="elite-select"
-            >
-              <option value="pending">Pending</option>
-              <option value="in_progress">In Progress</option>
-              <option value="completed">Completed</option>
-            </select>
-            <ChevronDown size={14} className="elite-select-chevron" />
+      <div className="card-footer-elite">
+        <div className="assignee-wrap">
+          <div className="avatar-placeholder">
+            {task.assigned_to_name?.charAt(0) || '?'}
           </div>
-          <Button variant="ghost" size="small" onClick={onView} className="details-btn">
-            Details
-          </Button>
+          <span className="name">{task.assigned_to_name || 'Unassigned'}</span>
+        </div>
+        <div className="status-toggle-elite">
+          <select 
+            value={task.status} 
+            onChange={(e) => onStatusUpdate(e.target.value)}
+          >
+            <option value="pending">Todo</option>
+            <option value="in_progress">Doing</option>
+            <option value="completed">Done</option>
+          </select>
+          <ChevronDown size={12} />
         </div>
       </div>
     </Card>
   );
 };
 
+// ── Kanban Implementation ──
+const KanbanColumn = ({ title, tasks, status, icon: Icon, color, onView, onStatusUpdate }) => (
+  <div className="kanban-column-elite">
+    <div className="column-header-elite">
+      <div className="header-left">
+        <div className="icon-box" style={{ backgroundColor: `${color}15`, color: color }}>
+          <Icon size={16} />
+        </div>
+        <h3>{title}</h3>
+        <span className="count-pill">{tasks.length}</span>
+      </div>
+      <button className="col-action"><MoreHorizontal size={16} /></button>
+    </div>
+    <div className="column-scroll-area">
+      <AnimatePresence mode="popLayout">
+        {tasks.map((task, idx) => (
+          <motion.div
+            key={task.id}
+            layout
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ type: 'spring', damping: 20, stiffness: 150 }}
+          >
+            <AssignedTaskCard 
+              task={task} 
+              onView={onView} 
+              onStatusUpdate={onStatusUpdate} 
+            />
+          </motion.div>
+        ))}
+      </AnimatePresence>
+      {tasks.length === 0 && (
+        <div className="column-empty-state">
+          <p>No {title.toLowerCase()} tasks</p>
+        </div>
+      )}
+    </div>
+  </div>
+);
+
 // ── Mobile Specific Components ──
 
 const MobileTaskCard = ({ task, type = 'today', onView, onStatusUpdate }) => {
   const isToday = type === 'today';
   const progress = task.status === 'completed' ? 100 : task.status === 'in_progress' ? 45 : 0;
+  const config = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.medium;
   
   return (
     <motion.div 
-      className={`mobile_task_card ${type}`}
-      whileTap={{ scale: 0.98 }}
+      className={`mobile-task-card-elite obsidian-glass ${type}`}
+      whileTap={{ scale: 0.96 }}
       onClick={onView}
     >
-      <div className="card_top_info">
-        <span className="task_time">{isToday ? '01:00-02:00 PM' : task.assigned_role || 'General'}</span>
-        <button className="more_btn" onClick={(e) => { e.stopPropagation(); }}><MoreHorizontal size={16} /></button>
+      <div className="task-glow-edge" style={{ backgroundColor: config.color }}></div>
+      <div className="card-top-m">
+        <span className="task-time">{isToday ? 'Live Sync' : task.assigned_role || 'General'}</span>
+        <div className="p-dot-m" style={{ backgroundColor: config.color }}></div>
       </div>
       
       <h3>{task.title}</h3>
       
-      <div className="card_footer_mobile">
-        <div className="meta_left">
-          {isToday ? (
-            <span className="duration_pill">1 hour</span>
-          ) : (
-            <div className="active_meta">
-              <span className={`priority_tag ${task.priority}`}>{task.priority}</span>
-              <span className="estimate_text">12 hours</span>
-            </div>
-          )}
+      <div className="card-footer-m">
+        <div className="meta-l">
+          <div className="status-pill-m" style={{ color: config.color, backgroundColor: `${config.color}15` }}>
+            {task.priority || 'Normal'}
+          </div>
         </div>
         
-        <div className="meta_right">
-          <div className="avatar_stack_mini">
-            <div className="avatar_s">JD</div>
-            <div className="avatar_s">AS</div>
-            <div className="avatar_s more">+3</div>
+        <div className="meta-r">
+          <div className="avatar-stack-m">
+             <div className="av-circle">{task.assigned_to_name?.charAt(0) || 'U'}</div>
+             {task.status === 'in_progress' && <div className="live-ring"></div>}
           </div>
         </div>
       </div>
       
-      {!isToday && (
-        <div className="active_task_progress">
-           <div className="progress_header">
-             <span className="subtasks_text">3 sub tasks</span>
-             <span className="percent_text">{progress}%</span>
-           </div>
-           <div className="progress_bar_container">
-             <div className="progress_bar_fill" style={{ width: `${progress}%` }}>
-                <div className="progress_knob"></div>
-             </div>
+      {!isToday && task.status !== 'completed' && (
+        <div className="task-progress-m">
+           <div className="track-bg">
+              <div 
+                className="track-fill" 
+                style={{ width: `${progress}%`, backgroundColor: config.color }}
+              ></div>
            </div>
         </div>
       )}
@@ -452,80 +491,84 @@ export const TaskBoard = () => {
   }
 
   return (
-    <div className="task-board">
-      {/* ── Header (Desktop) ── */}
-      <div className="page-header">
-        <div>
-          <h1>Task Board</h1>
-          <p>Manage daily operations and assigned responsibilities across your team.</p>
+    <motion.div 
+      className="task-board-elite"
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+    >
+      {/* ── Header Command Center ── */}
+      <motion.div className="task-header-hub" variants={itemVariants}>
+        <div className="header-main-group">
+          <div className="hub-heading">
+            <div className="icon-box">
+              <ClipboardList size={28} />
+            </div>
+            <div>
+              <h1>Workspace Commands</h1>
+              <p>Orchestrate team operations and daily focus</p>
+            </div>
+          </div>
+          <div className="header-stats-hub">
+            <div className="hub-metric">
+              <span className="lv">Efficiency</span>
+              <div className="vv-row">
+                <TrendingUp size={14} className="text-success" />
+                <span className="vv">{isAdmin ? adminStats.rate : Math.round((dailyCompletedCount / (myDailyTasks.length || 1)) * 100)}%</span>
+              </div>
+            </div>
+            <div className="hub-metric">
+              <span className="lv">Velocity</span>
+              <div className="vv-row">
+                <Activity size={14} className="text-accent" />
+                <span className="vv">{isAdmin ? adminStats.completed : dailyCompletedCount}</span>
+              </div>
+            </div>
+            <div className="hub-metric">
+              <span className="lv">Security</span>
+              <div className="vv-row">
+                <ShieldCheck size={14} className="text-primary" />
+                <span className="vv">Active</span>
+              </div>
+            </div>
+          </div>
         </div>
-        {isAdmin && (
-          <Button
-            variant="primary"
-            onClick={() => activeTab === 'daily' ? setIsCreateDailyOpen(true) : setIsCreateAssignedOpen(true)}
-          >
-            <Plus size={18} />
-            <span>{activeTab === 'daily' ? 'New Daily Task' : 'Assign Task'}</span>
-          </Button>
-        )}
-      </div>
 
-      {/* ... (rest of the desktop jsx remains the same) */}
-      <div className="task-tabs-container">
-        <div className="task-tabs">
-            <button
-              className={`task-tab ${activeTab === 'my-tasks' ? 'is-active' : ''}`}
+        <div className="header-action-row">
+          <div className="view-toggle-hub">
+            <button 
+              className={`toggle-btn ${activeTab === 'my-tasks' ? 'active' : ''}`}
               onClick={() => setActiveTab('my-tasks')}
             >
-              <User size={16} />
-              <span>My Tasks</span>
-              <span className="tab-count">{myPendingAssignedCount + myIncompleteDailyCount}</span>
+              <User size={16} /> <span>Focus</span>
             </button>
-            <button
-              className={`task-tab ${activeTab === 'daily' ? 'is-active' : ''}`}
+            <button 
+              className={`toggle-btn ${activeTab === 'daily' ? 'active' : ''}`}
               onClick={() => setActiveTab('daily')}
             >
-              <ListChecks size={16} />
-              <span>Daily Tasks</span>
-              <span className="tab-count">{isAdmin ? dailyTasks.length : myDailyTasks.length}</span>
+              <ListChecks size={16} /> <span>Daily</span>
             </button>
-            <button
-              className={`task-tab ${activeTab === 'assigned' ? 'is-active' : ''}`}
+            <button 
+              className={`toggle-btn ${activeTab === 'assigned' ? 'active' : ''}`}
               onClick={() => setActiveTab('assigned')}
             >
-              <Target size={16} />
-              <span>{isAdmin ? 'Team Tasks' : 'Assigned Tasks'}</span>
-              <span className="tab-count">{assignedTasks.length}</span>
+               {isAdmin ? <Kanban size={16} /> : <Target size={16} />} 
+               <span>{isAdmin ? 'Kanban' : 'Assigned'}</span>
             </button>
-        </div>
-      </div>
+          </div>
 
-      {/* ── Admin Metrics ── */}
-      {isAdmin && (activeTab === 'assigned' || activeTab === 'daily') && (
-        <motion.div 
-          className="admin-task-metrics"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-        >
-          <Card className="metric-card liquid-glass">
-            <span className="label">Total Tasks</span>
-            <span className="value">{adminStats.total}</span>
-          </Card>
-          <Card className="metric-card liquid-glass success">
-            <span className="label">Completed</span>
-            <span className="value">{adminStats.completed}</span>
-          </Card>
-          <Card className="metric-card liquid-glass warning">
-            <span className="label">Pending</span>
-            <span className="value">{adminStats.pending}</span>
-          </Card>
-          <Card className="metric-card liquid-glass info">
-            <span className="label">Completion Rate</span>
-            <span className="value">{adminStats.rate}%</span>
-          </Card>
-        </motion.div>
-      )}
+          {isAdmin && (
+            <button
+              className="hub-primary-btn"
+              onClick={() => activeTab === 'daily' ? setIsCreateDailyOpen(true) : setIsCreateAssignedOpen(true)}
+            >
+              <Plus size={18} />
+              <span>{activeTab === 'daily' ? 'Sync Daily' : 'Launch Task'}</span>
+            </button>
+          )}
+        </div>
+      </motion.div>
+
 
       {/* ── My Tasks Tab ── */}
       {activeTab === 'my-tasks' && (
@@ -580,62 +623,6 @@ export const TaskBoard = () => {
         </motion.div>
       )}
 
-      {/* ── Admin Filter Bar ── */}
-      {isAdmin && activeTab === 'assigned' && (
-        <motion.div 
-          className="admin-filter-bar liquid-glass"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <div className="filter-group">
-            <label>Assigned To</label>
-            <div className="elite-select-wrapper mini">
-              <select 
-                value={adminFilters.user} 
-                onChange={(e) => setAdminFilters(prev => ({ ...prev, user: e.target.value }))}
-                className="elite-select"
-              >
-                <option value="all">All Team Members</option>
-                {allUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-              </select>
-              <ChevronDown size={14} className="elite-select-chevron" />
-            </div>
-          </div>
-          <div className="filter-group">
-            <label>Status</label>
-            <div className="elite-select-wrapper mini">
-              <select 
-                value={adminFilters.status} 
-                onChange={(e) => setAdminFilters(prev => ({ ...prev, status: e.target.value }))}
-                className="elite-select"
-              >
-                <option value="all">All Statuses</option>
-                <option value="pending">Pending</option>
-                <option value="in_progress">In Progress</option>
-                <option value="completed">Completed</option>
-              </select>
-              <ChevronDown size={14} className="elite-select-chevron" />
-            </div>
-          </div>
-          <div className="filter-group">
-            <label>Priority</label>
-            <div className="elite-select-wrapper mini">
-              <select 
-                value={adminFilters.priority} 
-                onChange={(e) => setAdminFilters(prev => ({ ...prev, priority: e.target.value }))}
-                className="elite-select"
-              >
-                <option value="all">All Priorities</option>
-                <option value="urgent">Urgent</option>
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-              </select>
-              <ChevronDown size={14} className="elite-select-chevron" />
-            </div>
-          </div>
-        </motion.div>
-      )}
 
       {/* ── Daily Tasks Tab ── */}
       {activeTab === 'daily' && (
@@ -683,45 +670,63 @@ export const TaskBoard = () => {
         </motion.div>
       )}
 
-      {/* ── Assigned Tasks Tab ── */}
+      {/* ── Assigned / Kanban Tab ── */}
       {activeTab === 'assigned' && (
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
+          className="kanban-wrapper-elite"
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
         >
-          <div className="assigned-tasks-grid">
-            <AnimatePresence>
-              {filteredAssigned.map((task, idx) => (
-                <motion.div
-                  key={task.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.05 }}
-                >
-                  <AssignedTaskCard 
-                    task={task}
-                    onView={() => { setSelectedTask(task); setSelectedTaskType('assigned'); }}
-                    onStatusUpdate={(s) => updateAssignedTask(task.id, { status: s })}
-                  />
-                </motion.div>
-              ))}
-            </AnimatePresence>
-
-            {filteredAssigned.length === 0 && (
-              <Card className="empty-card liquid-glass">
-                <motion.div
-                  initial={{ scale: 0.9 }}
-                  animate={{ scale: 1.1 }}
-                  transition={{ repeat: Infinity, duration: 2, repeatType: 'reverse' }}
-                >
-                  <Target size={48} className="empty-icon text-accent" />
-                </motion.div>
-                <h3>No Tasks Found</h3>
-                <p>{isAdmin ? 'Assign a task to a team member to begin.' : 'No assigned tasks found for the current filters.'}</p>
-              </Card>
-            )}
-          </div>
+          {isAdmin ? (
+            <div className="kanban-board-elite">
+              <KanbanColumn 
+                title="Backlog" 
+                status="pending"
+                tasks={filteredAssigned.filter(t => t.status === 'pending')}
+                icon={ClipboardList}
+                color="var(--text-tertiary)"
+                onView={(t) => { setSelectedTask(t); setSelectedTaskType('assigned'); }}
+                onStatusUpdate={(id, s) => updateAssignedTask(id, { status: s })}
+              />
+              <KanbanColumn 
+                title="Active Execution" 
+                status="in_progress"
+                tasks={filteredAssigned.filter(t => t.status === 'in_progress')}
+                icon={Activity}
+                color="var(--accent)"
+                onView={(t) => { setSelectedTask(t); setSelectedTaskType('assigned'); }}
+                onStatusUpdate={(id, s) => updateAssignedTask(id, { status: s })}
+              />
+              <KanbanColumn 
+                title="Finalized" 
+                status="completed"
+                tasks={filteredAssigned.filter(t => t.status === 'completed')}
+                icon={CheckCircle2}
+                color="var(--color-success)"
+                onView={(t) => { setSelectedTask(t); setSelectedTaskType('assigned'); }}
+                onStatusUpdate={(id, s) => updateAssignedTask(id, { status: s })}
+              />
+            </div>
+          ) : (
+            <div className="assigned-tasks-grid-elite">
+              <AnimatePresence>
+                {filteredAssigned.map((task, idx) => (
+                  <motion.div
+                    key={task.id}
+                    layout
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                  >
+                    <AssignedTaskCard 
+                      task={task}
+                      onView={() => { setSelectedTask(task); setSelectedTaskType('assigned'); }}
+                      onStatusUpdate={(s) => updateAssignedTask(task.id, { status: s })}
+                    />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
         </motion.div>
       )}
 
@@ -749,6 +754,6 @@ export const TaskBoard = () => {
         isOpen={!!selectedOrderData}
         onClose={() => setSelectedOrderData(null)}
       />
-    </div>
+    </motion.div>
   );
 };

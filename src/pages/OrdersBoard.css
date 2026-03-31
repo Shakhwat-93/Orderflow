@@ -773,43 +773,52 @@
 }
 
 .management-table th {
-  padding: 12px 14px;
+  padding: 16px 14px;
   text-align: left;
-  font-size: 10px;
-  font-weight: 900;
+  font-size: 13px;
+  font-weight: 500;
   color: var(--text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
+  text-transform: capitalize;
+  letter-spacing: normal;
   white-space: nowrap;
-  border-bottom: 1px solid var(--glass-border);
-  background: rgba(var(--bg-surface-rgb), 0.85); /* Slightly less transparent */
-  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  background: var(--bg-surface);
   position: sticky;
   top: 0;
   z-index: 10;
 }
 
 [data-theme='dark'] .management-table th {
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--glass-border);
 }
 
 .management-table td {
-  padding: 12px 14px;
+  padding: 16px 14px;
   vertical-align: middle;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+[data-theme='dark'] .management-table td {
+  border-bottom: 1px solid var(--glass-border);
 }
 
 /* Specific Column Control */
 .checkbox-col, .checkbox-cell { width: 40px; }
 .id-col, .id-cell { width: 85px; }
-.date-col, .date-cell { width: 100px; }
-.amount-col, .amount-cell { width: 90px; }
-.payment-status-col, .payment-status-cell { width: 100px; }
+.date-col, .date-cell { width: 110px; }
+.amount-col, .amount-cell { width: 110px; }
+.payment-status-col, .payment-status-cell { width: 110px; }
+.shipping-col, .shipping-cell { width: 110px; }
+.items-col, .items-cell { width: 80px; }
 .status-col, .status-cell { width: 130px; }
-.actions-col, .actions-cell { width: 80px; text-align: right; }
-.customer-col, .customer-cell { width: auto; } /* This column will stretch to fill horizontal space */
+.phone-col, .phone-cell { width: 160px; }
+.sla-col, .sla-cell { width: 180px; }
+.actions-col, .actions-cell { width: 90px; text-align: right; }
+.customer-col, .customer-cell { width: auto; } /* This column will stretch */
 
 /* ===== CELL STYLES ===== */
 .order-id-cell {

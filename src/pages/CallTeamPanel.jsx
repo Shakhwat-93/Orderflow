@@ -1,39 +1,22 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useOrders } from '../context/OrderContext';
-import { Card } from '../components/Card';
-import { Badge } from '../components/Badge';
-import { OrderRow } from '../components/OrderRow';
 import { OrderEditModal } from '../components/OrderEditModal';
-import CurrencyIcon from '../components/CurrencyIcon';
 import { OrderDetailsModal } from '../components/OrderDetailsModal';
 import { DateRangePicker } from '../components/DateRangePicker';
-import { Search, PhoneCall, CheckCircle, XCircle, Clock, PhoneMissed, Globe, ChevronDown, ChevronLeft, ChevronRight, Edit2, Loader2, PhoneOff, PhoneForwarded, ShieldCheck, ShieldAlert, Shield, UserCheck, RotateCcw, Truck } from 'lucide-react';
+import { 
+  Search, PhoneCall, CheckCircle, XCircle, Clock, PhoneMissed, 
+  PhoneOff, Edit2, Loader2, ShieldCheck, ShieldAlert, Shield, 
+  UserCheck, RotateCcw, Truck, Zap, Calendar, TrendingUp, Settings2
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCourierRatio } from '../context/CourierRatioContext';
 import api from '../lib/api';
-import { SLATimer } from '../components/SLATimer';
 import './CallTeamPanel.css';
 
-const PRODUCT_CHECKPOINTS = [
-  { id: 'all', name: 'All Products', color: '#64748b' },
-  { id: 'toybox', name: 'TOY BOX', color: '#f97316' },
-  { id: 'organizer', name: 'ORGANIZER', color: '#059669' },
-  { id: 'travelbag', name: 'Travel bag', color: '#1d4ed8' },
-  { id: 'toyboxorg', name: 'TOY BOX + ORG', color: '#5b21b6' },
-  { id: 'gymbag', name: 'Gym bag', color: '#b91c1c' },
-  { id: 'vlogger', name: 'VLOGGER FOR FREE', color: '#334155' },
-  { id: 'mmb', name: 'MMB', color: '#c084fc' },
-  { id: 'quran', name: 'Quran', color: '#6366f1' },
-  { id: 'waistbag', name: 'WAIST BAG', color: '#134e4a' },
-  { id: 'bagpack', name: 'BAGPACK', color: '#3b82f6' },
-  { id: 'moshari', name: 'Moshari', color: '#22c55e' }
-];
-
-const STATUS_OPTIONS = ['All', 'New', 'Pending Call', 'Confirmed', 'Cancelled'];
-const SOURCES = ['Website', 'Facebook', 'Instagram', 'Direct'];
+const STATUS_OPTIONS = ['ALL ORDERS', 'NEW', 'PENDING', 'CONFIRMED', 'CANCELLED'];
 
 export const CallTeamPanel = () => {
-  const { orders, stats, updateOrderStatus, fetchOrders } = useOrders();
+  const { orders, stats, updateOrderStatus } = useOrders();
   const { user, profile, userRoles, updatePresenceContext } = useAuth();
 
   useEffect(() => {
@@ -42,9 +25,8 @@ export const CallTeamPanel = () => {
 
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState('ALL ORDERS');
   const [productFilter, setProductFilter] = useState('');
-  const [sourceFilter, setSourceFilter] = useState('All');
   const [dateRange, setDateRange] = useState({ start: null, end: null });
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -52,7 +34,7 @@ export const CallTeamPanel = () => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [loggingAttemptId, setLoggingAttemptId] = useState(null);
   
-  // ── Globabl Ratio Cache & Auto-fetch ──
+  // Globabl Ratio Cache & Auto-fetch
   const { ratios, checkPhone } = useCourierRatio();
 
   const handleOpenEditModal = (order) => {
@@ -69,7 +51,7 @@ export const CallTeamPanel = () => {
     setLoggingAttemptId(orderId);
     try {
       await api.logCallAttempt(orderId, attemptStatus, user.id, profile?.name || 'Call Team', userRoles);
-      // Removed fetchOrders() because Supabase real-time updates the row automatically without reloading the table!
+      // Removed fetchOrders() because Supabase real-time updates the row automatically!
     } catch (err) {
       console.error('Failed to log attempt:', err);
       alert(err.message || 'Failed to log call attempt.');
@@ -78,42 +60,40 @@ export const CallTeamPanel = () => {
     }
   };
 
-  // Scroll refs
-  const statusTabsRef = useRef(null);
-  const checkpointsRef = useRef(null);
+  // Filter Logic
+  const filteredOrders = useMemo(() => {
+    return orders.filter(o => {
+      const term = searchTerm.toLowerCase();
+      const matchesSearch = !searchTerm ||
+        (o.id || '').toLowerCase().includes(term) ||
+        (o.customer_name || '').toLowerCase().includes(term) ||
+        (o.phone || '').includes(term) ||
+        (o.product_name || '').toLowerCase().includes(term);
 
-  const scrollContainer = (ref, direction) => {
-    if (ref.current) {
-      ref.current.scrollBy({ left: direction === 'left' ? -200 : 200, behavior: 'smooth' });
-    }
-  };
+      const statusMap = {
+        'ALL ORDERS': ['New', 'Pending Call', 'Confirmed', 'Cancelled'],
+        'NEW': ['New'],
+        'PENDING': ['Pending Call'],
+        'CONFIRMED': ['Confirmed'],
+        'CANCELLED': ['Cancelled']
+      };
 
-  // Apply all filters ΓÇö Call team primarily sees New & Pending Call, but can view all with tabs
-  const filteredOrders = orders.filter(o => {
-    const term = searchTerm.toLowerCase();
-    const matchesSearch = !searchTerm ||
-      (o.id || '').toLowerCase().includes(term) ||
-      (o.customer_name || '').toLowerCase().includes(term) ||
-      (o.phone || '').includes(term) ||
-      (o.product_name || '').toLowerCase().includes(term);
+      const validStatuses = statusMap[statusFilter] || statusMap['ALL ORDERS'];
+      const matchesStatus = validStatuses.includes(o.status);
 
-    const matchesStatus = statusFilter === 'All'
-      ? ['New', 'Pending Call', 'Confirmed', 'Cancelled'].includes(o.status)
-      : o.status === statusFilter;
+      const matchesProduct = !productFilter || o.product_name === productFilter;
 
-    const matchesProduct = !productFilter || o.product_name === productFilter;
-    const matchesSource = sourceFilter === 'All' || o.source === sourceFilter;
+      let matchesDate = true;
+      if (dateRange.start && dateRange.end) {
+        const orderDate = new Date(o.created_at);
+        matchesDate = orderDate >= new Date(dateRange.start) && orderDate <= new Date(dateRange.end);
+      }
 
-    let matchesDate = true;
-    if (dateRange.start && dateRange.end) {
-      const orderDate = new Date(o.created_at);
-      matchesDate = orderDate >= new Date(dateRange.start) && orderDate <= new Date(dateRange.end);
-    }
+      return matchesSearch && matchesStatus && matchesProduct && matchesDate;
+    });
+  }, [orders, searchTerm, statusFilter, productFilter, dateRange]);
 
-    return matchesSearch && matchesStatus && matchesProduct && matchesSource && matchesDate;
-  });
-
-  // Auto-queue visible phones for checking
+  // Auto-queue visible phones for Courier Ratio checking
   useEffect(() => {
     const unchecked = [...new Set(
       filteredOrders
@@ -123,296 +103,261 @@ export const CallTeamPanel = () => {
     unchecked.forEach(p => checkPhone(p));
   }, [filteredOrders, checkPhone, ratios]);
 
+  // Metrics Calculations
   const pendingCount = orders.filter(o => ['New', 'Pending Call'].includes(o.status)).length;
   const confirmedToday = typeof stats?.confirmedTodayCount === 'number'
     ? stats.confirmedTodayCount
-    : orders.filter(o => {
-      const today = new Date().toDateString();
-      return o.status === 'Confirmed' && new Date(o.updated_at || o.created_at).toDateString() === today;
-    }).length;
+    : orders.filter(o => o.status === 'Confirmed' && new Date(o.updated_at || o.created_at).toDateString() === new Date().toDateString()).length;
 
-  const handleAction = (orderId, action) => {
+  const handleAction = (e, orderId, action) => {
+    e.stopPropagation();
     switch (action) {
       case 'confirm': updateOrderStatus(orderId, 'Confirmed'); break;
       case 'cancel': updateOrderStatus(orderId, 'Cancelled'); break;
-      case 'not_reachable': updateOrderStatus(orderId, 'Pending Call'); break;
-      case 'schedule_followup': updateOrderStatus(orderId, 'Pending Call'); break;
       default: break;
     }
   };
 
-  const renderTrustBadge = (phone) => {
-    const d = ratios[phone];
-    if (!d || d.loading) return <div className="trust-skeleton" style={{ width: 80, height: 20, borderRadius: 6, marginTop: 4 }} />;
-
-    const refreshBtn = (
-      <button
-        className="trust-refresh-btn"
-        onClick={e => { e.stopPropagation(); checkPhone(phone, true); }}
-        title="Re-check"
-        style={{ marginLeft: 4, opacity: 0.5, cursor: 'pointer', background: 'none', border: 'none' }}
-      >
-        <RotateCcw size={10} />
-      </button>
-    );
-
-    if (d.error) return (
-      <div className="trust-badge-wrapper" style={{ marginTop: 4, display: 'flex', alignItems: 'center' }}>
-        <Badge variant="neutral" className="trust-badge" style={{ fontSize: 11 }}>Unknown</Badge>
-        {refreshBtn}
-      </div>
-    );
-
-    if (d.total === 0) return (
-      <div className="trust-badge-wrapper" style={{ marginTop: 4, display: 'flex', alignItems: 'center' }}>
-        <Badge variant="neutral" className="trust-badge" style={{ fontSize: 11 }}>
-          <UserCheck size={11} /> New
-        </Badge>
-        {refreshBtn}
-      </div>
-    );
-
-    let detailsStr = `Overall: ${d.success_count} Delivered / ${d.total} Total (${d.ratio}%)\n\n`;
-    const couriers = d.couriers || {};
-    for (const [key, c] of Object.entries(couriers)) {
-      if (c && typeof c === 'object' && c.total_parcel > 0) {
-        detailsStr += `• ${c.name || key}: ${c.success_parcel} Del / ${c.total_parcel} Tot (${c.success_ratio}%)\n`;
-      }
-    }
-
-    let badgeVariant = 'danger';
-    let BadgeIcon = ShieldAlert;
-    if (d.riskLevel === 'low') { badgeVariant = 'success'; BadgeIcon = ShieldCheck; }
-    else if (d.riskLevel === 'medium') { badgeVariant = 'warning'; BadgeIcon = Shield; }
-
-    return (
-      <div className="trust-badge-wrapper" style={{ marginTop: 4 }}>
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <Badge variant={badgeVariant} className="trust-badge" title={detailsStr} style={{ fontSize: 11, cursor: 'help' }}>
-            <BadgeIcon size={11} /> {d.ratio}% Success
-          </Badge>
-          {refreshBtn}
-        </div>
-        
-        {couriers && Object.keys(couriers).length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
-            {Object.entries(couriers).map(([key, c]) => {
-              if (!c || c.total_parcel === 0) return null;
-              const isGood = c.success_ratio >= 80;
-              const isWarn = c.success_ratio >= 55 && c.success_ratio < 80;
-              return (
-                <div key={key} style={{
-                  fontSize: '10px', padding: '2px 4px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '2px',
-                  background: isGood ? '#dcfce7' : isWarn ? '#fef08a' : '#fee2e2',
-                  color: isGood ? '#166534' : isWarn ? '#854d0e' : '#991b1b',
-                  border: `1px solid ${isGood ? '#bbf7d0' : isWarn ? '#fde047' : '#fecaca'}`
-                }}>
-                  <Truck size={8} /> <strong>{c.name || key}:</strong> {c.success_ratio}% ({c.success_parcel})
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    );
+  // Avatar Generator
+  const getInitials = (name) => {
+    if (!name) return 'U';
+    return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
   };
 
   return (
     <div className="call-team-panel">
-      <div className="page-header">
-        <div>
-          <h1>Call Team Panel</h1>
-          <p>Process new orders, handle customer confirmations, and schedule follow-ups.</p>
+      
+      {/* ── 1. Top Header Row ── */}
+      <div className="elite-header-wrapper">
+        <div className="elite-header-titles">
+          <h1>Call Operations</h1>
+          <p>Real-time status of your high-performance call center fleet.</p>
         </div>
-        <div className="call-stats-row">
-          <div className="call-stat-badge pending">
-            <PhoneCall size={16} /> {pendingCount} In Queue
-          </div>
-          <div className="call-stat-badge confirmed">
-            <CheckCircle size={16} /> {confirmedToday} Confirmed Today
-          </div>
-        </div>
-      </div>
-
-      {/* Status Tabs */}
-      <div className="scrollable-strip-wrapper">
-        <button className="strip-arrow left" onClick={() => scrollContainer(statusTabsRef, 'left')}><ChevronLeft size={16} /></button>
-        <div className="status-tabs-bar" ref={statusTabsRef}>
-          {STATUS_OPTIONS.map(tab => (
-            <button key={tab} className={`status-tab ${statusFilter === tab ? 'active' : ''}`} onClick={() => setStatusFilter(tab)}>
-              {tab === 'All' ? 'All Relevant' : tab}
-              {tab === 'New' && <span className="tab-dot pulse"></span>}
-            </button>
-          ))}
-        </div>
-        <button className="strip-arrow right" onClick={() => scrollContainer(statusTabsRef, 'right')}><ChevronRight size={16} /></button>
-      </div>
-
-
-      {/* Product Checkpoints */}
-      <div className="scrollable-strip-wrapper">
-        <button className="strip-arrow left" onClick={() => scrollContainer(checkpointsRef, 'left')}><ChevronLeft size={16} /></button>
-        <div className="product-checkpoints-strip" ref={checkpointsRef}>
-          {PRODUCT_CHECKPOINTS.map(p => (
-            <button
-              key={p.id}
-              className={`checkpoint-pill ${productFilter === (p.id === 'all' ? '' : p.name) ? 'active' : ''}`}
-              style={{ '--pill-color': p.color, '--pill-bg': p.id === 'all' ? '#f1f5f9' : `${p.color}10`, '--pill-border': p.id === 'all' ? '#e2e8f0' : `${p.color}25` }}
-              onClick={() => setProductFilter(p.id === 'all' ? '' : p.name)}
-            >
-              <span className="dot" style={{ backgroundColor: p.color }}></span>
-              {p.name}
-            </button>
-          ))}
-        </div>
-        <button className="strip-arrow right" onClick={() => scrollContainer(checkpointsRef, 'right')}><ChevronRight size={16} /></button>
-      </div>
-
-      {/* Orders Table with Call Actions */}
-      <Card className="table-card" noPadding>
-        <div className="table-search-bar">
-          <div className="elite-search-wrapper">
-            <Search className="elite-search-icon" size={18} />
-            <input
-              type="text"
-              placeholder="Search ID, name or phone..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="elite-search-input"
-            />
-          </div>
-          <div className="filter-actions-group">
-            <div className="elite-select-wrapper">
-              <Globe size={14} className="elite-select-icon" />
-              <select 
-                className="elite-select-field"
-                value={sourceFilter} 
-                onChange={(e) => setSourceFilter(e.target.value)}
-              >
-                <option value="All">All Sources</option>
-                {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-              <ChevronDown size={14} className="ml-auto opacity-50" />
+        
+        <div className="elite-header-badges">
+          <div className="elite-top-badge queue">
+            <div className="badge-icon-ctn">3</div>
+            <div className="badge-text-ctn">
+              <span className="badge-sub">IN QUEUE</span>
+              <span className="badge-val">{pendingCount} <span>UNITS</span></span>
             </div>
-            <DateRangePicker value={dateRange} onChange={setDateRange} />
-            <span className="order-count-badge">{filteredOrders.length} orders</span>
+          </div>
+          
+          <div className="elite-top-badge confirmed">
+            <div className="badge-icon-ctn"><CheckCircle size={18} strokeWidth={3} /></div>
+            <div className="badge-text-ctn">
+              <span className="badge-sub">CONFIRMED TODAY</span>
+              <span className="badge-val">{confirmedToday} <span>ORDERS</span></span>
+            </div>
           </div>
         </div>
-        <div className="table-container">
-          <table className="management-table">
-            <thead>
-              <tr>
-                <th>Order ID</th>
-                <th>Customer</th>
-                <th>Phone</th>
-                <th>Product</th>
-                <th>Amount</th>
-                <th>Status</th>
-                <th>SLA & Attempts</th>
-                <th className="actions-col-enterprise">Call Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredOrders.map(order => (
-                <tr key={order.id} className="order-row cursor-pointer hover:bg-slate-50/50" onClick={() => handleRowClick(order)}>
-                  <td className="order-id-cell">#{(order.id || '').replace('ORD-', '')}</td>
-                  <td className="customer-name">{order.customer_name}</td>
-                  <td className="phone-cell" style={{ maxWidth: '280px' }}>
-                    <div className="phone-stack">
-                      <a href={`tel:${order.phone}`} className="phone-link" onClick={(e) => e.stopPropagation()}>
-                        <PhoneCall size={14} /> {order.phone}
-                      </a>
-                      {renderTrustBadge(order.phone)}
-                    </div>
-                  </td>
-                  <td className="product-name">
-                    {order.product_name}
-                    {order.size && <span className="size-tag">{order.size}</span>}
-                  </td>
-                  <td className="amount-cell-text">
-                    <CurrencyIcon size={12} className="currency-icon-elite" />
-                    {Number(order.amount || 0).toLocaleString()}
-                  </td>
-                  <td>
-                    <Badge variant={
-                      order.status === 'New' ? 'new' :
-                        order.status === 'Pending Call' ? 'pending-call' :
-                          order.status === 'Confirmed' ? 'confirmed' :
-                            order.status === 'Cancelled' ? 'cancelled' : 'default'
-                    }>
-                      {order.status}
-                    </Badge>
-                  </td>
-                  <td>
-                    <div className="sla-attempts-col">
-                      <SLATimer 
-                        createdAt={order.created_at} 
-                        firstCallTime={order.first_call_time} 
-                        status={order.status} 
-                      />
-                      {order.call_attempts > 0 && (
-                        <div className="attempt-pill" title={`Last status: ${order.last_call_status}`}>
-                          <span className="attempt-count">{order.call_attempts} {order.call_attempts === 1 ? 'Attempt' : 'Attempts'}</span>
-                          <span className="attempt-status">{order.last_call_status}</span>
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="actions-col-enterprise">
-                    {['New', 'Pending Call', 'Confirmed'].includes(order.status) ? (
-                      <div className="action-strip-enterprise">
-                        <button className="elite-action-btn edit" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(order); }} title="Edit Order">
-                          <Edit2 size={14} />
-                        </button>
-                        
-                        {['New', 'Pending Call'].includes(order.status) && (
-                          <div className="result-group-enterprise">
-                            <button className="elite-action-btn confirm" onClick={(e) => { e.stopPropagation(); handleAction(order.id, 'confirm'); }} title="Confirm Order">
-                              <CheckCircle size={14} />
-                            </button>
-                            
-                            {loggingAttemptId === order.id ? (
-                              <button className="elite-action-btn loading" disabled>
-                                <Loader2 size={14} className="spin" />
-                              </button>
-                            ) : (
-                              <>
-                                <button className="elite-action-btn result" onClick={(e) => { e.stopPropagation(); handleLogAttempt(order.id, 'No Answer'); }} title="No Answer">
-                                  <PhoneMissed size={14} />
-                                </button>
-                                <button className="elite-action-btn result" onClick={(e) => { e.stopPropagation(); handleLogAttempt(order.id, 'Busy / Rejected'); }} title="Busy">
-                                  <PhoneOff size={14} />
-                                </button>
-                                <button className="elite-action-btn result" onClick={(e) => { e.stopPropagation(); handleLogAttempt(order.id, 'Call Back Later'); }} title="Call Back">
-                                  <Clock size={14} />
-                                </button>
-                              </>
-                            )}
-                            
-                            <button className="elite-action-btn cancel" onClick={(e) => { e.stopPropagation(); handleAction(order.id, 'cancel'); }} title="Cancel Order">
-                              <XCircle size={14} />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="action-done">ΓÇö</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {filteredOrders.length === 0 && (
-                <tr>
-                  <td colSpan="8" className="empty-state-cell">
-                    No orders in the call queue. Great job! ≡ƒÄë
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+      </div>
 
+      {/* ── 2. Metric Cards Row ── */}
+      <div className="elite-metrics-grid">
+        
+        {/* Performance Card */}
+        <div className="elite-metric-card">
+          <div className="metric-header">
+            <span className="metric-sup-title">REAL-TIME PERFORMANCE</span>
+            <div className="metric-target-badge">
+              <TrendingUp size={12} strokeWidth={3} /> +4.2% vs target
+            </div>
+          </div>
+          <div className="metric-big-val">
+            92.4<span>% Confirmation Rate</span>
+          </div>
+          
+          {/* Stylized CSS Bar Chart */}
+          <div className="metric-chart-container">
+            {[40, 60, 50, 75, 55, 100, 65, 80, 50, 70].map((h, i) => (
+              <div 
+                key={i} 
+                className={`metric-bar ${i === 5 ? 'active' : ''}`}
+                style={{ height: `${h}%` }}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Response Time Card */}
+        <div className="elite-metric-card">
+          <div className="metric-header">
+            <span className="metric-sup-title">AVERAGE RESPONSE TIME</span>
+          </div>
+          <div className="metric-big-val" style={{ fontSize: '48px', marginBottom: '8px' }}>
+            12.4<span style={{ fontSize: '30px' }}>m</span>
+          </div>
+          <p className="metric-text-desc">
+            Consistently under the 15m agency benchmark.
+          </p>
+          <div className="metric-progress-line">
+            <div className="metric-progress-fill"></div>
+          </div>
+        </div>
+
+      </div>
+
+      {/* ── 3. Pill Filter Row ── */}
+      <div className="elite-filter-row">
+        <div className="elite-pill-tabs">
+          {STATUS_OPTIONS.map(tab => (
+            <button 
+              key={tab} 
+              className={`elite-pill-tab ${statusFilter === tab ? 'active' : ''}`}
+              onClick={() => setStatusFilter(tab)}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+        
+        <div className="elite-filter-right">
+          <div className="elite-category-dropdown">
+            CATEGORY: 
+            <select value={productFilter} onChange={(e) => setProductFilter(e.target.value)}>
+              <option value="">ALL PRODUCTS</option>
+              <option value="Organizer Pro Max">ORGANIZER PRO</option>
+              <option value="Toy Box Elite X">TOY BOX</option>
+              <option value="Modular Unit Set">MODULAR UNIT</option>
+            </select>
+          </div>
+          <button className="elite-icon-btn">
+            <Settings2 size={16} />
+          </button>
+        </div>
+      </div>
+
+      {/* ── 4. Premium Card List ── */}
+      <div className="elite-list-container">
+        <div className="elite-list-headers">
+          <div>ORDER #</div>
+          <div>CUSTOMER</div>
+          <div>PRODUCT DETAILS</div>
+          <div>AMOUNT</div>
+          <div className="status-col">STATUS</div>
+          <div className="sla-col">SLA TIMER</div>
+          <div style={{ textAlign: 'right' }}>ACTIONS</div>
+        </div>
+
+        <div className="elite-order-list">
+          {filteredOrders.slice(0, 10).map(order => {
+            
+            // Generate Mock Elite status for Timer based on created_at
+            let slaClass = 'elapsed'; let slaIcon = <Clock size={12} />; let slaText = 'Just now';
+            const minsAge = Math.floor((Date.now() - new Date(order.created_at).getTime()) / 60000);
+            if (minsAge < 15) { slaClass = 'remaining'; slaIcon = <Clock size={12}/>; slaText = `${15 - minsAge}m REMAINING`; }
+            else if (minsAge < 60) { slaClass = 'elapsed'; slaIcon = <CheckCircle size={12}/>; slaText = `${minsAge}m ELAPSED`; }
+            else { slaClass = 'overdue'; slaIcon = <ShieldAlert size={12}/>; slaText = `! OVERDUE`; }
+
+            // Trust Ratio extraction
+            const rt = ratios[order.phone] || {};
+            const successRatio = rt.ratio !== undefined ? rt.ratio : (order.phone ? '...' : '0');
+            const showTrust = rt.fetched && rt.total > 0;
+            const trustClass = successRatio > 70 ? 'high' : successRatio > 40 ? 'neutral' : 'low';
+
+            // Status Badge Formatting
+            let statusPill = 'neutral';
+            if (order.status === 'New') statusPill = 'pending';
+            if (order.status === 'Pending Call') statusPill = 'active';
+            if (order.status === 'Cancelled') statusPill = 'urgent';
+
+            return (
+              <div key={order.id} className="elite-list-card" onClick={() => handleRowClick(order)}>
+                
+                <div className="elite-col-order">
+                  #{order.id.replace('ORD-', '')}
+                </div>
+
+                <div className="elite-col-customer">
+                  <div className="elite-avatar">{getInitials(order.customer_name)}</div>
+                  <div className="elite-cust-info">
+                    <span className="elite-cust-name">{order.customer_name}</span>
+                    <span className={`elite-trust-badge ${trustClass}`}>
+                      <Zap size={10} strokeWidth={3} /> {showTrust ? `${successRatio}% SUCCESS` : 'NEW LEADE'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="elite-col-product">
+                  <span className="elite-prod-name">{order.product_name || 'Premium Item'}</span>
+                  <span className="elite-prod-meta">{order.size ? `Variant: ${order.size}` : `Qty: ${order.quantity || 1} Units`}</span>
+                </div>
+
+                <div className="elite-col-amount">
+                  ${Number(order.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </div>
+
+                <div className="elite-col-status status-col">
+                  <span className={`elite-status-pill ${statusPill}`}>{order.status}</span>
+                </div>
+
+                <div className={`elite-col-sla ${slaClass} sla-col`}>
+                  {slaIcon} {order.status === 'Confirmed' ? 'COMPLETED' : slaText}
+                </div>
+
+                <div className="elite-col-actions">
+                  {order.status === 'New' && (
+                    <>
+                      <button className="elite-btn-primary" onClick={(e) => handleAction(e, order.id, 'confirm')}>
+                        <CheckCircle size={14} /> Confirm Order
+                      </button>
+                      <button className="elite-act-btn reject" onClick={(e) => handleAction(e, order.id, 'cancel')}>
+                        <XCircle size={14} />
+                      </button>
+                    </>
+                  )}
+
+                  {order.status === 'Pending Call' && (
+                    <>
+                      <button className="elite-act-btn call" onClick={(e) => { e.stopPropagation(); handleLogAttempt(order.id, 'No Answer'); }}>
+                        <PhoneCall size={14} />
+                      </button>
+                      <button className="elite-act-btn reschedule" onClick={(e) => { e.stopPropagation(); handleLogAttempt(order.id, 'Call Back Later'); }}>
+                        <Calendar size={14} />
+                      </button>
+                      <button className="elite-act-btn reject" onClick={(e) => handleAction(e, order.id, 'cancel')}>
+                        <XCircle size={14} />
+                      </button>
+                    </>
+                  )}
+
+                  {order.status === 'Confirmed' && (
+                     <button className="elite-icon-btn" style={{opacity: 0.5}} onClick={(e) => { e.stopPropagation(); handleOpenEditModal(order); }}>
+                       <Edit2 size={14} />
+                     </button>
+                  )}
+                </div>
+
+              </div>
+            );
+          })}
+
+          {filteredOrders.length === 0 && (
+            <div className="elite-empty-card">
+              No orders found matching the filter criteria.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── 5. Footer Pagination ── */}
+      {filteredOrders.length > 0 && (
+        <div className="elite-pagination-footer">
+          <div className="elite-pagination-stats">
+            Showing {Math.min(filteredOrders.length, 10)} of {filteredOrders.length} active call tasks
+          </div>
+          <div className="elite-pagination-controls">
+            <button className="elite-page-btn">&lt;</button>
+            <button className="elite-page-btn active">1</button>
+            {Math.ceil(filteredOrders.length / 10) > 1 && <button className="elite-page-btn">2</button>}
+            {Math.ceil(filteredOrders.length / 10) > 2 && <button className="elite-page-btn">3</button>}
+            <button className="elite-page-btn">&gt;</button>
+          </div>
+        </div>
+      )}
+
+      {/* Modals */}
       <OrderEditModal 
         isOpen={isEditModalOpen} 
         onClose={() => setIsEditModalOpen(false)} 

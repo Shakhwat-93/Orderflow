@@ -1,4 +1,4 @@
-import { Bell, Search, User as UserIcon, LogOut, Settings, ChevronDown, Menu, Package, Info, AlertOctagon, Edit2, Truck, Trash2, Users, CreditCard, X } from 'lucide-react';
+import { Bell, Search, User as UserIcon, LogOut, Settings, ChevronDown, Menu, Package, Info, AlertOctagon, Edit2, Truck, Trash2, Users, CreditCard, X, Loader2, ChevronRight, Command } from 'lucide-react';
 import './Header.css';
 import './NotificationCenter.css';
 import { Badge } from './Badge';
@@ -7,7 +7,8 @@ import { useNotifications } from '../context/NotificationContext';
 import { Link, useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
 import { PresenceStack } from './PresenceStack';
-import { GlobalSearchModal } from './GlobalSearchModal';
+import { supabase } from '../lib/supabase';
+import CurrencyIcon from './CurrencyIcon';
 
 export const Header = ({ onMenuToggle, isSidebarOpen }) => {
   const { profile, userRoles, isAdmin, signOut } = useAuth();
@@ -25,7 +26,13 @@ export const Header = ({ onMenuToggle, isSidebarOpen }) => {
   const navigate = useNavigate();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  
+  // 🔍 Elite Search States
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState({ orders: [], users: [] });
+  const [isSearching, setIsSearching] = useState(false);
+  const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
+  
   const [activeTab, setActiveTab] = useState('Today');
 
   const filterNotifs = (allNotifs, tab) => {
@@ -46,6 +53,7 @@ export const Header = ({ onMenuToggle, isSidebarOpen }) => {
 
   const dropdownRef = useRef(null);
   const notifRef = useRef(null);
+  const searchRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -55,10 +63,87 @@ export const Header = ({ onMenuToggle, isSidebarOpen }) => {
       if (notifRef.current && !notifRef.current.contains(event.target)) {
         setIsNotifOpen(false);
       }
+      if (searchRef.current && !searchRef.current.contains(event.target)) {
+        setIsSearchDropdownOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // ⌨️ Keyboard Shortcuts (Ctrl+K to focus search)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        const searchInput = searchRef.current?.querySelector('input');
+        if (searchInput) {
+          searchInput.focus();
+          setIsSearchDropdownOpen(true);
+        }
+      }
+      if (e.key === 'Escape') {
+        setIsSearchDropdownOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // 🔎 Real-time Search Logic
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults({ orders: [], users: [] });
+      return;
+    }
+
+    const performSearch = async () => {
+      setIsSearching(true);
+      try {
+        const searchTerm = `%${searchQuery}%`;
+        
+        // Search Orders
+        const { data: orders } = await supabase
+          .from('orders')
+          .select('id, customer_name, phone, amount, status, product_name')
+          .or(`id.ilike.${searchTerm},customer_name.ilike.${searchTerm},phone.ilike.${searchTerm},product_name.ilike.${searchTerm}`)
+          .order('created_at', { ascending: false })
+          .limit(5);
+
+        // Search Users (if admin)
+        let users = [];
+        if (isAdmin) {
+          const { data: userData } = await supabase
+            .from('users')
+            .select('id, name, email')
+            .or(`name.ilike.${searchTerm},email.ilike.${searchTerm}`)
+            .limit(3);
+          users = userData || [];
+        }
+
+        setSearchResults({ orders: orders || [], users });
+      } catch (err) {
+        console.error('Search error:', err);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    const delay = setTimeout(performSearch, 300);
+    return () => clearTimeout(delay);
+  }, [searchQuery, isAdmin]);
+
+  const navigateToOrder = (order) => {
+    navigate(`/orders?viewOrder=${order.id}`);
+    setIsSearchDropdownOpen(false);
+    setSearchQuery('');
+  };
+
+  const navigateToUser = (user) => {
+    navigate(`/users?viewUser=${user.id}`);
+    setIsSearchDropdownOpen(false);
+    setSearchQuery('');
+  };
 
   const formatTime = (dateStr) => {
     const date = new Date(dateStr);
@@ -110,15 +195,78 @@ export const Header = ({ onMenuToggle, isSidebarOpen }) => {
         </button>
       )}
 
-      {/* Command Palette Trigger — Universal Search Hub */}
-      <div className="header-search desktop-only-flex" onClick={() => setIsSearchOpen(true)}>
+      {/* 🔍 Elite Inline Search Hub */}
+      <div className={`header-search desktop-only-flex ${isSearchDropdownOpen ? 'active' : ''}`} ref={searchRef}>
         <Search className="header-search-icon" size={18} />
         <input
           type="text"
-          placeholder="Search orders, customers (Ctrl+K)"
+          placeholder="Search everything... (Ctrl+K)"
           className="search-input"
-          readOnly
+          value={searchQuery}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setIsSearchDropdownOpen(true);
+          }}
+          onFocus={() => setIsSearchDropdownOpen(true)}
         />
+        {isSearching && <Loader2 className="search-spinner-inline" size={16} />}
+
+        {isSearchDropdownOpen && searchQuery.trim() && (
+          <div className="search-results-dropdown-elite">
+            {/* Orders Section */}
+            {searchResults.orders.length > 0 ? (
+              <div className="search-result-group-elite">
+                <div className="group-label-elite">
+                  <Package size={12} /> <span>Orders</span>
+                </div>
+                {searchResults.orders.map(order => (
+                  <div key={order.id} className="search-item-elite" onClick={() => navigateToOrder(order)}>
+                    <div className="item-icon-box-elite">
+                      <Package size={14} />
+                    </div>
+                    <div className="item-info-elite">
+                      <div className="item-title-elite">{order.customer_name} <span className="item-id-elite">#{order.id}</span></div>
+                      <div className="item-sub-elite">{order.product_name} • <CurrencyIcon size={10} />{order.amount}</div>
+                    </div>
+                    <ChevronRight className="item-arrow-elite" size={14} />
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {/* Users Section */}
+            {searchResults.users.length > 0 ? (
+              <div className="search-result-group-elite">
+                <div className="group-label-elite">
+                  <UsersIcon size={12} /> <span>Staff</span>
+                </div>
+                {searchResults.users.map(user => (
+                  <div key={user.id} className="search-item-elite" onClick={() => navigateToUser(user)}>
+                    <div className="item-icon-box-elite accent">
+                      <Users size={14} />
+                    </div>
+                    <div className="item-info-elite">
+                      <div className="item-title-elite">{user.name}</div>
+                      <div className="item-sub-elite">{user.email}</div>
+                    </div>
+                    <ChevronRight className="item-arrow-elite" size={14} />
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {!isSearching && searchResults.orders.length === 0 && searchResults.users.length === 0 && (
+              <div className="search-no-results-elite">
+                <Command size={24} strokeWidth={1} />
+                <p>No results found for "{searchQuery}"</p>
+              </div>
+            )}
+            
+            <div className="search-footer-elite">
+              <span>Press <kbd>Esc</kbd> to close</span>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="header-spacer" />
@@ -188,7 +336,10 @@ export const Header = ({ onMenuToggle, isSidebarOpen }) => {
 
       <div className="header-actions">
         {/* Unified Mobile Search Trigger */}
-        <button className="icon-badge-btn mobile-only" onClick={() => setIsSearchOpen(true)}>
+        <button className="icon-badge-btn mobile-only" onClick={() => {
+          const input = searchRef.current?.querySelector('input');
+          if (input) input.focus();
+        }}>
           <Search size={18} />
         </button>
 
@@ -279,18 +430,27 @@ export const Header = ({ onMenuToggle, isSidebarOpen }) => {
 
             {isDropdownOpen && (
               <div className="premium-dropdown">
+                {/* User Info Header */}
+                <div className="dropdown-user-header">
+                  <div className="dropdown-user-name">{profile?.name || 'User'}</div>
+                  <div className="dropdown-user-role">{primaryRole}</div>
+                </div>
                 <button className="dropdown-item" onClick={() => { navigate('/profile'); setIsDropdownOpen(false); }}>
-                  <UserIcon size={18} /> <span>Profile</span>
+                  <UserIcon size={17} /> <span>Profile</span>
                 </button>
                 <button className="dropdown-item" onClick={() => { navigate('/settings'); setIsDropdownOpen(false); }}>
-                  <Settings size={18} /> <span>Settings</span>
+                  <Settings size={17} /> <span>Settings</span>
+                  <div className="dropdown-last-used">
+                    <span className="dropdown-last-used-label">Last Used</span>
+                    <span>Just now</span>
+                  </div>
                 </button>
                 <div className="dropdown-divider-light" />
                 <button className="dropdown-item" onClick={() => { setIsDropdownOpen(false); }}>
-                  <Info size={18} /> <span>Help center</span>
+                  <Info size={17} /> <span>Help center</span>
                 </button>
                 <button className="dropdown-item logout" onClick={() => signOut()}>
-                  <LogOut size={18} /> <span>Sign out</span>
+                  <LogOut size={17} /> <span>Sign out</span>
                 </button>
               </div>
             )}
@@ -298,11 +458,6 @@ export const Header = ({ onMenuToggle, isSidebarOpen }) => {
         </div>
       </div>
 
-      {/* Global Command Palette */}
-      <GlobalSearchModal 
-        isOpen={isSearchOpen} 
-        onClose={() => setIsSearchOpen(false)} 
-      />
     </header>
   );
 };

@@ -1,46 +1,83 @@
-/* ===== LAYOUT — CoachPro Inspired ===== */
-.sidebar-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  z-index: 1000;
-  animation: overlayIn 0.3s var(--ease-out);
+/* ================================================================
+   DASHBOARD LAYOUT — App Shell
+   Desktop-First, No Overflow, Clean Architecture
+   ================================================================ */
+
+.app-container {
+  display: flex;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--bg-main);
+  /* NOTE: Do NOT set overflow-x:hidden here — it breaks position:sticky on the sidebar */
 }
 
+@media (min-width: 768px) {
+  .app-container {
+    padding: var(--sp-4);
+    gap: var(--sp-4);
+    align-items: flex-start;
+  }
+}
+
+/* Main Content Wrapper */
 .main-content {
-  flex: 1;
+  flex: 1 1 0%;
+  min-width: 0;           /* Critical: prevents flex child overflow */
+  overflow-x: clip;       /* Clip overflow here, not on parent */
   display: flex;
   flex-direction: column;
-  min-width: 0;
-  height: 100vh;
-  height: 100dvh;
 }
 
 @media (min-width: 768px) {
   .main-content {
-    height: calc(100vh - var(--sp-8));
-    height: calc(100dvh - var(--sp-8));
-    padding-left: var(--sp-2);
+    min-height: calc(100vh - var(--sp-8));
+    min-height: calc(100dvh - var(--sp-8));
   }
 }
 
+/* Inner Page Content Area */
+.page-content {
+  flex: 1;
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+@media (min-width: 768px) {
+  .page-content {
+    padding: var(--sp-2) var(--sp-4) var(--sp-8);
+  }
+}
+
+@media (min-width: 1280px) {
+  .page-content {
+    padding: var(--sp-4) var(--sp-6) var(--sp-8);
+  }
+}
+
+/* Inner scrollable content zone */
 .content-scrollable {
   flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
   padding: var(--sp-4);
-  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+  overflow-x: clip;
 }
 
 @media (min-width: 768px) {
   .content-scrollable {
-    padding: var(--sp-6) var(--sp-2);
+    padding: var(--sp-3) var(--sp-4) var(--sp-8);
   }
 }
 
-@keyframes overlayIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+@media (min-width: 1280px) {
+  .content-scrollable {
+    padding: var(--sp-4) var(--sp-6) var(--sp-10);
+  }
 }
+
