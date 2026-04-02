@@ -260,6 +260,49 @@
   letter-spacing: -0.01em;
 }
 
+@media (max-width: 767px) {
+  .notifications-panel-standard {
+    position: fixed;
+    top: calc(var(--safe-top) + 78px);
+    left: max(12px, var(--safe-left));
+    right: max(12px, var(--safe-right));
+    width: auto;
+    max-height: min(72vh, 640px);
+    border-radius: 24px;
+  }
+
+  .panel-header-standard {
+    padding: 18px 18px 12px;
+  }
+
+  .panel-header-standard h3 {
+    font-size: 1rem;
+  }
+
+  .notif-tabs-container {
+    margin: 0 18px 16px;
+  }
+
+  .notif-item-standard {
+    padding: 16px 18px;
+    gap: 14px;
+  }
+
+  .notif-item-standard:not(:last-child)::after {
+    left: 18px;
+    right: 18px;
+  }
+
+  .notif-item-standard.unread {
+    padding-left: 14px;
+  }
+
+  .notif-circular-icon {
+    width: 42px;
+    height: 42px;
+  }
+}
+
 .unread .notif-title-text {
   font-weight: 950;
   color: #000;

@@ -23,6 +23,7 @@
 .main-content {
   flex: 1 1 0%;
   min-width: 0;           /* Critical: prevents flex child overflow */
+  min-height: 0;
   overflow-x: clip;       /* Clip overflow here, not on parent */
   display: flex;
   flex-direction: column;
@@ -66,7 +67,26 @@
   flex-direction: column;
   gap: 0;
   min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
   overflow-x: clip;
+}
+
+@media (max-width: 767px) {
+  .app-container {
+    min-height: 100dvh;
+  }
+
+  .main-content {
+    min-height: 100dvh;
+  }
+
+  .content-scrollable {
+    padding: 14px;
+    padding-left: max(14px, var(--safe-left));
+    padding-right: max(14px, var(--safe-right));
+    padding-bottom: calc(18px + var(--safe-bottom));
+  }
 }
 
 @media (min-width: 768px) {
@@ -80,4 +100,3 @@
     padding: var(--sp-4) var(--sp-6) var(--sp-10);
   }
 }
-

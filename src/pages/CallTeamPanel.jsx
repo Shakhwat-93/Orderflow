@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { OrderEditModal } from '../components/OrderEditModal';
 import { OrderDetailsModal } from '../components/OrderDetailsModal';
@@ -11,28 +11,35 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useCourierRatio } from '../context/CourierRatioContext';
 import api from '../lib/api';
+import { deserializeDateRange, usePersistentState } from '../utils/persistentState';
+import { getProductOptions } from '../utils/productCatalog';
 import './CallTeamPanel.css';
 
 const STATUS_OPTIONS = ['ALL ORDERS', 'NEW', 'PENDING', 'CONFIRMED', 'CANCELLED'];
 
 export const CallTeamPanel = () => {
-  const { orders, stats, updateOrderStatus } = useOrders();
+  const { orders, stats, inventory, updateOrderStatus } = useOrders();
   const { user, profile, userRoles, updatePresenceContext } = useAuth();
+  const productOptions = getProductOptions(inventory);
 
   useEffect(() => {
     updatePresenceContext('Managing Calls');
   }, [updatePresenceContext]);
 
   // Filters
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL ORDERS');
-  const [productFilter, setProductFilter] = useState('');
-  const [dateRange, setDateRange] = useState({ start: null, end: null });
+  const [searchTerm, _setSearchTerm] = usePersistentState('panel:call-team:search', '');
+  const [statusFilter, setStatusFilter] = usePersistentState('panel:call-team:status', 'ALL ORDERS');
+  const [productFilter, setProductFilter] = usePersistentState('panel:call-team:product', '');
+  const [dateRange, _setDateRange] = usePersistentState(
+    'panel:call-team:dateRange',
+    { start: null, end: null },
+    { deserialize: deserializeDateRange }
+  );
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [loggingAttemptId, setLoggingAttemptId] = useState(null);
+  const [, setLoggingAttemptId] = useState(null);
   
   // Globabl Ratio Cache & Auto-fetch
   const { ratios, checkPhone } = useCourierRatio();
@@ -51,13 +58,24 @@ export const CallTeamPanel = () => {
     setLoggingAttemptId(orderId);
     try {
       await api.logCallAttempt(orderId, attemptStatus, user.id, profile?.name || 'Call Team', userRoles);
-      // Removed fetchOrders() because Supabase real-time updates the row automatically!
     } catch (err) {
       console.error('Failed to log attempt:', err);
       alert(err.message || 'Failed to log call attempt.');
     } finally {
       setLoggingAttemptId(null);
     }
+  };
+
+  // Relative Time Helper
+  const getTimeAgo = (date) => {
+    if (!date) return null;
+    const seconds = Math.floor((new Date() - new Date(date)) / 1000);
+    if (seconds < 60) return 'Just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return new Date(date).toLocaleDateString();
   };
 
   // Filter Logic
@@ -217,9 +235,9 @@ export const CallTeamPanel = () => {
             CATEGORY: 
             <select value={productFilter} onChange={(e) => setProductFilter(e.target.value)}>
               <option value="">ALL PRODUCTS</option>
-              <option value="Organizer Pro Max">ORGANIZER PRO</option>
-              <option value="Toy Box Elite X">TOY BOX</option>
-              <option value="Modular Unit Set">MODULAR UNIT</option>
+              {productOptions.map((product) => (
+                <option key={product} value={product}>{product.toUpperCase()}</option>
+              ))}
             </select>
           </div>
           <button className="elite-icon-btn">
@@ -273,9 +291,16 @@ export const CallTeamPanel = () => {
                   <div className="elite-avatar">{getInitials(order.customer_name)}</div>
                   <div className="elite-cust-info">
                     <span className="elite-cust-name">{order.customer_name}</span>
-                    <span className={`elite-trust-badge ${trustClass}`}>
-                      <Zap size={10} strokeWidth={3} /> {showTrust ? `${successRatio}% SUCCESS` : 'NEW LEADE'}
-                    </span>
+                    <div className="elite-cust-meta-row">
+                      <span className={`elite-trust-badge ${trustClass}`}>
+                        <Zap size={10} strokeWidth={3} /> {showTrust ? `${successRatio}% SUCCESS` : 'NEW LEAD'}
+                      </span>
+                      {order.last_call_at && (
+                        <span className="elite-last-call-tag">
+                          <PhoneCall size={10} /> {getTimeAgo(order.last_call_at)}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -310,13 +335,14 @@ export const CallTeamPanel = () => {
 
                   {order.status === 'Pending Call' && (
                     <>
-                      <button className="elite-act-btn call" onClick={(e) => { e.stopPropagation(); handleLogAttempt(order.id, 'No Answer'); }}>
+                      <button className="elite-act-btn call" title="Log No Answer" onClick={(e) => { e.stopPropagation(); handleLogAttempt(order.id, 'No Answer'); }}>
                         <PhoneCall size={14} />
+                        {order.call_attempts > 0 && <span className="btn-attempt-count">{order.call_attempts}</span>}
                       </button>
-                      <button className="elite-act-btn reschedule" onClick={(e) => { e.stopPropagation(); handleLogAttempt(order.id, 'Call Back Later'); }}>
+                      <button className="elite-act-btn reschedule" title="Log Call Back" onClick={(e) => { e.stopPropagation(); handleLogAttempt(order.id, 'Call Back Later'); }}>
                         <Calendar size={14} />
                       </button>
-                      <button className="elite-act-btn reject" onClick={(e) => handleAction(e, order.id, 'cancel')}>
+                      <button className="elite-act-btn reject" title="Cancel Order" onClick={(e) => handleAction(e, order.id, 'cancel')}>
                         <XCircle size={14} />
                       </button>
                     </>

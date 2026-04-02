@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useBranding } from '../hooks/useBranding';
 import { User, Lock, Loader2 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 import orderflowLogo from '../assets/orderflow-logo.png';
 import './Login.css';
 
@@ -55,6 +56,7 @@ export const Login = () => {
   const [loading, setLoading] = useState(false);
   
   const { signIn, user, loading: authLoading, userRoles } = useAuth();
+  const { appName } = useBranding();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -62,6 +64,10 @@ export const Login = () => {
       navigate(getRoleRoute(userRoles), { replace: true });
     }
   }, [user, authLoading, userRoles, navigate]);
+
+  useEffect(() => {
+    document.title = `${appName} | Login`;
+  }, [appName]);
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -78,49 +84,53 @@ export const Login = () => {
   if (loading && authLoading) {
     return (
       <div className="login-resolving">
-        <motion.div 
+        <Motion.div 
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           className="login-resolve-icon-neu"
         >
           <Loader2 size={40} className="login-resolve-spinner" />
-        </motion.div>
+        </Motion.div>
       </div>
     );
   }
 
   return (
     <div className="login-wrapper">
-      <motion.div 
+      <Motion.div 
         variants={containerVariants}
         initial="hidden"
         animate="visible"
         className="login-card"
       >
-        <motion.div variants={itemVariants} className="login-header">
-          <motion.div 
+        <Motion.div variants={itemVariants} className="login-header">
+          <Motion.div 
             whileHover={{ scale: 1.05 }}
             className="login-logo-container"
           >
-            <img src={orderflowLogo} alt="Orderflow Logo" className="login-logo-img" />
-          </motion.div>
-        </motion.div>
+            <img src={orderflowLogo} alt={`${appName} Logo`} className="login-logo-img" />
+          </Motion.div>
+          <div className="login-brand-copy">
+            <h1>{appName}</h1>
+            <p>Sign in to continue to your dashboard.</p>
+          </div>
+        </Motion.div>
         
         <form onSubmit={handleAuth} className="login-form">
           <AnimatePresence mode="wait">
             {error && (
-              <motion.div 
+              <Motion.div 
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 10 }}
                 className="login-error"
               >
                 {error}
-              </motion.div>
+              </Motion.div>
             )}
           </AnimatePresence>
           
-          <motion.div variants={itemVariants} className="neu-input-field">
+          <Motion.div variants={itemVariants} className="neu-input-field">
             <User size={20} />
             <input 
               type="email"
@@ -130,9 +140,9 @@ export const Login = () => {
               required
               autoComplete="email"
             />
-          </motion.div>
+          </Motion.div>
           
-          <motion.div variants={itemVariants} className="neu-input-field">
+          <Motion.div variants={itemVariants} className="neu-input-field">
             <Lock size={20} />
             <input 
               type="password"
@@ -142,9 +152,9 @@ export const Login = () => {
               required
               autoComplete="current-password"
             />
-          </motion.div>
+          </Motion.div>
           
-          <motion.button 
+          <Motion.button 
             variants={itemVariants}
             whileHover={{ scale: 1.01, translateY: -1 }}
             whileTap={{ scale: 0.98 }}
@@ -153,15 +163,15 @@ export const Login = () => {
             disabled={loading}
           >
             {loading ? 'Logging in...' : 'Login'}
-          </motion.button>
+          </Motion.button>
 
-          <motion.footer variants={itemVariants} className="login-footer">
+          <Motion.footer variants={itemVariants} className="login-footer">
             <span className="login-link">Forgot password?</span>
             <span>or</span>
             <span className="login-link-bold">Sign Up</span>
-          </motion.footer>
+          </Motion.footer>
         </form>
-      </motion.div>
+      </Motion.div>
     </div>
   );
 };

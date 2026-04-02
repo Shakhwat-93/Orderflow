@@ -30,6 +30,7 @@ export const NotificationProvider = ({ children }) => {
   const [isStartupUnreadModalOpen, setIsStartupUnreadModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const { user, isAdmin } = useAuth();
+  const userId = user?.id ?? null;
   const hasShownInitialUnreadToastsRef = useRef(false);
 
   const playNotificationSound = useCallback((type) => {
@@ -54,7 +55,7 @@ export const NotificationProvider = ({ children }) => {
       const existingSubscription = await registration.pushManager.getSubscription();
       if (existingSubscription) {
         // Sync with backend anyway to ensure it matches current user
-        await api.savePushSubscription(user.id, existingSubscription.toJSON());
+        await api.savePushSubscription(userId, existingSubscription.toJSON());
         return;
       }
 
@@ -66,23 +67,23 @@ export const NotificationProvider = ({ children }) => {
       const subscription = await registration.pushManager.subscribe(subscribeOptions);
       console.log('User is subscribed to Push:', subscription);
       
-      await api.savePushSubscription(user.id, subscription.toJSON());
+      await api.savePushSubscription(userId, subscription.toJSON());
     } catch (err) {
       console.error('Failed to subscribe user to push:', err);
     }
-  }, [user]);
+  }, [userId]);
 
   const requestNotificationPermission = useCallback(async () => {
     if (!('Notification' in window)) return;
     if (Notification.permission === 'default') {
       const permission = await Notification.requestPermission();
-      if (permission === 'granted' && user) {
+      if (permission === 'granted' && userId) {
         subscribeUserToPush();
       }
-    } else if (Notification.permission === 'granted' && user) {
+    } else if (Notification.permission === 'granted' && userId) {
       subscribeUserToPush();
     }
-  }, [user, subscribeUserToPush]);
+  }, [subscribeUserToPush, userId]);
 
   const showBrowserNotification = useCallback((notif) => {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
@@ -133,7 +134,7 @@ export const NotificationProvider = ({ children }) => {
   }, [playNotificationSound, showBrowserNotification]);
 
   const fetchNotifications = useCallback(async () => {
-    if (!user) return;
+    if (!userId) return;
     setLoading(true);
     try {
       let data = await api.getNotifications(50); // Fetch more for better filtering
@@ -144,7 +145,7 @@ export const NotificationProvider = ({ children }) => {
       // Filter by target_user_id if present (either direct column or in data JSON)
       data = data.filter(n => {
         const targetId = n.target_user_id || n.data?.targetUserId;
-        return !targetId || targetId === user?.id;
+        return !targetId || targetId === userId;
       });
 
       // Persistence Fallback: Filter by last cleared timestamp
@@ -179,10 +180,10 @@ export const NotificationProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [user, isAdmin, addToast, requestNotificationPermission]);
+  }, [addToast, requestNotificationPermission, userId]);
 
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
       setNotifications([]);
       setUnreadCount(0);
       setStartupUnreadNotifications([]);
@@ -202,7 +203,7 @@ export const NotificationProvider = ({ children }) => {
         
         // Filter out if it's targeted to someone else
         const targetId = notif.target_user_id || notif.data?.targetUserId;
-        if (targetId && targetId !== user?.id) return;
+        if (targetId && targetId !== userId) return;
 
         const clearedAt = localStorage.getItem('notifs_cleared_at');
         if (clearedAt && new Date(notif.created_at) <= new Date(clearedAt)) return;
@@ -218,7 +219,7 @@ export const NotificationProvider = ({ children }) => {
           const notif = payload.new;
           
           const targetId = notif.target_user_id || notif.data?.targetUserId;
-          if (targetId && targetId !== user?.id) return;
+          if (targetId && targetId !== userId) return;
 
           const clearedAt = localStorage.getItem('notifs_cleared_at');
           if (clearedAt && new Date(notif.created_at) <= new Date(clearedAt)) return;
@@ -254,7 +255,7 @@ export const NotificationProvider = ({ children }) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, isAdmin, fetchNotifications, addToast]);
+  }, [addToast, fetchNotifications, userId]);
 
   const markAsRead = async (id) => {
     try {

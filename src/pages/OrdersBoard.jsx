@@ -19,22 +19,7 @@ import BulkOrderCreator from '../components/BulkOrderCreator';
 import './OrdersBoard.css';
 import '../components/BulkActions.css';
 import api from '../lib/api';
-
-
-const PRODUCT_CHECKPOINTS = [
-  { id: 'all', name: 'All Products', color: '#64748b' },
-  { id: 'toybox', name: 'TOY BOX', color: '#f97316' }, // Orange
-  { id: 'organizer', name: 'ORGANIZER', color: '#059669' }, // Green
-  { id: 'travelbag', name: 'Travel bag', color: '#1d4ed8' }, // Blue
-  { id: 'toyboxorg', name: 'TOY BOX + ORG', color: '#5b21b6' }, // Purple
-  { id: 'gymbag', name: 'Gym bag', color: '#b91c1c' }, // Red
-  { id: 'vlogger', name: 'VLOGGER FOR FREE', color: '#334155' }, // Dark Slate
-  { id: 'mmb', name: 'MMB', color: '#c084fc' }, // Light Purple
-  { id: 'quran', name: 'Quran', color: '#6366f1' }, // Lime
-  { id: 'waistbag', name: 'WAIST BAG', color: '#134e4a' }, // Dark Teal
-  { id: 'bagpack', name: 'BAGPACK', color: '#3b82f6' }, // Bright Blue
-  { id: 'moshari', name: 'Moshari', color: '#22c55e' }  // Bright Green
-];
+import { getProductCheckpoints } from '../utils/productCatalog';
 
 const ORDER_STATUSES = [
   'New',
@@ -82,8 +67,9 @@ export const OrdersBoard = () => {
   const { 
     orders, loading, totalCount, page, setPage, setFilters, 
     fetchOrderLogs, fetchStats, stats, addOrder, deleteOrder, fraudFlags, automationFlags,
-    pageSize, filters, updateOrderStatus, autoDistributeOrders, toyBoxes
+    pageSize, filters, updateOrderStatus, autoDistributeOrders, toyBoxes, inventory
   } = useOrders();
+  const productCheckpoints = getProductCheckpoints(inventory);
 
   const [distributing, setDistributing] = useState(false);
   const [deepLinkOrder, setDeepLinkOrder] = useState(null);
@@ -544,7 +530,7 @@ export const OrdersBoard = () => {
           <ChevronLeft size={16} />
         </button>
         <div className="product-checkpoints-strip" ref={checkpointsRef}>
-          {PRODUCT_CHECKPOINTS.map((product) => (
+          {productCheckpoints.map((product) => (
             <button
               key={product.id}
               className={`checkpoint-pill ${filters.productName === (product.id === 'all' ? '' : product.name) ? 'active' : ''}`}

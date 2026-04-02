@@ -150,6 +150,35 @@
   gap: 1.5rem;
 }
 
+.branding-preview-item {
+  padding: 1rem 1.1rem;
+  border-radius: 18px;
+  background: rgba(99, 102, 241, 0.04);
+  border: 1px solid rgba(99, 102, 241, 0.08);
+}
+
+[data-theme='dark'] .branding-preview-item {
+  background: rgba(99, 102, 241, 0.08);
+  border-color: rgba(129, 140, 248, 0.12);
+}
+
+.branding-preview-badge {
+  padding: 0.85rem 1rem;
+  min-width: 180px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-align: center;
+  box-shadow: 0 10px 24px rgba(99, 102, 241, 0.24);
+}
+
+[data-theme='dark'] .branding-preview-badge {
+  box-shadow: 0 10px 24px rgba(79, 70, 229, 0.3);
+}
+
 .item-info h3 {
   font-size: 1rem;
   font-weight: 700;
@@ -494,6 +523,21 @@
 }
 
 @media (max-width: 768px) {
+  .settings-container {
+    padding: 1.25rem 1rem 3rem;
+  }
+
+  .settings-item,
+  .branding-preview-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .branding-preview-badge {
+    min-width: 0;
+    width: 100%;
+  }
+
   .modal-content {
     padding: 1.5rem;
     border-radius: 20px;

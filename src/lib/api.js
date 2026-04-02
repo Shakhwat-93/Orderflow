@@ -8,6 +8,16 @@ import { supabase } from './supabase';
 // --- Order Management ---
 
 export const api = {
+  isMissingColumnError(error, columnName = '') {
+    const message = String(error?.message || error?.details || error?.hint || '').toLowerCase();
+    if (!message) return false;
+    if (!columnName) {
+      return message.includes('column') && message.includes('does not exist');
+    }
+    const normalizedColumn = String(columnName).toLowerCase();
+    return message.includes(normalizedColumn) && message.includes('column') && message.includes('does not exist');
+  },
+
   async getOrderById(orderId) {
     const { data, error } = await supabase
       .from('orders')
@@ -331,16 +341,42 @@ ${rawText}`;
     return Number.isFinite(num) ? num : null;
   },
 
+  getToyBoxProductName(toyBox = {}) {
+    return String(toyBox?.product_name || 'TOY BOX').trim();
+  },
+
+  matchToyBoxInventory(productText = '', toyBoxes = []) {
+    const toyBoxNum = this.extractToyBoxNumber(productText);
+    if (toyBoxNum == null) return null;
+
+    const candidates = (toyBoxes || []).filter((b) => Number(b.toy_box_number) === toyBoxNum);
+    if (candidates.length === 0) return null;
+    if (candidates.length === 1) return { match: candidates[0], ambiguous: false };
+
+    const normalizedText = this.normalizeText(productText).replace(/\s+/g, '');
+    const explicitMatch = candidates.find((candidate) =>
+      normalizedText.includes(this.normalizeText(this.getToyBoxProductName(candidate)).replace(/\s+/g, ''))
+    );
+
+    if (explicitMatch) {
+      return { match: explicitMatch, ambiguous: false };
+    }
+
+    return { match: null, ambiguous: true, candidates };
+  },
+
   getUnmatchedReason(row, inventory = [], toyBoxes = []) {
     const normalized = this.normalizeText(row?.product || '');
     if (!normalized) return 'Could not detect a valid product name in this line.';
 
+    const toyBoxResult = this.matchToyBoxInventory(row?.product || '', toyBoxes || []);
+    if (toyBoxResult?.ambiguous) {
+      return `Serial #${this.extractToyBoxNumber(row?.product || '')} exists for multiple products. Mention the full product name.`;
+    }
+
     const toyBoxNum = this.extractToyBoxNumber(row?.product || '');
-    if (toyBoxNum != null) {
-      const foundToyBox = (toyBoxes || []).some((b) => Number(b.toy_box_number) === toyBoxNum);
-      if (!foundToyBox) {
+    if (toyBoxNum != null && !toyBoxResult?.match) {
         return `Toy Box #${toyBoxNum} was not found in toy box inventory.`;
-      }
     }
 
     const targetTokens = new Set(normalized.split(' ').filter(Boolean));
@@ -376,7 +412,7 @@ ${rawText}`;
 
     const { data: toyBoxes, error: toyErr } = await supabase
       .from('toy_box_inventory')
-      .select('id,toy_box_number,stock_quantity');
+      .select('id,toy_box_number,stock_quantity,product_name');
     if (toyErr) throw toyErr;
 
     const lines = invoiceText
@@ -417,20 +453,18 @@ ${rawText}`;
         return;
       }
 
-      const toyBoxNum = this.extractToyBoxNumber(row.product);
-      if (toyBoxNum != null) {
-        const toyBox = (toyBoxes || []).find((b) => Number(b.toy_box_number) === toyBoxNum);
-        if (toyBox) {
+      const toyBoxResult = this.matchToyBoxInventory(row.product, toyBoxes || []);
+      if (toyBoxResult?.match) {
+        const toyBox = toyBoxResult.match;
           matched.push({
             ...row,
             target_type: 'toy_box_inventory',
             target_id: toyBox.id,
             inventory_id: `toybox-${toyBox.id}`,
-            inventory_name: `Toy Box #${toyBox.toy_box_number}`,
+            inventory_name: `${this.getToyBoxProductName(toyBox)} #${toyBox.toy_box_number}`,
             current_stock: Number(toyBox.stock_quantity || 0)
           });
           return;
-        }
       }
 
       if (!matchedItem) {
@@ -500,11 +534,11 @@ ${rawText}`;
     for (const m of preview.matched) {
       const table = m.target_type === 'toy_box_inventory' ? 'toy_box_inventory' : 'inventory';
       const stockCol = table === 'toy_box_inventory' ? 'stock_quantity' : 'current_stock';
-      const nameCol = table === 'toy_box_inventory' ? 'toy_box_number' : 'name';
+      const nameCols = table === 'toy_box_inventory' ? 'toy_box_number,product_name' : 'name';
 
       const { data: latest, error: fetchErr } = await supabase
         .from(table)
-        .select(`id,${stockCol},${nameCol}`)
+        .select(`id,${stockCol},${nameCols}`)
         .eq('id', m.target_id)
         .single();
       if (fetchErr) throw fetchErr;
@@ -522,7 +556,9 @@ ${rawText}`;
 
       applied.push({
         id: m.target_id,
-        name: table === 'toy_box_inventory' ? `Toy Box #${latest?.[nameCol]}` : (latest?.[nameCol] || m.inventory_name),
+        name: table === 'toy_box_inventory'
+          ? `${this.getToyBoxProductName(latest)} #${latest?.toy_box_number}`
+          : (latest?.name || m.inventory_name),
         sourceTable: table,
         requestedChange: Number(m.quantity || 0),
         deducted: isAdd ? Number(m.quantity || 0) : before - after,
@@ -638,17 +674,36 @@ ${rawText}`;
       quantity: parseInt(orderData.quantity || 1),
       source: orderData.source,
       amount: parseFloat(orderData.amount) || 0,
-      status: 'New',
+      status: orderData.status || 'New',
       notes: orderData.notes,
       created_by: userId,
       ordered_items: orderData.ordered_items || []
     };
 
-    const { data, error } = await supabase
+    const optionalPayload = {
+      ...payload,
+      delivery_charge: Number(orderData.delivery_charge) || 0,
+      pricing_summary: orderData.pricing_summary || null,
+      order_lines_payload: orderData.order_lines_payload || orderData.ordered_items || []
+    };
+
+    let { data, error } = await supabase
       .from('orders')
-      .insert([payload])
+      .insert([optionalPayload])
       .select()
       .single();
+
+    if (error && (
+      this.isMissingColumnError(error, 'delivery_charge') ||
+      this.isMissingColumnError(error, 'pricing_summary') ||
+      this.isMissingColumnError(error, 'order_lines_payload')
+    )) {
+      ({ data, error } = await supabase
+        .from('orders')
+        .insert([payload])
+        .select()
+        .single());
+    }
 
     if (error) throw error;
 
@@ -702,12 +757,38 @@ ${rawText}`;
     // Get old data for better notification diff
     const { data: oldOrder } = await supabase.from('orders').select('*').eq('id', orderId).single();
 
-    const { data, error } = await supabase
+    const normalizedUpdates = {
+      ...updatedData
+    };
+
+    if (Object.prototype.hasOwnProperty.call(updatedData, 'delivery_charge')) {
+      normalizedUpdates.delivery_charge = Number(updatedData.delivery_charge) || 0;
+    }
+
+    let { data, error } = await supabase
       .from('orders')
-      .update(updatedData)
+      .update(normalizedUpdates)
       .eq('id', orderId)
       .select()
       .single();
+
+    if (error && (
+      this.isMissingColumnError(error, 'delivery_charge') ||
+      this.isMissingColumnError(error, 'pricing_summary') ||
+      this.isMissingColumnError(error, 'order_lines_payload')
+    )) {
+      const fallbackUpdates = { ...normalizedUpdates };
+      delete fallbackUpdates.delivery_charge;
+      delete fallbackUpdates.pricing_summary;
+      delete fallbackUpdates.order_lines_payload;
+
+      ({ data, error } = await supabase
+        .from('orders')
+        .update(fallbackUpdates)
+        .eq('id', orderId)
+        .select()
+        .single());
+    }
 
     if (error) throw error;
 
@@ -847,7 +928,8 @@ ${rawText}`;
       .update({
         call_attempts: newAttempts,
         last_call_status: status,
-        first_call_time: newFirstCallTime
+        first_call_time: newFirstCallTime,
+        last_call_at: new Date().toISOString()
       })
       .eq('id', orderId)
       .select()
@@ -1385,11 +1467,30 @@ ${rawText}`;
    * Create new product in inventory
    */
   async createInventoryItem(itemData) {
-    const { data, error } = await supabase
+    const payload = {
+      ...itemData,
+      unit_price: Number(itemData.unit_price) || 0,
+      current_stock: Number(itemData.current_stock) || 0,
+      min_stock_level: Number(itemData.min_stock_level) || 0,
+      supports_serial_tracking: Boolean(itemData.supports_serial_tracking)
+    };
+
+    let { data, error } = await supabase
       .from('inventory')
-      .insert([itemData])
+      .insert([payload])
       .select()
       .single();
+
+    if (error && this.isMissingColumnError(error, 'supports_serial_tracking')) {
+      const fallbackPayload = { ...payload };
+      delete fallbackPayload.supports_serial_tracking;
+      ({ data, error } = await supabase
+        .from('inventory')
+        .insert([fallbackPayload])
+        .select()
+        .single());
+    }
+
     if (error) throw error;
     return data;
   },
@@ -1398,12 +1499,41 @@ ${rawText}`;
    * Update product details
    */
   async updateInventoryItem(id, updates) {
-    const { data, error } = await supabase
+    const payload = {
+      ...updates
+    };
+
+    if (Object.prototype.hasOwnProperty.call(updates, 'unit_price')) {
+      payload.unit_price = Number(updates.unit_price) || 0;
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, 'current_stock')) {
+      payload.current_stock = Number(updates.current_stock) || 0;
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, 'min_stock_level')) {
+      payload.min_stock_level = Number(updates.min_stock_level) || 0;
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, 'supports_serial_tracking')) {
+      payload.supports_serial_tracking = Boolean(updates.supports_serial_tracking);
+    }
+
+    let { data, error } = await supabase
       .from('inventory')
-      .update(updates)
+      .update(payload)
       .eq('id', id)
       .select()
       .single();
+
+    if (error && this.isMissingColumnError(error, 'supports_serial_tracking')) {
+      const fallbackPayload = { ...payload };
+      delete fallbackPayload.supports_serial_tracking;
+      ({ data, error } = await supabase
+        .from('inventory')
+        .update(fallbackPayload)
+        .eq('id', id)
+        .select()
+        .single());
+    }
+
     if (error) throw error;
     return data;
   },
@@ -1588,6 +1718,38 @@ ${rawText}`;
   },
 
   /**
+   * Create one or more toy box serial inventory rows
+   */
+  async createToyBoxStocks(entries) {
+    const payload = (entries || []).map((entry) => ({
+      product_name: String(entry.product_name || 'TOY BOX').trim(),
+      toy_box_number: Number(entry.toy_box_number),
+      stock_quantity: Number(entry.stock_quantity) || 0,
+      updated_at: new Date().toISOString()
+    }));
+
+    let { data, error } = await supabase
+      .from('toy_box_inventory')
+      .insert(payload)
+      .select('*');
+
+    if (error && this.isMissingColumnError(error, 'product_name')) {
+      const fallbackPayload = payload.map((entry) => ({
+        toy_box_number: entry.toy_box_number,
+        stock_quantity: entry.stock_quantity,
+        updated_at: entry.updated_at
+      }));
+      ({ data, error } = await supabase
+        .from('toy_box_inventory')
+        .insert(fallbackPayload)
+        .select('*'));
+    }
+
+    if (error) throw error;
+    return data;
+  },
+
+  /**
    * Run the automatic distribution engine
    */
   async runAutoDistribution() {
@@ -1703,15 +1865,15 @@ ${rawText}`;
    * Get system configurations (e.g., courier settings)
    */
   async getSystemConfig(key) {
-    const { data, error } = await supabase
-      .from('system_configs')
-      .select('value')
-      .eq('key', key)
-      .single();
+      const { data, error } = await supabase
+        .from('system_configs')
+        .select('value')
+        .eq('key', key)
+        .maybeSingle();
 
-    if (error && error.code !== 'PGRST116') throw error;
-    return data?.value || null;
-  },
+      if (error && error.code !== 'PGRST116') throw error;
+      return data?.value || null;
+    },
 
   /**
    * Update system configurations

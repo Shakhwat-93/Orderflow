@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { Card } from '../components/Card';
 import { Input } from '../components/Input';
@@ -15,42 +15,9 @@ import {
 } from 'lucide-react';
 import { PremiumSearch } from '../components/PremiumSearch';
 import CurrencyIcon from '../components/CurrencyIcon';
-import api from '../lib/api';
+import { deserializeDateRange, usePersistentState } from '../utils/persistentState';
+import { getProductCheckpoints } from '../utils/productCatalog';
 import './ModeratorPanel.css';
-
-const PRODUCT_OPTIONS = [
-  'TOY BOX', 'ORGANIZER', 'Travel bag', 'TOY BOX + ORG', 'Gym bag',
-  'VLOGGER FOR FREE', 'MMB', 'Quran', 'WAIST BAG', 'BAGPACK', 'Moshari'
-];
-
-const PRODUCT_PRICES = {
-  'TOY BOX': 1250,
-  'ORGANIZER': 850,
-  'Travel bag': 950,
-  'TOY BOX + ORG': 2000,
-  'Gym bag': 750,
-  'VLOGGER FOR FREE': 650,
-  'MMB': 550,
-  'Quran': 1200,
-  'WAIST BAG': 450,
-  'BAGPACK': 1500,
-  'Moshari': 850
-};
-
-const PRODUCT_CHECKPOINTS = [
-  { id: 'all', name: 'All Products', color: '#64748b' },
-  { id: 'toybox', name: 'TOY BOX', color: '#f97316' },
-  { id: 'organizer', name: 'ORGANIZER', color: '#059669' },
-  { id: 'travelbag', name: 'Travel bag', color: '#1d4ed8' },
-  { id: 'toyboxorg', name: 'TOY BOX + ORG', color: '#5b21b6' },
-  { id: 'gymbag', name: 'Gym bag', color: '#b91c1c' },
-  { id: 'vlogger', name: 'VLOGGER FOR FREE', color: '#334155' },
-  { id: 'mmb', name: 'MMB', color: '#c084fc' },
-  { id: 'quran', name: 'Quran', color: '#6366f1' },
-  { id: 'waistbag', name: 'WAIST BAG', color: '#134e4a' },
-  { id: 'bagpack', name: 'BAGPACK', color: '#3b82f6' },
-  { id: 'moshari', name: 'Moshari', color: '#22c55e' }
-];
 
 const ORDER_STATUSES = [
   'New', 'Pending Call', 'Confirmed', 'Factory Queue', 'Courier Ready',
@@ -60,14 +27,19 @@ const ORDER_STATUSES = [
 const SOURCES = ['Website', 'Facebook', 'Instagram', 'Direct'];
 
 export const ModeratorPanel = () => {
-  const { orders, stats, addOrder, editOrder, deleteOrder, updateOrderStatus } = useOrders();
+  const { orders, stats, inventory, updateOrderStatus } = useOrders();
+  const productCheckpoints = getProductCheckpoints(inventory);
   
   // Filters
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
-  const [productFilter, setProductFilter] = useState('');
-  const [sourceFilter, setSourceFilter] = useState('All');
-  const [dateRange, setDateRange] = useState({ start: null, end: null });
+  const [searchTerm, setSearchTerm] = usePersistentState('panel:moderator:search', '');
+  const [statusFilter, setStatusFilter] = usePersistentState('panel:moderator:status', 'All');
+  const [productFilter, setProductFilter] = usePersistentState('panel:moderator:product', '');
+  const [sourceFilter, setSourceFilter] = usePersistentState('panel:moderator:source', 'All');
+  const [dateRange, setDateRange] = usePersistentState(
+    'panel:moderator:dateRange',
+    { start: null, end: null },
+    { deserialize: deserializeDateRange }
+  );
 
   // Scroll refs
   const statusTabsRef = useRef(null);
@@ -263,7 +235,7 @@ export const ModeratorPanel = () => {
       <div className="scrollable-strip-wrapper">
         <button className="strip-arrow left" onClick={() => scrollContainer(checkpointsRef, 'left')}><ChevronLeft size={16} /></button>
         <div className="product-checkpoints-strip" ref={checkpointsRef}>
-          {PRODUCT_CHECKPOINTS.map(p => (
+          {productCheckpoints.map(p => (
             <button
               key={p.id}
               className={`checkpoint-pill ${productFilter === (p.id === 'all' ? '' : p.name) ? 'active' : ''}`}

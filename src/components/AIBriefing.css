@@ -203,3 +203,61 @@
 }
 
 [data-theme='dark'] .briefing-abstract-shapes { opacity: 0.3; }
+
+@media (max-width: 767px) {
+  .ai-briefing-card {
+    padding: 22px 18px;
+    border-radius: 28px;
+    margin-bottom: 0;
+  }
+
+  .briefing-header {
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+
+  .ai-icon-pulse {
+    width: 46px;
+    height: 46px;
+    border-radius: 16px;
+  }
+
+  .briefing-subtitle {
+    font-size: 0.64rem;
+    letter-spacing: 0.22em;
+    margin-bottom: 4px;
+  }
+
+  .briefing-subtitle::after {
+    width: 28px;
+  }
+
+  .briefing-title h2 {
+    font-size: 1.18rem;
+    line-height: 1.2;
+  }
+
+  .briefing-content {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .narrative-text {
+    font-size: 0.96rem;
+    line-height: 1.65;
+  }
+
+  .briefing-actions {
+    gap: 10px;
+  }
+
+  .action-suggestion {
+    padding: 12px 14px;
+    border-radius: 16px;
+  }
+
+  .suggestion-text {
+    font-size: 0.87rem;
+    line-height: 1.45;
+  }
+}

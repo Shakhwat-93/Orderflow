@@ -4,13 +4,13 @@ import './NotificationCenter.css';
 import { Badge } from './Badge';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
 import { PresenceStack } from './PresenceStack';
 import { supabase } from '../lib/supabase';
 import CurrencyIcon from './CurrencyIcon';
 
-export const Header = ({ onMenuToggle, isSidebarOpen }) => {
+export const Header = ({ onMenuToggle }) => {
   const { profile, userRoles, isAdmin, signOut } = useAuth();
   const {
     notifications,
@@ -24,6 +24,7 @@ export const Header = ({ onMenuToggle, isSidebarOpen }) => {
     closeStartupUnreadModal
   } = useNotifications();
   const navigate = useNavigate();
+  const location = useLocation();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   
@@ -181,9 +182,10 @@ export const Header = ({ onMenuToggle, isSidebarOpen }) => {
   };
 
   const primaryRole = userRoles[0] || 'User';
+  const isOverviewPage = location.pathname === '/';
 
   return (
-    <header className="header">
+    <header className={`header ${isOverviewPage ? 'mobile-overview-header' : ''}`}>
       {/* Hamburger — mobile only */}
       {onMenuToggle && (
         <button
@@ -196,11 +198,11 @@ export const Header = ({ onMenuToggle, isSidebarOpen }) => {
       )}
 
       {/* 🔍 Elite Inline Search Hub */}
-      <div className={`header-search desktop-only-flex ${isSearchDropdownOpen ? 'active' : ''}`} ref={searchRef}>
+      <div className={`header-search ${isSearchDropdownOpen ? 'active' : ''}`} ref={searchRef}>
         <Search className="header-search-icon" size={18} />
         <input
           type="text"
-          placeholder="Search everything... (Ctrl+K)"
+          placeholder="Search everything..."
           className="search-input"
           value={searchQuery}
           onChange={(e) => {
@@ -209,6 +211,7 @@ export const Header = ({ onMenuToggle, isSidebarOpen }) => {
           }}
           onFocus={() => setIsSearchDropdownOpen(true)}
         />
+        <span className="search-shortcut desktop-only-flex">(Ctrl+K)</span>
         {isSearching && <Loader2 className="search-spinner-inline" size={16} />}
 
         {isSearchDropdownOpen && searchQuery.trim() && (
@@ -238,7 +241,7 @@ export const Header = ({ onMenuToggle, isSidebarOpen }) => {
             {searchResults.users.length > 0 ? (
               <div className="search-result-group-elite">
                 <div className="group-label-elite">
-                  <UsersIcon size={12} /> <span>Staff</span>
+                  <Users size={12} /> <span>Staff</span>
                 </div>
                 {searchResults.users.map(user => (
                   <div key={user.id} className="search-item-elite" onClick={() => navigateToUser(user)}>
@@ -335,14 +338,6 @@ export const Header = ({ onMenuToggle, isSidebarOpen }) => {
       )}
 
       <div className="header-actions">
-        {/* Unified Mobile Search Trigger */}
-        <button className="icon-badge-btn mobile-only" onClick={() => {
-          const input = searchRef.current?.querySelector('input');
-          if (input) input.focus();
-        }}>
-          <Search size={18} />
-        </button>
-
         <div className="notifications-dropdown-container" ref={notifRef}>
           <button className="icon-badge-btn" onClick={() => setIsNotifOpen(!isNotifOpen)}>
             <Bell size={20} />
@@ -435,6 +430,17 @@ export const Header = ({ onMenuToggle, isSidebarOpen }) => {
                   <div className="dropdown-user-name">{profile?.name || 'User'}</div>
                   <div className="dropdown-user-role">{primaryRole}</div>
                 </div>
+                {isOverviewPage && onMenuToggle && (
+                  <button
+                    className="dropdown-item mobile-overview-nav-trigger"
+                    onClick={() => {
+                      setIsDropdownOpen(false);
+                      onMenuToggle();
+                    }}
+                  >
+                    <Menu size={17} /> <span>Open Menu</span>
+                  </button>
+                )}
                 <button className="dropdown-item" onClick={() => { navigate('/profile'); setIsDropdownOpen(false); }}>
                   <UserIcon size={17} /> <span>Profile</span>
                 </button>

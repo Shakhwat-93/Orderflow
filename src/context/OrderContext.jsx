@@ -5,6 +5,7 @@ import { useAuth } from './AuthContext';
 import { fraudDetection } from '../utils/fraudDetection';
 import { automationRules } from '../utils/automationRules';
 import { fulfillmentVelocity } from '../utils/fulfillmentVelocity';
+import { getToyBoxStockKey } from '../utils/productCatalog';
 
 const OrderContext = createContext(null);
 
@@ -32,6 +33,7 @@ export const OrderProvider = ({ children }) => {
   const [velocityMetrics, setVelocityMetrics] = useState(null);
 
   const { user, profile, userRoles, isAdmin } = useAuth();
+  const userId = user?.id ?? null;
 
   // Track current values without causing re-renders  
   const pageRef = useRef(page);
@@ -55,7 +57,7 @@ export const OrderProvider = ({ children }) => {
   }, []);
 
   const fetchOrders = useCallback(async (overridePage) => {
-    if (!user) return;
+    if (!userId) return;
     const currentPage = overridePage ?? pageRef.current;
     const id = ++fetchIdRef.current;
     setLoading(true);
@@ -74,10 +76,10 @@ export const OrderProvider = ({ children }) => {
       console.error('Error fetching orders:', error);
     }
     if (id === fetchIdRef.current) setLoading(false);
-  }, [user, pageSize]);
+  }, [pageSize, userId]);
 
   const fetchStats = useCallback(async () => {
-    if (!user) return;
+    if (!userId) return;
     try {
       const data = await api.getDashboardStats();
       setStats(prev => {
@@ -88,31 +90,31 @@ export const OrderProvider = ({ children }) => {
     } catch (error) {
       console.error('Error fetching stats:', error);
     }
-  }, [user]);
+  }, [userId]);
 
   const fetchInventory = useCallback(async (invFilters = {}) => {
-    if (!user) return;
+    if (!userId) return;
     try {
       const data = await api.getInventory(invFilters);
       setInventory(data);
     } catch (error) {
       console.error('Error fetching inventory:', error);
     }
-  }, [user]);
+  }, [userId]);
 
   const fetchToyBoxes = useCallback(async () => {
-    if (!user) return;
+    if (!userId) return;
     try {
       const data = await api.getToyBoxInventory();
       setToyBoxes(data);
     } catch (error) {
       console.error('Error fetching Toy Box inventory:', error);
     }
-  }, [user]);
+  }, [userId]);
 
   // Combined initialization for smoother loading
   const initializeData = useCallback(async () => {
-    if (!user) return;
+    if (!userId) return;
     try {
       await Promise.all([
         fetchOrders(1),
@@ -123,11 +125,11 @@ export const OrderProvider = ({ children }) => {
     } finally {
       setIsInitialized(true);
     }
-  }, [user, fetchOrders, fetchStats, fetchInventory, fetchToyBoxes]);
+  }, [fetchOrders, fetchStats, fetchInventory, fetchToyBoxes, userId]);
 
   // Main effect — runs on mount + user change only
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
       setOrders([]);
       setIsInitialized(false);
       return;
@@ -173,7 +175,7 @@ export const OrderProvider = ({ children }) => {
       supabase.removeChannel(inventorySubscription);
       supabase.removeChannel(toyBoxSubscription);
     };
-  }, [user, initializeData]);
+  }, [initializeData, userId]);
 
   // Fraud & Automation Detection Effect
   useEffect(() => {
@@ -333,9 +335,26 @@ export const OrderProvider = ({ children }) => {
 
   const dispatchToCourier = async (orderId) => {
     try {
-      await api.dispatchToCourier(orderId);
-      // fetchOrders() can be called here if Realtime is too slow, 
-      // but the update in api.js + Supabase Realtime should handle it.
+      const result = await api.dispatchToCourier(orderId);
+      const consignmentId = result?.consignmentId || result?.details?.consignment?.consignment_id || result?.details?.id || null;
+      const trackingCode = result?.trackingCode || result?.details?.consignment?.tracking_code || result?.details?.tracking_code || null;
+      const courierStatus = result?.details?.consignment?.status || result?.details?.status || 'pending';
+
+      setOrders((prev) => prev.map((order) => (
+        order.id === orderId
+          ? {
+              ...order,
+              dispatched_at: new Date().toISOString(),
+              courier_name: 'Steadfast',
+              tracking_id: trackingCode || order.tracking_id || null,
+              courier_assigned_id: consignmentId ? String(consignmentId) : order.courier_assigned_id || null,
+              courier_status: courierStatus,
+              status: 'Courier Submitted'
+            }
+          : order
+      )));
+
+      return result;
     } catch (error) {
       console.error('Manual dispatch failed:', error);
       throw error;
@@ -416,6 +435,16 @@ export const OrderProvider = ({ children }) => {
     }
   };
 
+  const addToyBoxStocks = async (entries) => {
+    try {
+      await api.createToyBoxStocks(entries);
+      fetchToyBoxes();
+    } catch (error) {
+      console.error('Error adding toy box serials:', error);
+      throw error;
+    }
+  };
+
   /**
    * Auto Distribute: checks stock for Confirmed orders and moves stock-matched ones to Courier Ready.
    * Non-toybox orders pass through directly. Unmatched orders go to Factory Queue.
@@ -432,14 +461,21 @@ export const OrderProvider = ({ children }) => {
     // Get current toy box stock
     const { data: boxes } = await supabase
       .from('toy_box_inventory')
-      .select('toy_box_number, stock_quantity, id');
+      .select('toy_box_number, stock_quantity, id, product_name');
 
     const stockMap = {};
-    (boxes || []).forEach(b => { stockMap[b.toy_box_number] = { qty: b.stock_quantity, id: b.id }; });
+    (boxes || []).forEach((box) => {
+      stockMap[getToyBoxStockKey(box.product_name || 'TOY BOX', box.toy_box_number)] = {
+        qty: Number(box.stock_quantity) || 0,
+        id: box.id,
+        product_name: box.product_name || 'TOY BOX',
+        toy_box_number: box.toy_box_number
+      };
+    });
 
     let distributed = 0;
     let queued = 0;
-    const stockDeductions = {}; // { toyBoxNumber: totalDeducted }
+    const stockDeductions = {};
 
     // Fetch courier config once
     const courierConfig = await api.getSystemConfig('courier_steadfast');
@@ -483,19 +519,21 @@ export const OrderProvider = ({ children }) => {
           }
 
           if (boxNum != null) {
-            const available = (stockMap[boxNum]?.qty || 0) - (stockDeductions[boxNum] || 0);
+            const productName = typeof item === 'object' ? (item.name || order.product_name || 'TOY BOX') : 'TOY BOX';
+            const stockKey = getToyBoxStockKey(productName, boxNum);
+            const available = (stockMap[stockKey]?.qty || 0) - (stockDeductions[stockKey] || 0);
             if (available < (item.quantity || 1)) {
               allInStock = false;
               break;
             }
-            orderDeductions.push({ boxNum, qty: item.quantity || 1 });
+            orderDeductions.push({ stockKey, qty: item.quantity || 1 });
           }
         }
 
         if (allInStock && orderDeductions.length > 0) {
           // Reserve stock
           for (const ded of orderDeductions) {
-            stockDeductions[ded.boxNum] = (stockDeductions[ded.boxNum] || 0) + ded.qty;
+            stockDeductions[ded.stockKey] = (stockDeductions[ded.stockKey] || 0) + ded.qty;
           }
           targetStatus = 'Courier Ready';
           isMatched = true;
@@ -526,11 +564,15 @@ export const OrderProvider = ({ children }) => {
     }
 
     // Apply all stock deductions to toy_box_inventory
-    for (const [boxNum, deducted] of Object.entries(stockDeductions)) {
-      const num = Number(boxNum);
-      const current = stockMap[num]?.qty || 0;
+    for (const [stockKey, deducted] of Object.entries(stockDeductions)) {
+      const current = stockMap[stockKey]?.qty || 0;
       const newQty = Math.max(0, current - deducted);
-      await supabase.from('toy_box_inventory').update({ stock_quantity: newQty, updated_at: new Date().toISOString() }).eq('toy_box_number', num);
+      const stockRowId = stockMap[stockKey]?.id;
+      if (!stockRowId) continue;
+      await supabase
+        .from('toy_box_inventory')
+        .update({ stock_quantity: newQty, updated_at: new Date().toISOString() })
+        .eq('id', stockRowId);
     }
 
     // Refresh data
@@ -586,6 +628,7 @@ export const OrderProvider = ({ children }) => {
       toyBoxes,
       fetchToyBoxes,
       updateToyBoxStock,
+      addToyBoxStocks,
       autoDistributeOrders,
       previewInvoiceStockUpdate,
       applyInvoiceStockUpdate,

@@ -1,18 +1,33 @@
-import { useState, useEffect } from 'react';
+import { useState, useLayoutEffect, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
-import { Menu, X } from 'lucide-react';
 import './DashboardLayout.css';
 
 
 export const DashboardLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const location = useLocation();
+  const scrollRef = useRef(null);
+  const scrollKey = `route_scroll:${location.pathname}${location.search}`;
 
-  useEffect(() => {
-    setIsSidebarOpen(false);
-  }, [location]);
+  useLayoutEffect(() => {
+    const node = scrollRef.current;
+    if (!node) return;
+
+    const saved = sessionStorage.getItem(scrollKey);
+    node.scrollTop = saved ? Number(saved) || 0 : 0;
+
+    const handleScroll = () => {
+      sessionStorage.setItem(scrollKey, String(node.scrollTop));
+    };
+
+    node.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      handleScroll();
+      node.removeEventListener('scroll', handleScroll);
+    };
+  }, [scrollKey]);
 
   return (
     <div className="app-container">
@@ -31,7 +46,7 @@ export const DashboardLayout = () => {
           onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)} 
           isSidebarOpen={isSidebarOpen} 
         />
-        <main className="content-scrollable">
+        <main className="content-scrollable" ref={scrollRef}>
           <Outlet />
         </main>
       </div>

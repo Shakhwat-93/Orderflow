@@ -1,22 +1,29 @@
-/* ===== INPUT — Dark Premium ===== */
-.input-group { display: flex; flex-direction: column; gap: var(--sp-2); }
+/* ===== INPUT — Clean Minimalist ===== */
+.input-group { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 6px; 
+}
 
 .input-label {
-  font-size: var(--fs-small);
-  font-weight: 700;
-  color: var(--text-secondary);
-  margin-left: var(--sp-1);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #111827;
+}
+
+[data-theme='dark'] .input-label {
+  color: #e5e7eb;
 }
 
 .input-field {
-  height: var(--touch-min);
-  padding: 0 var(--sp-4);
-  background: rgba(0, 0, 0, 0.02);
-  border: 1px solid rgba(0, 0, 0, 0.05);
-  border-radius: var(--radius-md);
-  font-size: var(--fs-body);
-  color: var(--text-primary);
-  transition: all var(--transition-fast);
+  height: 44px; /* Slightly taller for premium feel */
+  padding: 0 16px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.95rem; /* Closer to 15px */
+  color: #111827;
+  transition: all 0.2s ease;
   outline: none;
   font-family: inherit;
   width: 100%;
@@ -24,14 +31,44 @@
   appearance: none;
 }
 
-.textarea-field { height: auto; min-height: 100px; padding: var(--sp-3) var(--sp-4); resize: vertical; }
-
-.input-field:focus {
-  background: rgba(0, 0, 0, 0.04);
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.1), 0 0 16px rgba(var(--accent-rgb), 0.06);
+[data-theme='dark'] .input-field {
+  background: #1f2937;
+  border-color: #374151;
+  color: #f9fafb;
 }
 
-.input-field::placeholder { color: var(--text-tertiary); }
+.textarea-field { 
+  height: auto; 
+  min-height: 100px; 
+  padding: 12px 16px; 
+  resize: vertical; 
+}
 
-.input-helper { font-size: var(--fs-xs); color: var(--text-tertiary); margin-left: var(--sp-1); }
+.input-field:focus {
+  border-color: #6366f1; /* Premium indigo outline */
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+}
+
+[data-theme='dark'] .input-field:focus {
+  border-color: #818cf8;
+  box-shadow: 0 0 0 4px rgba(129, 140, 248, 0.15);
+}
+
+.input-field::placeholder { 
+  color: #9ca3af; 
+}
+
+/* Helper Text */
+.input-helper { 
+  font-size: 0.75rem; 
+  color: #6b7280; 
+  margin-top: 2px;
+}
+
+[data-theme='dark'] .input-helper { color: #9ca3af; }
+
+.text-danger {
+  color: #ef4444;
+}
+
+[data-theme='dark'] .text-danger { color: #f87171; }

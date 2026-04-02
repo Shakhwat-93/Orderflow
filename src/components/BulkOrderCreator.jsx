@@ -7,35 +7,29 @@ import {
   AlertTriangle, Eye, EyeOff
 } from 'lucide-react';
 import api from '../lib/api';
-import { useAuth } from '../context/AuthContext';
 import { useOrders } from '../context/OrderContext';
 import CurrencyIcon from './CurrencyIcon';
+import { buildProductCatalog, createProductLine, filterToyBoxesByProduct, findBestProductMatch, findProductRecordByName } from '../utils/productCatalog';
 import './BulkOrderCreator.css';
 
 // ─── Constants ───────────────────────────────────────────────────────
-const PRODUCT_OPTIONS = [
-  'TOY BOX', 'ORGANIZER', 'Travel bag', 'TOY BOX + ORG', 'Gym bag',
-  'VLOGGER FOR FREE', 'MMB', 'Quran', 'WAIST BAG', 'BAGPACK', 'Moshari'
-];
-
-const PRODUCT_PRICES = {
-  'TOY BOX': 1250, 'ORGANIZER': 850, 'Travel bag': 950, 'TOY BOX + ORG': 2000,
-  'Gym bag': 750, 'VLOGGER FOR FREE': 650, 'MMB': 550, 'Quran': 1200,
-  'WAIST BAG': 450, 'BAGPACK': 1500, 'Moshari': 850
-};
-
-const PRODUCT_COLORS = {
-  'TOY BOX': '#f97316', 'ORGANIZER': '#059669', 'Travel bag': '#1d4ed8',
-  'TOY BOX + ORG': '#5b21b6', 'Gym bag': '#b91c1c', 'VLOGGER FOR FREE': '#334155',
-  'MMB': '#a855f7', 'Quran': '#6366f1', 'WAIST BAG': '#0d9488',
-  'BAGPACK': '#3b82f6', 'Moshari': '#22c55e'
-};
+const DEFAULT_PRODUCT_CATALOG = buildProductCatalog();
+const PRODUCT_OPTIONS = DEFAULT_PRODUCT_CATALOG.map((item) => item.name);
+const PRODUCT_PRICES = DEFAULT_PRODUCT_CATALOG.reduce((acc, item) => {
+  acc[item.name] = item.unit_price;
+  return acc;
+}, {});
+const PRODUCT_COLORS = DEFAULT_PRODUCT_CATALOG.reduce((acc, item) => {
+  acc[item.name] = item.color;
+  return acc;
+}, {});
 
 const SOURCES = ['Website', 'Facebook', 'Instagram', 'Direct'];
 const SHIPPING_ZONES = [
   { value: 'Inside Dhaka', charge: 80 },
   { value: 'Outside Dhaka', charge: 150 }
 ];
+const getDeliveryChargeForZone = (zone) => SHIPPING_ZONES.find((item) => item.value === zone)?.charge || 150;
 
 // ─── CSV Parser ──────────────────────────────────────────────────────
 // Columns: NAME | ADDRESS | Phone | Toyboxcode | source | QTY(TOY) | ORG QTY | MMB BAG | OTHER | toy box amount | ORG Amount | MMB Amount | OTHER Amount | DELIVERY CHARGE | Total
@@ -137,6 +131,7 @@ const parseCSV = (text) => {
         quantity: toyQty,
         size: toyboxCode || '',
         price: toyQty > 0 ? Math.round(toyAmt / toyQty) || PRODUCT_PRICES['TOY BOX'] : PRODUCT_PRICES['TOY BOX'],
+        isToyBox: true,
         toyBoxNumber: null
       });
     }
@@ -146,6 +141,7 @@ const parseCSV = (text) => {
         quantity: orgQty,
         size: '',
         price: orgQty > 0 ? Math.round(orgAmt / orgQty) || PRODUCT_PRICES['ORGANIZER'] : PRODUCT_PRICES['ORGANIZER'],
+        isToyBox: false,
         toyBoxNumber: null
       });
     }
@@ -155,6 +151,7 @@ const parseCSV = (text) => {
         quantity: mmbQty,
         size: '',
         price: mmbQty > 0 ? Math.round(mmbAmt / mmbQty) || PRODUCT_PRICES['MMB'] : PRODUCT_PRICES['MMB'],
+        isToyBox: false,
         toyBoxNumber: null
       });
     }
@@ -164,12 +161,13 @@ const parseCSV = (text) => {
         quantity: othQty,
         size: '',
         price: othQty > 0 ? Math.round(othAmt / othQty) || 0 : 0,
+        isToyBox: false,
         toyBoxNumber: null
       });
     }
     // Fallback if no product qty detected
     if (products.length === 0) {
-      products.push({ name: 'TOY BOX', quantity: 1, size: '', price: PRODUCT_PRICES['TOY BOX'], toyBoxNumber: null });
+      products.push(createProductLine([], 'TOY BOX'));
     }
 
     const row = {
@@ -178,6 +176,7 @@ const parseCSV = (text) => {
       phone,
       address,
       shipping_zone: zone,
+      delivery_charge: deliveryCharge > 0 ? deliveryCharge : getDeliveryChargeForZone(zone),
       source: SOURCES.includes(source) ? source : 'Website',
       products,
       notes: toyboxCode && !products[0].size ? `Toybox Code: ${toyboxCode}` : '',
@@ -322,9 +321,10 @@ const createEmptyRow = () => ({
   phone: '',
   address: '',
   shipping_zone: 'Outside Dhaka',
+  delivery_charge: 150,
   source: 'Website',
   notes: '',
-  products: [{ name: 'TOY BOX', quantity: 1, size: '', price: 1250, toyBoxNumber: null }],
+  products: [createProductLine([], 'TOY BOX')],
   aiText: '',
   isExtracting: false,
   isExpanded: true,
@@ -349,8 +349,7 @@ const validateRow = (row) => {
 
 const calcRowTotal = (row) => {
   const subtotal = row.products.reduce((s, p) => s + (p.price || 0) * (p.quantity || 1), 0);
-  const zone = SHIPPING_ZONES.find(z => z.value === row.shipping_zone) || SHIPPING_ZONES[1];
-  return subtotal + zone.charge;
+  return subtotal + (Number(row.delivery_charge) || 0);
 };
 
 // ─── Sub-components ───────────────────────────────────────────────────
@@ -380,7 +379,7 @@ const RowStatusBadge = ({ status, errorMsg }) => {
 // ─── Individual Order Row ─────────────────────────────────────────────
 const OrderRowEditor = React.memo(({
   row, index, onChange, onRemove, onDuplicate, onAIExtract,
-  disabled, toyBoxInventory
+  disabled, toyBoxInventory, productOptions, productColorMap, inventory
 }) => {
   const [validationErrors, setValidationErrors] = useState({});
   const aiRef = useRef(null);
@@ -389,21 +388,37 @@ const OrderRowEditor = React.memo(({
     onChange(row.id, { [field]: value });
   }, [row.id, onChange]);
 
+  const handleShippingZoneChange = useCallback((zone) => {
+    const currentDefault = getDeliveryChargeForZone(row.shipping_zone);
+    const shouldSyncCharge = Number(row.delivery_charge) === currentDefault || row.delivery_charge === '' || row.delivery_charge == null;
+    onChange(row.id, {
+      shipping_zone: zone,
+      delivery_charge: shouldSyncCharge ? getDeliveryChargeForZone(zone) : row.delivery_charge
+    });
+  }, [onChange, row.delivery_charge, row.id, row.shipping_zone]);
+
   const handleProductChange = useCallback((pIdx, updates) => {
     const newProducts = row.products.map((p, i) => {
       if (i !== pIdx) return p;
       const merged = { ...p, ...updates };
-      if (updates.name) merged.price = PRODUCT_PRICES[updates.name] || 0;
+      if (updates.name) {
+        const matchedProduct = findProductRecordByName(inventory, updates.name);
+        merged.price = matchedProduct?.unit_price || 0;
+        merged.isToyBox = matchedProduct?.isToyBox || false;
+        if (!(matchedProduct?.isToyBox)) {
+          merged.toyBoxNumber = null;
+        }
+      }
       return merged;
     });
     onChange(row.id, { products: newProducts });
-  }, [row.id, row.products, onChange]);
+  }, [inventory, onChange, row.id, row.products]);
 
   const addProduct = useCallback(() => {
     onChange(row.id, {
-      products: [...row.products, { name: 'TOY BOX', quantity: 1, size: '', price: 1250, toyBoxNumber: null }]
+      products: [...row.products, createProductLine(inventory, 'TOY BOX')]
     });
-  }, [row.id, row.products, onChange]);
+  }, [inventory, onChange, row.id, row.products]);
 
   const removeProduct = useCallback((pIdx) => {
     if (row.products.length <= 1) return;
@@ -498,6 +513,19 @@ const OrderRowEditor = React.memo(({
                   )}
                 </button>
               </div>
+              <div className="boc-field-wrap">
+                <label className="boc-label">
+                  <CurrencyIcon size={11} /> Delivery Charge
+                </label>
+                <input
+                  className="boc-input"
+                  type="number"
+                  min="0"
+                  value={row.delivery_charge ?? 0}
+                  onChange={e => handleFieldChange('delivery_charge', Math.max(0, parseFloat(e.target.value) || 0))}
+                  disabled={isLocked || disabled}
+                />
+              </div>
             </div>
           )}
 
@@ -577,7 +605,7 @@ const OrderRowEditor = React.memo(({
                 <select
                   className="boc-input boc-select"
                   value={row.shipping_zone}
-                  onChange={e => handleFieldChange('shipping_zone', e.target.value)}
+                  onChange={e => handleShippingZoneChange(e.target.value)}
                   disabled={isLocked || disabled}
                 >
                   {SHIPPING_ZONES.map(z => (
@@ -599,7 +627,7 @@ const OrderRowEditor = React.memo(({
             <div className="boc-products-list">
               {row.products.map((product, pIdx) => (
                 <div key={pIdx} className="boc-product-row">
-                  <div className="boc-product-color-dot" style={{ background: PRODUCT_COLORS[product.name] || '#94a3b8' }} />
+                  <div className="boc-product-color-dot" style={{ background: productColorMap[product.name] || '#94a3b8' }} />
                   <div className="boc-field-wrap" style={{ flex: '2' }}>
                     <select
                       className="boc-input boc-select boc-product-select"
@@ -607,7 +635,7 @@ const OrderRowEditor = React.memo(({
                       onChange={e => handleProductChange(pIdx, { name: e.target.value })}
                       disabled={isLocked || disabled}
                     >
-                      {PRODUCT_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      {productOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                     </select>
                   </div>
                   <div className="boc-field-wrap boc-field-sm">
@@ -630,6 +658,23 @@ const OrderRowEditor = React.memo(({
                       disabled={isLocked || disabled}
                     />
                   </div>
+                  {product.isToyBox && (
+                    <div className="boc-field-wrap boc-field-sm">
+                      <select
+                        className="boc-input boc-select"
+                        value={product.toyBoxNumber ?? ''}
+                        onChange={e => handleProductChange(pIdx, { toyBoxNumber: e.target.value ? parseInt(e.target.value, 10) : null })}
+                        disabled={isLocked || disabled}
+                      >
+                        <option value="">Serial</option>
+                        {filterToyBoxesByProduct(toyBoxInventory, product.name).map((box) => (
+                          <option key={box.id || `${product.name}-${box.toy_box_number}`} value={box.toy_box_number}>
+                            Box #{box.toy_box_number}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <div className="boc-field-wrap boc-field-sm">
                     <div className="boc-price-display">
                       <CurrencyIcon size={11} />
@@ -679,7 +724,7 @@ const OrderRowEditor = React.memo(({
                 <span>Delivery ({row.shipping_zone})</span>
                 <span>
                   <CurrencyIcon size={12} />
-                  {(SHIPPING_ZONES.find(z => z.value === row.shipping_zone)?.charge || 150).toLocaleString()}
+                  {(Number(row.delivery_charge) || 0).toLocaleString()}
                 </span>
               </div>
               <div className="boc-total-line boc-total-final">
@@ -719,16 +764,19 @@ const OrderRowEditor = React.memo(({
 
 // ─── Main Component ───────────────────────────────────────────────────
 const BulkOrderCreator = ({ isOpen, onClose }) => {
-  const { user, profile, userRoles } = useAuth();
-  const { addOrder } = useOrders();
+  const { addOrder, inventory, toyBoxes } = useOrders();
+  const productCatalog = React.useMemo(() => buildProductCatalog(inventory), [inventory]);
+  const productOptions = React.useMemo(() => productCatalog.map((item) => item.name), [productCatalog]);
+  const productColorMap = React.useMemo(() => productCatalog.reduce((acc, item) => {
+    acc[item.name] = item.color;
+    return acc;
+  }, {}), [productCatalog]);
 
   const [rows, setRows] = useState([createEmptyRow()]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitResults, setSubmitResults] = useState(null);
   const [globalAiText, setGlobalAiText] = useState('');
   const [isGlobalExtracting, setIsGlobalExtracting] = useState(false);
-  const [selectAll, setSelectAll] = useState(false);
-  const [selectedRows, setSelectedRows] = useState([]);
   const [activeTab, setActiveTab] = useState('editor'); // editor | csv | results
   const [csvPreviewRows, setCsvPreviewRows] = useState(null); // null = no preview
   const [isImportingCSV, setIsImportingCSV] = useState(false);
@@ -741,8 +789,6 @@ const BulkOrderCreator = ({ isOpen, onClose }) => {
     setRows([createEmptyRow()]);
     setSubmitResults(null);
     setGlobalAiText('');
-    setSelectedRows([]);
-    setSelectAll(false);
     setActiveTab('editor');
     setCsvPreviewRows(null);
     setCsvErrors([]);
@@ -803,17 +849,13 @@ const BulkOrderCreator = ({ isOpen, onClose }) => {
       const extracted = await api.extractOrderWithAI(row.aiText);
       if (extracted) {
         const mappedProducts = (extracted.products || []).map(p => {
-          const matched = PRODUCT_OPTIONS.find(opt =>
-            p.name?.toUpperCase().includes(opt.toUpperCase())
-          ) || 'TOY BOX';
+          const matched = findBestProductMatch(p.name, inventory);
           const boxMatch = p.name?.match(/#(\d+)/);
-          return {
-            name: matched,
+          return createProductLine(inventory, matched?.name || 'TOY BOX', {
             quantity: Math.max(1, p.quantity || 1),
             size: p.size || '',
-            price: PRODUCT_PRICES[matched] || 0,
-            toyBoxNumber: boxMatch ? parseInt(boxMatch[1]) : null
-          };
+            toyBoxNumber: boxMatch ? parseInt(boxMatch[1], 10) : null
+          });
         });
         setRows(prev => prev.map(r => r.id !== rowId ? r : {
           ...r,
@@ -821,6 +863,7 @@ const BulkOrderCreator = ({ isOpen, onClose }) => {
           phone: extracted.phone || r.phone,
           address: extracted.address || r.address,
           shipping_zone: extracted.shipping_zone || r.shipping_zone,
+          delivery_charge: getDeliveryChargeForZone(extracted.shipping_zone || r.shipping_zone),
           notes: extracted.notes || r.notes,
           products: mappedProducts.length > 0 ? mappedProducts : r.products,
           aiText: '',
@@ -834,7 +877,7 @@ const BulkOrderCreator = ({ isOpen, onClose }) => {
       console.error('AI extraction failed:', err);
       setRows(prev => prev.map(r => r.id === rowId ? { ...r, isExtracting: false } : r));
     }
-  }, [rows]);
+  }, [inventory, rows]);
 
   // ── Global AI Paste-and-Split ─────────────────────────────────────────
   const handleGlobalAIPaste = useCallback(async () => {
@@ -859,16 +902,12 @@ const BulkOrderCreator = ({ isOpen, onClose }) => {
             const extracted = await api.extractOrderWithAI(block);
             if (extracted) {
               const mappedProducts = (extracted.products || []).map(p => {
-                const matched = PRODUCT_OPTIONS.find(opt =>
-                  p.name?.toUpperCase().includes(opt.toUpperCase())
-                ) || 'TOY BOX';
-                return {
-                  name: matched,
+                const matched = findBestProductMatch(p.name, inventory);
+                return createProductLine(inventory, matched?.name || 'TOY BOX', {
                   quantity: Math.max(1, p.quantity || 1),
                   size: p.size || '',
-                  price: PRODUCT_PRICES[matched] || 0,
                   toyBoxNumber: null
-                };
+                });
               });
               return {
                 ...newRow,
@@ -876,6 +915,7 @@ const BulkOrderCreator = ({ isOpen, onClose }) => {
                 phone: extracted.phone || '',
                 address: extracted.address || '',
                 shipping_zone: extracted.shipping_zone || 'Outside Dhaka',
+                delivery_charge: getDeliveryChargeForZone(extracted.shipping_zone || 'Outside Dhaka'),
                 notes: extracted.notes || '',
                 products: mappedProducts.length > 0 ? mappedProducts : newRow.products,
                 status: 'draft'
@@ -887,7 +927,6 @@ const BulkOrderCreator = ({ isOpen, onClose }) => {
       );
 
       setRows(prev => {
-        const existingDrafts = prev.filter(r => r.status !== 'created' && !r.customer_name && !r.phone);
         const keptRows = prev.filter(r => r.status === 'created' || r.customer_name || r.phone);
         return [...keptRows, ...extractedRows];
       });
@@ -897,7 +936,7 @@ const BulkOrderCreator = ({ isOpen, onClose }) => {
     } finally {
       setIsGlobalExtracting(false);
     }
-  }, [globalAiText]);
+  }, [globalAiText, inventory]);
 
   // ── Validation ────────────────────────────────────────────────────────
   const validateAll = useCallback(() => {
@@ -946,7 +985,14 @@ const BulkOrderCreator = ({ isOpen, onClose }) => {
           notes: row.notes,
           amount: calcRowTotal(row),
           shipping_zone: row.shipping_zone,
+          delivery_charge: Number(row.delivery_charge) || 0,
           ordered_items: row.products,
+          order_lines_payload: row.products,
+          pricing_summary: {
+            subtotal: row.products.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 1)), 0),
+            delivery_charge: Number(row.delivery_charge) || 0,
+            payable_total: calcRowTotal(row)
+          },
           status: 'New'
         };
         await addOrder(payload);
@@ -1283,6 +1329,10 @@ const BulkOrderCreator = ({ isOpen, onClose }) => {
                     onDuplicate={duplicateRow}
                     onAIExtract={handleAIExtract}
                     disabled={isSubmitting}
+                    toyBoxInventory={toyBoxes}
+                    productOptions={productOptions}
+                    productColorMap={productColorMap}
+                    inventory={inventory}
                   />
                 ))
               )}

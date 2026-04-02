@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useOrders } from '../context/OrderContext';
-import api from '../lib/api';
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
@@ -9,11 +8,14 @@ import { Modal } from '../components/Modal';
 import { OrderEditModal } from '../components/OrderEditModal';
 import { OrderDetailsModal } from '../components/OrderDetailsModal';
 import { Search, Truck, CheckCircle, Package, ClipboardCheck, Edit2, ShieldCheck, ShieldAlert, Shield, RotateCcw, Clock, UserCheck } from 'lucide-react';
+import { usePersistentState } from '../utils/persistentState';
 import './CourierPanel.css';
 
 export const CourierPanel = () => {
   const { orders, updateOrderStatus, editOrder, dispatchToCourier } = useOrders();
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = usePersistentState('panel:courier:search', '');
+  const [steadfastPending, setSteadfastPending] = useState({});
+  const [steadfastSubmitted, setSteadfastSubmitted] = useState({});
 
   // Modal State for Tracking ID
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -61,6 +63,30 @@ export const CourierPanel = () => {
 
   const handleSubmitToCourier = (orderId) => {
     updateOrderStatus(orderId, 'Courier Submitted');
+  };
+
+  const handleSteadfastDispatch = async (e, order) => {
+    e.stopPropagation();
+
+    const orderId = order.id;
+    if (steadfastPending[orderId] || steadfastSubmitted[orderId]) {
+      return;
+    }
+
+    setSteadfastPending((prev) => ({ ...prev, [orderId]: true }));
+
+    try {
+      await dispatchToCourier(orderId);
+      setSteadfastSubmitted((prev) => ({ ...prev, [orderId]: true }));
+    } catch (err) {
+      alert('Steadfast Dispatch Failed: ' + err.message);
+    } finally {
+      setSteadfastPending((prev) => {
+        const next = { ...prev };
+        delete next[orderId];
+        return next;
+      });
+    }
   };
 
   return (
@@ -132,36 +158,49 @@ export const CourierPanel = () => {
           </p>
         </div>
 
-        <div className="table-container">
-          <table className="management-table">
+        <div className="orders-table-wrapper courier-table-wrapper desktop-only">
+          <table className="management-table premium-table courier-management-table">
             <thead>
               <tr>
-                <th>Order ID</th>
-                <th>Customer</th>
-                <th>Phone</th>
-                <th>Product & Size</th>
-                <th>Tracking ID</th>
-                <th>Status</th>
-                <th>Dispatch Actions</th>
+                <th className="id-col">Order ID</th>
+                <th className="customer-col">Customer</th>
+                <th className="product-col">Product & Size</th>
+                <th className="tracking-col">Tracking ID</th>
+                <th className="status-col">Status</th>
+                <th className="courier-actions-col">Actions</th>
               </tr>
             </thead>
             <tbody>
               {courierQueue.map(order => (
-                <tr key={order.id} className="cursor-pointer hover:bg-slate-50/50" onClick={() => handleRowClick(order)}>
-                  <td className="order-id-cell">{order.id}</td>
-                  <td className="customer-name">{order.customer_name}</td>
-                  <td className="phone-cell">
-                    <div className="phone-stack">
-                      <span>{order.phone}</span>
+                <tr key={order.id} className="order-row courier-order-row cursor-pointer" onClick={() => handleRowClick(order)}>
+                  {(() => {
+                    const isSteadfastSending = Boolean(steadfastPending[order.id]);
+                    const isSteadfastSubmitted = Boolean(steadfastSubmitted[order.id]);
+                    const isSteadfastLocked =
+                      isSteadfastSending ||
+                      isSteadfastSubmitted ||
+                      order.status === 'Courier Submitted' ||
+                      Boolean(order.courier_assigned_id) ||
+                      order.courier_name === 'Steadfast';
+
+                    return (
+                      <>
+                  <td className="id-cell order-id-cell">
+                    <span className="saas-id">#{(order.id || '').replace('ORD-', '')}</span>
+                  </td>
+                  <td className="customer-cell">
+                    <div className="courier-customer-stack">
+                      <span className="saas-text-dark">{order.customer_name}</span>
+                      <span className="saas-text">{order.phone}</span>
                     </div>
                   </td>
-                  <td className="product-name">
-                    <div className="product-stack">
-                      <span>{order.product_name}</span>
+                  <td className="product-col product-name">
+                    <div className="courier-product-stack">
+                      <span className="saas-text-dark">{order.product_name}</span>
                       {order.size && <span className="product-size-pill">Size {order.size}</span>}
                     </div>
                   </td>
-                  <td className="tracking-cell">
+                  <td className="tracking-col tracking-cell">
                     {order.tracking_id ? (
                       <span className="tracking-badge">
                         <Truck size={14} /> {order.tracking_id}
@@ -170,10 +209,10 @@ export const CourierPanel = () => {
                       <span className="text-tertiary text-sm italic">Not Assigned</span>
                     )}
                   </td>
-                  <td>
-                    <Badge variant="courier-ready">{order.status}</Badge>
+                  <td className="status-cell">
+                    <Badge variant="courier-ready" className="courier-status-pill">{order.status}</Badge>
                   </td>
-                  <td>
+                  <td className="courier-actions-cell">
                     <div className="dispatch-action-grid">
                       <button
                         className="courier-action-btn edit"
@@ -190,44 +229,99 @@ export const CourierPanel = () => {
                         <Truck size={16} /> <span>Tracking</span>
                       </button>
                       <button
-                        className="courier-action-btn steadfast"
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          const btn = e.currentTarget;
-                          btn.classList.add('loading');
-                          try {
-                            await dispatchToCourier(order.id);
-                          } catch (err) {
-                            alert('Steadfast Dispatch Failed: ' + err.message);
-                          } finally {
-                            btn.classList.remove('loading');
-                          }
-                        }}
+                        className={`courier-action-btn steadfast ${isSteadfastSending ? 'is-loading' : ''} ${isSteadfastSubmitted ? 'is-submitted' : ''}`}
+                        onClick={(e) => handleSteadfastDispatch(e, order)}
+                        disabled={isSteadfastLocked}
                         title="Submit to Steadfast API"
                       >
-                        <Truck size={16} /> <span>Steadfast</span>
+                        {isSteadfastSending ? <Clock size={16} /> : <Truck size={16} />}
+                        <span>
+                          {isSteadfastSending ? 'Sending...' : isSteadfastSubmitted ? 'Sent' : 'Steadfast'}
+                        </span>
                       </button>
                       <button
                         className="courier-action-btn submit"
                         onClick={(e) => { e.stopPropagation(); handleSubmitToCourier(order.id); }}
-                        disabled={!order.tracking_id}
+                        disabled={!order.tracking_id || isSteadfastSending}
                         title={!order.tracking_id ? "Requires Tracking ID first" : "Submit to Courier"}
                       >
                         <CheckCircle size={16} /> <span>Dispatch</span>
                       </button>
                     </div>
                   </td>
+                      </>
+                    );
+                  })()}
                 </tr>
               ))}
               {courierQueue.length === 0 && (
                 <tr>
-                  <td colSpan="7" className="empty-state-cell">
+                  <td colSpan="6" className="empty-state-cell">
                     No stock-verified orders ready for dispatch. Orders must pass through Factory Panel first.
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
+        </div>
+
+        <div className="courier-mobile-list mobile-only">
+          {courierQueue.map(order => (
+            <div
+              key={order.id}
+              className="order-mobile-card courier-mobile-card"
+              onClick={() => handleRowClick(order)}
+            >
+              <div className="card-header-elite">
+                <div className="id-group">
+                  <span className="order-id">#{order.id.replace('ORD-', '')}</span>
+                </div>
+                <Badge variant="courier-ready">{order.status}</Badge>
+              </div>
+
+              <div className="card-body-elite">
+                <div className="customer-primary-box">
+                  <h3 className="customer-name-large">{order.customer_name}</h3>
+                  <div className="phone-row">
+                    <span>{order.phone}</span>
+                  </div>
+                </div>
+
+                <div className="details-grid-elite">
+                  <div className="detail-box-elite">
+                    <span className="detail-label">Product</span>
+                    <span className="detail-value product">{order.product_name}</span>
+                    <span className="detail-subvalue">{order.size ? `Size ${order.size}` : 'No Size'}</span>
+                  </div>
+                  <div className="detail-box-elite">
+                    <span className="detail-label">Tracking</span>
+                    <span className="detail-value">{order.tracking_id || 'Not Assigned'}</span>
+                    <span className="detail-subvalue">Ready to dispatch</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="courier-mobile-actions" onClick={(e) => e.stopPropagation()}>
+                <button
+                  className="courier-action-btn edit"
+                  onClick={() => handleOpenEditModal(order)}
+                >
+                  <Edit2 size={16} /> <span>Edit</span>
+                </button>
+                <button
+                  className="courier-action-btn tracking"
+                  onClick={() => handleOpenTrackingModal(order)}
+                >
+                  <Truck size={16} /> <span>Tracking</span>
+                </button>
+              </div>
+            </div>
+          ))}
+          {courierQueue.length === 0 && (
+            <div className="mobile-empty-state">
+              No stock-verified orders ready for dispatch.
+            </div>
+          )}
         </div>
       </Card>
 

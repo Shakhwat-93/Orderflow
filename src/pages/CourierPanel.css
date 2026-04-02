@@ -286,8 +286,10 @@
 .dispatch-action-grid {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 6px;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
+  max-width: 100%;
 }
 
 /* Courier Action Buttons — labeled icon style */
@@ -295,17 +297,20 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 6px 12px;
+  justify-content: center;
+  padding: 6px 10px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--glass-border);
   background: var(--bg-elevated);
   color: var(--text-secondary);
-  font-size: var(--fs-small);
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
   transition: all var(--anim-fast) ease;
   font-family: inherit;
+  min-width: 98px;
+  max-width: 100%;
 }
 
 .courier-action-btn:hover {
@@ -387,7 +392,254 @@
   -webkit-overflow-scrolling: touch;
 }
 
+.courier-table-wrapper {
+  border-radius: 20px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.courier-management-table {
+  min-width: 940px;
+  table-layout: fixed;
+}
+
+.courier-order-row {
+  border-bottom: 1px solid rgba(15, 23, 42, 0.05);
+  background: var(--bg-surface);
+  transition: background-color 0.2s ease;
+}
+
+.courier-order-row:hover {
+  background: rgba(15, 23, 42, 0.025) !important;
+}
+
+[data-theme='dark'] .courier-order-row:hover {
+  background: rgba(255, 255, 255, 0.03) !important;
+}
+
+.courier-management-table th:nth-child(1) { width: 120px; }
+.courier-management-table th:nth-child(2) { width: 230px; }
+.courier-management-table th:nth-child(3) { width: 210px; }
+.courier-management-table th:nth-child(4) { width: 180px; }
+.courier-management-table th:nth-child(5) { width: 140px; }
+
+.courier-panel .saas-id {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-primary);
+}
+
+.courier-panel .saas-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.courier-panel .saas-text-dark {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.courier-customer-stack,
+.courier-product-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.product-col { width: 210px; }
+.tracking-col { width: 180px; }
+.courier-actions-col,
+.courier-actions-cell {
+  width: 200px;
+  text-align: right;
+  white-space: normal !important;
+  overflow: visible !important;
+}
+
+.product-size-pill {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.14);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.tracking-cell {
+  white-space: normal;
+}
+
+.tracking-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(14, 165, 233, 0.08);
+  border: 1px solid rgba(14, 165, 233, 0.14);
+  color: #0369a1;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+[data-theme='dark'] .tracking-badge {
+  color: #7dd3fc;
+  background: rgba(14, 165, 233, 0.12);
+  border-color: rgba(125, 211, 252, 0.16);
+}
+
+.courier-status-pill {
+  width: fit-content;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.dispatch-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  justify-content: end;
+  gap: 8px;
+  width: 100%;
+  max-width: 196px;
+  margin-left: auto;
+}
+
+.courier-action-btn {
+  min-height: 34px;
+  min-width: 0;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.courier-action-btn:hover {
+  background: rgba(15, 23, 42, 0.04);
+  color: var(--text-primary);
+  border-color: rgba(100, 116, 139, 0.28);
+  transform: none;
+  box-shadow: none;
+}
+
+[data-theme='dark'] .courier-action-btn:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.courier-action-btn.edit:hover {
+  background: rgba(99, 102, 241, 0.08);
+  color: var(--accent);
+  border-color: rgba(99, 102, 241, 0.18);
+}
+
+.courier-action-btn.tracking:hover {
+  background: rgba(245, 158, 11, 0.08);
+  color: #d97706;
+  border-color: rgba(245, 158, 11, 0.18);
+}
+
+.courier-action-btn.steadfast:hover {
+  background: rgba(139, 92, 246, 0.08);
+  color: #7c3aed;
+  border-color: rgba(139, 92, 246, 0.18);
+}
+
+.courier-action-btn.submit:hover {
+  background: rgba(16, 185, 129, 0.08);
+  color: #059669;
+  border-color: rgba(16, 185, 129, 0.18);
+}
+
+.courier-action-btn.steadfast.is-loading {
+  background: rgba(245, 158, 11, 0.10);
+  color: #d97706;
+  border-color: rgba(245, 158, 11, 0.22);
+}
+
+.courier-action-btn.steadfast.is-loading svg {
+  animation: courierBtnSpin 0.9s linear infinite;
+}
+
+.courier-action-btn.steadfast.is-submitted {
+  background: rgba(16, 185, 129, 0.10);
+  color: #059669;
+  border-color: rgba(16, 185, 129, 0.22);
+}
+
+[data-theme='dark'] .courier-action-btn.steadfast.is-loading {
+  background: rgba(245, 158, 11, 0.14);
+  color: #fbbf24;
+}
+
+[data-theme='dark'] .courier-action-btn.steadfast.is-submitted {
+  background: rgba(16, 185, 129, 0.14);
+  color: #34d399;
+}
+
+@keyframes courierBtnSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 @keyframes panelIn {
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 1024px) {
+  .courier-actions-col,
+  .courier-actions-cell {
+    width: 210px;
+  }
+
+  .courier-management-table {
+    min-width: 880px;
+  }
+}
+
+@media (max-width: 900px) {
+  .courier-mobile-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .courier-mobile-card {
+    border: 1px solid #f1f5f9;
+    border-radius: 16px;
+    background: #fff;
+    overflow: hidden;
+  }
+
+  [data-theme='dark'] .courier-mobile-card {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: var(--glass-border);
+  }
+
+  .courier-mobile-actions {
+    display: flex;
+    gap: 10px;
+    padding: 0 16px 16px;
+  }
+
+  .courier-mobile-actions .courier-action-btn {
+    flex: 1;
+    justify-content: center;
+  }
 }

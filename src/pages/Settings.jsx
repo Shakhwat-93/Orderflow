@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useBranding } from '../hooks/useBranding';
 import api from '../lib/api';
 import { DateRangePicker } from '../components/DateRangePicker';
 import './Settings.css';
@@ -15,11 +16,13 @@ import {
   Truck,
   Zap,
   Key,
-  Save
+  Save,
+  Type
 } from 'lucide-react';
 
 export const Settings = () => {
   const { isAdmin } = useAuth();
+  const { appName, isSaving: isSavingBranding, saveBranding } = useBranding();
   const [isResetLoading, setIsResetLoading] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [resetSuccess, setResetSuccess] = useState(false);
@@ -37,10 +40,16 @@ export const Settings = () => {
     is_enabled: false,
     auto_dispatch: false
   });
+  const [brandingName, setBrandingName] = useState(appName);
+  const [brandingSuccess, setBrandingSuccess] = useState(false);
 
   useEffect(() => {
     loadCourierConfig();
   }, []);
+
+  useEffect(() => {
+    setBrandingName(appName);
+  }, [appName]);
 
   const loadCourierConfig = async () => {
     setIsCourierLoading(true);
@@ -63,7 +72,7 @@ export const Settings = () => {
       await api.updateSystemConfig('courier_steadfast', courierConfig);
       setCourierSuccess(true);
       setTimeout(() => setCourierSuccess(false), 3000);
-    } catch (err) {
+    } catch {
       setError('Failed to save courier configuration.');
     } finally {
       setIsSavingCourier(false);
@@ -95,6 +104,17 @@ export const Settings = () => {
     }
   };
 
+  const handleSaveBranding = async () => {
+    setError(null);
+    try {
+      await saveBranding({ app_name: brandingName });
+      setBrandingSuccess(true);
+      setTimeout(() => setBrandingSuccess(false), 3000);
+    } catch {
+      setError('Failed to save app branding.');
+    }
+  };
+
 
   return (
     <div className="settings-container">
@@ -109,6 +129,52 @@ export const Settings = () => {
       </header>
 
       <div className="settings-grid">
+        <section className="settings-card">
+          <div className="card-header">
+            <Type size={20} />
+            <h2>App Branding</h2>
+          </div>
+          <div className="card-body">
+            <div className="courier-settings-form">
+              <div className="form-group">
+                <label><Type size={14} /> Application Name</label>
+                <input
+                  type="text"
+                  value={brandingName}
+                  onChange={(e) => setBrandingName(e.target.value)}
+                  placeholder="Enter your app name"
+                  className="premium-input"
+                  maxLength={40}
+                />
+              </div>
+
+              <div className="settings-item branding-preview-item">
+                <div className="item-info">
+                  <h3>Live Preview</h3>
+                  <p>This name updates the sidebar, login screen, and browser tab title.</p>
+                </div>
+                <div className="branding-preview-badge">{brandingName.trim() || 'OrderFlow'}</div>
+              </div>
+
+              <div className="form-actions">
+                <button
+                  className={`save-btn ${brandingSuccess ? 'success' : ''}`}
+                  onClick={handleSaveBranding}
+                  disabled={isSavingBranding || !brandingName.trim() || brandingName.trim() === appName}
+                >
+                  {isSavingBranding ? (
+                    <Loader2 className="animate-spin" size={18} />
+                  ) : brandingSuccess ? (
+                    <><CheckCircle size={18} /> Saved!</>
+                  ) : (
+                    <><Save size={18} /> Save App Name</>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Courier Integration Card */}
         <section className="settings-card courier-card">
           <div className="card-header">

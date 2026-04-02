@@ -403,6 +403,23 @@
   margin-bottom: 2px;
 }
 
+.elite-cust-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.elite-last-call-tag {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border-subtle);
+}
+
 .elite-trust-badge {
   font-size: 10px;
   font-weight: 800;
@@ -495,8 +512,31 @@
   transition: all var(--anim-fast);
 }
 
-.elite-act-btn.call { color: #059669; border-color: rgba(5, 150, 105, 0.2); background: rgba(5, 150, 105, 0.05); }
+.elite-act-btn.call { 
+  color: #059669; 
+  border-color: rgba(5, 150, 105, 0.2); 
+  background: rgba(5, 150, 105, 0.05); 
+  position: relative;
+}
 .elite-act-btn.call:hover { background: #059669; color: #fff; }
+
+.btn-attempt-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--bg-surface);
+  box-shadow: 0 4px 10px rgba(220, 38, 38, 0.3);
+}
 
 .elite-act-btn.reschedule { color: #4f46e5; border-color: rgba(79, 70, 229, 0.2); background: rgba(79, 70, 229, 0.05); }
 .elite-act-btn.reschedule:hover { background: #4f46e5; color: #fff; }

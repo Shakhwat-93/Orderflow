@@ -14,16 +14,17 @@ export const TaskProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   const { user, profile, userRoles, isAdmin } = useAuth();
+  const userId = user?.id ?? null;
 
   // ── Fetch all task data ──
   const fetchTasks = useCallback(async () => {
-    if (!user) return;
+    if (!userId) return;
     setLoading(true);
     try {
       const [daily, completions, assigned] = await Promise.all([
         api.getDailyTasks(),
         api.getDailyCompletions(),
-        api.getAssignedTasks(user.id, isAdmin)
+        api.getAssignedTasks(userId, isAdmin)
       ]);
       setDailyTasks(daily);
       setTodayCompletions(completions);
@@ -33,7 +34,7 @@ export const TaskProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [user, isAdmin]);
+  }, [isAdmin, userId]);
 
   useEffect(() => {
     fetchTasks();
@@ -41,7 +42,7 @@ export const TaskProvider = ({ children }) => {
 
   // ── Real-time subscriptions ──
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
 
     const dailyChannel = supabase
       .channel('daily_tasks_changes')
@@ -69,7 +70,7 @@ export const TaskProvider = ({ children }) => {
       supabase.removeChannel(completionChannel);
       supabase.removeChannel(assignedChannel);
     };
-  }, [user, fetchTasks]);
+  }, [fetchTasks, userId]);
 
   // ── Filter daily tasks by user's role ──
   const myDailyTasks = dailyTasks.filter(task => {
@@ -110,21 +111,21 @@ export const TaskProvider = ({ children }) => {
 
   // ── Deadline Monitoring ──
   useEffect(() => {
-    if (!user || loading) return;
+    if (!userId || loading) return;
 
     const checkDeadlines = async () => {
       const now = new Date();
       const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
       
       const upcomingTasks = assignedTasks.filter(t => {
-        if (t.assigned_to !== user.id || t.status === 'completed' || !t.due_date) return false;
+        if (t.assigned_to !== userId || t.status === 'completed' || !t.due_date) return false;
         const dueDate = new Date(t.due_date);
         return dueDate <= tomorrow && dueDate >= now;
       });
 
       if (upcomingTasks.length === 0) return;
 
-      const notifiedStr = localStorage.getItem(`notified_deadlines_${user.id}`) || '{}';
+      const notifiedStr = localStorage.getItem(`notified_deadlines_${userId}`) || '{}';
       const notified = JSON.parse(notifiedStr);
       const todayStr = now.toISOString().split('T')[0];
       let hasNewNotif = false;
@@ -153,7 +154,7 @@ export const TaskProvider = ({ children }) => {
       }
 
       if (hasNewNotif) {
-        localStorage.setItem(`notified_deadlines_${user.id}`, JSON.stringify(notified));
+        localStorage.setItem(`notified_deadlines_${userId}`, JSON.stringify(notified));
       }
     };
 
@@ -161,7 +162,7 @@ export const TaskProvider = ({ children }) => {
     checkDeadlines();
     const interval = setInterval(checkDeadlines, 3600000);
     return () => clearInterval(interval);
-  }, [user, loading, assignedTasks]);
+  }, [assignedTasks, loading, userId]);
 
   const createAssignedTask = async (taskData) => {
     const userName = profile?.name || user?.email || 'User';

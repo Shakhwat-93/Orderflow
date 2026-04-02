@@ -8,17 +8,18 @@ import { Search, Truck, RotateCcw, ExternalLink, Calendar, User, Phone, MapPin, 
 import { OrderDetailsModal } from '../components/OrderDetailsModal';
 import { PremiumSearch } from '../components/PremiumSearch';
 import { PackingSlip } from '../components/PackingSlip';
+import { usePersistentState } from '../utils/persistentState';
 import './SteadfastPanel.css';
 
 export const SteadfastPanel = () => {
   const { orders } = useOrders();
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = usePersistentState('panel:steadfast:search', '');
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState({});
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [dateFilter, setDateFilter] = useState('today'); // 'today' | 'yesterday' | 'all'
+  const [dateFilter, setDateFilter] = usePersistentState('panel:steadfast:dateFilter', 'today'); // 'today' | 'yesterday' | 'all'
   const [selectedIds, setSelectedIds] = useState(new Set());
 
   const toggleSelectAll = () => {

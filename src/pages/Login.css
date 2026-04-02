@@ -56,6 +56,21 @@
   gap: 16px;
 }
 
+.login-brand-copy h1 {
+  margin: 0 0 6px;
+  font-size: 1.85rem;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  color: var(--text-primary);
+}
+
+.login-brand-copy p {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
 .login-logo-container {
   width: 80px;
   height: 80px;
@@ -101,11 +116,22 @@
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
+  outline: none !important;
   color: var(--neu-text) !important;
   font-weight: 500;
   padding: 0 !important;
   height: 100%;
   width: 100%;
+}
+
+/* Fix to remove browser default black border and background on Autofill */
+.neu-input-field input:-webkit-autofill,
+.neu-input-field input:-webkit-autofill:hover,
+.neu-input-field input:-webkit-autofill:focus,
+.neu-input-field input:-webkit-autofill:active {
+  -webkit-text-fill-color: var(--neu-text) !important;
+  transition: background-color 5000s ease-in-out 0s;
+  border: none !important;
 }
 
 .neu-input-field svg {

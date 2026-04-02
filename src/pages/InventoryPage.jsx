@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
@@ -11,6 +11,8 @@ import {
   Edit2, Trash2, Tag, Bot, Loader2, CheckCircle2, CircleAlert, ChevronDown, Sparkles
 } from 'lucide-react';
 import { PremiumSearch } from '../components/PremiumSearch';
+import { usePersistentState } from '../utils/persistentState';
+import { getSerialTrackedProducts } from '../utils/productCatalog';
 import './InventoryPage.css';
 
 const CATEGORIES = ['All', 'TOY BOX', 'ORGANIZER', 'Bags', 'Accessories', 'Religious', 'Other'];
@@ -25,16 +27,18 @@ export const InventoryPage = () => {
     deleteInventoryItem,
     adjustStock,
     updateToyBoxStock,
+    addToyBoxStocks,
     previewInvoiceStockUpdate,
     applyInvoiceStockUpdate
   } = useOrders();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('All');
+  const [searchTerm, setSearchTerm] = usePersistentState('panel:inventory:search', '');
+  const [categoryFilter, setCategoryFilter] = usePersistentState('panel:inventory:category', 'All');
 
   // Modal states
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+  const [isToyBoxModalOpen, setIsToyBoxModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [adjustingProduct, setAdjustingProduct] = useState(null);
   const [adjustAmount, setAdjustAmount] = useState(1);
@@ -48,10 +52,21 @@ export const InventoryPage = () => {
   const [useManualBulkMode, setUseManualBulkMode] = useState(true);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [invoiceStockMode, setInvoiceStockMode] = useState('add'); // 'add' or 'deduct'
+  const [toyBoxSerialInput, setToyBoxSerialInput] = useState('');
+  const [toyBoxInitialStock, setToyBoxInitialStock] = useState(0);
+  const [toyBoxProductName, setToyBoxProductName] = useState('');
 
   const [formData, setFormData] = useState({
-    name: '', sku: '', category: 'Other', current_stock: 0, min_stock_level: 5, unit_price: 0
+    name: '', sku: '', category: 'Other', current_stock: 0, min_stock_level: 5, unit_price: 0, supports_serial_tracking: false
   });
+
+  const serialTrackedProducts = getSerialTrackedProducts(inventory);
+  const toyBoxGroups = (toyBoxes || []).reduce((acc, item) => {
+    const key = item.product_name || 'TOY BOX';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(item);
+    return acc;
+  }, {});
 
   const filteredInventory = inventory.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -72,11 +87,12 @@ export const InventoryPage = () => {
         category: product.category || 'Other',
         current_stock: product.current_stock,
         min_stock_level: product.min_stock_level,
-        unit_price: product.unit_price
+        unit_price: product.unit_price,
+        supports_serial_tracking: Boolean(product.supports_serial_tracking ?? (product.category === 'TOY BOX'))
       });
     } else {
       setEditingProduct(null);
-      setFormData({ name: '', sku: '', category: 'Other', current_stock: 0, min_stock_level: 5, unit_price: 0 });
+      setFormData({ name: '', sku: '', category: 'Other', current_stock: 0, min_stock_level: 5, unit_price: 0, supports_serial_tracking: false });
     }
     setIsProductModalOpen(true);
   };
@@ -108,6 +124,45 @@ export const InventoryPage = () => {
     if (window.confirm('Are you sure you want to delete this product?')) {
       await deleteInventoryItem(id);
     }
+  };
+
+  const handleAddToyBoxSerials = async (e) => {
+    e.preventDefault();
+
+    if (!toyBoxProductName) {
+      alert('Select a product for these serials.');
+      return;
+    }
+
+    const requested = toyBoxSerialInput
+      .split(/[,\s]+/)
+      .map((value) => parseInt(value.trim(), 10))
+      .filter((value) => Number.isInteger(value) && value > 0);
+
+    const uniqueRequested = [...new Set(requested)];
+    const existing = new Set(
+      (toyBoxes || [])
+        .filter((box) => (box.product_name || 'TOY BOX') === toyBoxProductName)
+        .map((box) => Number(box.toy_box_number))
+    );
+    const entries = uniqueRequested
+      .filter((serial) => !existing.has(serial))
+      .map((serial) => ({
+        product_name: toyBoxProductName,
+        toy_box_number: serial,
+        stock_quantity: toyBoxInitialStock
+      }));
+
+    if (entries.length === 0) {
+      alert('No new serial numbers found to add.');
+      return;
+    }
+
+    await addToyBoxStocks(entries);
+    setToyBoxSerialInput('');
+    setToyBoxInitialStock(0);
+    setToyBoxProductName('');
+    setIsToyBoxModalOpen(false);
   };
 
   const handleOpenInvoiceModal = () => {
@@ -383,33 +438,59 @@ export const InventoryPage = () => {
         <div className="section-header">
           <div className="title-group">
             <Tag size={20} className="accent-icon" />
-            <h2>Toy Box Designs (38 Variants)</h2>
+            <h2>Serial Stock Products ({toyBoxes.length} Serials)</h2>
           </div>
-          <p>Direct serial stock management for the automatic distribution engine.</p>
+          <div className="inventory-header-actions">
+            <p>Each serial is now tracked per product, so identical serial numbers can exist in different products.</p>
+            <Button
+              variant="primary"
+              onClick={() => {
+                setToyBoxProductName(serialTrackedProducts[0]?.name || '');
+                setIsToyBoxModalOpen(true);
+              }}
+              className="add-product-btn"
+            >
+              <Plus size={18} /> <span>Add Serials</span>
+            </Button>
+          </div>
         </div>
 
         <div className="toy-box-grid-management">
-          {toyBoxes.sort((a, b) => a.toy_box_number - b.toy_box_number).map((box) => (
-            <div key={box.id} className={`toy-box-stock-card ${box.stock_quantity === 0 ? 'out' : box.stock_quantity <= 5 ? 'low' : ''}`}>
-              <div className="box-num-badge">#{box.toy_box_number}</div>
-              <div className="stock-input-wrap">
-                <input
-                  type="number"
-                  min="0"
-                  defaultValue={box.stock_quantity}
-                  onBlur={(e) => {
-                    const newVal = parseInt(e.target.value);
-                    if (!isNaN(newVal) && newVal !== box.stock_quantity) {
-                      updateToyBoxStock(box.id, newVal);
-                    }
-                  }}
-                  className="stock-edit-input"
-                />
-                <span className="unit-label">pcs</span>
+          {Object.entries(toyBoxGroups)
+            .sort(([left], [right]) => left.localeCompare(right))
+            .map(([productName, productBoxes]) => (
+              <div key={productName} className="toy-box-product-group">
+                <div className="toy-box-product-heading">
+                  <span>{productName}</span>
+                  <Badge variant="default" size="sm">{productBoxes.length} serials</Badge>
+                </div>
+                <div className="toy-box-grid-management">
+                  {[...productBoxes]
+                    .sort((a, b) => a.toy_box_number - b.toy_box_number)
+                    .map((box) => (
+                      <div key={box.id} className={`toy-box-stock-card ${box.stock_quantity === 0 ? 'out' : box.stock_quantity <= 5 ? 'low' : ''}`}>
+                        <div className="box-num-badge">#{box.toy_box_number}</div>
+                        <div className="stock-input-wrap">
+                          <input
+                            type="number"
+                            min="0"
+                            defaultValue={box.stock_quantity}
+                            onBlur={(e) => {
+                              const newVal = parseInt(e.target.value, 10);
+                              if (!isNaN(newVal) && newVal !== box.stock_quantity) {
+                                updateToyBoxStock(box.id, newVal);
+                              }
+                            }}
+                            className="stock-edit-input"
+                          />
+                          <span className="unit-label">pcs</span>
+                        </div>
+                        <div className="stock-status-dot"></div>
+                      </div>
+                    ))}
+                </div>
               </div>
-              <div className="stock-status-dot"></div>
-            </div>
-          ))}
+            ))}
         </div>
       </div>
 
@@ -431,13 +512,21 @@ export const InventoryPage = () => {
             <Input label="Initial Inventory" type="number" value={formData.current_stock} onChange={(e) => setFormData({ ...formData, current_stock: parseInt(e.target.value) })} required />
             <Input label="Min Alert Level" type="number" value={formData.min_stock_level} onChange={(e) => setFormData({ ...formData, min_stock_level: parseInt(e.target.value) })} required />
             <Input 
-              label={<>Unit Price (<CurrencyIcon size={12} className="currency-icon-elite" />)</>} 
+              label={<>Fixed Price (<CurrencyIcon size={12} className="currency-icon-elite" />)</>}
               type="number" 
               value={formData.unit_price} 
               onChange={(e) => setFormData({ ...formData, unit_price: parseFloat(e.target.value) })} 
               required 
             />
           </div>
+          <label className="invoice-manual-toggle">
+            <input
+              type="checkbox"
+              checked={formData.supports_serial_tracking}
+              onChange={(e) => setFormData({ ...formData, supports_serial_tracking: e.target.checked })}
+            />
+            <span>Enable serial-wise stock for this product</span>
+          </label>
           <div className="modal-footer-actions">
             <Button variant="ghost" type="button" onClick={() => setIsProductModalOpen(false)}>Cancel</Button>
             <Button variant="primary" type="submit" className="save-btn">Save Product</Button>
@@ -471,6 +560,40 @@ export const InventoryPage = () => {
             <Button variant="primary" onClick={handleAdjustStock} className="confirm-btn">Confirm Transaction</Button>
           </div>
         </div>
+      </Modal>
+
+      <Modal isOpen={isToyBoxModalOpen} onClose={() => setIsToyBoxModalOpen(false)} title="Add Toy Box Serials">
+        <form onSubmit={handleAddToyBoxSerials} className="product-form premium-form">
+          <div className="elite-select-wrapper">
+            <label className="input-label">Product</label>
+            <select className="elite-select" value={toyBoxProductName} onChange={(e) => setToyBoxProductName(e.target.value)} required>
+              <option value="">Select serial-tracked product</option>
+              {serialTrackedProducts.map((product) => <option key={product.name} value={product.name}>{product.name}</option>)}
+            </select>
+            <ChevronDown size={14} className="elite-select-chevron" />
+          </div>
+          <label className="input-label">Serial Numbers</label>
+          <textarea
+            className="invoice-textarea"
+            value={toyBoxSerialInput}
+            onChange={(e) => setToyBoxSerialInput(e.target.value)}
+            placeholder="41,42,43,44,45"
+            rows={4}
+            required
+          />
+          <Input
+            label="Initial Stock Per Serial"
+            type="number"
+            min="0"
+            value={toyBoxInitialStock}
+            onChange={(e) => setToyBoxInitialStock(Math.max(0, parseInt(e.target.value, 10) || 0))}
+            required
+          />
+          <div className="modal-footer-actions">
+            <Button variant="ghost" type="button" onClick={() => setIsToyBoxModalOpen(false)}>Cancel</Button>
+            <Button variant="primary" type="submit" className="save-btn">Add Serials</Button>
+          </div>
+        </form>
       </Modal>
 
       <Modal isOpen={isInvoiceModalOpen} onClose={() => setIsInvoiceModalOpen(false)} title="AI Invoice → Inventory Stock Sync">

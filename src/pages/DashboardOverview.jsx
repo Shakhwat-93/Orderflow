@@ -42,13 +42,26 @@ export const DashboardOverview = () => {
 
   useEffect(() => {
     updatePresenceContext('Viewing Dashboard');
-  }, []);
+  }, [updatePresenceContext]);
 
   return (
     <div className="dashboard-overview">
       <div className="welcome-banner-premium">
         <div className="banner-content">
           <div className="welcome-text-group">
+            <div className="banner-user-chip">
+              <div className="banner-user-avatar">
+                {profile?.avatar_url ? (
+                  <img src={profile.avatar_url} alt={profile?.name || 'User'} />
+                ) : (
+                  profile?.name?.substring(0, 2)?.toUpperCase() || 'OF'
+                )}
+              </div>
+              <div className="banner-user-meta">
+                <span className="banner-user-label">Dashboard</span>
+                <strong>{profile?.name?.split(' ')[0] || 'Partner'}</strong>
+              </div>
+            </div>
             <h1 className="banner-title">Welcome back! 👋</h1>
             <p className="banner-subtitle">Here's what's happening with your business today.</p>
           </div>
@@ -271,12 +284,13 @@ export const DashboardOverview = () => {
           </Card>
 
           <div className="charts-secondary">
-            <Card className="chart-card liquid-glass" noPadding>
+            <Card className="chart-card liquid-glass source-chart-card" noPadding>
               <div className="card-header">
                 <h3>Orders by Source</h3>
               </div>
-              <div className="chart-container centered" style={{ position: 'relative' }}>
-                <ResponsiveContainer width="100%" height={250}>
+              <div className="chart-container centered source-chart-layout">
+                <div className="source-chart-canvas">
+                  <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <defs>
                       <filter id="premium-glow" x="-20%" y="-20%" width="140%" height="140%">
@@ -315,7 +329,8 @@ export const DashboardOverview = () => {
                     </Pie>
                     <Tooltip contentStyle={{ backgroundColor: 'rgba(28,29,36,0.95)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }} />
                   </PieChart>
-                </ResponsiveContainer>
+                  </ResponsiveContainer>
+                </div>
                 <div className="pie-legend">
                   {stats.sourceDistribution.map(item => (
                     <div key={item.name} className="legend-item">

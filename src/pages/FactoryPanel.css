@@ -241,6 +241,185 @@
 .factory-action-btn.retry:hover { background: var(--accent); color: #fff; border-color: transparent; }
 .factory-action-btn.edit:hover  { background: #8b5cf6; color: #fff; border-color: transparent; }
 
+.factory-table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.factory-management-table {
+  min-width: 920px;
+  table-layout: fixed;
+}
+
+.factory-management-table th:nth-child(1) { width: 120px; }
+.factory-management-table th:nth-child(2) { width: 220px; }
+.factory-management-table th:nth-child(3) { width: 290px; }
+.factory-management-table th:nth-child(4) { width: 190px; }
+.factory-management-table th:nth-child(5) { width: 220px; }
+
+.factory-panel .saas-id {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-primary);
+}
+
+.factory-panel .saas-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.factory-panel .saas-text-dark {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.factory-order-row {
+  border-bottom: 1px solid rgba(15, 23, 42, 0.05);
+  background: var(--bg-surface);
+  transition: background-color var(--anim-fast) ease;
+}
+
+.factory-order-row:hover {
+  background: rgba(15, 23, 42, 0.025) !important;
+}
+
+[data-theme='dark'] .factory-order-row {
+  border-bottom-color: var(--glass-border);
+}
+
+[data-theme='dark'] .factory-order-row:hover {
+  background: rgba(255, 255, 255, 0.03) !important;
+}
+
+.factory-customer-stack,
+.factory-product-stack,
+.factory-stock-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.factory-product-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.factory-size-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(99, 102, 241, 0.16);
+  background: rgba(99, 102, 241, 0.08);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.factory-item-pills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.factory-item-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(16, 185, 129, 0.16);
+  background: rgba(16, 185, 129, 0.08);
+  color: #059669;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.factory-item-pill.out {
+  border-color: rgba(239, 68, 68, 0.16);
+  background: rgba(239, 68, 68, 0.08);
+  color: #dc2626;
+}
+
+.factory-stock-pill {
+  width: fit-content;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.factory-meta-note,
+.factory-inline-note {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+
+.factory-actions-cell {
+  text-align: right;
+}
+
+.factory-action-grid {
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.factory-action-btn {
+  min-height: 34px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  box-shadow: none;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.factory-action-btn:hover {
+  background: rgba(15, 23, 42, 0.04);
+  border-color: rgba(100, 116, 139, 0.28);
+  box-shadow: none;
+  transform: none;
+}
+
+[data-theme='dark'] .factory-action-btn:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.factory-action-btn.edit:hover {
+  background: rgba(99, 102, 241, 0.08);
+  color: var(--accent);
+  border-color: rgba(99, 102, 241, 0.18);
+}
+
+.factory-action-btn.send:hover {
+  background: rgba(16, 185, 129, 0.08);
+  color: #059669;
+  border-color: rgba(16, 185, 129, 0.18);
+}
+
+.factory-action-btn.retry:hover {
+  background: rgba(245, 158, 11, 0.08);
+  color: #d97706;
+  border-color: rgba(245, 158, 11, 0.18);
+}
+
+@media (max-width: 1024px) {
+  .factory-management-table {
+    min-width: 860px;
+  }
+}
+
 /* ── Auto Distribute Button ── */
 .auto-distribute-btn {
   display: inline-flex;

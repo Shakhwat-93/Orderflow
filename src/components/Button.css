@@ -1,75 +1,85 @@
-/* ===== BUTTON — Dark Premium + Neon Glow ===== */
+/* ===== BUTTON — Clean Premium Pill Typography ===== */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--sp-2);
-  border-radius: var(--radius-pill);
-  font-weight: 700;
-  font-size: var(--fs-small);
-  transition: all var(--transition-smooth);
+  gap: 8px; /* sp-2 */
+  border-radius: 9999px; /* Pill shape */
+  font-weight: 500;
+  font-size: 0.95rem; /* Clean professional font size */
+  transition: all 0.2s ease;
   white-space: nowrap;
   border: none;
-  padding: 0 var(--sp-4);
-  height: var(--touch-min);
+  padding: 0 20px;
+  height: 44px; /* Default height */
   cursor: pointer;
   font-family: inherit;
   position: relative;
   overflow: hidden;
 }
 
-@media (min-width: 768px) { .btn { padding: 0 var(--sp-5); font-size: var(--fs-body); } }
-
-/* ── PRIMARY (Neon Lime Glow) ── */
+/* ── PRIMARY (Solid Indigo/Purple-Blue) ── */
 .btn-primary {
-  background: var(--accent-gradient);
+  background: #5b58ee; /* A premium modern indigo */
   color: #ffffff;
-  box-shadow: var(--accent-glow-sm);
 }
 
 @media (hover: hover) {
   .btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(var(--accent-rgb), 0.2);
+    background: #4f4ae6;
+    box-shadow: 0 4px 14px rgba(91, 88, 238, 0.3);
   }
 }
 
 /* ── SECONDARY ── */
 .btn-secondary {
-  background: linear-gradient(135deg, #0ea5e9, #0284c7);
+  background: #0284c7; /* Keeping a blue variant */
   color: #ffffff;
-  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.2);
 }
 
-@media (hover: hover) { .btn-secondary:hover { transform: translateY(-2px); } }
+@media (hover: hover) { 
+  .btn-secondary:hover { 
+    background: #0369a1; 
+  } 
+}
 
-/* ── GHOST ── */
+/* ── GHOST / OUTLINE (Cancel buttons) ── */
 .btn-ghost {
-  background: rgba(0, 0, 0, 0.02);
-  color: var(--text-secondary);
-  border: 1px solid rgba(0, 0, 0, 0.04);
+  background: #ffffff;
+  color: #374151; /* Dark grey */
+  border: 1px solid #e5e7eb;
+}
+
+[data-theme='dark'] .btn-ghost {
+  background: transparent;
+  color: #d1d5db;
+  border-color: #4b5563;
 }
 
 @media (hover: hover) {
   .btn-ghost:hover {
-    background: rgba(0, 0, 0, 0.05);
-    color: var(--text-primary);
-    border-color: rgba(0, 0, 0, 0.08);
+    background: #f9fafb;
+    color: #111827;
+  }
+  [data-theme='dark'] .btn-ghost:hover {
+    background: rgba(255,255,255,0.05);
+    color: #f9fafb; 
   }
 }
 
 /* ── STATUS BUTTONS ── */
-.btn-confirmed { background: linear-gradient(135deg, #22c55e, #16a34a); color: #fff; box-shadow: 0 2px 12px rgba(34, 197, 94, 0.3); }
-.btn-cancelled { background: linear-gradient(135deg, #f43f5e, #e11d48); color: #fff; box-shadow: 0 2px 12px rgba(244, 63, 94, 0.3); }
-.btn-courier { background: linear-gradient(135deg, #a78bfa, #7c3aed); color: #fff; box-shadow: 0 2px 12px rgba(167, 139, 250, 0.3); }
-.btn-factory { background: linear-gradient(135deg, #fb923c, #ea580c); color: #fff; box-shadow: 0 2px 12px rgba(251, 146, 60, 0.3); }
-.btn-completed { background: linear-gradient(135deg, #059669, #047857); color: #fff; box-shadow: 0 2px 12px rgba(5, 150, 105, 0.3); }
+/* Simplified for clean aesthetics */
+.btn-confirmed { background: #16a34a; color: #fff; }
+.btn-cancelled { background: #e11d48; color: #fff; }
+.btn-courier { background: #7c3aed; color: #fff; }
+.btn-factory { background: #ea580c; color: #fff; }
+.btn-completed { background: #059669; color: #fff; }
 
-.btn-sm { height: 36px; padding: 0 var(--sp-3); font-size: var(--fs-xs); }
-.btn-lg { height: 52px; padding: 0 var(--sp-8); font-size: var(--fs-body); }
+.btn-sm { height: 36px; padding: 0 16px; font-size: 0.85rem; }
+.btn-lg { height: 50px; padding: 0 24px; font-size: 1rem; }
 
 .btn-block-mobile { width: 100%; }
 @media (min-width: 768px) { .btn-block-mobile { width: auto; } }
 
-.btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
-.btn:active:not(:disabled) { transform: scale(0.97); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn:active:not(:disabled) { transform: scale(0.98); }

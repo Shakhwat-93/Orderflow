@@ -1,23 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { Modal } from './Modal';
 import { Wand2, X, Plus, Package, Users, AlertTriangle, History, MapPin, Phone, User, Tag, FileText, Globe, ShieldCheck } from 'lucide-react';
 import api from '../lib/api';
 import CurrencyIcon from './CurrencyIcon';
 import { useAuth } from '../context/AuthContext';
+import { buildProductCatalog, createProductLine, filterToyBoxesByProduct, findBestProductMatch, findProductRecordByName } from '../utils/productCatalog';
 import './OrderHistoryTimeline.css';
 import './OrderEditModal.css';
-
-const PRODUCT_OPTIONS = [
-  'TOY BOX', 'ORGANIZER', 'Travel bag', 'TOY BOX + ORG', 'Gym bag',
-  'VLOGGER FOR FREE', 'MMB', 'Quran', 'WAIST BAG', 'BAGPACK', 'Moshari'
-];
-
-const PRODUCT_PRICES = {
-  'TOY BOX': 1250, 'ORGANIZER': 850, 'Travel bag': 950,
-  'TOY BOX + ORG': 2000, 'Gym bag': 750, 'VLOGGER FOR FREE': 650,
-  'MMB': 550, 'Quran': 1200, 'WAIST BAG': 450, 'BAGPACK': 1500, 'Moshari': 850
-};
 
 const ORDER_STATUSES = [
   'New', 'Pending Call', 'Confirmed', 'Factory Queue', 'Courier Ready',
@@ -25,10 +15,17 @@ const ORDER_STATUSES = [
 ];
 
 const SOURCES = ['Website', 'Facebook', 'Instagram', 'Direct'];
+const DELIVERY_ZONES = {
+  'Inside Dhaka': 80,
+  'Outside Dhaka': 150
+};
+
+const getDeliveryChargeForZone = (zone) => DELIVERY_ZONES[zone] ?? 150;
 
 export const OrderEditModal = ({ isOpen, onClose, order = null }) => {
-  const { addOrder, editOrder } = useOrders();
+  const { addOrder, editOrder, inventory, toyBoxes } = useOrders();
   const { onlineUsers, user, updatePresenceContext } = useAuth();
+  const productOptions = buildProductCatalog(inventory).map((item) => item.name);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [aiText, setAiText] = useState('');
@@ -38,11 +35,11 @@ export const OrderEditModal = ({ isOpen, onClose, order = null }) => {
   const [activityLogs, setActivityLogs] = useState([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
 
-  const initialFormData = {
+  const initialFormData = useMemo(() => ({
     customer_name: '', phone: '', address: '', source: 'Website',
-    notes: '', amount: '0', shipping_zone: 'Inside Dhaka', status: 'New',
-    products: [{ name: 'TOY BOX', quantity: 1, size: '', price: 1250, isToyBox: true, toyBoxNumber: null }]
-  };
+    notes: '', amount: '0', shipping_zone: 'Inside Dhaka', delivery_charge: 80, status: 'New',
+    products: [createProductLine(inventory, 'TOY BOX')]
+  }), [inventory]);
 
   const [formData, setFormData] = useState(initialFormData);
 
@@ -52,13 +49,23 @@ export const OrderEditModal = ({ isOpen, onClose, order = null }) => {
         let items = [];
         if (Array.isArray(order.ordered_items) && order.ordered_items.length > 0) {
           items = order.ordered_items.map(item => {
-            if (typeof item === 'object') return item;
-            return { name: 'TOY BOX', quantity: 1, isToyBox: true, toyBoxNumber: item, price: 1250 };
+            if (typeof item === 'object') {
+              const matchedProduct = findProductRecordByName(inventory, item.name);
+              return {
+                ...item,
+                price: item.price ?? matchedProduct?.unit_price ?? 0,
+                isToyBox: typeof item.isToyBox === 'boolean' ? item.isToyBox : matchedProduct?.isToyBox || false
+              };
+            }
+            return createProductLine(inventory, 'TOY BOX', { quantity: 1, toyBoxNumber: item });
           });
         } else if (order.product_name) {
+          const matchedProduct = findProductRecordByName(inventory, order.product_name);
           items = [{
             name: order.product_name, quantity: order.quantity || 1, size: order.size || '',
-            price: order.amount / (order.quantity || 1) || PRODUCT_PRICES[order.product_name] || 0
+            price: order.amount / (order.quantity || 1) || matchedProduct?.unit_price || 0,
+            isToyBox: matchedProduct?.isToyBox || false,
+            toyBoxNumber: null
           }];
         }
 
@@ -70,15 +77,26 @@ export const OrderEditModal = ({ isOpen, onClose, order = null }) => {
           notes: order.notes || '',
           amount: String(order.amount || '0'),
           shipping_zone: order.shipping_zone || 'Inside Dhaka',
+          delivery_charge: Number(
+            order.delivery_charge ??
+            order.pricing_summary?.delivery_charge ??
+            getDeliveryChargeForZone(order.shipping_zone || 'Inside Dhaka')
+          ) || 0,
           status: order.status || 'New',
-          products: items.length > 0 ? items : [{ name: 'TOY BOX', quantity: 1, size: '', price: 1250, isToyBox: true, toyBoxNumber: null }]
+          products: items.length > 0 ? items : [createProductLine(inventory, 'TOY BOX')]
         });
         setIsManualAmount(true);
-        const shippingZone = order.shipping_zone || 'Inside Dhaka';
-        const shippingCharge = shippingZone === 'Inside Dhaka' ? 80 : 150;
+        const shippingCharge = Number(
+          order.delivery_charge ??
+          order.pricing_summary?.delivery_charge ??
+          getDeliveryChargeForZone(order.shipping_zone || 'Inside Dhaka')
+        ) || 0;
         setManualSubtotal(Math.max(0, parseFloat(order.amount || '0') - shippingCharge));
       } else {
-        setFormData(initialFormData);
+        setFormData({
+          ...initialFormData,
+          products: [createProductLine(inventory, 'TOY BOX')]
+        });
         setIsManualAmount(false);
         setManualSubtotal(0);
         setAiText('');
@@ -106,7 +124,7 @@ export const OrderEditModal = ({ isOpen, onClose, order = null }) => {
 
       return () => { updatePresenceContext('Browsing'); };
     }
-  }, [isOpen, order, updatePresenceContext]);
+  }, [initialFormData, inventory, isOpen, order, updatePresenceContext]);
 
   const otherEditors = order ? onlineUsers.filter(u =>
     u.id !== user.id && u.context?.details?.orderId === order.id
@@ -119,9 +137,12 @@ export const OrderEditModal = ({ isOpen, onClose, order = null }) => {
     } else {
       subtotal = formData.products.reduce((acc, p) => acc + (parseFloat(p.price || 0) * (p.quantity || 1)), 0);
     }
-    const shippingCharge = formData.shipping_zone === 'Inside Dhaka' ? 80 : 150;
-    setFormData(prev => ({ ...prev, amount: String(subtotal + shippingCharge) }));
-  }, [formData.products, formData.shipping_zone, isManualAmount, manualSubtotal]);
+    const deliveryCharge = Number(formData.delivery_charge) || 0;
+    setFormData(prev => {
+      const nextAmount = String(subtotal + deliveryCharge);
+      return prev.amount === nextAmount ? prev : { ...prev, amount: nextAmount };
+    });
+  }, [formData.products, formData.delivery_charge, isManualAmount, manualSubtotal]);
 
   const handleAIExtract = async () => {
     if (!aiText.trim()) return;
@@ -130,16 +151,14 @@ export const OrderEditModal = ({ isOpen, onClose, order = null }) => {
       const extracted = await api.extractOrderWithAI(aiText);
       if (extracted) {
         const mappedProducts = extracted.products.map(p => {
-          const matchedCategory = PRODUCT_OPTIONS.find(opt =>
-            p.name.toUpperCase().includes(opt.toUpperCase())
-          ) || 'TOY BOX';
+          const matchedProduct = findBestProductMatch(p.name, inventory) || findProductRecordByName(inventory, 'TOY BOX');
           const boxMatch = p.name.match(/#(\d+)/);
           const boxNum = boxMatch ? parseInt(boxMatch[1]) : null;
-          return {
-            name: matchedCategory, quantity: p.quantity, size: p.size || '',
-            price: PRODUCT_PRICES[matchedCategory] || 0,
-            isToyBox: matchedCategory === 'TOY BOX', toyBoxNumber: boxNum
-          };
+          return createProductLine(inventory, matchedProduct?.name || 'TOY BOX', {
+            quantity: p.quantity,
+            size: p.size || '',
+            toyBoxNumber: boxNum
+          });
         });
 
         setFormData(prev => ({
@@ -166,9 +185,10 @@ export const OrderEditModal = ({ isOpen, onClose, order = null }) => {
   };
 
   const addProduct = () => {
+    setIsManualAmount(false);
     setFormData(prev => ({
       ...prev,
-      products: [...prev.products, { name: 'TOY BOX', quantity: 1, size: '', price: PRODUCT_PRICES['TOY BOX'], isToyBox: true, toyBoxNumber: null }]
+      products: [...prev.products, createProductLine(inventory, 'TOY BOX')]
     }));
   };
 
@@ -177,11 +197,23 @@ export const OrderEditModal = ({ isOpen, onClose, order = null }) => {
   };
 
   const updateProduct = (index, updates) => {
+    if (
+      Object.prototype.hasOwnProperty.call(updates, 'price') ||
+      Object.prototype.hasOwnProperty.call(updates, 'quantity') ||
+      Object.prototype.hasOwnProperty.call(updates, 'name')
+    ) {
+      setIsManualAmount(false);
+    }
+
     setFormData(prev => {
       const newProducts = [...prev.products];
-      if (updates.name && PRODUCT_PRICES[updates.name]) {
-        updates.price = PRODUCT_PRICES[updates.name];
-        updates.isToyBox = updates.name === 'TOY BOX';
+      if (updates.name) {
+        const matchedProduct = findProductRecordByName(inventory, updates.name);
+        updates.price = matchedProduct?.unit_price || 0;
+        updates.isToyBox = matchedProduct?.isToyBox || false;
+        if (!(matchedProduct?.isToyBox)) {
+          updates.toyBoxNumber = null;
+        }
       }
       newProducts[index] = { ...newProducts[index], ...updates };
       return { ...prev, products: newProducts };
@@ -209,7 +241,14 @@ export const OrderEditModal = ({ isOpen, onClose, order = null }) => {
         notes: formData.notes,
         amount: parseFloat(formData.amount) || 0,
         shipping_zone: formData.shipping_zone,
+        delivery_charge: Number(formData.delivery_charge) || 0,
         ordered_items: formData.products,
+        order_lines_payload: formData.products,
+        pricing_summary: {
+          subtotal: formData.products.reduce((acc, item) => acc + ((Number(item.price) || 0) * (item.quantity || 1)), 0),
+          delivery_charge: Number(formData.delivery_charge) || 0,
+          payable_total: parseFloat(formData.amount) || 0
+        },
         status: formData.status
       };
 
@@ -228,6 +267,18 @@ export const OrderEditModal = ({ isOpen, onClose, order = null }) => {
   };
 
   const isEdit = Boolean(order && order.id);
+  const handleShippingZoneChange = (zone) => {
+    setIsManualAmount(false);
+    setFormData((prev) => {
+      const currentDefault = getDeliveryChargeForZone(prev.shipping_zone);
+      const shouldSyncCharge = Number(prev.delivery_charge) === currentDefault || prev.delivery_charge === '' || prev.delivery_charge == null;
+      return {
+        ...prev,
+        shipping_zone: zone,
+        delivery_charge: shouldSyncCharge ? getDeliveryChargeForZone(zone) : prev.delivery_charge
+      };
+    });
+  };
 
   return (
     <Modal
@@ -301,7 +352,7 @@ export const OrderEditModal = ({ isOpen, onClose, order = null }) => {
                 <MapPin size={13} /> Delivery Zone
               </div>
               <div className="shipping-zone-cards">
-                {[
+                {[ 
                   { value: 'Inside Dhaka', price: '৳80' },
                   { value: 'Outside Dhaka', price: '৳150' }
                 ].map(zone => (
@@ -309,12 +360,25 @@ export const OrderEditModal = ({ isOpen, onClose, order = null }) => {
                     key={zone.value}
                     type="button"
                     className={`zone-card ${formData.shipping_zone === zone.value ? 'selected' : ''}`}
-                    onClick={() => setFormData({ ...formData, shipping_zone: zone.value })}
+                    onClick={() => handleShippingZoneChange(zone.value)}
                   >
                     <span className="zone-card-name">{zone.value}</span>
                     <span className="zone-card-price">{zone.price}</span>
                   </button>
                 ))}
+              </div>
+              <div className="pm-input-group">
+                <label className="pm-label">Delivery Charge</label>
+                <input
+                  type="number"
+                  className="pm-input"
+                  min="0"
+                  value={formData.delivery_charge}
+                  onChange={e => {
+                    setIsManualAmount(false);
+                    setFormData({ ...formData, delivery_charge: Math.max(0, parseFloat(e.target.value) || 0) });
+                  }}
+                />
               </div>
             </div>
 
@@ -452,7 +516,7 @@ export const OrderEditModal = ({ isOpen, onClose, order = null }) => {
                         value={item.name}
                         onChange={e => updateProduct(idx, { name: e.target.value })}
                       >
-                        {PRODUCT_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                        {productOptions.map(p => <option key={p} value={p}>{p}</option>)}
                       </select>
                       <input
                         className="product-size-input"
@@ -467,6 +531,13 @@ export const OrderEditModal = ({ isOpen, onClose, order = null }) => {
                         value={item.quantity}
                         onChange={e => updateProduct(idx, { quantity: parseInt(e.target.value) || 1 })}
                       />
+                      <input
+                        type="number"
+                        className="product-price-input"
+                        min="0"
+                        value={item.price}
+                        onChange={e => updateProduct(idx, { price: Math.max(0, parseFloat(e.target.value) || 0) })}
+                      />
                       <button
                         type="button"
                         className="remove-item-btn"
@@ -478,18 +549,21 @@ export const OrderEditModal = ({ isOpen, onClose, order = null }) => {
 
                     {item.isToyBox && (
                       <div className="toy-box-selector">
-                        <span className="toy-box-selector-label">Serial Number</span>
+                        <span className="toy-box-selector-label">{item.name} Serial Number</span>
                         <div className="toy-box-grid">
-                          {Array.from({ length: 38 }, (_, i) => i + 1).map(num => (
+                          {filterToyBoxesByProduct(toyBoxes, item.name).map((box) => {
+                            const num = box.toy_box_number;
+                            return (
                             <button
-                              key={num}
+                              key={`${item.name}-${num}`}
                               type="button"
                               className={`toy-box-btn ${item.toyBoxNumber === num ? 'selected' : ''}`}
                               onClick={() => updateProduct(idx, { toyBoxNumber: num })}
                             >
                               {num}
                             </button>
-                          ))}
+                          );
+                          })}
                         </div>
                       </div>
                     )}

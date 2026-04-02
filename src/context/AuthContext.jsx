@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import api from '../lib/api';
@@ -12,37 +13,40 @@ export const AuthProvider = ({ children }) => {
   const [userRoles, setUserRoles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [presenceContext, setPresenceContext] = useState({ page: 'Initializing', details: null });
+  const [onlineUsers, setOnlineUsers] = useState([]);
+
+  const currentUserIdRef = useRef(null);
+  const supportsLastActiveRef = useRef(true);
+  const profileRef = useRef(profile);
+  const rolesRef = useRef(userRoles);
+  const contextRef = useRef(presenceContext);
 
   useEffect(() => {
-    // Check active sessions and sets the user
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id);
-      } else {
-        setProfile(null);
-        setUserRoles([]);
+    profileRef.current = profile;
+  }, [profile]);
+
+  useEffect(() => {
+    rolesRef.current = userRoles;
+  }, [userRoles]);
+
+  useEffect(() => {
+    contextRef.current = presenceContext;
+  }, [presenceContext]);
+
+  const fetchProfile = useCallback(async (userId, { blockUi = false } = {}) => {
+    if (!userId) {
+      setProfile(null);
+      setUserRoles([]);
+      if (blockUi) {
         setLoading(false);
       }
-    });
+      return [];
+    }
 
-    // Listen for changes on auth state (in, out, etc.)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        setLoading(true); // ← Always show loading until roles are resolved
-        fetchProfile(session.user.id);
-      } else {
-        setProfile(null);
-        setUserRoles([]);
-        setLoading(false);
-      }
-    });
+    if (blockUi) {
+      setLoading(true);
+    }
 
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const fetchProfile = async (userId) => {
     try {
       const [{ data: profileData, error: profileError }, { data: rolesData, error: rolesError }] = await Promise.all([
         supabase
@@ -50,7 +54,6 @@ export const AuthProvider = ({ children }) => {
           .select('*')
           .eq('id', userId)
           .maybeSingle(),
-
         supabase
           .from('user_roles')
           .select('role_id')
@@ -60,42 +63,89 @@ export const AuthProvider = ({ children }) => {
       if (profileError) throw profileError;
 
       if (!profileData) {
+        supportsLastActiveRef.current = false;
         setProfile(null);
         setUserRoles([]);
-        setLoading(false);
-        return;
+        if (blockUi) {
+          setLoading(false);
+        }
+        return [];
       }
 
-      // Enforce Deactivation
       if (profileData.status === 'Deactivated' || profileData.status === 'inactive') {
+        supportsLastActiveRef.current = false;
         await supabase.auth.signOut();
         setProfile(null);
         setUserRoles([]);
-        setLoading(false);
-        return;
+        if (blockUi) {
+          setLoading(false);
+        }
+        return [];
       }
 
+      supportsLastActiveRef.current = Object.prototype.hasOwnProperty.call(profileData, 'last_active_at');
       setProfile(profileData);
 
       if (!rolesError && rolesData) {
-        const roles = rolesData.map(r => r.role_id);
+        const roles = rolesData.map((r) => r.role_id);
         setUserRoles(roles);
-        return roles; // ← Return so callers can use for redirect
-      } else {
-        setUserRoles([]);
-        return [];
+        return roles;
       }
+
+      setUserRoles([]);
+      return [];
     } catch (error) {
       console.error('Error fetching profile:', error.message);
       if (error.message.includes('refresh_token_not_found') || error.message.includes('Invalid Refresh Token')) {
         await supabase.auth.signOut();
       }
+      supportsLastActiveRef.current = false;
       setProfile(null);
       setUserRoles([]);
+      return [];
     } finally {
-      setLoading(false);
+      if (blockUi) {
+        setLoading(false);
+      }
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const nextUserId = session?.user?.id ?? null;
+      currentUserIdRef.current = nextUserId;
+      setUser(session?.user ?? null);
+
+      if (nextUserId) {
+        fetchProfile(nextUserId, { blockUi: true });
+        return;
+      }
+
+      setProfile(null);
+      setUserRoles([]);
+      setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const nextUserId = session?.user?.id ?? null;
+      const previousUserId = currentUserIdRef.current;
+
+      currentUserIdRef.current = nextUserId;
+      setUser(session?.user ?? null);
+
+      if (!nextUserId) {
+        setProfile(null);
+        setUserRoles([]);
+        setLoading(false);
+        return;
+      }
+
+      const shouldBlockUi = event === 'SIGNED_IN' || previousUserId !== nextUserId;
+      fetchProfile(nextUserId, { blockUi: shouldBlockUi });
+    });
+
+    return () => subscription.unsubscribe();
+  }, [fetchProfile]);
 
   const signIn = async (email, password) => {
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -114,11 +164,10 @@ export const AuthProvider = ({ children }) => {
     if (error) throw error;
 
     if (data.user) {
-      // Default role as 'Call Team'
       const { error: profileError } = await supabase.from('users').insert({
         id: data.user.id,
         name: name || email.split('@')[0],
-        email: email
+        email
       });
 
       if (!profileError) {
@@ -144,7 +193,6 @@ export const AuthProvider = ({ children }) => {
 
     if (error) throw error;
 
-    // Log profile update if name changed
     if (updates.name) {
       await api.logActivity({
         action_type: 'PROFILE_UPDATE',
@@ -173,22 +221,18 @@ export const AuthProvider = ({ children }) => {
     const fileName = `${user.id}-${Math.random()}.${fileExt}`;
     const filePath = `${user.id}/${fileName}`;
 
-    // Upload to storage
     const { error: uploadError } = await supabase.storage
       .from('avatars')
       .upload(filePath, file);
 
     if (uploadError) throw uploadError;
 
-    // Get public URL
     const { data: { publicUrl } } = supabase.storage
       .from('avatars')
       .getPublicUrl(filePath);
 
-    // Update profile
     await updateProfile(user.id, { avatar_url: publicUrl });
 
-    // Log avatar update
     const currentName = profile?.name || user?.user_metadata?.full_name || user?.email || 'User';
     await api.logActivity({
       action_type: 'AVATAR_UPDATE',
@@ -200,19 +244,6 @@ export const AuthProvider = ({ children }) => {
     return publicUrl;
   };
 
-
-  const [onlineUsers, setOnlineUsers] = useState([]);
-
-  // Use refs to avoid stale closures in heartbeat interval
-  const profileRef = useRef(profile);
-  const rolesRef = useRef(userRoles);
-  const contextRef = useRef(presenceContext);
-
-  useEffect(() => { profileRef.current = profile; }, [profile]);
-  useEffect(() => { rolesRef.current = userRoles; }, [userRoles]);
-  useEffect(() => { contextRef.current = presenceContext; }, [presenceContext]);
-
-  // Use a stable reference for the channel to avoid redundant joins
   useEffect(() => {
     if (!user) return;
 
@@ -235,12 +266,11 @@ export const AuthProvider = ({ children }) => {
             context: p.profile?.context || { page: 'Active' }
           }));
 
-        // Keep one entry per user id (latest online_at wins)
         const uniqueUsers = Array.from(
           new Map(
             users
               .sort((a, b) => new Date(b.online_at || 0) - new Date(a.online_at || 0))
-              .map(u => [u.id, u])
+              .map((entry) => [entry.id, entry])
           ).values()
         );
         setOnlineUsers(uniqueUsers);
@@ -270,38 +300,42 @@ export const AuthProvider = ({ children }) => {
       }
     };
 
-    // Heartbeat for Realtime Presence (Keep the channel alive and metadata fresh)
     const heartbeatInterval = setInterval(trackPresence, 30000);
 
-    // Heartbeat for Database Persistence (fallback for "Active X mins ago")
     const dbPersistenceInterval = setInterval(async () => {
-       if (user?.id) {
-         try {
-           await supabase.from('users').update({ 
-             last_active_at: new Date().toISOString() 
-           }).eq('id', user.id);
-         } catch (err) {
-           console.warn('Failed to update last_active_at:', err);
-         }
-       }
-    }, 120000); // Every 2 minutes
-    
-    // Initial track
+      const currentProfile = profileRef.current;
+      if (user?.id && currentProfile && supportsLastActiveRef.current) {
+        try {
+          await supabase.from('users').update({
+            last_active_at: new Date().toISOString()
+          }).eq('id', user.id);
+        } catch (err) {
+          if (
+            err?.message?.includes('last_active_at') ||
+            err?.code === 'PGRST204' ||
+            err?.code === '42703'
+          ) {
+            supportsLastActiveRef.current = false;
+          }
+          console.warn('Failed to update last_active_at:', err);
+        }
+      }
+    }, 120000);
+
     const timer = setTimeout(trackPresence, 1000);
-    
+
     return () => {
       clearInterval(heartbeatInterval);
       clearInterval(dbPersistenceInterval);
       clearTimeout(timer);
       channel.unsubscribe();
     };
-  }, [user?.id]); // Only re-subscribe if user ID changes
+  }, [user]);
 
-  // Separate effect for tracking metadata updates to the existing channel
   useEffect(() => {
     if (!user || !profile) return;
-    
-    const channel = supabase.getChannels().find(c => c.name === 'online-users');
+
+    const channel = supabase.getChannels().find((c) => c.name === 'online-users');
     if (channel && channel.state === 'joined') {
       channel.track({
         online_at: new Date().toISOString(),
@@ -315,11 +349,10 @@ export const AuthProvider = ({ children }) => {
         }
       });
     }
-  }, [profile, userRoles, presenceContext]); // Update tracking on metadata changes
+  }, [profile, userRoles, presenceContext, user]);
 
   const updatePresenceContext = useCallback((newContext, details = null) => {
-    setPresenceContext(prev => {
-      // Prevent redundant updates
+    setPresenceContext((prev) => {
       if (prev.page === newContext && JSON.stringify(prev.details) === JSON.stringify(details)) {
         return prev;
       }
@@ -331,9 +364,8 @@ export const AuthProvider = ({ children }) => {
     });
   }, []);
 
-
   const hasRole = (role) => userRoles.includes(role);
-  const hasAnyRole = (roles) => roles.some(role => userRoles.includes(role));
+  const hasAnyRole = (roles) => roles.some((role) => userRoles.includes(role));
   const isAdmin = userRoles.includes('Admin');
 
   return (

@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -6,6 +6,7 @@ import { OrderProvider, useOrders } from './context/OrderContext';
 import { TaskProvider } from './context/TaskContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { CourierRatioProvider } from './context/CourierRatioContext';
+import { BrandingProvider } from './context/BrandingContext';
 import { DashboardLayout } from './components/DashboardLayout';
 import { AccessRestricted } from './components/AccessRestricted';
 import { ChatBot } from './components/ChatBot';
@@ -73,12 +74,31 @@ const SkeletonScreen = () => (
 const ProtectedRoute = ({ children }) => {
   const { user, loading: authLoading, isUnauthorized } = useAuth();
   const { isInitialized } = useOrders();
-  
-  // Show skeleton until both Auth and initial Data are ready
-  if (authLoading || (user && !isInitialized)) {
+  const currentUserId = user?.id ?? null;
+  const [bootstrappedUserId, setBootstrappedUserId] = useState(null);
+
+  useEffect(() => {
+    if (!authLoading && user && isInitialized) {
+      queueMicrotask(() => setBootstrappedUserId(currentUserId));
+      return;
+    }
+
+    if (!authLoading && !user) {
+      queueMicrotask(() => setBootstrappedUserId(null));
+      return;
+    }
+
+    if (bootstrappedUserId && currentUserId && bootstrappedUserId !== currentUserId) {
+      queueMicrotask(() => setBootstrappedUserId(null));
+    }
+  }, [authLoading, bootstrappedUserId, currentUserId, isInitialized, user]);
+
+  const hasBootstrappedForCurrentUser = bootstrappedUserId === currentUserId;
+
+  if (!hasBootstrappedForCurrentUser && (authLoading || (user && !isInitialized))) {
     return <SkeletonScreen />;
   }
-  
+
   if (!user) {
     return <Navigate to="/login" replace />;
   }
@@ -109,38 +129,40 @@ function App() {
     <BrowserRouter>
       <ThemeProvider>
         <AuthProvider>
-          <NotificationProvider>
-            <OrderProvider>
-              <CourierRatioProvider>
-                <TaskProvider>
-                <Suspense fallback={<SkeletonScreen />}>
-                <Routes>
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
-                    <Route index element={<DashboardOverview />} />
-                    <Route path="orders" element={<OrdersBoard />} />
-                    <Route path="moderator" element={<RoleRoute roles={['Admin', 'Moderator']}><ModeratorPanel /></RoleRoute>} />
-                    <Route path="call-team" element={<RoleRoute roles={['Admin', 'Call Team']}><CallTeamPanel /></RoleRoute>} />
-                    <Route path="courier" element={<RoleRoute roles={['Admin', 'Courier Team']}><CourierPanel /></RoleRoute>} />
-                    <Route path="factory" element={<RoleRoute roles={['Admin', 'Factory Team']}><FactoryPanel /></RoleRoute>} />
-                    <Route path="users" element={<RoleRoute roles={['Admin']}><UserManagement /></RoleRoute>} />
-                    <Route path="inventory" element={<RoleRoute roles={['Admin', 'Moderator']}><InventoryPage /></RoleRoute>} />
-                    <Route path="reports" element={<RoleRoute roles={['Admin']}><ReportsPanel /></RoleRoute>} />
-                    <Route path="profile" element={<Profile />} />
-                    <Route path="settings" element={<Settings />} />
-                    <Route path="tasks" element={<TaskBoard />} />
-                    <Route path="digital-marketer" element={<RoleRoute roles={['Admin', 'Digital Marketer']}><DigitalMarketerPanel /></RoleRoute>} />
-                    <Route path="steadfast" element={<RoleRoute roles={['Admin', 'Courier Team', 'Moderator']}><SteadfastPanel /></RoleRoute>} />
-                    <Route path="*" element={<Navigate to="/" replace />} />
-                  </Route>
-                </Routes>
-              </Suspense>
-              <ChatBot />
-              <CommandPalette />
-                </TaskProvider>
-              </CourierRatioProvider>
-            </OrderProvider>
-          </NotificationProvider>
+          <BrandingProvider>
+            <NotificationProvider>
+              <OrderProvider>
+                <CourierRatioProvider>
+                  <TaskProvider>
+                  <Suspense fallback={<SkeletonScreen />}>
+                  <Routes>
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
+                      <Route index element={<DashboardOverview />} />
+                      <Route path="orders" element={<OrdersBoard />} />
+                      <Route path="moderator" element={<RoleRoute roles={['Admin', 'Moderator']}><ModeratorPanel /></RoleRoute>} />
+                      <Route path="call-team" element={<RoleRoute roles={['Admin', 'Call Team']}><CallTeamPanel /></RoleRoute>} />
+                      <Route path="courier" element={<RoleRoute roles={['Admin', 'Courier Team']}><CourierPanel /></RoleRoute>} />
+                      <Route path="factory" element={<RoleRoute roles={['Admin', 'Factory Team']}><FactoryPanel /></RoleRoute>} />
+                      <Route path="users" element={<RoleRoute roles={['Admin']}><UserManagement /></RoleRoute>} />
+                      <Route path="inventory" element={<RoleRoute roles={['Admin', 'Moderator']}><InventoryPage /></RoleRoute>} />
+                      <Route path="reports" element={<RoleRoute roles={['Admin']}><ReportsPanel /></RoleRoute>} />
+                      <Route path="profile" element={<Profile />} />
+                      <Route path="settings" element={<Settings />} />
+                      <Route path="tasks" element={<TaskBoard />} />
+                      <Route path="digital-marketer" element={<RoleRoute roles={['Admin', 'Digital Marketer']}><DigitalMarketerPanel /></RoleRoute>} />
+                      <Route path="steadfast" element={<RoleRoute roles={['Admin', 'Courier Team', 'Moderator']}><SteadfastPanel /></RoleRoute>} />
+                      <Route path="*" element={<Navigate to="/" replace />} />
+                    </Route>
+                  </Routes>
+                </Suspense>
+                <ChatBot />
+                <CommandPalette />
+                  </TaskProvider>
+                </CourierRatioProvider>
+              </OrderProvider>
+            </NotificationProvider>
+          </BrandingProvider>
         </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>

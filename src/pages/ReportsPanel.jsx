@@ -1,6 +1,6 @@
 import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
-import { useState, useEffect, useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
@@ -12,6 +12,7 @@ import {
 } from 'recharts';
 import { Download, FileDown, TrendingUp, BarChart2, PieChart as PieChartIcon, Activity, Truck, Clock, AlertCircle, ArrowUpRight, ArrowDownRight, Zap } from 'lucide-react';
 import { analytics } from '../utils/analytics';
+import { deserializeDateRange, usePersistentState } from '../utils/persistentState';
 import './ReportsPanel.css';
 
 // ── Custom Tooltip for Premium Charts ──
@@ -59,10 +60,14 @@ export const ReportsPanel = () => {
     updatePresenceContext('Analyzing Reports');
   }, [updatePresenceContext]);
 
-  const [dateRange, setDateRange] = useState({
-    start: new Date(new Date().setDate(new Date().getDate() - 30)),
-    end: new Date()
-  });
+  const [dateRange, setDateRange] = usePersistentState(
+    'panel:reports:dateRange',
+    () => ({
+      start: new Date(new Date().setDate(new Date().getDate() - 30)),
+      end: new Date()
+    }),
+    { deserialize: deserializeDateRange }
+  );
 
   // Filter orders by date range
   const filteredOrders = useMemo(() => {

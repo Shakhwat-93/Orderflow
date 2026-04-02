@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+import { usePersistentState } from '../utils/persistentState';
 import {
   Megaphone, Plus, Trash2, Send, TrendingUp, DollarSign,
   ShoppingBag, BarChart2, Calendar, ChevronDown, Check,
@@ -161,8 +162,9 @@ const CampaignRow = ({ row, index, onChange, onDelete, disabled }) => {
 // ── Main Component ──
 export const DigitalMarketerPanel = () => {
   const { user, profile, isAdmin, updatePresenceContext } = useAuth();
+  const userId = user?.id ?? null;
 
-  const [activeTab, setActiveTab] = useState('daily');
+  const [activeTab, setActiveTab] = usePersistentState('panel:digital-marketer:tab', 'daily');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -187,14 +189,14 @@ export const DigitalMarketerPanel = () => {
 
   // ── Fetch today's report ──
   const fetchTodayReport = useCallback(async () => {
-    if (!user) return;
+    if (!userId) return;
     setLoading(true);
     try {
       const { data: report } = await supabase
         .from('ads_reports')
         .select('*')
         .eq('report_date', todayStr)
-        .eq('submitted_by', user.id)
+        .eq('submitted_by', userId)
         .maybeSingle();
 
       if (report) {
@@ -214,7 +216,7 @@ export const DigitalMarketerPanel = () => {
     } finally {
       setLoading(false);
     }
-  }, [user, todayStr]);
+  }, [todayStr, userId]);
 
   // ── Fetch history ──
   const fetchHistory = useCallback(async () => {
@@ -227,14 +229,14 @@ export const DigitalMarketerPanel = () => {
         .order('report_date', { ascending: false })
         .limit(30);
 
-      if (!isAdmin) query.eq('submitted_by', user.id);
+      if (!isAdmin) query.eq('submitted_by', userId);
 
       const { data } = await query;
       setHistoryReports(data || []);
     } finally {
       setHistoryLoading(false);
     }
-  }, [isAdmin, user]);
+  }, [isAdmin, userId]);
 
   useEffect(() => {
     fetchTodayReport();
