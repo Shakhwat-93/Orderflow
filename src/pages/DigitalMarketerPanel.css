@@ -8,7 +8,7 @@
   flex-direction: column;
   gap: 24px;
   padding: 0 4px;
-  animation: panelIn 0.5s var(--ease-out);
+  animation: motion-slide-up var(--motion-duration-page) var(--motion-ease-standard);
 }
 
 @keyframes panelIn {

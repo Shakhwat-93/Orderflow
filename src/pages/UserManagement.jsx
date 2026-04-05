@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   Calendar, Building, Phone as PhoneIcon, User as UserIcon, 
@@ -15,6 +15,7 @@ import { Modal } from '../components/Modal';
 import { Badge } from '../components/Badge';
 import { Input } from '../components/Input';
 import { PremiumSearch } from '../components/PremiumSearch';
+import { createStaggerContainer, pageVariants, scaleItemVariants } from '../lib/motion';
 import './UserManagement.css';
 
 const AVAILABLE_ROLES = [
@@ -36,6 +37,7 @@ const ROLE_DESCRIPTIONS = {
 };
 
 export const UserManagement = () => {
+  const userCardGridVariants = createStaggerContainer(0.08, 0.04);
   const { user: currentUser, profile: currentProfile, isAdmin } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -254,8 +256,9 @@ export const UserManagement = () => {
   return (
     <div className="user-management">
       <motion.div 
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
+        variants={pageVariants}
+        initial="hidden"
+        animate="visible"
         className="user-header-container"
       >
         <div className="page-header users-header elite-glass">
@@ -320,17 +323,12 @@ export const UserManagement = () => {
             className="user-cards-grid"
             initial="hidden"
             animate="visible"
-            variants={{
-              visible: { transition: { staggerChildren: 0.1 } }
-            }}
+            variants={userCardGridVariants}
           >
             {filteredUsers.map(user => (
               <motion.div 
                 key={user.id}
-                variants={{
-                  hidden: { opacity: 0, scale: 0.95, y: 20 },
-                  visible: { opacity: 1, scale: 1, y: 0 }
-                }}
+                variants={scaleItemVariants}
                 className={`elite-user-card ${user.status === 'inactive' ? 'deactivated' : ''}`}
               >
                 <div className="card-top">

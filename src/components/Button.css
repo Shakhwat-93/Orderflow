@@ -7,7 +7,11 @@
   border-radius: 9999px; /* Pill shape */
   font-weight: 500;
   font-size: 0.95rem; /* Clean professional font size */
-  transition: all 0.2s ease;
+  transition: transform var(--anim-fast) var(--motion-ease-standard),
+              box-shadow var(--anim-fast) var(--motion-ease-standard),
+              background-color var(--anim-fast) var(--motion-ease-standard),
+              color var(--anim-fast) var(--motion-ease-standard),
+              border-color var(--anim-fast) var(--motion-ease-standard);
   white-space: nowrap;
   border: none;
   padding: 0 20px;

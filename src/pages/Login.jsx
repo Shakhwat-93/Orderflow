@@ -5,6 +5,13 @@ import { useBranding } from '../hooks/useBranding';
 import { User, Lock, Loader2 } from 'lucide-react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import orderflowLogo from '../assets/orderflow-logo.png';
+import {
+  createStaggerContainer,
+  hoverLift,
+  scaleInVariants,
+  slideUpVariants,
+  tapScale,
+} from '../lib/motion';
 import './Login.css';
 
 const ROLE_ROUTES = {
@@ -24,30 +31,7 @@ const getRoleRoute = (roles = []) => {
   return '/';
 };
 
-// Animation Variants
-const containerVariants = {
-  hidden: { opacity: 0, y: 20, scale: 0.98 },
-  visible: { 
-    opacity: 1, 
-    y: 0, 
-    scale: 1,
-    transition: { 
-      duration: 0.5, 
-      ease: [0.16, 1, 0.3, 1],
-      staggerChildren: 0.1,
-      delayChildren: 0.2
-    } 
-  }
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 15 },
-  visible: { 
-    opacity: 1, 
-    y: 0,
-    transition: { duration: 0.4, ease: "easeOut" }
-  }
-};
+const loginContainerVariants = createStaggerContainer(0.08, 0.08);
 
 export const Login = () => {
   const [email, setEmail] = useState('');
@@ -85,8 +69,9 @@ export const Login = () => {
     return (
       <div className="login-resolving">
         <Motion.div 
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
+          variants={scaleInVariants}
+          initial="hidden"
+          animate="visible"
           className="login-resolve-icon-neu"
         >
           <Loader2 size={40} className="login-resolve-spinner" />
@@ -98,14 +83,14 @@ export const Login = () => {
   return (
     <div className="login-wrapper">
       <Motion.div 
-        variants={containerVariants}
+        variants={loginContainerVariants}
         initial="hidden"
         animate="visible"
         className="login-card"
       >
-        <Motion.div variants={itemVariants} className="login-header">
+        <Motion.div variants={slideUpVariants} className="login-header">
           <Motion.div 
-            whileHover={{ scale: 1.05 }}
+            whileHover={hoverLift}
             className="login-logo-container"
           >
             <img src={orderflowLogo} alt={`${appName} Logo`} className="login-logo-img" />
@@ -120,9 +105,10 @@ export const Login = () => {
           <AnimatePresence mode="wait">
             {error && (
               <Motion.div 
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 10 }}
+                variants={slideUpVariants}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
                 className="login-error"
               >
                 {error}
@@ -130,7 +116,7 @@ export const Login = () => {
             )}
           </AnimatePresence>
           
-          <Motion.div variants={itemVariants} className="neu-input-field">
+          <Motion.div variants={slideUpVariants} className="neu-input-field">
             <User size={20} />
             <input 
               type="email"
@@ -142,7 +128,7 @@ export const Login = () => {
             />
           </Motion.div>
           
-          <Motion.div variants={itemVariants} className="neu-input-field">
+          <Motion.div variants={slideUpVariants} className="neu-input-field">
             <Lock size={20} />
             <input 
               type="password"
@@ -155,9 +141,9 @@ export const Login = () => {
           </Motion.div>
           
           <Motion.button 
-            variants={itemVariants}
-            whileHover={{ scale: 1.01, translateY: -1 }}
-            whileTap={{ scale: 0.98 }}
+            variants={slideUpVariants}
+            whileHover={hoverLift}
+            whileTap={tapScale}
             type="submit" 
             className="login-submit-btn" 
             disabled={loading}
@@ -165,7 +151,7 @@ export const Login = () => {
             {loading ? 'Logging in...' : 'Login'}
           </Motion.button>
 
-          <Motion.footer variants={itemVariants} className="login-footer">
+          <Motion.footer variants={slideUpVariants} className="login-footer">
             <span className="login-link">Forgot password?</span>
             <span>or</span>
             <span className="login-link-bold">Sign Up</span>

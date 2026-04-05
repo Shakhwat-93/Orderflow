@@ -11,7 +11,7 @@
   border-radius: 28px;
   position: relative;
   overflow: hidden;
-  animation: slideInBrief 0.8s var(--ease-out);
+  animation: motion-slide-up var(--motion-duration-page) var(--motion-ease-standard);
   transition: all 0.4s var(--ease-out);
   color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.1);

@@ -13,19 +13,15 @@ import {
   AlertTriangle, User, Users, Zap, ListChecks, Target,
   ChevronRight, Loader2, Search, List, Kanban, TrendingUp, Activity, ShieldCheck, MoreHorizontal, ChevronDown
 } from 'lucide-react';
+import {
+  hoverLift,
+  motionTransition,
+  pageVariants,
+  scaleItemVariants,
+} from '../lib/motion';
 import './TaskBoard.css';
 
 // ── Animation Constants ──
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { type: 'spring', damping: 25, stiffness: 100 } }
-};
-
 const PRIORITY_CONFIG = {
   urgent: { color: '#ef4444', label: 'Urgent', icon: AlertTriangle },
   high:   { color: '#f97316', label: 'High',   icon: Zap },
@@ -66,7 +62,7 @@ const StatusCard = ({ title, count, total, color, progress }) => (
                style={{ backgroundColor: 'white' }}
                initial={{ width: 0 }}
                animate={{ width: `${progress}%` }}
-               transition={{ duration: 1.2, ease: 'easeOut' }}
+               transition={motionTransition.page}
              />
           </div>
        </div>
@@ -98,7 +94,7 @@ const HorizontalTaskItem = ({ task, onView }) => {
   return (
     <motion.div 
       className="horizontal-task-lite"
-      whileHover={{ y: -2, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
+      whileHover={hoverLift}
       onClick={onView}
     >
       <div className="accent-bar" style={{ backgroundColor: config.color }}></div>
@@ -152,10 +148,10 @@ const KanbanColumn = ({ title, tasks, status, icon: Icon, color, onView, onStatu
           <motion.div
             key={task.id}
             layout
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            transition={{ type: 'spring', damping: 20, stiffness: 150 }}
+            variants={scaleItemVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
           >
              <Card className="kanban-task-card-lite" onClick={() => onView(task)}>
                 <div className="priority-label" style={{ color }}>{task.priority}</div>
@@ -230,8 +226,9 @@ export const TaskBoard = () => {
     <div className="task-board-wrapper-lite">
        <motion.header 
           className="elite-dashboard-header"
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
+          variants={pageVariants}
+          initial="hidden"
+          animate="visible"
        >
           <div className="header-left">
              <span className="date-display">{new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}</span>

@@ -4,6 +4,7 @@ import ReactDOM from 'react-dom';
 import { Badge } from './Badge';
 import { FileText, MessageSquare, ChevronDown, Clock, AlertTriangle } from 'lucide-react';
 import CurrencyIcon from './CurrencyIcon';
+import { slideUpVariants } from '../lib/motion';
 import './OrderRow.css';
 
 export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected, onSelect, fraudFlag, automationFlag }) => {
@@ -55,10 +56,10 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
     <motion.tr 
       className={`order-row clickable-row ${isSelected ? 'row-selected' : ''}`} 
       onClick={() => onDetails(order)}
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, x: -20 }}
-      transition={{ duration: 0.3, ease: "easeOut" }}
+      variants={slideUpVariants}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
     >
       <td className="checkbox-cell" onClick={(e) => e.stopPropagation()}>
         <input 

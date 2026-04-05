@@ -4,7 +4,7 @@
   max-width: 1600px;
   margin: 0 auto;
   min-height: 100vh;
-  animation: fadeIn 0.4s var(--ease-out);
+  animation: motion-slide-up var(--motion-duration-page) var(--motion-ease-standard);
 }
 
 @media (min-width: 768px) {

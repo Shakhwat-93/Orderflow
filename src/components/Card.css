@@ -8,7 +8,10 @@
   box-shadow: var(--shadow-card), var(--shadow-inner);
   overflow: hidden;
   position: relative;
-  transition: all var(--transition-fast);
+  transition: transform var(--anim-smooth) var(--motion-ease-standard),
+              box-shadow var(--anim-smooth) var(--motion-ease-standard),
+              background-color var(--anim-fast) var(--motion-ease-standard),
+              border-color var(--anim-fast) var(--motion-ease-standard);
 }
 
 @media (hover: hover) and (pointer: fine) {

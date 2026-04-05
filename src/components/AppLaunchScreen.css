@@ -1,0 +1,165 @@
+.app-launch-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: rgba(244, 246, 251, 0.72);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+[data-theme='dark'] .app-launch-screen {
+  background: rgba(14, 15, 20, 0.76);
+}
+
+.app-launch-backdrop {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 18% 18%, rgba(var(--accent-rgb), 0.28), transparent 38%),
+    radial-gradient(circle at 82% 24%, rgba(168, 85, 247, 0.2), transparent 34%),
+    linear-gradient(145deg, #f8faff 0%, #eef2ff 45%, #e8eefc 100%);
+}
+
+[data-theme='dark'] .app-launch-backdrop {
+  background:
+    radial-gradient(circle at 18% 18%, rgba(var(--accent-rgb), 0.22), transparent 38%),
+    radial-gradient(circle at 82% 24%, rgba(168, 85, 247, 0.16), transparent 34%),
+    linear-gradient(145deg, #0f172a 0%, #111827 45%, #0b1120 100%);
+}
+
+.app-launch-orb {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(8px);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.app-launch-orb-left {
+  width: 16rem;
+  height: 16rem;
+  left: -4rem;
+  bottom: -3rem;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.26), transparent 70%);
+}
+
+.app-launch-orb-right {
+  width: 18rem;
+  height: 18rem;
+  right: -5rem;
+  top: -4rem;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.22), transparent 70%);
+}
+
+.app-launch-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.1rem;
+  text-align: center;
+  padding: 2rem;
+}
+
+.app-launch-logo-shell {
+  width: clamp(6rem, 16vw, 7.5rem);
+  height: clamp(6rem, 16vw, 7.5rem);
+  display: grid;
+  place-items: center;
+  border-radius: 2rem;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow:
+    0 20px 48px rgba(99, 102, 241, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+[data-theme='dark'] .app-launch-logo-shell {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 20px 48px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.app-launch-logo {
+  width: 68%;
+  height: auto;
+  display: block;
+  object-fit: contain;
+}
+
+.app-launch-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.app-launch-kicker {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(15, 23, 42, 0.5);
+}
+
+[data-theme='dark'] .app-launch-kicker {
+  color: rgba(241, 245, 249, 0.5);
+}
+
+.app-launch-copy h1 {
+  margin: 0;
+  font-size: clamp(1.75rem, 5vw, 2.4rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: var(--text-primary);
+}
+
+.app-shell {
+  min-height: 100vh;
+  transition:
+    filter var(--motion-duration-page) var(--motion-ease-standard),
+    opacity var(--motion-duration-page) var(--motion-ease-standard),
+    transform var(--motion-duration-page) var(--motion-ease-standard);
+}
+
+.app-shell.is-launching {
+  filter: blur(12px);
+  opacity: 0.88;
+  transform: scale(1.012);
+}
+
+@media (max-width: 640px) {
+  .app-launch-content {
+    gap: 0.95rem;
+    padding: 1.5rem;
+  }
+
+  .app-launch-logo-shell {
+    border-radius: 1.6rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell {
+    transition: none;
+  }
+
+  .app-shell.is-launching {
+    filter: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  .app-launch-screen,
+  .app-launch-backdrop,
+  .app-launch-orb,
+  .app-launch-content,
+  .app-launch-logo-shell {
+    animation: none !important;
+  }
+}
