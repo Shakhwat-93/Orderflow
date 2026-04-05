@@ -1,15 +1,19 @@
 import { useState, useLayoutEffect, useRef } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation, useNavigationType } from 'react-router-dom';
+import { AnimatePresence, LayoutGroup, motion } from 'framer-motion';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { routeOverlayVariants, routeTransitionVariants } from '../lib/motion';
 import './DashboardLayout.css';
 
 
 export const DashboardLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const location = useLocation();
+  const navigationType = useNavigationType();
   const scrollRef = useRef(null);
   const scrollKey = `route_scroll:${location.pathname}${location.search}`;
+  const direction = navigationType === 'POP' ? -1 : 1;
 
   useLayoutEffect(() => {
     const node = scrollRef.current;
@@ -47,7 +51,40 @@ export const DashboardLayout = () => {
           isSidebarOpen={isSidebarOpen} 
         />
         <main className="content-scrollable" ref={scrollRef}>
-          <Outlet />
+          <LayoutGroup id="app-route-transitions">
+            <div className="route-transition-stage">
+              <AnimatePresence mode="popLayout" initial={false} custom={direction}>
+                <motion.div
+                  key={location.pathname}
+                  className="route-transition-layer"
+                  custom={direction}
+                  variants={routeTransitionVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                >
+                  <motion.div
+                    className="route-transition-overlay"
+                    custom={direction}
+                    variants={routeOverlayVariants}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                  />
+                  <motion.section
+                    className="route-shared-frame"
+                    layoutId="route-shared-frame"
+                  >
+                    <motion.div
+                      className="route-shared-frame-glow"
+                      layoutId="route-shared-frame-glow"
+                    />
+                    <Outlet />
+                  </motion.section>
+                </motion.div>
+              </AnimatePresence>
+            </div>
+          </LayoutGroup>
         </main>
       </div>
     </div>

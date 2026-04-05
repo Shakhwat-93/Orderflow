@@ -12,6 +12,8 @@
               box-shadow var(--anim-smooth) var(--motion-ease-standard),
               background-color var(--anim-fast) var(--motion-ease-standard),
               border-color var(--anim-fast) var(--motion-ease-standard);
+  transform-origin: center;
+  will-change: transform, box-shadow;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -19,7 +21,7 @@
     background: rgba(255, 255, 255, 0.95);
     border-color: rgba(var(--accent-rgb), 0.1);
     transform: translateY(-4px);
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1), var(--shadow-inner);
+    box-shadow: 0 24px 54px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(var(--accent-rgb), 0.06), var(--shadow-inner);
   }
 }
 
@@ -27,6 +29,10 @@
   background: var(--bg-elevated) !important;
   border-color: var(--glass-border) !important;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4), var(--shadow-inner) !important;
+}
+
+.card:active {
+  transform: scale(0.992);
 }
 
 .card-header {

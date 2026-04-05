@@ -72,6 +72,54 @@
   overflow-x: clip;
 }
 
+.route-transition-stage {
+  position: relative;
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  min-height: 100%;
+  isolation: isolate;
+}
+
+.route-transition-layer {
+  position: relative;
+  grid-area: 1 / 1;
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+}
+
+.route-transition-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: calc(var(--radius-3xl) + 4px);
+  background:
+    linear-gradient(135deg, rgba(var(--accent-rgb), 0.12), rgba(255, 255, 255, 0) 40%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0));
+  filter: blur(24px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.route-shared-frame {
+  position: relative;
+  min-width: 0;
+  min-height: 100%;
+  border-radius: var(--radius-3xl);
+  z-index: 1;
+}
+
+.route-shared-frame-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at top right, rgba(var(--accent-rgb), 0.08), transparent 30%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 24%);
+  opacity: 0.9;
+}
+
 @media (max-width: 767px) {
   .app-container {
     min-height: 100dvh;

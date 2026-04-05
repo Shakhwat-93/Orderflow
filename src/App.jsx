@@ -12,6 +12,7 @@ import { AccessRestricted } from './components/AccessRestricted';
 import { ChatBot } from './components/ChatBot';
 import { CommandPalette } from './components/CommandPalette';
 import { AppLaunchScreen } from './components/AppLaunchScreen';
+import { ScrollRevealManager } from './components/ScrollRevealManager';
 
 // Lazy loading components
 const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
@@ -130,6 +131,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <ScrollRevealManager />
       <ThemeProvider>
         <AuthProvider>
           <BrandingProvider>

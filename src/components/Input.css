@@ -23,7 +23,11 @@
   border-radius: 8px;
   font-size: 0.95rem; /* Closer to 15px */
   color: #111827;
-  transition: all 0.2s ease;
+  transition:
+    border-color var(--motion-duration-fast) var(--motion-ease-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-ease-standard),
+    transform var(--motion-duration-fast) var(--motion-ease-standard),
+    background-color var(--motion-duration-fast) var(--motion-ease-standard);
   outline: none;
   font-family: inherit;
   width: 100%;
@@ -46,7 +50,8 @@
 
 .input-field:focus {
   border-color: #6366f1; /* Premium indigo outline */
-  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12), 0 12px 26px rgba(99, 102, 241, 0.12);
+  transform: translateY(-1px);
 }
 
 [data-theme='dark'] .input-field:focus {
@@ -56,6 +61,11 @@
 
 .input-field::placeholder { 
   color: #9ca3af; 
+}
+
+.input-field.is-typing:not(:focus) {
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.08);
+  border-color: rgba(var(--accent-rgb), 0.24);
 }
 
 /* Helper Text */
