@@ -5,16 +5,21 @@
 
 .app-container {
   display: flex;
+  height: 100vh;
+  height: 100dvh;
   min-height: 100vh;
   min-height: 100dvh;
+  width: 100%;
   background: var(--bg-main);
   /* NOTE: Do NOT set overflow-x:hidden here — it breaks position:sticky on the sidebar */
 }
 
 @media (min-width: 768px) {
   .app-container {
-    padding: var(--sp-4);
-    gap: var(--sp-4);
+    max-width: var(--layout-shell-max);
+    margin-inline: auto;
+    padding: var(--layout-gutter);
+    gap: var(--layout-gutter);
     align-items: flex-start;
   }
 }
@@ -24,6 +29,7 @@
   flex: 1 1 0%;
   min-width: 0;           /* Critical: prevents flex child overflow */
   min-height: 0;
+  height: 100%;
   overflow-x: clip;       /* Clip overflow here, not on parent */
   display: flex;
   flex-direction: column;
@@ -31,8 +37,10 @@
 
 @media (min-width: 768px) {
   .main-content {
-    min-height: calc(100vh - var(--sp-8));
-    min-height: calc(100dvh - var(--sp-8));
+    height: calc(100vh - (var(--layout-gutter) * 2));
+    height: calc(100dvh - (var(--layout-gutter) * 2));
+    min-height: calc(100vh - (var(--layout-gutter) * 2));
+    min-height: calc(100dvh - (var(--layout-gutter) * 2));
   }
 }
 
@@ -62,7 +70,9 @@
 /* Inner scrollable content zone */
 .content-scrollable {
   flex: 1;
-  padding: var(--sp-4);
+  height: 100%;
+  max-height: 100%;
+  padding: var(--layout-gutter-mobile);
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -70,6 +80,85 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: clip;
+  position: relative;
+  touch-action: pan-y pinch-zoom;
+  overscroll-behavior-y: contain;
+}
+
+.gesture-back-indicator {
+  position: fixed;
+  left: max(12px, var(--safe-left));
+  top: calc(var(--safe-top) + 96px);
+  z-index: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.86);
+  color: #f8fafc;
+  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.2);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(calc(-18px + (var(--gesture-progress, 0) * 26px))) scale(calc(0.92 + (var(--gesture-progress, 0) * 0.08)));
+  transition: opacity var(--motion-duration-fast) var(--motion-ease-standard),
+              transform var(--motion-duration-fast) var(--motion-ease-standard),
+              background-color var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+.gesture-back-indicator.is-visible {
+  opacity: 1;
+}
+
+.gesture-back-indicator.is-armed {
+  background: rgba(var(--accent-rgb), 0.92);
+}
+
+.gesture-refresh-indicator {
+  position: sticky;
+  top: calc(var(--safe-top) + 8px);
+  z-index: 650;
+  width: fit-content;
+  margin: 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--text-primary);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(calc(-52px + var(--gesture-refresh-offset, 0px)));
+  transition: opacity var(--motion-duration-fast) var(--motion-ease-standard),
+              transform var(--motion-duration-fast) var(--motion-ease-standard),
+              background-color var(--motion-duration-fast) var(--motion-ease-standard),
+              color var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+.gesture-refresh-indicator.is-visible {
+  opacity: 1;
+}
+
+.gesture-refresh-indicator.is-armed {
+  background: rgba(var(--accent-rgb), 0.92);
+  color: #ffffff;
+}
+
+.gesture-refresh-indicator.is-refreshing svg {
+  animation: dashboard-gesture-spin 0.9s linear infinite;
+}
+
+@keyframes dashboard-gesture-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .route-transition-stage {
@@ -109,6 +198,17 @@
   z-index: 1;
 }
 
+.route-page-shell {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--layout-section-gap);
+  width: min(100%, var(--layout-content-max));
+  min-height: 100%;
+  margin-inline: auto;
+}
+
 .route-shared-frame-glow {
   position: absolute;
   inset: 0;
@@ -122,29 +222,74 @@
 
 @media (max-width: 767px) {
   .app-container {
+    height: 100dvh;
     min-height: 100dvh;
   }
 
   .main-content {
+    height: 100dvh;
     min-height: 100dvh;
   }
 
   .content-scrollable {
-    padding: 14px;
-    padding-left: max(14px, var(--safe-left));
-    padding-right: max(14px, var(--safe-right));
-    padding-bottom: calc(18px + var(--safe-bottom));
+    padding: var(--layout-gutter-mobile);
+    padding-left: max(var(--layout-gutter-mobile), var(--safe-left));
+    padding-right: max(var(--layout-gutter-mobile), var(--safe-right));
+    padding-bottom: calc(var(--layout-gutter-mobile) + var(--safe-bottom));
+  }
+
+  .gesture-back-indicator {
+    top: calc(var(--safe-top) + 82px);
   }
 }
 
 @media (min-width: 768px) {
   .content-scrollable {
+    padding: var(--layout-gutter);
+  }
+}
+
+@media (min-width: 1280px) {
+  .app-container {
+    padding: var(--layout-gutter-lg);
+    gap: var(--layout-gutter-lg);
+  }
+
+  .main-content {
+    height: calc(100vh - (var(--layout-gutter-lg) * 2));
+    height: calc(100dvh - (var(--layout-gutter-lg) * 2));
+    min-height: calc(100vh - (var(--layout-gutter-lg) * 2));
+    min-height: calc(100dvh - (var(--layout-gutter-lg) * 2));
+  }
+
+  .content-scrollable {
+    padding: var(--layout-gutter-lg);
+  }
+}
+
+@media (min-width: 768px) {
+  body.desktop-clean-mode .app-container {
+    max-width: none;
+    margin-inline: 0;
+    padding: var(--sp-4);
+    gap: var(--sp-4);
+    align-items: flex-start;
+  }
+
+  body.desktop-clean-mode .main-content {
+    height: calc(100vh - var(--sp-8));
+    height: calc(100dvh - var(--sp-8));
+    min-height: calc(100vh - var(--sp-8));
+    min-height: calc(100dvh - var(--sp-8));
+  }
+
+  body.desktop-clean-mode .content-scrollable {
     padding: var(--sp-3) var(--sp-4) var(--sp-8);
   }
 }
 
 @media (min-width: 1280px) {
-  .content-scrollable {
+  body.desktop-clean-mode .content-scrollable {
     padding: var(--sp-4) var(--sp-6) var(--sp-10);
   }
 }

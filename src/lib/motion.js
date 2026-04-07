@@ -171,8 +171,11 @@ export const createStaggerContainer = (staggerChildren = 0.06, delayChildren = 0
 });
 
 export const hoverLift = Object.freeze({
-  y: -2,
-  transition: motionTransition.fast,
+  y: 0,
+  transition: {
+    duration: 0.12,
+    ease: MOTION_EASE.standard,
+  },
 });
 
 export const tapScale = Object.freeze({

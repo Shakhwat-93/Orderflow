@@ -7,7 +7,7 @@
   top: 0;
   left: 0;
   bottom: 0;
-  width: min(360px, 92vw);
+  width: min(352px, 92vw);
   max-width: 92vw;
   height: 100vh;
   height: 100dvh;
@@ -24,7 +24,7 @@
     transform 0.45s cubic-bezier(0.16, 1, 0.3, 1),
     opacity   0.35s ease;
   overflow: hidden;
-  border-radius: 0 30px 30px 0;
+  border-radius: 0 32px 32px 0;
   box-shadow: 0 28px 64px rgba(39, 46, 66, 0.14);
 }
 
@@ -55,14 +55,21 @@
     position: sticky;
     top: 16px;          /* Fixed pixel — CSS vars can cause sticky failures */
     align-self: flex-start;
+    top: var(--layout-gutter);
     width: 284px;
+    width: var(--layout-sidebar-md);
     min-width: 284px;
+    min-width: var(--layout-sidebar-md);
     height: calc(100vh - 32px);
     height: calc(100dvh - 32px);
+    height: calc(100vh - (var(--layout-gutter) * 2));
+    height: calc(100dvh - (var(--layout-gutter) * 2));
     max-height: calc(100vh - 32px);
+    max-height: calc(100vh - (var(--layout-gutter) * 2));
     transform: translateX(0);
     opacity: 1;
     border-radius: 28px;
+    border-radius: 32px;
     border: 1px solid var(--glass-border);
     box-shadow: 0 24px 48px rgba(39, 46, 66, 0.06);
     z-index: auto;
@@ -76,25 +83,31 @@
 @media (min-width: 1280px) {
   .sidebar {
     width: 320px;
+    width: var(--layout-sidebar-lg);
     min-width: 320px;
+    min-width: var(--layout-sidebar-lg);
     top: 20px;
+    top: var(--layout-gutter-lg);
     height: calc(100vh - 40px);
     height: calc(100dvh - 40px);
+    height: calc(100vh - (var(--layout-gutter-lg) * 2));
+    height: calc(100dvh - (var(--layout-gutter-lg) * 2));
     max-height: calc(100vh - 40px);
+    max-height: calc(100vh - (var(--layout-gutter-lg) * 2));
   }
 }
 
 /* ── Sidebar Header ── */
 .sidebar-header {
   min-height: 80px;
-  padding: 18px 16px 16px;
+  padding: var(--sp-4);
   display: flex;
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: var(--sp-2);
   flex-shrink: 0;
-  padding-top: calc(var(--safe-top) + 18px);
+  padding-top: calc(var(--safe-top) + var(--sp-4));
   border-bottom: 1px solid var(--glass-border);
   position: relative;
   z-index: 1;
@@ -102,14 +115,14 @@
 
 @media (min-width: 768px) {
   .sidebar-header {
-    padding-top: 20px;
-    padding-bottom: 20px;
-    padding-left: 24px;
-    padding-right: 24px;
+    padding-top: var(--layout-gutter);
+    padding-bottom: var(--layout-gutter);
+    padding-left: var(--layout-gutter);
+    padding-right: var(--layout-gutter);
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: var(--sp-3);
   }
 }
 
@@ -127,7 +140,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--sp-2);
   width: auto;
   flex-shrink: 0;
 }
@@ -136,7 +149,7 @@
   .sidebar-header-actions {
     width: auto;
     justify-content: flex-end;
-    gap: 8px;
+    gap: var(--sp-2);
   }
 }
 
@@ -347,7 +360,7 @@
 }
 
 .sidebar-profile-card-footer {
-  margin-bottom: 10px;
+  margin-bottom: var(--sp-2);
 }
 
 .sidebar-profile-avatar {
@@ -400,7 +413,7 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 18px 16px 12px;
+  padding: var(--sp-4) var(--sp-4) var(--sp-3);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -417,7 +430,7 @@
   text-transform: uppercase;
   letter-spacing: 0.16em;
   color: var(--text-tertiary);
-  padding: 0 16px 8px;
+  padding: 0 var(--sp-4) var(--sp-2);
   margin-top: 2px;
 }
 
@@ -425,8 +438,8 @@
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
   border-radius: 999px;
   color: var(--text-secondary);
   font-weight: 600;
@@ -437,7 +450,7 @@
   background: transparent;
   width: 100%;
   text-align: left;
-  min-height: 50px;
+  min-height: 48px;
   font-family: inherit;
   position: relative;
   transition:
@@ -489,6 +502,16 @@
 }
 
 @media (min-width: 768px) {
+  .sidebar-nav {
+    padding-left: var(--layout-gutter);
+    padding-right: var(--layout-gutter);
+  }
+
+  .nav-section-label {
+    padding-left: var(--layout-gutter);
+    padding-right: var(--layout-gutter);
+  }
+
   .nav-label { display: block; }
 }
 
@@ -514,9 +537,9 @@
 /* ── Sidebar Footer ── */
 .sidebar-footer {
   flex-shrink: 0;
-  padding: 18px 20px;
+  padding: var(--sp-4);
   border-top: 1px solid var(--glass-border);
-  padding-bottom: calc(20px + var(--safe-bottom));
+  padding-bottom: calc(var(--sp-5) + var(--safe-bottom));
   position: relative;
   z-index: 1;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(99, 102, 241, 0.03));
@@ -524,8 +547,8 @@
 
 @media (min-width: 768px) {
   .sidebar-footer {
-    padding-left: 24px;
-    padding-right: 24px;
+    padding-left: var(--layout-gutter);
+    padding-right: var(--layout-gutter);
   }
 }
 
@@ -545,8 +568,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 42px;
-  height: 42px;
+  width: var(--touch-min);
+  height: var(--touch-min);
   padding: 0;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(238, 242, 255, 0.94)),
@@ -638,4 +661,52 @@
 
 @media (min-width: 768px) {
   .sidebar-overlay { display: none !important; }
+}
+
+@media (min-width: 768px) {
+  body.desktop-clean-mode .sidebar {
+    top: 16px;
+    width: 284px;
+    min-width: 284px;
+    height: calc(100vh - 32px);
+    height: calc(100dvh - 32px);
+    max-height: calc(100vh - 32px);
+    border-radius: 28px;
+  }
+
+  body.desktop-clean-mode .sidebar-header {
+    padding-top: 20px;
+    padding-bottom: 20px;
+    padding-left: 24px;
+    padding-right: 24px;
+    gap: 12px;
+  }
+
+  body.desktop-clean-mode .sidebar-header-actions {
+    gap: 8px;
+  }
+
+  body.desktop-clean-mode .sidebar-nav {
+    padding: 18px 16px 12px;
+  }
+
+  body.desktop-clean-mode .nav-section-label {
+    padding: 0 16px 8px;
+  }
+
+  body.desktop-clean-mode .sidebar-footer {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+}
+
+@media (min-width: 1280px) {
+  body.desktop-clean-mode .sidebar {
+    width: 320px;
+    min-width: 320px;
+    top: 20px;
+    height: calc(100vh - 40px);
+    height: calc(100dvh - 40px);
+    max-height: calc(100vh - 40px);
+  }
 }

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import './Modal.css';
 
@@ -40,7 +41,7 @@ export const Modal = ({ isOpen, onClose, title, subtitle, children }) => {
     setDragOffset(0);
   };
 
-  return (
+  const modalMarkup = (
     <div className="modal-overlay" onClick={onClose}>
       <div
         className="modal-content"
@@ -66,4 +67,6 @@ export const Modal = ({ isOpen, onClose, title, subtitle, children }) => {
       </div>
     </div>
   );
+
+  return createPortal(modalMarkup, document.body);
 };

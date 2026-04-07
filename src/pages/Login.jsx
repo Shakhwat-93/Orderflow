@@ -12,6 +12,7 @@ import {
   slideUpVariants,
   tapScale,
 } from '../lib/motion';
+import { useDesktopExperience } from '../hooks/useDesktopExperience';
 import './Login.css';
 
 const ROLE_ROUTES = {
@@ -34,6 +35,7 @@ const getRoleRoute = (roles = []) => {
 const loginContainerVariants = createStaggerContainer(0.08, 0.08);
 
 export const Login = () => {
+  const isDesktopExperience = useDesktopExperience();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -53,6 +55,20 @@ export const Login = () => {
     document.title = `${appName} | Login`;
   }, [appName]);
 
+  const containerMotionProps = isDesktopExperience
+    ? {}
+    : {
+        variants: loginContainerVariants,
+        initial: 'hidden',
+        animate: 'visible',
+      };
+
+  const itemMotionProps = isDesktopExperience
+    ? {}
+    : {
+        variants: slideUpVariants,
+      };
+
   const handleAuth = async (e) => {
     e.preventDefault();
     try {
@@ -69,9 +85,11 @@ export const Login = () => {
     return (
       <div className="login-resolving">
         <Motion.div 
-          variants={scaleInVariants}
-          initial="hidden"
-          animate="visible"
+          {...(isDesktopExperience ? {} : {
+            variants: scaleInVariants,
+            initial: 'hidden',
+            animate: 'visible',
+          })}
           className="login-resolve-icon-neu"
         >
           <Loader2 size={40} className="login-resolve-spinner" />
@@ -83,14 +101,12 @@ export const Login = () => {
   return (
     <div className="login-wrapper">
       <Motion.div 
-        variants={loginContainerVariants}
-        initial="hidden"
-        animate="visible"
+        {...containerMotionProps}
         className="login-card"
       >
-        <Motion.div variants={slideUpVariants} className="login-header">
+        <Motion.div {...itemMotionProps} className="login-header">
           <Motion.div 
-            whileHover={hoverLift}
+            whileHover={isDesktopExperience ? undefined : hoverLift}
             className="login-logo-container"
           >
             <img src={orderflowLogo} alt={`${appName} Logo`} className="login-logo-img" />
@@ -105,10 +121,12 @@ export const Login = () => {
           <AnimatePresence mode="wait">
             {error && (
               <Motion.div 
-                variants={slideUpVariants}
-                initial="hidden"
-                animate="visible"
-                exit="exit"
+                {...(isDesktopExperience ? {} : {
+                  variants: slideUpVariants,
+                  initial: 'hidden',
+                  animate: 'visible',
+                  exit: 'exit',
+                })}
                 className="login-error"
               >
                 {error}
@@ -116,7 +134,7 @@ export const Login = () => {
             )}
           </AnimatePresence>
           
-          <Motion.div variants={slideUpVariants} className="neu-input-field">
+          <Motion.div {...itemMotionProps} className="neu-input-field">
             <User size={20} />
             <input 
               type="email"
@@ -128,7 +146,7 @@ export const Login = () => {
             />
           </Motion.div>
           
-          <Motion.div variants={slideUpVariants} className="neu-input-field">
+          <Motion.div {...itemMotionProps} className="neu-input-field">
             <Lock size={20} />
             <input 
               type="password"
@@ -141,9 +159,9 @@ export const Login = () => {
           </Motion.div>
           
           <Motion.button 
-            variants={slideUpVariants}
-            whileHover={hoverLift}
-            whileTap={tapScale}
+            {...itemMotionProps}
+            whileHover={isDesktopExperience ? undefined : hoverLift}
+            whileTap={isDesktopExperience ? undefined : tapScale}
             type="submit" 
             className="login-submit-btn" 
             disabled={loading}
@@ -151,7 +169,7 @@ export const Login = () => {
             {loading ? 'Logging in...' : 'Login'}
           </Motion.button>
 
-          <Motion.footer variants={slideUpVariants} className="login-footer">
+          <Motion.footer {...itemMotionProps} className="login-footer">
             <span className="login-link">Forgot password?</span>
             <span>or</span>
             <span className="login-link-bold">Sign Up</span>

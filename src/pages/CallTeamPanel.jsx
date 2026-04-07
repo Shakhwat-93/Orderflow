@@ -313,46 +313,48 @@ export const CallTeamPanel = () => {
                   ${Number(order.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </div>
 
-                <div className="elite-col-status status-col">
-                  <span className={`elite-status-pill ${statusPill}`}>{order.status}</span>
-                </div>
+                <div className="elite-col-utility">
+                  <div className="elite-col-status status-col">
+                    <span className={`elite-status-pill ${statusPill}`}>{order.status}</span>
+                  </div>
 
-                <div className={`elite-col-sla ${slaClass} sla-col`}>
-                  {slaIcon} {order.status === 'Confirmed' ? 'COMPLETED' : slaText}
-                </div>
+                  <div className={`elite-col-sla ${slaClass} sla-col`}>
+                    {slaIcon} {order.status === 'Confirmed' ? 'COMPLETED' : slaText}
+                  </div>
 
-                <div className="elite-col-actions">
-                  {order.status === 'New' && (
-                    <>
-                      <button className="elite-btn-primary" onClick={(e) => handleAction(e, order.id, 'confirm')}>
-                        <CheckCircle size={14} /> Confirm Order
-                      </button>
-                      <button className="elite-act-btn reject" onClick={(e) => handleAction(e, order.id, 'cancel')}>
-                        <XCircle size={14} />
-                      </button>
-                    </>
-                  )}
+                  <div className="elite-col-actions">
+                    {order.status === 'New' && (
+                      <>
+                        <button className="elite-btn-primary" onClick={(e) => handleAction(e, order.id, 'confirm')}>
+                          <CheckCircle size={14} /> Confirm Order
+                        </button>
+                        <button className="elite-act-btn reject" onClick={(e) => handleAction(e, order.id, 'cancel')}>
+                          <XCircle size={14} />
+                        </button>
+                      </>
+                    )}
 
-                  {order.status === 'Pending Call' && (
-                    <>
-                      <button className="elite-act-btn call" title="Log No Answer" onClick={(e) => { e.stopPropagation(); handleLogAttempt(order.id, 'No Answer'); }}>
-                        <PhoneCall size={14} />
-                        {order.call_attempts > 0 && <span className="btn-attempt-count">{order.call_attempts}</span>}
-                      </button>
-                      <button className="elite-act-btn reschedule" title="Log Call Back" onClick={(e) => { e.stopPropagation(); handleLogAttempt(order.id, 'Call Back Later'); }}>
-                        <Calendar size={14} />
-                      </button>
-                      <button className="elite-act-btn reject" title="Cancel Order" onClick={(e) => handleAction(e, order.id, 'cancel')}>
-                        <XCircle size={14} />
-                      </button>
-                    </>
-                  )}
+                    {order.status === 'Pending Call' && (
+                      <>
+                        <button className="elite-act-btn call" title="Log No Answer" onClick={(e) => { e.stopPropagation(); handleLogAttempt(order.id, 'No Answer'); }}>
+                          <PhoneCall size={14} />
+                          {order.call_attempts > 0 && <span className="btn-attempt-count">{order.call_attempts}</span>}
+                        </button>
+                        <button className="elite-act-btn reschedule" title="Log Call Back" onClick={(e) => { e.stopPropagation(); handleLogAttempt(order.id, 'Call Back Later'); }}>
+                          <Calendar size={14} />
+                        </button>
+                        <button className="elite-act-btn reject" title="Cancel Order" onClick={(e) => handleAction(e, order.id, 'cancel')}>
+                          <XCircle size={14} />
+                        </button>
+                      </>
+                    )}
 
-                  {order.status === 'Confirmed' && (
-                     <button className="elite-icon-btn" style={{opacity: 0.5}} onClick={(e) => { e.stopPropagation(); handleOpenEditModal(order); }}>
-                       <Edit2 size={14} />
-                     </button>
-                  )}
+                    {order.status === 'Confirmed' && (
+                       <button className="elite-icon-btn" style={{opacity: 0.5}} onClick={(e) => { e.stopPropagation(); handleOpenEditModal(order); }}>
+                         <Edit2 size={14} />
+                       </button>
+                    )}
+                  </div>
                 </div>
 
               </div>

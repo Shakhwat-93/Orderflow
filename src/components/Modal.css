@@ -156,6 +156,18 @@
 
 [data-theme='dark'] .modal-body { background: #0f1117; }
 
+.modal-content [data-scroll-reveal],
+.modal-content .card,
+.modal-content .glass-card,
+.modal-content .vibrant-metric-card {
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: none !important;
+  animation: none !important;
+  transition-delay: 0ms !important;
+  will-change: auto !important;
+}
+
 /* Scrollbars */
 .modal-body::-webkit-scrollbar { width: 6px; }
 .modal-body::-webkit-scrollbar-track { background: transparent; }

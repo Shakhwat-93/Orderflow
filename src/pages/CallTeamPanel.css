@@ -319,9 +319,23 @@
 }
 
 /* ── Elite List Header (Columns) ── */
+.elite-list-container {
+  width: 100%;
+  min-width: 0;
+  container-type: inline-size;
+  container-name: callteam-list;
+}
+
 .elite-list-headers {
   display: grid;
-  grid-template-columns: 80px 220px 2fr 100px 120px 140px 140px;
+  grid-template-columns:
+    88px
+    minmax(200px, 1.3fr)
+    minmax(160px, 1.1fr)
+    minmax(104px, 0.78fr)
+    minmax(128px, 0.9fr)
+    minmax(124px, 0.82fr)
+    minmax(152px, max-content);
   gap: var(--sp-4);
   padding: 0 var(--sp-6) var(--sp-3);
   font-size: 10px;
@@ -340,15 +354,23 @@
 
 .elite-list-card {
   background: var(--bg-surface);
-  border-radius: var(--radius-pill);
+  border-radius: 28px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.03);
   border: 1px solid var(--glass-border);
-  padding: 12px 24px;
+  padding: 16px 24px;
   display: grid;
-  grid-template-columns: 80px 220px 2fr 100px 120px 140px 140px;
+  grid-template-columns:
+    88px
+    minmax(200px, 1.3fr)
+    minmax(160px, 1.1fr)
+    minmax(104px, 0.78fr)
+    minmax(128px, 0.9fr)
+    minmax(124px, 0.82fr)
+    minmax(152px, max-content);
   gap: var(--sp-4);
   align-items: center;
   transition: all var(--anim-smooth);
+  min-width: 0;
 }
 
 .elite-list-card:hover {
@@ -356,12 +378,32 @@
   box-shadow: 0 8px 30px rgba(0,0,0,0.06);
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1520px) {
   .elite-list-card, .elite-list-headers {
-    grid-template-columns: 80px 2fr 2fr 100px 140px;
+    grid-template-columns:
+      88px
+      minmax(220px, 1.35fr)
+      minmax(180px, 1.15fr)
+      minmax(108px, 0.8fr)
+      minmax(136px, 0.9fr)
+      minmax(152px, max-content);
   }
-  .elite-list-headers .status-col, .elite-list-card .status-col,
-  .elite-list-headers .sla-col, .elite-list-card .sla-col {
+
+  .elite-list-headers .sla-col,
+  .elite-list-card .sla-col {
+    display: none;
+  }
+}
+
+@media (max-width: 1280px) {
+  .elite-list-card, .elite-list-headers {
+    grid-template-columns: 88px minmax(220px, 1.35fr) minmax(180px, 1.15fr) minmax(108px, 0.8fr) minmax(152px, max-content);
+  }
+
+  .elite-list-headers .status-col,
+  .elite-list-card .status-col,
+  .elite-list-headers .sla-col,
+  .elite-list-card .sla-col {
     display: none;
   }
 }
@@ -370,12 +412,16 @@
   font-weight: 800;
   font-size: 15px;
   color: var(--text-primary);
+  white-space: nowrap;
+  grid-area: order;
 }
 
 .elite-col-customer {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+  grid-area: customer;
 }
 
 .elite-avatar {
@@ -394,6 +440,7 @@
 .elite-cust-info {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .elite-cust-name {
@@ -401,12 +448,17 @@
   font-size: 14px;
   color: var(--text-primary);
   margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .elite-cust-meta-row {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .elite-last-call-tag {
@@ -435,6 +487,8 @@
 .elite-col-product {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  grid-area: product;
 }
 
 .elite-prod-name {
@@ -442,33 +496,54 @@
   font-size: 14px;
   color: var(--text-primary);
   margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .elite-prod-meta {
   font-size: 11px;
   color: var(--text-tertiary);
   font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .elite-col-amount {
   font-weight: 800;
   font-size: 15px;
   color: var(--text-primary);
+  white-space: nowrap;
+  grid-area: amount;
+}
+
+.elite-col-utility {
+  display: contents;
 }
 
 .elite-col-status {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
+  min-width: 0;
+  grid-area: status;
 }
 
 .elite-status-pill {
-  padding: 6px 12px;
-  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
   font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .elite-status-pill.pending { background: #e0e7ff; color: #4338ca; }
@@ -486,6 +561,8 @@
   gap: 6px;
   font-size: 12px;
   font-weight: 700;
+  white-space: nowrap;
+  grid-area: sla;
 }
 
 .elite-col-sla.remaining { color: #0f766e; }
@@ -497,6 +574,10 @@
   align-items: center;
   gap: 8px;
   justify-content: flex-end;
+  justify-self: end;
+  flex-wrap: nowrap;
+  min-width: max-content;
+  grid-area: actions;
 }
 
 .elite-act-btn {
@@ -510,6 +591,7 @@
   background: transparent;
   cursor: pointer;
   transition: all var(--anim-fast);
+  flex: 0 0 auto;
 }
 
 .elite-act-btn.call { 
@@ -558,11 +640,118 @@
   cursor: pointer;
   transition: all var(--anim-fast);
   box-shadow: 0 4px 14px rgba(15, 118, 110, 0.3);
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
 
 .elite-btn-primary:hover {
   background: #0d9488;
   transform: translateY(-1px);
+}
+
+@container callteam-list (max-width: 1180px) {
+  .elite-list-headers {
+    display: none;
+  }
+
+  .elite-list-card {
+    grid-template-columns: minmax(0, 1fr) minmax(176px, 220px);
+    grid-template-areas:
+      "order utility"
+      "customer utility"
+      "product utility"
+      "amount utility";
+    gap: 12px 18px;
+    padding: 18px 20px 20px;
+    border-radius: 24px;
+    align-items: center;
+  }
+
+  .elite-col-utility {
+    display: flex;
+    grid-area: utility;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    gap: 10px;
+    min-width: 0;
+    width: 100%;
+    max-width: 220px;
+    align-self: center;
+    margin-block: auto;
+    padding: 14px;
+    border-radius: 20px;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(248, 250, 252, 0.92)),
+      linear-gradient(135deg, rgba(79, 70, 229, 0.05), rgba(15, 118, 110, 0.04));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  }
+
+  .dark-mode .elite-col-utility {
+    border-color: rgba(148, 163, 184, 0.16);
+    background:
+      linear-gradient(180deg, rgba(15, 23, 42, 0.86), rgba(15, 23, 42, 0.92)),
+      linear-gradient(135deg, rgba(79, 70, 229, 0.12), rgba(15, 118, 110, 0.08));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  }
+
+  .elite-col-status {
+    display: flex;
+    justify-content: flex-end;
+    align-self: center;
+  }
+
+  .elite-col-sla {
+    display: flex;
+    justify-content: flex-end;
+    font-size: 11px;
+    text-align: right;
+  }
+
+  .elite-col-actions {
+    justify-self: stretch;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .elite-col-amount {
+    align-self: end;
+    font-size: 18px;
+  }
+
+  .elite-prod-name {
+    font-size: 15px;
+  }
+}
+
+@container callteam-list (max-width: 860px) {
+  .elite-list-card {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "order"
+      "customer"
+      "product"
+      "amount"
+      "utility";
+    gap: 12px;
+  }
+
+  .elite-col-utility {
+    align-items: stretch;
+  }
+
+  .elite-col-status,
+  .elite-col-sla {
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  .elite-col-actions {
+    justify-content: flex-start;
+  }
 }
 
 /* ── Elite Pagination Footer ── */

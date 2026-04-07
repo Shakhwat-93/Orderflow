@@ -13,6 +13,7 @@ import { ChatBot } from './components/ChatBot';
 import { CommandPalette } from './components/CommandPalette';
 import { AppLaunchScreen } from './components/AppLaunchScreen';
 import { ScrollRevealManager } from './components/ScrollRevealManager';
+import { useDesktopExperience } from './hooks/useDesktopExperience';
 
 // Lazy loading components
 const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
@@ -30,6 +31,23 @@ const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.S
 const TaskBoard = lazy(() => import('./pages/TaskBoard').then(m => ({ default: m.TaskBoard })));
 const DigitalMarketerPanel = lazy(() => import('./pages/DigitalMarketerPanel').then(m => ({ default: m.DigitalMarketerPanel })));
 const SteadfastPanel = lazy(() => import('./pages/SteadfastPanel').then(m => ({ default: m.SteadfastPanel })));
+
+const ROLE_ROUTES = {
+  'Admin': '/',
+  'Moderator': '/moderator',
+  'Call Team': '/call-team',
+  'Courier Team': '/courier',
+  'Factory Team': '/factory',
+  'Digital Marketer': '/digital-marketer',
+};
+
+const getRoleRoute = (roles = []) => {
+  const priority = ['Admin', 'Digital Marketer', 'Moderator', 'Call Team', 'Courier Team', 'Factory Team'];
+  for (const role of priority) {
+    if (roles.includes(role)) return ROLE_ROUTES[role];
+  }
+  return '/';
+};
 
 // ── Premium Skeleton Loading Screen ──
 const SkeletonScreen = () => (
@@ -78,26 +96,30 @@ const ProtectedRoute = ({ children }) => {
   const { isInitialized } = useOrders();
   const currentUserId = user?.id ?? null;
   const [bootstrappedUserId, setBootstrappedUserId] = useState(null);
+  const [hasResolvedInitialAuth, setHasResolvedInitialAuth] = useState(false);
 
   useEffect(() => {
     if (!authLoading && user && isInitialized) {
       queueMicrotask(() => setBootstrappedUserId(currentUserId));
+      queueMicrotask(() => setHasResolvedInitialAuth(true));
       return;
     }
 
     if (!authLoading && !user) {
       queueMicrotask(() => setBootstrappedUserId(null));
+      queueMicrotask(() => setHasResolvedInitialAuth(true));
       return;
     }
 
     if (bootstrappedUserId && currentUserId && bootstrappedUserId !== currentUserId) {
       queueMicrotask(() => setBootstrappedUserId(null));
+      queueMicrotask(() => setHasResolvedInitialAuth(false));
     }
   }, [authLoading, bootstrappedUserId, currentUserId, isInitialized, user]);
 
   const hasBootstrappedForCurrentUser = bootstrappedUserId === currentUserId;
 
-  if (!hasBootstrappedForCurrentUser && (authLoading || (user && !isInitialized))) {
+  if (!hasResolvedInitialAuth || authLoading || (user && !isInitialized && !hasBootstrappedForCurrentUser)) {
     return <SkeletonScreen />;
   }
 
@@ -110,6 +132,20 @@ const ProtectedRoute = ({ children }) => {
   }
   
   return children;
+};
+
+const AuthAwareLoginRoute = () => {
+  const { user, userRoles, loading: authLoading } = useAuth();
+
+  if (authLoading) {
+    return <SkeletonScreen />;
+  }
+
+  if (user) {
+    return <Navigate to={getRoleRoute(userRoles)} replace />;
+  }
+
+  return <Login />;
 };
 
 const RoleRoute = ({ children, roles }) => {
@@ -128,25 +164,37 @@ const RoleRoute = ({ children, roles }) => {
 
 function App() {
   const [isLaunchVisible, setIsLaunchVisible] = useState(true);
+  const isDesktopExperience = useDesktopExperience();
+  const shouldShowLaunchScreen = !isDesktopExperience && isLaunchVisible;
+
+  useEffect(() => {
+    document.body.classList.toggle('desktop-clean-mode', isDesktopExperience);
+
+    return () => {
+      document.body.classList.remove('desktop-clean-mode');
+    };
+  }, [isDesktopExperience]);
 
   return (
     <BrowserRouter>
-      <ScrollRevealManager />
+      {!isDesktopExperience && <ScrollRevealManager />}
       <ThemeProvider>
         <AuthProvider>
           <BrandingProvider>
-            <AppLaunchScreen
-              isVisible={isLaunchVisible}
-              onComplete={() => setIsLaunchVisible(false)}
-            />
-            <div className={`app-shell ${isLaunchVisible ? 'is-launching' : ''}`}>
+            {!isDesktopExperience && (
+              <AppLaunchScreen
+                isVisible={shouldShowLaunchScreen}
+                onComplete={() => setIsLaunchVisible(false)}
+              />
+            )}
+            <div className={`app-shell ${shouldShowLaunchScreen ? 'is-launching' : ''} ${isDesktopExperience ? 'desktop-clean-shell' : ''}`}>
               <NotificationProvider>
                 <OrderProvider>
                   <CourierRatioProvider>
                     <TaskProvider>
                     <Suspense fallback={<SkeletonScreen />}>
                     <Routes>
-                      <Route path="/login" element={<Login />} />
+                      <Route path="/login" element={<AuthAwareLoginRoute />} />
                       <Route path="/" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
                         <Route index element={<DashboardOverview />} />
                         <Route path="orders" element={<OrdersBoard />} />
