@@ -3,7 +3,7 @@
    ================================================================ */
 
 .header {
-  height: var(--header-height-mobile);
+  height: 64px;
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
@@ -11,7 +11,7 @@
   display: flex;
   align-items: center;
   gap: var(--sp-3);
-  padding: 0 var(--layout-gutter-mobile);
+  padding: 0 var(--sp-4);
   position: sticky;
   top: 0;
   z-index: 500;
@@ -26,23 +26,24 @@
 
 @media (min-width: 768px) {
   .header {
-    height: var(--header-height-desktop);
-    padding: 0 var(--layout-gutter);
+    height: 72px;
+    padding: 0 40px;
     margin-bottom: var(--sp-2);
   }
 }
 
 @media (min-width: 1024px) {
   .header {
-    padding: 0 var(--layout-gutter-lg);
+    height: 72px;
+    padding: 0 var(--sp-6);
   }
 }
 
 /* ===== MOBILE MENU ===== */
 .mobile-menu-toggle {
-  width: var(--touch-min);
-  height: var(--touch-min);
-  min-width: var(--touch-min);
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
   background: rgba(0, 0, 0, 0.03);
   border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 12px;
@@ -72,12 +73,12 @@
   cursor: pointer;
   flex: 1;
   min-width: 0;
-  max-width: min(520px, 100%);
+  max-width: 640px;
 }
 
 .header-search-icon {
   position: absolute;
-  left: var(--sp-3);
+  left: 16px;
   top: 50%;
   transform: translateY(-50%);
   color: #94a3b8;
@@ -86,19 +87,22 @@
 
 .search-input {
   width: 100%;
-  height: var(--touch-min);
-  padding-left: 40px;
-  padding-right: 72px;
-  background: #f1f5f9;
-  border: 1.5px solid transparent;
-  border-radius: 100px;
+  height: 46px;
+  padding-left: 44px;
+  padding-right: 44px;
+  background: linear-gradient(180deg, #f8fbff, #eef4fb);
+  border: 1.5px solid rgba(148, 163, 184, 0.16);
+  border-radius: 18px;
   outline: none;
   transition: all 0.3s ease;
-  font-weight: 500;
-  font-size: 0.875rem;
+  font-weight: 600;
+  font-size: 0.96rem;
   font-family: inherit;
   color: #0f172a;
   cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 8px 20px rgba(15, 23, 42, 0.04);
 }
 
 .search-shortcut {
@@ -114,7 +118,11 @@
 
 [data-theme='dark'] .search-input {
   background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.06);
   color: #f1f5f9;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 10px 24px rgba(0, 0, 0, 0.18);
 }
 
 .search-input::placeholder {
@@ -125,7 +133,7 @@
   background: #fff;
   border-color: var(--accent);
   box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
-  width: min(100%, 320px);
+  width: 100%;
 }
 
 [data-theme='dark'] .search-input:focus {
@@ -135,7 +143,7 @@
 
 .search-spinner-inline {
   position: absolute;
-  right: 14px;
+  right: 16px;
   top: 50%;
   transform: translateY(-50%);
   color: var(--accent);
@@ -149,8 +157,7 @@
   position: absolute;
   top: calc(100% + 12px);
   left: 0;
-  width: min(448px, calc(100vw - (var(--layout-gutter-mobile) * 2)));
-  max-width: calc(100vw - max(var(--layout-gutter-mobile), var(--safe-left)) - max(var(--layout-gutter-mobile), var(--safe-right)));
+  width: min(480px, calc(100vw - 48px));
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(25px) saturate(200%);
   -webkit-backdrop-filter: blur(25px) saturate(200%);
@@ -299,12 +306,7 @@
 
 @media (min-width: 1024px) {
   .search-input {
-    width: clamp(256px, 24vw, 288px);
-    height: var(--touch-min);
-  }
-
-  .search-input:focus {
-    width: clamp(320px, 30vw, 368px);
+    height: 48px;
   }
 }
 
@@ -323,15 +325,15 @@
 
 @media (max-width: 767px) {
   .header {
-    height: calc(var(--header-height-mobile) + var(--safe-top));
-    gap: var(--sp-2);
-    padding-left: max(var(--layout-gutter-mobile), var(--safe-left));
-    padding-right: max(var(--layout-gutter-mobile), var(--safe-right));
-    padding-top: max(var(--sp-2), var(--safe-top));
+    height: 70px;
+    gap: 10px;
+    padding-left: max(var(--sp-3), var(--safe-left));
+    padding-right: max(var(--sp-3), var(--safe-right));
+    padding-top: max(8px, var(--safe-top));
   }
 
   .header-actions {
-    gap: var(--sp-2);
+    gap: 6px;
   }
 
   .header-spacer,
@@ -345,9 +347,9 @@
   }
 
   .search-input {
-    height: 48px;
-    padding-left: 40px;
-    padding-right: 14px;
+    height: 46px;
+    padding-left: 42px;
+    padding-right: 42px;
     border-radius: 16px;
     font-size: 0.98rem;
     background: rgba(255, 255, 255, 0.9);
@@ -369,14 +371,14 @@
   .search-results-dropdown-elite {
     position: fixed;
     top: calc(var(--safe-top) + 78px);
-    left: max(var(--layout-gutter-mobile), var(--safe-left));
-    right: max(var(--layout-gutter-mobile), var(--safe-right));
+    left: max(12px, var(--safe-left));
+    right: max(12px, var(--safe-right));
     width: auto;
     border-radius: 22px;
   }
 
   .profile-actions-row {
-    gap: var(--sp-2);
+    gap: 8px;
   }
 
   .share-btn {
@@ -384,27 +386,27 @@
   }
 
   .avatar-ring {
-    width: var(--touch-min);
-    height: var(--touch-min);
+    width: 42px;
+    height: 42px;
   }
 
   .icon-badge-btn,
   .mobile-menu-toggle {
-    width: var(--touch-min);
-    height: var(--touch-min);
-    min-width: var(--touch-min);
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
     border-radius: 14px;
   }
 
   .premium-dropdown {
     right: 0;
-    width: min(92vw, 288px);
+    width: min(92vw, 280px);
   }
 
   .header.mobile-overview-header {
     justify-content: flex-end;
-    gap: var(--sp-2);
-    padding-left: max(var(--layout-gutter-mobile), var(--safe-left));
+    gap: 8px;
+    padding-left: max(var(--sp-3), var(--safe-left));
   }
 
   .header.mobile-overview-header .mobile-menu-toggle,
@@ -417,11 +419,11 @@
   .header.mobile-overview-header .header-actions {
     width: 100%;
     justify-content: flex-end;
-    gap: var(--sp-2);
+    gap: 8px;
   }
 
   .header.mobile-overview-header .profile-actions-row {
-    gap: var(--sp-2);
+    gap: 8px;
   }
 
   .header.mobile-overview-header .icon-badge-btn {
@@ -444,9 +446,9 @@
 }
 
 .icon-badge-btn {
-  width: var(--touch-min);
-  height: var(--touch-min);
-  min-width: var(--touch-min);
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
   border-radius: 12px;
   background: #f1f5f9;
   border: 1.5px solid transparent;
@@ -471,9 +473,9 @@
 
 @media (min-width: 768px) {
   .icon-badge-btn {
-    width: var(--touch-min);
-    height: var(--touch-min);
-    min-width: var(--touch-min);
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
   }
 }
 
@@ -527,7 +529,7 @@
 .profile-actions-row {
   display: flex;
   align-items: center;
-  gap: var(--sp-4);
+  gap: 16px;
 }
 
 .share-btn {
@@ -614,7 +616,6 @@
   top: calc(100% + 14px);
   right: 0;
   width: 240px;
-  max-width: calc(100vw - max(var(--layout-gutter-mobile), var(--safe-left)) - max(var(--layout-gutter-mobile), var(--safe-right)));
   background: rgba(255, 255, 255, 0.97);
   backdrop-filter: blur(40px) saturate(200%);
   -webkit-backdrop-filter: blur(40px) saturate(200%);
@@ -809,8 +810,8 @@
 /* ===== NOTIFICATION TOAST ===== */
 .notification-toasts-container {
   position: fixed;
-  bottom: max(var(--layout-gutter), var(--safe-bottom));
-  right: max(var(--layout-gutter), var(--safe-right));
+  bottom: 24px;
+  right: 24px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -883,14 +884,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--layout-gutter);
+  padding: 1.5rem;
 }
 
 .startup-unread-modal {
   background: #fff;
   width: 100%;
   max-width: 480px;
-  max-width: min(480px, calc(100vw - (var(--layout-gutter-mobile) * 2)));
   border-radius: 28px;
   overflow: hidden;
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0,0,0,0.05);
@@ -1050,8 +1050,7 @@
   position: absolute;
   top: calc(100% + 14px);
   right: 0;
-  width: 384px;
-  max-width: calc(100vw - max(var(--layout-gutter-mobile), var(--safe-left)) - max(var(--layout-gutter-mobile), var(--safe-right)));
+  width: 380px;
   background: rgba(255, 255, 255, 0.97);
   backdrop-filter: blur(40px) saturate(200%);
   -webkit-backdrop-filter: blur(40px) saturate(200%);

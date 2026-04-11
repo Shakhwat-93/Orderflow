@@ -1,5 +1,4 @@
 import { Bell, Search, User as UserIcon, LogOut, Settings, ChevronDown, Menu, Package, Info, AlertOctagon, Edit2, Truck, Trash2, Users, CreditCard, X, Loader2, ChevronRight, Command } from 'lucide-react';
-import { AnimatePresence, motion } from 'framer-motion';
 import './Header.css';
 import './NotificationCenter.css';
 import { Badge } from './Badge';
@@ -9,11 +8,9 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
 import { PresenceStack } from './PresenceStack';
 import { supabase } from '../lib/supabase';
-import { useDesktopExperience } from '../hooks/useDesktopExperience';
 import CurrencyIcon from './CurrencyIcon';
 
 export const Header = ({ onMenuToggle }) => {
-  const isDesktopExperience = useDesktopExperience();
   const { profile, userRoles, isAdmin, signOut } = useAuth();
   const {
     notifications,
@@ -38,7 +35,6 @@ export const Header = ({ onMenuToggle }) => {
   const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
   
   const [activeTab, setActiveTab] = useState('Today');
-  const previousToastCountRef = useRef(toasts.length);
 
   const filterNotifs = (allNotifs, tab) => {
     const now = new Date();
@@ -59,44 +55,6 @@ export const Header = ({ onMenuToggle }) => {
   const dropdownRef = useRef(null);
   const notifRef = useRef(null);
   const searchRef = useRef(null);
-
-  useEffect(() => {
-    if (toasts.length <= previousToastCountRef.current) {
-      previousToastCountRef.current = toasts.length;
-      return;
-    }
-
-    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-      navigator.vibrate?.(18);
-    }
-
-    try {
-      const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
-      if (AudioContextCtor) {
-        const audioContext = new AudioContextCtor();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-
-        oscillator.type = 'sine';
-        oscillator.frequency.setValueAtTime(880, audioContext.currentTime);
-        gainNode.gain.setValueAtTime(0.0001, audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.015, audioContext.currentTime + 0.01);
-        gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.12);
-
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        oscillator.start();
-        oscillator.stop(audioContext.currentTime + 0.12);
-        oscillator.onended = () => {
-          audioContext.close().catch(() => {});
-        };
-      }
-    } catch (error) {
-      console.debug('Notification feedback unavailable', error);
-    }
-
-    previousToastCountRef.current = toasts.length;
-  }, [toasts.length]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -225,86 +183,10 @@ export const Header = ({ onMenuToggle }) => {
 
   const primaryRole = userRoles[0] || 'User';
   const isOverviewPage = location.pathname === '/';
-  const panelMotion = isDesktopExperience
-    ? {
-        hidden: { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' },
-        visible: {
-          opacity: 1,
-          y: 0,
-          scale: 1,
-          filter: 'blur(0px)',
-          transition: { duration: 0.01 },
-        },
-        exit: {
-          opacity: 1,
-          y: 0,
-          scale: 1,
-          filter: 'blur(0px)',
-          transition: { duration: 0.01 },
-        },
-      }
-    : {
-        hidden: { opacity: 0, y: -20, scale: 0.98, filter: 'blur(10px)' },
-        visible: {
-          opacity: 1,
-          y: 0,
-          scale: 1,
-          filter: 'blur(0px)',
-          transition: {
-            duration: 0.28,
-            ease: [0.16, 1, 0.3, 1],
-            when: 'beforeChildren',
-            staggerChildren: 0.05,
-          },
-        },
-        exit: {
-          opacity: 0,
-          y: -14,
-          scale: 0.985,
-          filter: 'blur(8px)',
-          transition: { duration: 0.2, ease: [0.4, 0, 0.2, 1] },
-        },
-      };
-  const notificationItemMotion = isDesktopExperience
-    ? {
-        hidden: { opacity: 1, y: 0 },
-        visible: {
-          opacity: 1,
-          y: 0,
-          transition: { duration: 0.01 },
-        },
-        exit: {
-          opacity: 1,
-          y: 0,
-          transition: { duration: 0.01 },
-        },
-      }
-    : {
-        hidden: { opacity: 0, y: -10 },
-        visible: {
-          opacity: 1,
-          y: 0,
-          transition: { duration: 0.22, ease: [0.16, 1, 0.3, 1] },
-        },
-        exit: {
-          opacity: 0,
-          y: -8,
-          transition: { duration: 0.16, ease: [0.4, 0, 0.2, 1] },
-        },
-      };
 
   return (
     <header className={`header ${isOverviewPage ? 'mobile-overview-header' : ''}`}>
       {/* Hamburger — mobile only */}
-      {onMenuToggle && (
-        <button
-          className="mobile-menu-toggle mobile-only"
-          onClick={onMenuToggle}
-          aria-label="Toggle menu"
-        >
-          <Menu size={22} />
-        </button>
-      )}
 
       {/* 🔍 Elite Inline Search Hub */}
       <div className={`header-search ${isSearchDropdownOpen ? 'active' : ''}`} ref={searchRef}>
@@ -320,7 +202,6 @@ export const Header = ({ onMenuToggle }) => {
           }}
           onFocus={() => setIsSearchDropdownOpen(true)}
         />
-        <span className="search-shortcut desktop-only-flex">(Ctrl+K)</span>
         {isSearching && <Loader2 className="search-spinner-inline" size={16} />}
 
         {isSearchDropdownOpen && searchQuery.trim() && (
@@ -387,30 +268,15 @@ export const Header = ({ onMenuToggle }) => {
 
       {/* Floating Real-time Toasts */}
       <div className="notification-toasts-container">
-        <AnimatePresence>
-          {toasts.map((toast, index) => (
-            <motion.div
-              key={toast.id}
-              className="notif-toast"
-              onClick={() => handleNotifClick(toast)}
-              initial={{ opacity: 0, x: 24, scale: 0.96 }}
-              animate={{
-                opacity: 1,
-                x: 0,
-                scale: 1,
-                transition: { delay: index * 0.04, duration: 0.24, ease: [0.16, 1, 0.3, 1] },
-              }}
-              exit={{ opacity: 0, x: 20, scale: 0.97, transition: { duration: 0.18 } }}
-              layout
-            >
-              {getNotifIcon(toast.type)}
-              <div className="toast-content">
-                <span className="toast-title">{toast.title}</span>
-                <span className="toast-message">{toast.message}</span>
-              </div>
-            </motion.div>
-          ))}
-        </AnimatePresence>
+        {toasts.map(toast => (
+          <div key={toast.id} className="notif-toast" onClick={() => handleNotifClick(toast)}>
+            {getNotifIcon(toast.type)}
+            <div className="toast-content">
+              <span className="toast-title">{toast.title}</span>
+              <span className="toast-message">{toast.message}</span>
+            </div>
+          </div>
+        ))}
       </div>
 
       {isStartupUnreadModalOpen && (
@@ -468,101 +334,69 @@ export const Header = ({ onMenuToggle }) => {
             {unreadCount > 0 && <span className="notification-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>}
           </button>
 
-          <AnimatePresence>
-            {isNotifOpen && (
-              <>
-                <motion.div
-                  className="notifications-panel-backdrop"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  onClick={() => setIsNotifOpen(false)}
-                />
-                <motion.div
-                  className="notifications-panel-standard"
-                  variants={panelMotion}
-                  initial="hidden"
-                  animate="visible"
-                  exit="exit"
-                >
-                  <motion.div variants={notificationItemMotion} className="panel-header-standard">
-                    <h3>Notifications</h3>
-                    <div className="header-actions-group">
-                      <button className="see-all-btn" onClick={() => setIsNotifOpen(false)}>See All</button>
-                      <button className="clear-all-btn-icon" onClick={(e) => { e.stopPropagation(); clearAllNotifications(); }}>Clear</button>
+          {isNotifOpen && (
+            <div className="notifications-panel-standard">
+              <div className="panel-header-standard">
+                <h3>Notifications</h3>
+                <div className="header-actions-group">
+                  <button className="see-all-btn" onClick={() => setIsNotifOpen(false)}>See All</button>
+                  <button className="clear-all-btn-icon" onClick={(e) => { e.stopPropagation(); clearAllNotifications(); }}>Clear</button>
+                </div>
+              </div>
+
+              <div className="notif-tabs-container">
+                {['Today', 'This Week', 'Earlier'].map(tab => (
+                  <button
+                    key={tab}
+                    className={`notif-tab ${activeTab === tab ? 'active' : ''}`}
+                    onClick={(e) => { e.stopPropagation(); setActiveTab(tab); }}
+                  >
+                    {tab}
+                    {activeTab === tab && notifications.length > 0 && <span className="tab-count">{filterNotifs(notifications, tab).length}</span>}
+                  </button>
+                ))}
+              </div>
+
+              <div className="notifications-list-standard">
+                {filteredNotifs.length > 0 ? (
+                  filteredNotifs.map(notif => (
+                    <div
+                      key={notif.id}
+                      className={`notif-item-standard ${notif.is_read ? '' : 'unread'}`}
+                      onClick={() => handleNotifClick(notif)}
+                    >
+                      <div className={`notif-circular-icon ${notif.type.toLowerCase().split('_')[0]}`}>
+                        {getNotifIcon(notif.type)}
+                      </div>
+
+                      <div className="notif-content-standard">
+                        <div className="notif-title-row">
+                          <div className="notif-title-group">
+                            {!notif.is_read && <span className="notif-status-dot" />}
+                            <span className="notif-title-text">{notif.title}</span>
+                          </div>
+                          <span className="notif-time-standard">{formatTime(notif.created_at)}</span>
+                        </div>
+                        <p className="notif-message-standard">{notif.message}</p>
+                        {notif.actor_name && (
+                          <div className="notif-actor-standard">By {notif.actor_name}</div>
+                        )}
+                      </div>
                     </div>
-                  </motion.div>
-
-                  <motion.div variants={notificationItemMotion} className="notif-tabs-container">
-                    {['Today', 'This Week', 'Earlier'].map(tab => (
-                      <button
-                        key={tab}
-                        className={`notif-tab ${activeTab === tab ? 'active' : ''}`}
-                        onClick={(e) => { e.stopPropagation(); setActiveTab(tab); }}
-                      >
-                        {tab}
-                        {activeTab === tab && notifications.length > 0 && <span className="tab-count">{filterNotifs(notifications, tab).length}</span>}
-                      </button>
-                    ))}
-                  </motion.div>
-
-                  <div className="notifications-list-standard">
-                    <AnimatePresence initial={false}>
-                      {filteredNotifs.length > 0 ? (
-                        filteredNotifs.map((notif, index) => (
-                          <motion.div
-                            key={notif.id}
-                            className={`notif-item-standard ${notif.is_read ? '' : 'unread'}`}
-                            onClick={() => handleNotifClick(notif)}
-                            variants={notificationItemMotion}
-                            initial="hidden"
-                            animate="visible"
-                            exit="exit"
-                            transition={{ delay: Math.min(index * 0.03, 0.16) }}
-                            layout
-                          >
-                            <div className={`notif-circular-icon ${notif.type.toLowerCase().split('_')[0]}`}>
-                              {getNotifIcon(notif.type)}
-                            </div>
-
-                            <div className="notif-content-standard">
-                              <div className="notif-title-row">
-                                <div className="notif-title-group">
-                                  {!notif.is_read && <span className="notif-status-dot" />}
-                                  <span className="notif-title-text">{notif.title}</span>
-                                </div>
-                                <span className="notif-time-standard">{formatTime(notif.created_at)}</span>
-                              </div>
-                              <p className="notif-message-standard">{notif.message}</p>
-                              {notif.actor_name && (
-                                <div className="notif-actor-standard">By {notif.actor_name}</div>
-                              )}
-                            </div>
-                          </motion.div>
-                        ))
-                      ) : (
-                        <motion.div
-                          className="empty-notifications-standard"
-                          variants={notificationItemMotion}
-                          initial="hidden"
-                          animate="visible"
-                          exit="exit"
-                        >
-                          <Bell size={24} />
-                          <p>All caught up in {activeTab}!</p>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                  ))
+                ) : (
+                  <div className="empty-notifications-standard">
+                    <Bell size={24} />
+                    <p>All caught up in {activeTab}!</p>
                   </div>
+                )}
+              </div>
 
-                  <motion.div variants={notificationItemMotion} className="panel-footer-standard">
-                    <Link to="/settings" onClick={() => setIsNotifOpen(false)}>System Audit Logs</Link>
-                  </motion.div>
-                </motion.div>
-              </>
-            )}
-          </AnimatePresence>
+              <div className="panel-footer-standard">
+                <Link to="/settings" onClick={() => setIsNotifOpen(false)}>System Audit Logs</Link>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="profile-actions-row">

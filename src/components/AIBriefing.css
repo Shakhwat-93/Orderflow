@@ -4,43 +4,41 @@
 
 .ai-briefing-card {
   margin-bottom: var(--sp-6);
-  background:
-    radial-gradient(circle at top right, rgba(20, 184, 166, 0.18), transparent 26%),
-    linear-gradient(135deg, #0f172a 0%, #1e1b4b 52%, #312e81 100%);
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #7c3aed 100%);
   border: none;
-  box-shadow: 0 22px 44px -14px rgba(15, 23, 42, 0.28);
-  padding: 28px 32px;
-  border-radius: 24px;
+  box-shadow: 0 25px 50px -12px rgba(99, 102, 241, 0.25);
+  padding: 40px;
+  border-radius: 28px;
   position: relative;
   overflow: hidden;
-  animation: motion-slide-up var(--motion-duration-page) var(--motion-ease-standard);
+  animation: slideInBrief 0.8s var(--ease-out);
   transition: all 0.4s var(--ease-out);
   color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .ai-briefing-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 28px 56px -18px rgba(15, 23, 42, 0.34), 0 0 24px rgba(99, 102, 241, 0.1);
+  transform: translateY(-4px);
+  box-shadow: 0 35px 70px -15px rgba(0, 0, 0, 0.2), 0 0 30px rgba(99, 102, 241, 0.15);
 }
 
 /* ── Header ── */
 .briefing-header {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-bottom: 20px;
+  gap: 20px;
+  margin-bottom: 32px;
   position: relative;
   z-index: 1;
 }
 
 /* ── AI Icon Nucleus ── */
 .ai-icon-pulse {
-  width: 50px;
-  height: 50px;
+  width: 54px;
+  height: 54px;
   background: rgba(255, 255, 255, 0.12);
   backdrop-filter: blur(10px);
-  border-radius: 16px;
+  border-radius: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -56,7 +54,7 @@
   color: rgba(255, 255, 255, 0.7);
   text-transform: uppercase;
   letter-spacing: 0.3em;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
   display: flex;
   align-items: center;
   gap: 15px;
@@ -70,31 +68,29 @@
 }
 
 .briefing-title h2 {
-  font-size: 1.55rem;
+  font-size: 1.85rem;
   font-weight: 800;
   color: #fff;
   margin: 0;
   letter-spacing: -0.03em;
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  line-height: 1.18;
 }
 
 /* ── Content Layout ── */
 .briefing-content {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 28px;
+  grid-template-columns: 1fr 340px;
+  gap: 48px;
   align-items: center;
 }
 
 .narrative-text {
-  font-size: 1rem;
-  line-height: 1.72;
+  font-size: 1.15rem;
+  line-height: 1.7;
   color: rgba(255, 255, 255, 0.95);
   font-weight: 500;
   margin: 0;
   letter-spacing: -0.01em;
-  max-width: 52rem;
 }
 
 /* ── CLEAN RESULT FOCUS (No More Boxes) ── */
@@ -120,18 +116,18 @@
 .briefing-actions {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 .action-suggestion {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 12px 16px;
+  padding: 14px 18px;
   background: rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 15px;
+  border-radius: 16px;
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   cursor: pointer;
   width: 100%;
@@ -159,11 +155,10 @@
 }
 
 .suggestion-text {
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 700;
   color: #fff;
   flex: 1;
-  line-height: 1.35;
 }
 
 .suggestion-arrow {
@@ -209,21 +204,10 @@
 
 [data-theme='dark'] .briefing-abstract-shapes { opacity: 0.3; }
 
-@media (max-width: 1180px) {
-  .briefing-content {
-    grid-template-columns: 1fr;
-    gap: 18px;
-  }
-
-  .briefing-actions {
-    max-width: 100%;
-  }
-}
-
 @media (max-width: 767px) {
   .ai-briefing-card {
     padding: 22px 18px;
-    border-radius: 22px;
+    border-radius: 28px;
     margin-bottom: 0;
   }
 

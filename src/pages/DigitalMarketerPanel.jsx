@@ -8,13 +8,6 @@ import {
   ShoppingBag, BarChart2, Calendar, ChevronDown, Check,
   Clock, AlertCircle, Eye, Loader2, RefreshCw, Edit2
 } from 'lucide-react';
-import {
-  createStaggerContainer,
-  fadeInVariants,
-  pageVariants,
-  scaleInVariants,
-  slideUpVariants,
-} from '../lib/motion';
 import './DigitalMarketerPanel.css';
 
 const PLATFORMS = ['Facebook', 'Instagram', 'Google', 'TikTok', 'YouTube', 'Twitter', 'LinkedIn', 'Other'];
@@ -87,10 +80,10 @@ const CampaignRow = ({ row, index, onChange, onDelete, disabled }) => {
         <AnimatePresence>
           {platformOpen && (
             <motion.div 
-              variants={scaleInVariants}
-              initial="hidden"
-              animate="visible"
-              exit="exit"
+              initial={{ opacity: 0, y: 8, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.95 }}
+              transition={{ duration: 0.15 }}
               className="dm-platform-dropdown-elite"
             >
               {PLATFORMS.map(p => (
@@ -168,7 +161,6 @@ const CampaignRow = ({ row, index, onChange, onDelete, disabled }) => {
 
 // ── Main Component ──
 export const DigitalMarketerPanel = () => {
-  const statGridVariants = createStaggerContainer(0.06, 0.04);
   const { user, profile, isAdmin, updatePresenceContext } = useAuth();
   const userId = user?.id ?? null;
 
@@ -398,9 +390,8 @@ export const DigitalMarketerPanel = () => {
     <div className="dm-panel">
       {/* ── Header ── */}
       <motion.div 
-        variants={pageVariants}
-        initial="hidden"
-        animate="visible"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
         className="dm-header-elite"
       >
         <div className="dm-header-left">
@@ -418,9 +409,8 @@ export const DigitalMarketerPanel = () => {
             <span>{formatDate(todayStr)}</span>
           </div>
           <motion.div 
-            variants={scaleInVariants}
-            initial="hidden"
-            animate="visible"
+            initial={{ scale: 0.9 }}
+            animate={{ scale: 1 }}
             className={`dm-status-tag ${isSubmitted ? 'submitted' : 'draft'}`}
           >
             {isSubmitted ? <Check size={12} /> : <Clock size={12} />}
@@ -431,12 +421,18 @@ export const DigitalMarketerPanel = () => {
 
       {/* ── Dashboard Stats Grid ── */}
       <motion.div 
-        variants={statGridVariants}
+        variants={{
+          hidden: { opacity: 0 },
+          show: {
+            opacity: 1,
+            transition: { staggerChildren: 0.08 }
+          }
+        }}
         initial="hidden"
-        animate="visible"
+        animate="show"
         className="dm-stats-grid-elite"
       >
-        <motion.div variants={slideUpVariants}>
+        <motion.div variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}>
           <StatCard
             icon={DollarSign}
             label="Total Spend Today"
@@ -445,7 +441,7 @@ export const DigitalMarketerPanel = () => {
             sub={`${campaigns.length} active campaigns`}
           />
         </motion.div>
-        <motion.div variants={slideUpVariants}>
+        <motion.div variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}>
           <StatCard
             icon={ShoppingBag}
             label="Orders Generated"
@@ -454,7 +450,7 @@ export const DigitalMarketerPanel = () => {
             sub="Across all channels"
           />
         </motion.div>
-        <motion.div variants={slideUpVariants}>
+        <motion.div variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}>
           <StatCard
             icon={TrendingUp}
             label="Avg. Cost Per Order"
@@ -463,7 +459,7 @@ export const DigitalMarketerPanel = () => {
             sub="Direct ROI Efficiency"
           />
         </motion.div>
-        <motion.div variants={slideUpVariants}>
+        <motion.div variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}>
           <StatCard
             icon={BarChart2}
             label="Daily Impressions"
@@ -497,10 +493,10 @@ export const DigitalMarketerPanel = () => {
         {activeTab === 'daily' && (
           <motion.div
             key="daily"
-            variants={scaleInVariants}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
+            initial={{ opacity: 0, scale: 0.99 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.01 }}
+            transition={{ duration: 0.25, ease: "circOut" }}
             className="dm-content-wrap"
           >
             {loading ? (
@@ -542,10 +538,10 @@ export const DigitalMarketerPanel = () => {
                             <motion.div
                               key={row.id}
                               layout
-                              variants={slideUpVariants}
-                              initial="hidden"
-                              animate="visible"
-                              exit="exit"
+                              initial={{ opacity: 0, x: -10 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              exit={{ opacity: 0, scale: 0.98 }}
+                              transition={{ duration: 0.2 }}
                             >
                               <CampaignRow
                                 key={row.id}
@@ -617,9 +613,8 @@ export const DigitalMarketerPanel = () => {
 
                 {isSubmitted && (
                   <motion.div 
-                    variants={slideUpVariants}
-                    initial="hidden"
-                    animate="visible"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
                     className="dm-finalized-banner-elite"
                   >
                     <div className={`dm-banner-icon ${isLocked ? 'locked' : ''}`}>
@@ -649,10 +644,9 @@ export const DigitalMarketerPanel = () => {
         {activeTab === 'summary' && (
           <motion.div
             key="summary"
-            variants={slideUpVariants}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
             className="dm-content-wrap"
           >
             {campaigns.length === 0 ? (
@@ -709,10 +703,9 @@ export const DigitalMarketerPanel = () => {
         {activeTab === 'history' && (
           <motion.div
             key="history"
-            variants={slideUpVariants}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
             className="dm-content-wrap"
           >
             {historyLoading ? (
@@ -746,10 +739,9 @@ export const DigitalMarketerPanel = () => {
                       <AnimatePresence>
                         {expandedHistory === report.id && historyCampaigns[report.id] && (
                           <motion.div
-                            variants={fadeInVariants}
-                            initial="hidden"
-                            animate="visible"
-                            exit="exit"
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
                             className="dm-history-item-details"
                           >
                             <table className="dm-history-table-elite">

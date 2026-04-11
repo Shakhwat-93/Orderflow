@@ -6,7 +6,7 @@ import { DateRangePicker } from '../components/DateRangePicker';
 import { 
   Search, PhoneCall, CheckCircle, XCircle, Clock, PhoneMissed, 
   PhoneOff, Edit2, Loader2, ShieldCheck, ShieldAlert, Shield, 
-  UserCheck, RotateCcw, Truck, Zap, Calendar, TrendingUp, Settings2
+  UserCheck, RotateCcw, Truck, Zap, Calendar, TrendingUp, Settings2, PauseCircle
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCourierRatio } from '../context/CourierRatioContext';
@@ -16,6 +16,11 @@ import { getProductOptions } from '../utils/productCatalog';
 import './CallTeamPanel.css';
 
 const STATUS_OPTIONS = ['ALL ORDERS', 'NEW', 'PENDING', 'CONFIRMED', 'CANCELLED'];
+const QUICK_CALL_STATUSES = [
+  { id: 'busy', label: 'Busy', logLabel: 'Busy', icon: PhoneOff, tone: 'busy' },
+  { id: 'not-pick', label: 'Not Pick', logLabel: 'Not Pick', icon: PhoneMissed, tone: 'not-pick' },
+  { id: 'hold', label: 'Hold', logLabel: 'On Hold', icon: PauseCircle, tone: 'hold' }
+];
 
 export const CallTeamPanel = () => {
   const { orders, stats, inventory, updateOrderStatus } = useOrders();
@@ -127,11 +132,14 @@ export const CallTeamPanel = () => {
     ? stats.confirmedTodayCount
     : orders.filter(o => o.status === 'Confirmed' && new Date(o.updated_at || o.created_at).toDateString() === new Date().toDateString()).length;
 
-  const handleAction = (e, orderId, action) => {
+  const handleAction = async (e, orderId, action) => {
     e.stopPropagation();
     switch (action) {
-      case 'confirm': updateOrderStatus(orderId, 'Confirmed'); break;
-      case 'cancel': updateOrderStatus(orderId, 'Cancelled'); break;
+      case 'confirm': await updateOrderStatus(orderId, 'Confirmed'); break;
+      case 'cancel': await updateOrderStatus(orderId, 'Cancelled'); break;
+      case 'busy': await handleLogAttempt(orderId, 'Busy'); break;
+      case 'not-pick': await handleLogAttempt(orderId, 'Not Pick'); break;
+      case 'hold': await handleLogAttempt(orderId, 'On Hold'); break;
       default: break;
     }
   };
@@ -140,6 +148,14 @@ export const CallTeamPanel = () => {
   const getInitials = (name) => {
     if (!name) return 'U';
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+  };
+
+  const getCallStatusTone = (value = '') => {
+    const normalized = String(value).toLowerCase();
+    if (normalized.includes('busy')) return 'busy';
+    if (normalized.includes('not pick') || normalized.includes('no answer') || normalized.includes('miss')) return 'not-pick';
+    if (normalized.includes('hold') || normalized.includes('call back')) return 'hold';
+    return 'default';
   };
 
   return (
@@ -313,48 +329,59 @@ export const CallTeamPanel = () => {
                   ${Number(order.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </div>
 
-                <div className="elite-col-utility">
-                  <div className="elite-col-status status-col">
+                <div className="elite-col-status status-col">
+                  <div className="elite-status-stack">
                     <span className={`elite-status-pill ${statusPill}`}>{order.status}</span>
-                  </div>
-
-                  <div className={`elite-col-sla ${slaClass} sla-col`}>
-                    {slaIcon} {order.status === 'Confirmed' ? 'COMPLETED' : slaText}
-                  </div>
-
-                  <div className="elite-col-actions">
-                    {order.status === 'New' && (
-                      <>
-                        <button className="elite-btn-primary" onClick={(e) => handleAction(e, order.id, 'confirm')}>
-                          <CheckCircle size={14} /> Confirm Order
-                        </button>
-                        <button className="elite-act-btn reject" onClick={(e) => handleAction(e, order.id, 'cancel')}>
-                          <XCircle size={14} />
-                        </button>
-                      </>
-                    )}
-
-                    {order.status === 'Pending Call' && (
-                      <>
-                        <button className="elite-act-btn call" title="Log No Answer" onClick={(e) => { e.stopPropagation(); handleLogAttempt(order.id, 'No Answer'); }}>
-                          <PhoneCall size={14} />
-                          {order.call_attempts > 0 && <span className="btn-attempt-count">{order.call_attempts}</span>}
-                        </button>
-                        <button className="elite-act-btn reschedule" title="Log Call Back" onClick={(e) => { e.stopPropagation(); handleLogAttempt(order.id, 'Call Back Later'); }}>
-                          <Calendar size={14} />
-                        </button>
-                        <button className="elite-act-btn reject" title="Cancel Order" onClick={(e) => handleAction(e, order.id, 'cancel')}>
-                          <XCircle size={14} />
-                        </button>
-                      </>
-                    )}
-
-                    {order.status === 'Confirmed' && (
-                       <button className="elite-icon-btn" style={{opacity: 0.5}} onClick={(e) => { e.stopPropagation(); handleOpenEditModal(order); }}>
-                         <Edit2 size={14} />
-                       </button>
+                    {order.last_call_status && ['Confirmed', 'Cancelled'].includes(order.status) === false && (
+                      <span className={`elite-call-pill ${getCallStatusTone(order.last_call_status)}`}>
+                        {order.last_call_status}
+                      </span>
                     )}
                   </div>
+                </div>
+
+                <div className={`elite-col-sla ${slaClass} sla-col`}>
+                  {slaIcon} {order.status === 'Confirmed' ? 'COMPLETED' : slaText}
+                </div>
+
+                <div className="elite-col-actions">
+                  {(order.status === 'New' || order.status === 'Pending Call') && (
+                    <div className="elite-action-dock">
+                      <button className="elite-btn-primary" onClick={(e) => handleAction(e, order.id, 'confirm')}>
+                        <CheckCircle size={14} /> Confirm Order
+                      </button>
+                      <div className="elite-action-grid">
+                        {QUICK_CALL_STATUSES.map((item) => {
+                          const Icon = item.icon;
+                          return (
+                            <button
+                              key={item.id}
+                              className={`elite-quick-chip ${item.tone}`}
+                              title={item.label}
+                              onClick={(e) => handleAction(e, order.id, item.id)}
+                            >
+                              <Icon size={12} />
+                              <span>{item.label}</span>
+                            </button>
+                          );
+                        })}
+                        <button
+                          className="elite-quick-chip cancel"
+                          title="Cancel Order"
+                          onClick={(e) => handleAction(e, order.id, 'cancel')}
+                        >
+                          <XCircle size={12} />
+                          <span>Cancel</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {order.status === 'Confirmed' && (
+                     <button className="elite-icon-btn" style={{opacity: 0.5}} onClick={(e) => { e.stopPropagation(); handleOpenEditModal(order); }}>
+                       <Edit2 size={14} />
+                     </button>
+                  )}
                 </div>
 
               </div>

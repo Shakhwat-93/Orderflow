@@ -7,11 +7,7 @@
   border-radius: 9999px; /* Pill shape */
   font-weight: 500;
   font-size: 0.95rem; /* Clean professional font size */
-  transition: transform var(--anim-fast) var(--motion-ease-standard),
-              box-shadow var(--anim-fast) var(--motion-ease-standard),
-              background-color var(--anim-fast) var(--motion-ease-standard),
-              color var(--anim-fast) var(--motion-ease-standard),
-              border-color var(--anim-fast) var(--motion-ease-standard);
+  transition: all 0.2s ease;
   white-space: nowrap;
   border: none;
   padding: 0 20px;
@@ -20,8 +16,6 @@
   font-family: inherit;
   position: relative;
   overflow: hidden;
-  transform-origin: center;
-  will-change: transform, box-shadow, filter;
 }
 
 /* ── PRIMARY (Solid Indigo/Purple-Blue) ── */
@@ -33,7 +27,7 @@
 @media (hover: hover) {
   .btn-primary:hover {
     background: #4f4ae6;
-    box-shadow: 0 10px 24px rgba(91, 88, 238, 0.36), 0 0 0 4px rgba(91, 88, 238, 0.14);
+    box-shadow: 0 4px 14px rgba(91, 88, 238, 0.3);
   }
 }
 
@@ -66,12 +60,10 @@
   .btn-ghost:hover {
     background: #f9fafb;
     color: #111827;
-    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08), 0 0 0 4px rgba(var(--accent-rgb), 0.08);
   }
   [data-theme='dark'] .btn-ghost:hover {
     background: rgba(255,255,255,0.05);
     color: #f9fafb; 
-    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.28), 0 0 0 4px rgba(var(--accent-rgb), 0.12);
   }
 }
 
@@ -90,4 +82,4 @@
 @media (min-width: 768px) { .btn-block-mobile { width: auto; } }
 
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn:active:not(:disabled) { transform: scale(0.97); }
+.btn:active:not(:disabled) { transform: scale(0.98); }

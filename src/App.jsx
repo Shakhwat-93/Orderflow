@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -11,9 +11,7 @@ import { DashboardLayout } from './components/DashboardLayout';
 import { AccessRestricted } from './components/AccessRestricted';
 import { ChatBot } from './components/ChatBot';
 import { CommandPalette } from './components/CommandPalette';
-import { AppLaunchScreen } from './components/AppLaunchScreen';
-import { ScrollRevealManager } from './components/ScrollRevealManager';
-import { useDesktopExperience } from './hooks/useDesktopExperience';
+import { getRoleRoute } from './utils/authRoutes';
 
 // Lazy loading components
 const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
@@ -31,23 +29,6 @@ const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.S
 const TaskBoard = lazy(() => import('./pages/TaskBoard').then(m => ({ default: m.TaskBoard })));
 const DigitalMarketerPanel = lazy(() => import('./pages/DigitalMarketerPanel').then(m => ({ default: m.DigitalMarketerPanel })));
 const SteadfastPanel = lazy(() => import('./pages/SteadfastPanel').then(m => ({ default: m.SteadfastPanel })));
-
-const ROLE_ROUTES = {
-  'Admin': '/',
-  'Moderator': '/moderator',
-  'Call Team': '/call-team',
-  'Courier Team': '/courier',
-  'Factory Team': '/factory',
-  'Digital Marketer': '/digital-marketer',
-};
-
-const getRoleRoute = (roles = []) => {
-  const priority = ['Admin', 'Digital Marketer', 'Moderator', 'Call Team', 'Courier Team', 'Factory Team'];
-  for (const role of priority) {
-    if (roles.includes(role)) return ROLE_ROUTES[role];
-  }
-  return '/';
-};
 
 // ── Premium Skeleton Loading Screen ──
 const SkeletonScreen = () => (
@@ -92,34 +73,10 @@ const SkeletonScreen = () => (
 
 
 const ProtectedRoute = ({ children }) => {
-  const { user, loading: authLoading, isUnauthorized } = useAuth();
+  const { user, loading: authLoading, isAuthReady, isUnauthorized } = useAuth();
   const { isInitialized } = useOrders();
-  const currentUserId = user?.id ?? null;
-  const [bootstrappedUserId, setBootstrappedUserId] = useState(null);
-  const [hasResolvedInitialAuth, setHasResolvedInitialAuth] = useState(false);
 
-  useEffect(() => {
-    if (!authLoading && user && isInitialized) {
-      queueMicrotask(() => setBootstrappedUserId(currentUserId));
-      queueMicrotask(() => setHasResolvedInitialAuth(true));
-      return;
-    }
-
-    if (!authLoading && !user) {
-      queueMicrotask(() => setBootstrappedUserId(null));
-      queueMicrotask(() => setHasResolvedInitialAuth(true));
-      return;
-    }
-
-    if (bootstrappedUserId && currentUserId && bootstrappedUserId !== currentUserId) {
-      queueMicrotask(() => setBootstrappedUserId(null));
-      queueMicrotask(() => setHasResolvedInitialAuth(false));
-    }
-  }, [authLoading, bootstrappedUserId, currentUserId, isInitialized, user]);
-
-  const hasBootstrappedForCurrentUser = bootstrappedUserId === currentUserId;
-
-  if (!hasResolvedInitialAuth || authLoading || (user && !isInitialized && !hasBootstrappedForCurrentUser)) {
+  if (!isAuthReady || authLoading || (user && !isInitialized)) {
     return <SkeletonScreen />;
   }
 
@@ -134,10 +91,10 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-const AuthAwareLoginRoute = () => {
-  const { user, userRoles, loading: authLoading } = useAuth();
+const PublicOnlyRoute = ({ children }) => {
+  const { user, userRoles, loading: authLoading, isAuthReady } = useAuth();
 
-  if (authLoading) {
+  if (!isAuthReady || authLoading) {
     return <SkeletonScreen />;
   }
 
@@ -145,13 +102,15 @@ const AuthAwareLoginRoute = () => {
     return <Navigate to={getRoleRoute(userRoles)} replace />;
   }
 
-  return <Login />;
+  return children;
 };
 
 const RoleRoute = ({ children, roles }) => {
-  const { userRoles, loading } = useAuth();
+  const { userRoles, loading, isAuthReady } = useAuth();
 
-  if (loading) return null;
+  if (!isAuthReady || loading) {
+    return <SkeletonScreen />;
+  }
 
   const hasAccess = roles.some(role => userRoles.includes(role));
 
@@ -163,64 +122,43 @@ const RoleRoute = ({ children, roles }) => {
 };
 
 function App() {
-  const [isLaunchVisible, setIsLaunchVisible] = useState(true);
-  const isDesktopExperience = useDesktopExperience();
-  const shouldShowLaunchScreen = !isDesktopExperience && isLaunchVisible;
-
-  useEffect(() => {
-    document.body.classList.toggle('desktop-clean-mode', isDesktopExperience);
-
-    return () => {
-      document.body.classList.remove('desktop-clean-mode');
-    };
-  }, [isDesktopExperience]);
-
   return (
     <BrowserRouter>
-      {!isDesktopExperience && <ScrollRevealManager />}
       <ThemeProvider>
         <AuthProvider>
           <BrandingProvider>
-            {!isDesktopExperience && (
-              <AppLaunchScreen
-                isVisible={shouldShowLaunchScreen}
-                onComplete={() => setIsLaunchVisible(false)}
-              />
-            )}
-            <div className={`app-shell ${shouldShowLaunchScreen ? 'is-launching' : ''} ${isDesktopExperience ? 'desktop-clean-shell' : ''}`}>
-              <NotificationProvider>
-                <OrderProvider>
-                  <CourierRatioProvider>
-                    <TaskProvider>
-                    <Suspense fallback={<SkeletonScreen />}>
-                    <Routes>
-                      <Route path="/login" element={<AuthAwareLoginRoute />} />
-                      <Route path="/" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
-                        <Route index element={<DashboardOverview />} />
-                        <Route path="orders" element={<OrdersBoard />} />
-                        <Route path="moderator" element={<RoleRoute roles={['Admin', 'Moderator']}><ModeratorPanel /></RoleRoute>} />
-                        <Route path="call-team" element={<RoleRoute roles={['Admin', 'Call Team']}><CallTeamPanel /></RoleRoute>} />
-                        <Route path="courier" element={<RoleRoute roles={['Admin', 'Courier Team']}><CourierPanel /></RoleRoute>} />
-                        <Route path="factory" element={<RoleRoute roles={['Admin', 'Factory Team']}><FactoryPanel /></RoleRoute>} />
-                        <Route path="users" element={<RoleRoute roles={['Admin']}><UserManagement /></RoleRoute>} />
-                        <Route path="inventory" element={<RoleRoute roles={['Admin', 'Moderator']}><InventoryPage /></RoleRoute>} />
-                        <Route path="reports" element={<RoleRoute roles={['Admin']}><ReportsPanel /></RoleRoute>} />
-                        <Route path="profile" element={<Profile />} />
-                        <Route path="settings" element={<Settings />} />
-                        <Route path="tasks" element={<TaskBoard />} />
-                        <Route path="digital-marketer" element={<RoleRoute roles={['Admin', 'Digital Marketer']}><DigitalMarketerPanel /></RoleRoute>} />
-                        <Route path="steadfast" element={<RoleRoute roles={['Admin', 'Courier Team', 'Moderator']}><SteadfastPanel /></RoleRoute>} />
-                        <Route path="*" element={<Navigate to="/" replace />} />
-                      </Route>
-                    </Routes>
-                  </Suspense>
-                  <ChatBot />
-                  <CommandPalette />
-                    </TaskProvider>
-                  </CourierRatioProvider>
-                </OrderProvider>
-              </NotificationProvider>
-            </div>
+            <NotificationProvider>
+              <OrderProvider>
+                <CourierRatioProvider>
+                  <TaskProvider>
+                  <Suspense fallback={<SkeletonScreen />}>
+                  <Routes>
+                    <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
+                    <Route path="/" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
+                      <Route index element={<DashboardOverview />} />
+                      <Route path="orders" element={<OrdersBoard />} />
+                      <Route path="moderator" element={<RoleRoute roles={['Admin', 'Moderator']}><ModeratorPanel /></RoleRoute>} />
+                      <Route path="call-team" element={<RoleRoute roles={['Admin', 'Call Team']}><CallTeamPanel /></RoleRoute>} />
+                      <Route path="courier" element={<RoleRoute roles={['Admin', 'Courier Team']}><CourierPanel /></RoleRoute>} />
+                      <Route path="factory" element={<RoleRoute roles={['Admin', 'Factory Team']}><FactoryPanel /></RoleRoute>} />
+                      <Route path="users" element={<RoleRoute roles={['Admin']}><UserManagement /></RoleRoute>} />
+                      <Route path="inventory" element={<RoleRoute roles={['Admin', 'Moderator']}><InventoryPage /></RoleRoute>} />
+                      <Route path="reports" element={<RoleRoute roles={['Admin']}><ReportsPanel /></RoleRoute>} />
+                      <Route path="profile" element={<Profile />} />
+                      <Route path="settings" element={<Settings />} />
+                      <Route path="tasks" element={<TaskBoard />} />
+                      <Route path="digital-marketer" element={<RoleRoute roles={['Admin', 'Digital Marketer']}><DigitalMarketerPanel /></RoleRoute>} />
+                      <Route path="steadfast" element={<RoleRoute roles={['Admin', 'Courier Team', 'Moderator']}><SteadfastPanel /></RoleRoute>} />
+                      <Route path="*" element={<Navigate to="/" replace />} />
+                    </Route>
+                  </Routes>
+                </Suspense>
+                <ChatBot />
+                <CommandPalette />
+                  </TaskProvider>
+                </CourierRatioProvider>
+              </OrderProvider>
+            </NotificationProvider>
           </BrandingProvider>
         </AuthProvider>
       </ThemeProvider>

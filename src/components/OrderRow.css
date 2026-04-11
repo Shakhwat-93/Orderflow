@@ -4,8 +4,6 @@
   transition: background-color 0.2s ease;
   border-bottom: 1px solid rgba(0, 0, 0, 0.04);
   background: var(--bg-surface);
-  transform: translate3d(var(--row-swipe-offset, 0px), 0, 0);
-  transition: background-color 0.2s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 [data-theme='dark'] .order-row {
@@ -145,10 +143,6 @@
   border: 1px solid transparent;
 }
 
-.mobile-action-label {
-  display: none;
-}
-
 .saas-icon-btn:hover {
   background: rgba(0, 0, 0, 0.04);
   color: var(--text-primary);
@@ -226,7 +220,6 @@
     margin-bottom: 12px !important;
     padding: 16px !important;
     position: relative !important;
-    overflow: visible;
   }
 
   [data-theme='dark'] .order-row {
@@ -258,59 +251,9 @@
   .order-row .status-cell::before { content: "Fulfilment"; }
   
   .order-row .actions-cell {
-    position: absolute !important;
-    top: 0;
-    right: -112px;
-    bottom: 0;
-    width: 112px;
-    display: flex !important;
-    align-items: center;
-    justify-content: center;
-    margin-top: 0;
-    padding: 0 10px !important;
-    border-top: none;
-    border-radius: 0 12px 12px 0;
-    background: linear-gradient(180deg, rgba(99, 102, 241, 0.12), rgba(99, 102, 241, 0.06));
+    border-top: 1px solid rgba(0,0,0,0.05);
+    margin-top: 12px;
+    padding-top: 12px !important;
   }
-  .order-row .actions-cell::before { content: none; }
-
-  .order-row .saas-actions {
-    width: 100%;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .order-row .saas-icon-btn {
-    width: 100%;
-    height: 40px;
-    border-radius: 12px;
-    justify-content: flex-start;
-    gap: 8px;
-    padding: 0 10px;
-    background: rgba(255, 255, 255, 0.86);
-    border-color: rgba(99, 102, 241, 0.12);
-    color: var(--accent);
-  }
-
-  .order-row .mobile-action-label {
-    display: inline;
-    font-size: 12px;
-    font-weight: 700;
-  }
-
-  .order-row::after {
-    content: 'Swipe left for actions';
-    position: absolute;
-    right: 16px;
-    bottom: 12px;
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--text-tertiary);
-    opacity: 0.9;
-    pointer-events: none;
-  }
-
-  .order-row.swipe-open::after {
-    opacity: 0;
-  }
+  .order-row .actions-cell::before { content: "Action"; justify-self: flex-start; }
 }

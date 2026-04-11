@@ -12,11 +12,13 @@ export const AuthProvider = ({ children }) => {
   const [profile, setProfile] = useState(null);
   const [userRoles, setUserRoles] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isAuthReady, setIsAuthReady] = useState(false);
   const [presenceContext, setPresenceContext] = useState({ page: 'Initializing', details: null });
   const [onlineUsers, setOnlineUsers] = useState([]);
 
   const currentUserIdRef = useRef(null);
   const supportsLastActiveRef = useRef(true);
+  const authReadyRef = useRef(false);
   const profileRef = useRef(profile);
   const rolesRef = useRef(userRoles);
   const contextRef = useRef(presenceContext);
@@ -30,13 +32,22 @@ export const AuthProvider = ({ children }) => {
   }, [userRoles]);
 
   useEffect(() => {
+    authReadyRef.current = isAuthReady;
+  }, [isAuthReady]);
+
+  useEffect(() => {
     contextRef.current = presenceContext;
   }, [presenceContext]);
 
+  const clearSessionState = useCallback(() => {
+    supportsLastActiveRef.current = false;
+    setProfile(null);
+    setUserRoles([]);
+  }, []);
+
   const fetchProfile = useCallback(async (userId, { blockUi = false } = {}) => {
     if (!userId) {
-      setProfile(null);
-      setUserRoles([]);
+      clearSessionState();
       if (blockUi) {
         setLoading(false);
       }
@@ -63,9 +74,7 @@ export const AuthProvider = ({ children }) => {
       if (profileError) throw profileError;
 
       if (!profileData) {
-        supportsLastActiveRef.current = false;
-        setProfile(null);
-        setUserRoles([]);
+        clearSessionState();
         if (blockUi) {
           setLoading(false);
         }
@@ -73,10 +82,8 @@ export const AuthProvider = ({ children }) => {
       }
 
       if (profileData.status === 'Deactivated' || profileData.status === 'inactive') {
-        supportsLastActiveRef.current = false;
         await supabase.auth.signOut();
-        setProfile(null);
-        setUserRoles([]);
+        clearSessionState();
         if (blockUi) {
           setLoading(false);
         }
@@ -95,38 +102,66 @@ export const AuthProvider = ({ children }) => {
       setUserRoles([]);
       return [];
     } catch (error) {
-      console.error('Error fetching profile:', error.message);
-      if (error.message.includes('refresh_token_not_found') || error.message.includes('Invalid Refresh Token')) {
+      const message = error?.message || 'Unknown auth profile error';
+      console.error('Error fetching profile:', message);
+      if (message.includes('refresh_token_not_found') || message.includes('Invalid Refresh Token')) {
         await supabase.auth.signOut();
       }
-      supportsLastActiveRef.current = false;
-      setProfile(null);
-      setUserRoles([]);
+      clearSessionState();
       return [];
     } finally {
       if (blockUi) {
         setLoading(false);
       }
     }
-  }, []);
+  }, [clearSessionState]);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      const nextUserId = session?.user?.id ?? null;
-      currentUserIdRef.current = nextUserId;
-      setUser(session?.user ?? null);
+    let isMounted = true;
 
-      if (nextUserId) {
-        fetchProfile(nextUserId, { blockUi: true });
+    const markAuthReady = () => {
+      if (!isMounted || authReadyRef.current) return;
+      authReadyRef.current = true;
+      setIsAuthReady(true);
+    };
+
+    const restoreSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!isMounted) return;
+
+        const nextUser = session?.user ?? null;
+        const nextUserId = nextUser?.id ?? null;
+
+        currentUserIdRef.current = nextUserId;
+        setUser(nextUser);
+
+        if (nextUserId) {
+          await fetchProfile(nextUserId, { blockUi: true });
+          return;
+        }
+
+        clearSessionState();
+        setLoading(false);
+      } catch (error) {
+        console.error('Error restoring auth session:', error?.message || error);
+        if (!isMounted) return;
+        currentUserIdRef.current = null;
+        setUser(null);
+        clearSessionState();
+        setLoading(false);
+      } finally {
+        markAuthReady();
+      }
+    };
+
+    restoreSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'INITIAL_SESSION') {
         return;
       }
 
-      setProfile(null);
-      setUserRoles([]);
-      setLoading(false);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       const nextUserId = session?.user?.id ?? null;
       const previousUserId = currentUserIdRef.current;
 
@@ -134,18 +169,23 @@ export const AuthProvider = ({ children }) => {
       setUser(session?.user ?? null);
 
       if (!nextUserId) {
-        setProfile(null);
-        setUserRoles([]);
+        clearSessionState();
         setLoading(false);
+        markAuthReady();
         return;
       }
 
-      const shouldBlockUi = event === 'SIGNED_IN' || previousUserId !== nextUserId;
-      fetchProfile(nextUserId, { blockUi: shouldBlockUi });
+      const shouldBlockUi = !authReadyRef.current || event === 'SIGNED_IN' || previousUserId !== nextUserId;
+
+      fetchProfile(nextUserId, { blockUi: shouldBlockUi })
+        .finally(markAuthReady);
     });
 
-    return () => subscription.unsubscribe();
-  }, [fetchProfile]);
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, [clearSessionState, fetchProfile]);
 
   const signIn = async (email, password) => {
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -377,6 +417,7 @@ export const AuthProvider = ({ children }) => {
       presenceContext,
       updatePresenceContext,
       loading,
+      isAuthReady,
       signIn,
       signUp,
       signOut,

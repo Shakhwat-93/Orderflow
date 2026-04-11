@@ -32,8 +32,11 @@
 
 .task-board-wrapper-lite {
   background: var(--elite-bg);
-  min-height: 100vh;
-  padding: var(--sp-8);
+  width: 100%;
+  max-width: none;
+  min-height: 100%;
+  padding-block: clamp(16px, 2vw, 28px);
+  padding-inline: clamp(12px, 1.8vw, 24px);
   color: var(--elite-text-pri);
   font-family: 'Inter', system-ui, sans-serif;
   transition: all 0.3s ease;
@@ -44,7 +47,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--sp-10);
+  margin-bottom: clamp(20px, 2.2vw, 40px);
   padding: 0 var(--sp-2);
 }
 
@@ -126,14 +129,16 @@
 /* 📐 Dashboard Layout Grid */
 .dashboard-content-layout {
   display: grid;
-  grid-template-columns: 1fr 340px;
-  gap: var(--sp-8);
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  gap: clamp(16px, 2.1vw, 32px);
+  align-items: start;
 }
 
 .dashboard-main-area {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-10);
+  min-width: 0;
+  gap: clamp(20px, 2.2vw, 40px);
 }
 
 /* 🧊 Status Cards */
@@ -245,7 +250,7 @@
 .summary-upcoming-grid {
   display: grid;
   grid-template-columns: 1fr 1.2fr;
-  gap: var(--sp-10);
+  gap: clamp(16px, 2vw, 36px);
 }
 
 .task-summary-section h2,
@@ -371,6 +376,7 @@
   flex-direction: column;
   gap: var(--sp-8);
   height: fit-content;
+  min-width: 0;
 }
 
 .sidebar-calendar-box {

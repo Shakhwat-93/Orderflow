@@ -4,20 +4,13 @@ import ReactDOM from 'react-dom';
 import { Badge } from './Badge';
 import { FileText, MessageSquare, ChevronDown, Clock, AlertTriangle } from 'lucide-react';
 import CurrencyIcon from './CurrencyIcon';
-import { slideUpVariants } from '../lib/motion';
 import './OrderRow.css';
 
 export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected, onSelect, fraudFlag, automationFlag }) => {
   const [copied, setCopied] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
-  const [swipeOffset, setSwipeOffset] = useState(0);
   const statusBtnRef = useRef(null);
-  const swipeGestureRef = useRef({
-    startX: 0,
-    startY: 0,
-    mode: null,
-  });
 
   const toggleStatusMenu = () => {
     if (!showStatusMenu && statusBtnRef.current) {
@@ -58,75 +51,14 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
     'Factory Processing', 'Completed', 'Cancelled'
   ];
 
-  useEffect(() => {
-    const resetSwipe = () => setSwipeOffset(0);
-    window.addEventListener('resize', resetSwipe);
-    return () => window.removeEventListener('resize', resetSwipe);
-  }, []);
-
-  const isMobileSwipeEnabled = () => window.matchMedia('(max-width: 900px)').matches;
-
-  const handleRowTouchStart = (event) => {
-    if (!isMobileSwipeEnabled()) return;
-    if (event.target.closest('button, input, a, [role="button"]')) return;
-
-    const touch = event.touches[0];
-    swipeGestureRef.current = {
-      startX: touch.clientX,
-      startY: touch.clientY,
-      mode: null,
-    };
-  };
-
-  const handleRowTouchMove = (event) => {
-    if (!isMobileSwipeEnabled()) return;
-    if (!swipeGestureRef.current.startX) return;
-
-    const touch = event.touches[0];
-    const deltaX = touch.clientX - swipeGestureRef.current.startX;
-    const deltaY = touch.clientY - swipeGestureRef.current.startY;
-
-    if (!swipeGestureRef.current.mode) {
-      if (Math.abs(deltaX) < 12) return;
-      if (Math.abs(deltaX) <= Math.abs(deltaY) * 1.15) return;
-      swipeGestureRef.current.mode = 'horizontal';
-    }
-
-    if (swipeGestureRef.current.mode !== 'horizontal') return;
-
-    event.preventDefault();
-    const nextOffset = Math.max(-112, Math.min(0, deltaX - (swipeOffset < 0 ? 112 : 0)));
-    setSwipeOffset(nextOffset);
-  };
-
-  const handleRowTouchEnd = () => {
-    if (!isMobileSwipeEnabled()) return;
-    if (swipeGestureRef.current.mode === 'horizontal') {
-      setSwipeOffset(swipeOffset < -56 ? -112 : 0);
-    }
-    swipeGestureRef.current = { startX: 0, startY: 0, mode: null };
-  };
-
-  const handleRowClick = () => {
-    if (swipeOffset < 0) {
-      setSwipeOffset(0);
-      return;
-    }
-    onDetails(order);
-  };
-
   return (
     <motion.tr 
-      className={`order-row clickable-row ${isSelected ? 'row-selected' : ''} ${swipeOffset < 0 ? 'swipe-open' : ''}`} 
-      onClick={handleRowClick}
-      onTouchStart={handleRowTouchStart}
-      onTouchMove={handleRowTouchMove}
-      onTouchEnd={handleRowTouchEnd}
-      style={{ '--row-swipe-offset': `${swipeOffset}px` }}
-      variants={slideUpVariants}
-      initial="hidden"
-      animate="visible"
-      exit="exit"
+      className={`order-row clickable-row ${isSelected ? 'row-selected' : ''}`} 
+      onClick={() => onDetails(order)}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: -20 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
     >
       <td className="checkbox-cell" onClick={(e) => e.stopPropagation()}>
         <input 
@@ -217,11 +149,9 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
         <div className="saas-actions">
           <button className="saas-icon-btn" title="View Document" onClick={(e) => { e.stopPropagation(); onDetails(order); }}>
             <FileText size={16} strokeWidth={1.5} />
-            <span className="mobile-action-label">View</span>
           </button>
           <button className="saas-icon-btn" title="Message" onClick={(e) => { e.stopPropagation(); onEdit && onEdit(order); }}>
             <MessageSquare size={16} strokeWidth={1.5} />
-            <span className="mobile-action-label">Edit</span>
           </button>
         </div>
       </td>

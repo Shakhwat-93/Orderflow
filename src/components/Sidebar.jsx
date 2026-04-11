@@ -13,6 +13,7 @@ import {
   Package,
   ClipboardList,
   Megaphone,
+  ChevronDown,
   X,
   Sun,
   Moon
@@ -65,6 +66,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
         <div className="sidebar-logo-container">
           <div className="logo-icon">{appName.charAt(0).toUpperCase() || 'O'}</div>
           <span className="logo-text">{appName}</span>
+          <ChevronDown className="logo-chevron" size={18} />
         </div>
         
         <div className="sidebar-header-actions">

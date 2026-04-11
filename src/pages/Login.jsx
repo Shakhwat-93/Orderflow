@@ -5,37 +5,35 @@ import { useBranding } from '../hooks/useBranding';
 import { User, Lock, Loader2 } from 'lucide-react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import orderflowLogo from '../assets/orderflow-logo.png';
-import {
-  createStaggerContainer,
-  hoverLift,
-  scaleInVariants,
-  slideUpVariants,
-  tapScale,
-} from '../lib/motion';
-import { useDesktopExperience } from '../hooks/useDesktopExperience';
+import { getRoleRoute } from '../utils/authRoutes';
 import './Login.css';
 
-const ROLE_ROUTES = {
-  'Admin': '/',
-  'Moderator': '/moderator',
-  'Call Team': '/call-team',
-  'Courier Team': '/courier',
-  'Factory Team': '/factory',
-  'Digital Marketer': '/digital-marketer',
-};
-
-const getRoleRoute = (roles = []) => {
-  const priority = ['Admin', 'Digital Marketer', 'Moderator', 'Call Team', 'Courier Team', 'Factory Team'];
-  for (const role of priority) {
-    if (roles.includes(role)) return ROLE_ROUTES[role];
+// Animation Variants
+const containerVariants = {
+  hidden: { opacity: 0, y: 20, scale: 0.98 },
+  visible: { 
+    opacity: 1, 
+    y: 0, 
+    scale: 1,
+    transition: { 
+      duration: 0.5, 
+      ease: [0.16, 1, 0.3, 1],
+      staggerChildren: 0.1,
+      delayChildren: 0.2
+    } 
   }
-  return '/';
 };
 
-const loginContainerVariants = createStaggerContainer(0.08, 0.08);
+const itemVariants = {
+  hidden: { opacity: 0, y: 15 },
+  visible: { 
+    opacity: 1, 
+    y: 0,
+    transition: { duration: 0.4, ease: "easeOut" }
+  }
+};
 
 export const Login = () => {
-  const isDesktopExperience = useDesktopExperience();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -55,20 +53,6 @@ export const Login = () => {
     document.title = `${appName} | Login`;
   }, [appName]);
 
-  const containerMotionProps = isDesktopExperience
-    ? {}
-    : {
-        variants: loginContainerVariants,
-        initial: 'hidden',
-        animate: 'visible',
-      };
-
-  const itemMotionProps = isDesktopExperience
-    ? {}
-    : {
-        variants: slideUpVariants,
-      };
-
   const handleAuth = async (e) => {
     e.preventDefault();
     try {
@@ -85,11 +69,8 @@ export const Login = () => {
     return (
       <div className="login-resolving">
         <Motion.div 
-          {...(isDesktopExperience ? {} : {
-            variants: scaleInVariants,
-            initial: 'hidden',
-            animate: 'visible',
-          })}
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
           className="login-resolve-icon-neu"
         >
           <Loader2 size={40} className="login-resolve-spinner" />
@@ -101,12 +82,14 @@ export const Login = () => {
   return (
     <div className="login-wrapper">
       <Motion.div 
-        {...containerMotionProps}
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
         className="login-card"
       >
-        <Motion.div {...itemMotionProps} className="login-header">
+        <Motion.div variants={itemVariants} className="login-header">
           <Motion.div 
-            whileHover={isDesktopExperience ? undefined : hoverLift}
+            whileHover={{ scale: 1.05 }}
             className="login-logo-container"
           >
             <img src={orderflowLogo} alt={`${appName} Logo`} className="login-logo-img" />
@@ -121,12 +104,9 @@ export const Login = () => {
           <AnimatePresence mode="wait">
             {error && (
               <Motion.div 
-                {...(isDesktopExperience ? {} : {
-                  variants: slideUpVariants,
-                  initial: 'hidden',
-                  animate: 'visible',
-                  exit: 'exit',
-                })}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 10 }}
                 className="login-error"
               >
                 {error}
@@ -134,7 +114,7 @@ export const Login = () => {
             )}
           </AnimatePresence>
           
-          <Motion.div {...itemMotionProps} className="neu-input-field">
+          <Motion.div variants={itemVariants} className="neu-input-field">
             <User size={20} />
             <input 
               type="email"
@@ -146,7 +126,7 @@ export const Login = () => {
             />
           </Motion.div>
           
-          <Motion.div {...itemMotionProps} className="neu-input-field">
+          <Motion.div variants={itemVariants} className="neu-input-field">
             <Lock size={20} />
             <input 
               type="password"
@@ -159,9 +139,9 @@ export const Login = () => {
           </Motion.div>
           
           <Motion.button 
-            {...itemMotionProps}
-            whileHover={isDesktopExperience ? undefined : hoverLift}
-            whileTap={isDesktopExperience ? undefined : tapScale}
+            variants={itemVariants}
+            whileHover={{ scale: 1.01, translateY: -1 }}
+            whileTap={{ scale: 0.98 }}
             type="submit" 
             className="login-submit-btn" 
             disabled={loading}
@@ -169,7 +149,7 @@ export const Login = () => {
             {loading ? 'Logging in...' : 'Login'}
           </Motion.button>
 
-          <Motion.footer {...itemMotionProps} className="login-footer">
+          <Motion.footer variants={itemVariants} className="login-footer">
             <span className="login-link">Forgot password?</span>
             <span>or</span>
             <span className="login-link-bold">Sign Up</span>

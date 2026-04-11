@@ -13,7 +13,6 @@ import {
 import { Download, FileDown, TrendingUp, BarChart2, PieChart as PieChartIcon, Activity, Truck, Clock, AlertCircle, ArrowUpRight, ArrowDownRight, Zap } from 'lucide-react';
 import { analytics } from '../utils/analytics';
 import { deserializeDateRange, usePersistentState } from '../utils/persistentState';
-import { createStaggerContainer, slideUpVariants } from '../lib/motion';
 import './ReportsPanel.css';
 
 // ── Custom Tooltip for Premium Charts ──
@@ -36,7 +35,22 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 // ── Animation Constants ──
-const reportContainerVariants = createStaggerContainer(0.08, 0.04);
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.08 }
+  }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { 
+    opacity: 1, 
+    y: 0,
+    transition: { type: 'spring', damping: 25, stiffness: 100 }
+  }
+};
 
 export const ReportsPanel = () => {
   const { orders, velocityMetrics } = useOrders();
@@ -119,11 +133,11 @@ export const ReportsPanel = () => {
   return (
     <motion.div 
       className="reports-panel"
-      variants={reportContainerVariants}
+      variants={containerVariants}
       initial="hidden"
       animate="visible"
     >
-      <motion.div className="reports-control-hub-elite" variants={slideUpVariants}>
+      <motion.div className="reports-control-hub-elite" variants={itemVariants}>
         <div className="hub-info">
           <div className="hub-title-group">
             <div className="hub-icon-wrap">
@@ -153,7 +167,7 @@ export const ReportsPanel = () => {
 
       <div className="reports-grid-elite">
         {velocityMetrics && (
-          <motion.div className="operational-heartbeat-elite" variants={slideUpVariants}>
+          <motion.div className="operational-heartbeat-elite" variants={itemVariants}>
             <div className="section-header-elite">
               <div className="heartbeat-pulse">
                 <Zap size={14} fill="currentColor" />
@@ -229,7 +243,7 @@ export const ReportsPanel = () => {
           </motion.div>
         )}
 
-        <motion.div className="main-chart-card-elite glass" variants={slideUpVariants}>
+        <motion.div className="main-chart-card-elite glass" variants={itemVariants}>
           <div className="chart-header-elite">
             <div className="chart-title-hub">
               <TrendingUp className="chart-icon" size={20} />
@@ -280,7 +294,7 @@ export const ReportsPanel = () => {
                   fillOpacity={1} 
                   fill="url(#colorOrdersElite)" 
                   activeDot={{ r: 6, strokeWidth: 0, fill: 'var(--accent)' }} 
-                  animationDuration={360}
+                  animationDuration={1500}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -288,7 +302,7 @@ export const ReportsPanel = () => {
         </motion.div>
 
         <div className="reports-secondary-grid-elite">
-          <motion.div className="secondary-chart-card glass" variants={slideUpVariants}>
+          <motion.div className="secondary-chart-card glass" variants={itemVariants}>
             <div className="card-header-elite">
               <PieChartIcon className="chart-icon icon-indigo" size={18} />
               <h3>Source Acquisition</h3>
@@ -324,7 +338,7 @@ export const ReportsPanel = () => {
             </div>
           </motion.div>
 
-          <motion.div className="secondary-chart-card glass" variants={slideUpVariants}>
+          <motion.div className="secondary-chart-card glass" variants={itemVariants}>
             <div className="card-header-elite">
               <Activity className="chart-icon icon-teal" size={18} />
               <h3>Confirmation Logic</h3>
@@ -344,7 +358,7 @@ export const ReportsPanel = () => {
             </div>
           </motion.div>
 
-          <motion.div className="secondary-chart-card glass" variants={slideUpVariants}>
+          <motion.div className="secondary-chart-card glass" variants={itemVariants}>
             <div className="card-header-elite">
               <Truck className="chart-icon icon-purple" size={18} />
               <h3>Logistics Success</h3>

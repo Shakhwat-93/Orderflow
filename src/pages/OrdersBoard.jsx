@@ -19,7 +19,6 @@ import BulkOrderCreator from '../components/BulkOrderCreator';
 import './OrdersBoard.css';
 import '../components/BulkActions.css';
 import api from '../lib/api';
-import { pageVariants } from '../lib/motion';
 import { getProductCheckpoints } from '../utils/productCatalog';
 
 const ORDER_STATUSES = [
@@ -417,9 +416,8 @@ export const OrdersBoard = () => {
   return (
     <div className="orders-management">
       <motion.div 
-        variants={pageVariants}
-        initial="hidden"
-        animate="visible"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
         className="orders-header-container"
       >
         <div className="page-header orders-header elite-enterprise-header">

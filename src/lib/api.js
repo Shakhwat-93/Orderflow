@@ -8,14 +8,35 @@ import { supabase } from './supabase';
 // --- Order Management ---
 
 export const api = {
+  orderModernColumnsState: null,
+  toyBoxProductNameColumnState: null,
+
   isMissingColumnError(error, columnName = '') {
-    const message = String(error?.message || error?.details || error?.hint || '').toLowerCase();
+    const message = [
+      error?.message,
+      error?.details,
+      error?.hint
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
     if (!message) return false;
     if (!columnName) {
-      return message.includes('column') && message.includes('does not exist');
+      return (
+        (message.includes('column') && message.includes('does not exist')) ||
+        (message.includes('column') && message.includes('could not find')) ||
+        (String(error?.code || '').toUpperCase() === 'PGRST204' && message.includes('schema cache'))
+      );
     }
     const normalizedColumn = String(columnName).toLowerCase();
-    return message.includes(normalizedColumn) && message.includes('column') && message.includes('does not exist');
+    return (
+      message.includes(normalizedColumn) &&
+      (
+        (message.includes('column') && message.includes('does not exist')) ||
+        (message.includes('column') && message.includes('could not find')) ||
+        (String(error?.code || '').toUpperCase() === 'PGRST204' && message.includes('schema cache'))
+      )
+    );
   },
 
   async getOrderById(orderId) {
@@ -345,6 +366,83 @@ ${rawText}`;
     return String(toyBox?.product_name || 'TOY BOX').trim();
   },
 
+  hasUnsupportedOrderModernColumns(error) {
+    return (
+      this.isMissingColumnError(error, 'delivery_charge') ||
+      this.isMissingColumnError(error, 'pricing_summary') ||
+      this.isMissingColumnError(error, 'order_lines_payload')
+    );
+  },
+
+  inferOrderModernColumnsState(orders = []) {
+    if (this.orderModernColumnsState !== null) return;
+    if (!Array.isArray(orders) || orders.length === 0) return;
+
+    const sample = orders.find(Boolean);
+    if (!sample) return;
+
+    const hasModernColumns =
+      Object.prototype.hasOwnProperty.call(sample, 'delivery_charge') &&
+      Object.prototype.hasOwnProperty.call(sample, 'pricing_summary') &&
+      Object.prototype.hasOwnProperty.call(sample, 'order_lines_payload');
+
+    this.orderModernColumnsState = hasModernColumns;
+  },
+
+  stripUnsupportedOrderModernFields(payload = {}) {
+    const fallbackPayload = { ...payload };
+    delete fallbackPayload.delivery_charge;
+    delete fallbackPayload.pricing_summary;
+    delete fallbackPayload.order_lines_payload;
+    return fallbackPayload;
+  },
+
+  attachOrderModernFields(payload = {}, orderData = {}) {
+    if (this.orderModernColumnsState === false) {
+      return this.stripUnsupportedOrderModernFields(payload);
+    }
+
+    return {
+      ...payload,
+      delivery_charge: Number(orderData.delivery_charge) || 0,
+      pricing_summary: orderData.pricing_summary || null,
+      order_lines_payload: orderData.order_lines_payload || orderData.ordered_items || []
+    };
+  },
+
+  normalizeToyBoxInventoryRow(toyBox = {}) {
+    return {
+      ...toyBox,
+      product_name: this.getToyBoxProductName(toyBox)
+    };
+  },
+
+  normalizeToyBoxInventoryRows(toyBoxes = []) {
+    return (toyBoxes || []).map((toyBox) => this.normalizeToyBoxInventoryRow(toyBox));
+  },
+
+  async getToyBoxInventoryRow(id) {
+    let { data, error } = await supabase
+      .from('toy_box_inventory')
+      .select('id,toy_box_number,stock_quantity,updated_at,product_name')
+      .eq('id', id)
+      .single();
+
+    if (error && this.isMissingColumnError(error, 'product_name')) {
+      this.toyBoxProductNameColumnState = false;
+      ({ data, error } = await supabase
+        .from('toy_box_inventory')
+        .select('id,toy_box_number,stock_quantity,updated_at')
+        .eq('id', id)
+        .single());
+    } else if (!error) {
+      this.toyBoxProductNameColumnState = true;
+    }
+
+    if (error) throw error;
+    return this.normalizeToyBoxInventoryRow(data);
+  },
+
   matchToyBoxInventory(productText = '', toyBoxes = []) {
     const toyBoxNum = this.extractToyBoxNumber(productText);
     if (toyBoxNum == null) return null;
@@ -410,10 +508,7 @@ ${rawText}`;
       .select('id,name,current_stock');
     if (error) throw error;
 
-    const { data: toyBoxes, error: toyErr } = await supabase
-      .from('toy_box_inventory')
-      .select('id,toy_box_number,stock_quantity,product_name');
-    if (toyErr) throw toyErr;
+    const toyBoxes = await this.getToyBoxInventory();
 
     const lines = invoiceText
       .split(/\r?\n/)
@@ -534,14 +629,17 @@ ${rawText}`;
     for (const m of preview.matched) {
       const table = m.target_type === 'toy_box_inventory' ? 'toy_box_inventory' : 'inventory';
       const stockCol = table === 'toy_box_inventory' ? 'stock_quantity' : 'current_stock';
-      const nameCols = table === 'toy_box_inventory' ? 'toy_box_number,product_name' : 'name';
-
-      const { data: latest, error: fetchErr } = await supabase
-        .from(table)
-        .select(`id,${stockCol},${nameCols}`)
-        .eq('id', m.target_id)
-        .single();
-      if (fetchErr) throw fetchErr;
+      const latest = table === 'toy_box_inventory'
+        ? await this.getToyBoxInventoryRow(m.target_id)
+        : await (async () => {
+            const { data, error } = await supabase
+              .from(table)
+              .select(`id,${stockCol},name`)
+              .eq('id', m.target_id)
+              .single();
+            if (error) throw error;
+            return data;
+          })();
 
       const before = Number(latest?.[stockCol] || 0);
       const isAdd = options?.stockMode === 'add';
@@ -616,6 +714,7 @@ ${rawText}`;
 
     const { data, error } = await query;
     if (error) throw error;
+    this.inferOrderModernColumnsState(data);
     return data;
   },
 
@@ -680,29 +779,24 @@ ${rawText}`;
       ordered_items: orderData.ordered_items || []
     };
 
-    const optionalPayload = {
-      ...payload,
-      delivery_charge: Number(orderData.delivery_charge) || 0,
-      pricing_summary: orderData.pricing_summary || null,
-      order_lines_payload: orderData.order_lines_payload || orderData.ordered_items || []
-    };
+    let writePayload = this.attachOrderModernFields(payload, orderData);
 
     let { data, error } = await supabase
       .from('orders')
-      .insert([optionalPayload])
+      .insert([writePayload])
       .select()
       .single();
 
-    if (error && (
-      this.isMissingColumnError(error, 'delivery_charge') ||
-      this.isMissingColumnError(error, 'pricing_summary') ||
-      this.isMissingColumnError(error, 'order_lines_payload')
-    )) {
+    if (error && this.hasUnsupportedOrderModernColumns(error)) {
+      this.orderModernColumnsState = false;
+      writePayload = this.stripUnsupportedOrderModernFields(payload);
       ({ data, error } = await supabase
         .from('orders')
-        .insert([payload])
+        .insert([writePayload])
         .select()
         .single());
+    } else if (!error && this.orderModernColumnsState == null) {
+      this.orderModernColumnsState = true;
     }
 
     if (error) throw error;
@@ -756,6 +850,7 @@ ${rawText}`;
 
     // Get old data for better notification diff
     const { data: oldOrder } = await supabase.from('orders').select('*').eq('id', orderId).single();
+    this.inferOrderModernColumnsState(oldOrder ? [oldOrder] : []);
 
     const normalizedUpdates = {
       ...updatedData
@@ -765,29 +860,28 @@ ${rawText}`;
       normalizedUpdates.delivery_charge = Number(updatedData.delivery_charge) || 0;
     }
 
+    let writeUpdates = this.orderModernColumnsState === false
+      ? this.stripUnsupportedOrderModernFields(normalizedUpdates)
+      : normalizedUpdates;
+
     let { data, error } = await supabase
       .from('orders')
-      .update(normalizedUpdates)
+      .update(writeUpdates)
       .eq('id', orderId)
       .select()
       .single();
 
-    if (error && (
-      this.isMissingColumnError(error, 'delivery_charge') ||
-      this.isMissingColumnError(error, 'pricing_summary') ||
-      this.isMissingColumnError(error, 'order_lines_payload')
-    )) {
-      const fallbackUpdates = { ...normalizedUpdates };
-      delete fallbackUpdates.delivery_charge;
-      delete fallbackUpdates.pricing_summary;
-      delete fallbackUpdates.order_lines_payload;
-
+    if (error && this.hasUnsupportedOrderModernColumns(error)) {
+      this.orderModernColumnsState = false;
+      writeUpdates = this.stripUnsupportedOrderModernFields(normalizedUpdates);
       ({ data, error } = await supabase
         .from('orders')
-        .update(fallbackUpdates)
+        .update(writeUpdates)
         .eq('id', orderId)
         .select()
         .single());
+    } else if (!error && this.orderModernColumnsState == null) {
+      this.orderModernColumnsState = true;
     }
 
     if (error) throw error;
@@ -916,16 +1010,20 @@ ${rawText}`;
 
     const { data: oldData } = await supabase
       .from('orders')
-      .select('call_attempts, first_call_time')
+      .select('call_attempts, first_call_time, status')
       .eq('id', orderId)
       .single();
 
     const newAttempts = (oldData?.call_attempts || 0) + 1;
     const newFirstCallTime = oldData?.first_call_time || new Date().toISOString();
+    const nextStatus = oldData?.status === 'Cancelled' || oldData?.status === 'Confirmed'
+      ? oldData.status
+      : 'Pending Call';
 
     const { data, error } = await supabase
       .from('orders')
       .update({
+        status: nextStatus,
         call_attempts: newAttempts,
         last_call_status: status,
         first_call_time: newFirstCallTime,
@@ -1693,13 +1791,23 @@ ${rawText}`;
    * Fetch all toy box inventory
    */
   async getToyBoxInventory() {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('toy_box_inventory')
-      .select('*')
+      .select('id,toy_box_number,stock_quantity,updated_at,product_name')
       .order('toy_box_number', { ascending: true });
 
+    if (error && this.isMissingColumnError(error, 'product_name')) {
+      this.toyBoxProductNameColumnState = false;
+      ({ data, error } = await supabase
+        .from('toy_box_inventory')
+        .select('id,toy_box_number,stock_quantity,updated_at')
+        .order('toy_box_number', { ascending: true }));
+    } else if (!error) {
+      this.toyBoxProductNameColumnState = true;
+    }
+
     if (error) throw error;
-    return data;
+    return this.normalizeToyBoxInventoryRows(data);
   },
 
   /**
@@ -1734,6 +1842,7 @@ ${rawText}`;
       .select('*');
 
     if (error && this.isMissingColumnError(error, 'product_name')) {
+      this.toyBoxProductNameColumnState = false;
       const fallbackPayload = payload.map((entry) => ({
         toy_box_number: entry.toy_box_number,
         stock_quantity: entry.stock_quantity,
@@ -1743,10 +1852,12 @@ ${rawText}`;
         .from('toy_box_inventory')
         .insert(fallbackPayload)
         .select('*'));
+    } else if (!error) {
+      this.toyBoxProductNameColumnState = true;
     }
 
     if (error) throw error;
-    return data;
+    return this.normalizeToyBoxInventoryRows(data);
   },
 
   /**

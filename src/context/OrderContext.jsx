@@ -458,10 +458,8 @@ export const OrderProvider = ({ children }) => {
     if (fetchErr) throw fetchErr;
     if (!confirmedOrders?.length) return { distributed: 0, queued: 0, total: 0 };
 
-    // Get current toy box stock
-    const { data: boxes } = await supabase
-      .from('toy_box_inventory')
-      .select('toy_box_number, stock_quantity, id, product_name');
+    // Get current toy box stock through the API compatibility layer
+    const boxes = await api.getToyBoxInventory();
 
     const stockMap = {};
     (boxes || []).forEach((box) => {

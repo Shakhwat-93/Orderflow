@@ -158,11 +158,16 @@ export const InventoryPage = () => {
       return;
     }
 
-    await addToyBoxStocks(entries);
-    setToyBoxSerialInput('');
-    setToyBoxInitialStock(0);
-    setToyBoxProductName('');
-    setIsToyBoxModalOpen(false);
+    try {
+      await addToyBoxStocks(entries);
+      setToyBoxSerialInput('');
+      setToyBoxInitialStock(0);
+      setToyBoxProductName('');
+      setIsToyBoxModalOpen(false);
+    } catch (error) {
+      console.error('Failed to add toy box serials:', error);
+      alert(error?.message || 'Failed to add serial numbers. Please try again.');
+    }
   };
 
   const handleOpenInvoiceModal = () => {
@@ -495,41 +500,75 @@ export const InventoryPage = () => {
       </div>
 
       {/* Product Modals remain functional but will look better with updated CSS */}
-      <Modal isOpen={isProductModalOpen} onClose={() => setIsProductModalOpen(false)} title={editingProduct ? 'Edit Product Details' : 'Register New Product'}>
-        <form onSubmit={handleSaveProduct} className="product-form premium-form">
-          <Input label="Product Name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required placeholder="Enter full product name" />
-          <div className="form-grid">
-            <Input label="SKU / Identifer" value={formData.sku} onChange={(e) => setFormData({ ...formData, sku: e.target.value })} placeholder="SKU-XXX" />
-            <div className="elite-select-wrapper">
-              <label className="input-label">Category</label>
-              <select className="elite-select" value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })}>
-                {CATEGORIES.filter(c => c !== 'All').map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-              <ChevronDown size={14} className="elite-select-chevron" />
+      <Modal
+        isOpen={isProductModalOpen}
+        onClose={() => setIsProductModalOpen(false)}
+        title={editingProduct ? 'Edit Product Details' : 'Register New Product'}
+        subtitle={editingProduct ? 'Refine inventory details, stock thresholds, and price without breaking flow.' : 'Create a clean product record with pricing and stock logic.'}
+      >
+        <form onSubmit={handleSaveProduct} className="product-form premium-form product-modal-shell">
+          <div className="modal-hero-card">
+            <div className="modal-hero-icon product">
+              <Package size={20} />
+            </div>
+            <div className="modal-hero-copy">
+              <span className="modal-hero-eyebrow">Catalog Setup</span>
+              <h3 className="modal-hero-title">{editingProduct ? 'Polish this inventory record' : 'Add a new product with confidence'}</h3>
+              <p className="modal-hero-text">Keep identity, stock alerts, and pricing structured so inventory stays clean, searchable, and premium.</p>
             </div>
           </div>
-          <div className="form-grid three-cols">
-            <Input label="Initial Inventory" type="number" value={formData.current_stock} onChange={(e) => setFormData({ ...formData, current_stock: parseInt(e.target.value) })} required />
-            <Input label="Min Alert Level" type="number" value={formData.min_stock_level} onChange={(e) => setFormData({ ...formData, min_stock_level: parseInt(e.target.value) })} required />
-            <Input 
-              label={<>Fixed Price (<CurrencyIcon size={12} className="currency-icon-elite" />)</>}
-              type="number" 
-              value={formData.unit_price} 
-              onChange={(e) => setFormData({ ...formData, unit_price: parseFloat(e.target.value) })} 
-              required 
-            />
-          </div>
-          <label className="invoice-manual-toggle">
+
+          <section className="inventory-form-section">
+            <div className="inventory-form-section-head">
+              <span className="section-kicker">Product Identity</span>
+              <p>Define how the item appears across search, category filters, and table rows.</p>
+            </div>
+            <Input label="Product Name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required placeholder="Enter full product name" />
+            <div className="form-grid">
+              <Input label="SKU / Identifier" value={formData.sku} onChange={(e) => setFormData({ ...formData, sku: e.target.value })} placeholder="SKU-XXX" />
+              <div className="elite-select-wrapper inventory-elite-select-wrapper">
+                <label className="input-label">Category</label>
+                <select className="elite-select inventory-elite-select" value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })}>
+                  {CATEGORIES.filter(c => c !== 'All').map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <ChevronDown size={14} className="elite-select-chevron" />
+              </div>
+            </div>
+          </section>
+
+          <section className="inventory-form-section">
+            <div className="inventory-form-section-head">
+              <span className="section-kicker">Stock Rules</span>
+              <p>Set opening quantity, low stock threshold, and fixed selling price.</p>
+            </div>
+            <div className="form-grid three-cols">
+              <Input label="Initial Inventory" type="number" value={formData.current_stock} onChange={(e) => setFormData({ ...formData, current_stock: parseInt(e.target.value) })} required />
+              <Input label="Min Alert Level" type="number" value={formData.min_stock_level} onChange={(e) => setFormData({ ...formData, min_stock_level: parseInt(e.target.value) })} required />
+              <Input
+                label={<>Fixed Price (<CurrencyIcon size={12} className="currency-icon-elite" />)</>}
+                type="number"
+                value={formData.unit_price}
+                onChange={(e) => setFormData({ ...formData, unit_price: parseFloat(e.target.value) })}
+                required
+              />
+            </div>
+          </section>
+
+          <label className="feature-toggle-row">
             <input
               type="checkbox"
               checked={formData.supports_serial_tracking}
               onChange={(e) => setFormData({ ...formData, supports_serial_tracking: e.target.checked })}
             />
-            <span>Enable serial-wise stock for this product</span>
+            <span className="feature-toggle-copy">
+              <strong>Enable serial-wise stock tracking</strong>
+              <small>Use this for products that need per-unit inventory control like Toy Box variants.</small>
+            </span>
           </label>
+
           <div className="modal-footer-actions">
             <Button variant="ghost" type="button" onClick={() => setIsProductModalOpen(false)}>Cancel</Button>
-            <Button variant="primary" type="submit" className="save-btn">Save Product</Button>
+            <Button variant="primary" type="submit" className="save-btn">{editingProduct ? 'Update Product' : 'Save Product'}</Button>
           </div>
         </form>
       </Modal>
@@ -597,38 +636,54 @@ export const InventoryPage = () => {
       </Modal>
 
       <Modal isOpen={isInvoiceModalOpen} onClose={() => setIsInvoiceModalOpen(false)} title="AI Invoice → Inventory Stock Sync">
-        <div className="invoice-sync-wrap">
-          <p className="invoice-help-text">
-            Paste your invoice lines. Manual bulk format supported: <b>toybox1 4 pis,, toybox2 10 pis,,, toybox38 5 pis</b>.
-            Multiple commas/new lines/extra spaces are tolerated.
-          </p>
-
-          <div className="adjust-mode-toggle">
-            <button className={`mode-btn restock ${invoiceStockMode === 'add' ? 'active' : ''}`} onClick={() => setInvoiceStockMode('add')}>
-              <ArrowUpRight size={18} /> <span>Add Stock</span>
-            </button>
-            <button className={`mode-btn deduct ${invoiceStockMode === 'deduct' ? 'active' : ''}`} onClick={() => setInvoiceStockMode('deduct')}>
-              <ArrowDownRight size={18} /> <span>Deduct Stock</span>
-            </button>
+        <div className="invoice-sync-wrap invoice-modal-shell">
+          <div className="modal-hero-card invoice-hero-card">
+            <div className="modal-hero-icon invoice">
+              <Bot size={20} />
+            </div>
+            <div className="modal-hero-copy">
+              <span className="modal-hero-eyebrow">Smart Stock Workflow</span>
+              <h3 className="modal-hero-title">Paste invoice lines and let the parser organize the update</h3>
+              <p className="modal-hero-text">
+                Manual bulk format supported: <b>toybox1 4 pis,, toybox2 10 pis,,, toybox38 5 pis</b>. Multiple commas, line breaks, and extra spaces are handled.
+              </p>
+            </div>
           </div>
 
-          <label className="invoice-manual-toggle">
-            <input
-              type="checkbox"
-              checked={useManualBulkMode}
-              onChange={(e) => setUseManualBulkMode(e.target.checked)}
-            />
-            <span>Use Manual Bulk Parser (recommended for toybox style input)</span>
-          </label>
+          <div className="invoice-surface-card">
+            <div className="adjust-mode-toggle">
+              <button className={`mode-btn restock ${invoiceStockMode === 'add' ? 'active' : ''}`} onClick={() => setInvoiceStockMode('add')}>
+                <ArrowUpRight size={18} /> <span>Add Stock</span>
+              </button>
+              <button className={`mode-btn deduct ${invoiceStockMode === 'deduct' ? 'active' : ''}`} onClick={() => setInvoiceStockMode('deduct')}>
+                <ArrowDownRight size={18} /> <span>Deduct Stock</span>
+              </button>
+            </div>
 
-          <label className="invoice-label">Invoice Text</label>
-          <textarea
-            className="invoice-textarea"
-            value={invoiceText}
-            onChange={(e) => setInvoiceText(e.target.value)}
-            placeholder={'2x Organizer\nToy Box - 3\nGift Bag x 1'}
-            rows={8}
-          />
+            <label className="invoice-manual-toggle invoice-manual-toggle--surface">
+              <input
+                type="checkbox"
+                checked={useManualBulkMode}
+                onChange={(e) => setUseManualBulkMode(e.target.checked)}
+              />
+              <span>Use Manual Bulk Parser (recommended for toybox style input)</span>
+            </label>
+          </div>
+
+          <div className="invoice-surface-card invoice-editor-card">
+            <div className="inventory-form-section-head compact">
+              <span className="section-kicker">Invoice Input</span>
+              <p>Paste line items naturally. The preview step will summarize matched, unmatched, and quantity changes.</p>
+            </div>
+            <label className="invoice-label">Invoice Text</label>
+            <textarea
+              className="invoice-textarea"
+              value={invoiceText}
+              onChange={(e) => setInvoiceText(e.target.value)}
+              placeholder={'2x Organizer\nToy Box - 3\nGift Bag x 1'}
+              rows={8}
+            />
+          </div>
 
           <div className="invoice-action-row">
             <Button variant="ghost" onClick={handlePreviewInvoice} disabled={isPreviewingInvoice || isApplyingInvoice}>
@@ -639,7 +694,7 @@ export const InventoryPage = () => {
             </Button>
           </div>
 
-          <div className="invoice-confirm-wrap">
+          <div className="invoice-confirm-wrap invoice-flow-note">
             <label className="invoice-label">Flow: Preview → Modal Review → Final Confirm</label>
           </div>
 

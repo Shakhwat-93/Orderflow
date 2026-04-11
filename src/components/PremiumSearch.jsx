@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Sparkles, Clock, Eye, Trash2, ArrowRight, Search as SearchIcon } from 'lucide-react';
-import { scaleInVariants } from '../lib/motion';
 
 export const PremiumSearch = ({ 
   value, 
@@ -91,10 +90,10 @@ export const PremiumSearch = ({
         {isOpen && (
           <motion.div 
             className="premium-search-dropdown"
-            variants={scaleInVariants}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
+            initial={{ opacity: 0, y: 10, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.98 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
           >
             {/* Show Results if typing */}
             {value.trim() ? (
