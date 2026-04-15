@@ -27,3 +27,5 @@ dist-ssr
 *.zip
 *.mp4
 .codex-temp/
+.git-corrupt-backup-*/
+.tmp_*

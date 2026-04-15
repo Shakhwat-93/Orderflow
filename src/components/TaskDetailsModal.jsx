@@ -87,7 +87,7 @@ export const TaskDetailsModal = ({ task, taskType, isOpen, onClose, onOpenOrder 
               </div>
               {task.description && (
                 <div className="info-item full-width">
-                  <div className="info-content">
+                  <div className="info-content align-left">
                     <label>Description</label>
                     <div className="description-box">
                       {task.description}

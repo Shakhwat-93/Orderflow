@@ -1,20 +1,25 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { AlertCircle, Calendar, ClipboardList, Plus, UserRound, Users } from 'lucide-react';
 import { useTasks } from '../context/TaskContext';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { ArrowLeft, Calendar, AlertCircle, Plus } from 'lucide-react';
+import { Modal } from './Modal';
 import './CreateTaskOverlay.css';
 
 const ROLE_OPTIONS = ['Admin', 'Moderator', 'Call Team', 'Courier Team', 'Factory Team'];
+const PRIORITY_OPTIONS = [
+  { value: 'high', label: 'High' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'low', label: 'Low' },
+];
 
 export const CreateTaskOverlay = ({ isOpen, onClose, defaultType = 'daily' }) => {
   const { createDailyTask, createAssignedTask } = useTasks();
-  const { profile, isAdmin } = useAuth();
-  
+  const { isAdmin } = useAuth();
+  const resolvedDefaultType = isAdmin ? defaultType : 'daily';
+
   const [allUsers, setAllUsers] = useState([]);
-  
-  // Unified form state
-  const [taskType, setTaskType] = useState(defaultType); // 'daily' (role) or 'assigned' (user)
+  const [taskType, setTaskType] = useState(defaultType);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('medium');
@@ -22,245 +27,266 @@ export const CreateTaskOverlay = ({ isOpen, onClose, defaultType = 'daily' }) =>
   const [assignedRole, setAssignedRole] = useState('Moderator');
   const [assignedTo, setAssignedTo] = useState('');
   const [relatedOrderId, setRelatedOrderId] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Fetch users for assignment if admin
   useEffect(() => {
     const fetchUsers = async () => {
-      const { data } = await supabase.from('users').select('id, name, email');
+      const { data } = await supabase
+        .from('users')
+        .select('id, name, email')
+        .order('name', { ascending: true });
+
       setAllUsers(data || []);
     };
-    if (isAdmin && isOpen) fetchUsers();
-    
+
     if (isOpen) {
-      setTaskType(defaultType);
+      setTaskType(resolvedDefaultType);
     }
-  }, [isAdmin, isOpen, defaultType]);
 
-  // Handle form submission
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!title.trim()) return;
-
-    try {
-      if (taskType === 'assigned') {
-        const selectedUser = allUsers.find(u => u.id === assignedTo);
-        await createAssignedTask({
-          title,
-          description,
-          assigned_to: assignedTo,
-          assigned_to_name: selectedUser?.name || '',
-          priority,
-          due_date: dueDate || null,
-          related_order_id: relatedOrderId || null
-        });
-      } else {
-        await createDailyTask({
-          title,
-          description,
-          assigned_role: assignedRole,
-          priority,
-          recurrence: 'daily'
-        });
-      }
-      handleClose();
-    } catch (err) {
-      console.error('Failed to create task:', err);
+    if (isAdmin && isOpen) {
+      fetchUsers();
     }
-  };
+  }, [defaultType, isAdmin, isOpen, resolvedDefaultType]);
 
-  const handleClose = () => {
-    // Reset form
+  const resetForm = () => {
+    setTaskType(resolvedDefaultType);
     setTitle('');
     setDescription('');
     setPriority('medium');
     setDueDate('');
+    setAssignedRole('Moderator');
     setAssignedTo('');
     setRelatedOrderId('');
+    setIsSaving(false);
+  };
+
+  const handleClose = () => {
+    resetForm();
     onClose();
   };
 
-  if (!isOpen) return null;
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+
+    if (!title.trim() || isSaving) return;
+    if (taskType === 'assigned' && !assignedTo) return;
+
+    setIsSaving(true);
+
+    try {
+      if (taskType === 'assigned') {
+        const selectedUser = allUsers.find((user) => user.id === assignedTo);
+
+        await createAssignedTask({
+          title: title.trim(),
+          description: description.trim(),
+          assigned_to: assignedTo,
+          assigned_to_name: selectedUser?.name || '',
+          priority,
+          due_date: dueDate || null,
+          related_order_id: relatedOrderId.trim() || null,
+        });
+      } else {
+        await createDailyTask({
+          title: title.trim(),
+          description: description.trim(),
+          assigned_role: assignedRole,
+          priority,
+          recurrence: 'daily',
+        });
+      }
+
+      handleClose();
+    } catch (error) {
+      console.error('Failed to create task:', error);
+      setIsSaving(false);
+    }
+  };
+
+  const isAssignedTask = taskType === 'assigned';
+  const selectedUser = allUsers.find((user) => user.id === assignedTo);
+  const submitDisabled = !title.trim() || isSaving || (isAssignedTask && !assignedTo);
 
   return (
-    <div className="ct-overlay-container">
-      {/* TopAppBar */}
-      <header className="ct-header">
-        <div className="ct-header-left">
-          <button type="button" onClick={handleClose} className="ct-back-btn">
-            <ArrowLeft size={24} />
-          </button>
-          <h1>Executive Tactician</h1>
-        </div>
-        <div className="ct-header-right">
-          <div className="ct-avatar">
-            <img 
-              src={profile?.avatar_url || "https://i.pravatar.cc/150?u=12"} 
-              alt="Profile" 
-              onError={(e) => e.target.src = 'https://i.pravatar.cc/150'}
-            />
+    <Modal
+      isOpen={isOpen}
+      onClose={handleClose}
+      title="Create New Task"
+      subtitle="A clean composer for assigning work without leaving the board."
+    >
+      <form className="ct-sheet" onSubmit={handleSubmit}>
+        {isAdmin && (
+          <div className="ct-mode-switch" role="tablist" aria-label="Task type">
+            <button
+              type="button"
+              className={`ct-mode-btn ${taskType === 'daily' ? 'active' : ''}`}
+              onClick={() => setTaskType('daily')}
+            >
+              <Users size={16} />
+              Role Task
+            </button>
+            <button
+              type="button"
+              className={`ct-mode-btn ${taskType === 'assigned' ? 'active' : ''}`}
+              onClick={() => setTaskType('assigned')}
+            >
+              <UserRound size={16} />
+              Person Task
+            </button>
           </div>
-        </div>
-      </header>
+        )}
 
-      {/* Main Content Canvas */}
-      <main className="ct-main">
-        {/* Hero / Header Section */}
-        <section className="ct-hero">
-          <p className="ct-overline">New Entry</p>
-          <h2 className="ct-title">Architect Your Next Move</h2>
-          <div className="ct-divider"></div>
-        </section>
-
-        {/* Form Container */}
-        <form onSubmit={handleSubmit} className="ct-form">
-          {/* Title Input */}
-          <div className="ct-field">
-            <label className="ct-label">Task Title</label>
-            <input 
-              type="text" 
-              className="ct-input-title" 
-              placeholder="Specify the objective..." 
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              required
-            />
-          </div>
-
-          {/* Bento Grid */}
-          <div className="ct-grid">
-            {/* Due Date */}
-            <div className="ct-bento-card">
-              <div className="ct-bento-header">
-                <div className="ct-icon-box">
-                  <Calendar size={20} className="ct-tinted-icon" />
-                </div>
-                <span className="ct-bento-title">Deadline</span>
+        <div className="ct-layout">
+          <section className="ct-panel ct-panel-main">
+            <div className="ct-panel-header">
+              <div>
+                <p className="ct-eyebrow">Task brief</p>
+                <h3>Define the work clearly</h3>
               </div>
-              <input 
-                type="date" 
-                className="ct-date-input" 
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
+            </div>
+
+            <label className="ct-field">
+              <span className="ct-label">Task title</span>
+              <input
+                type="text"
+                className="ct-input"
+                placeholder="Write a clear outcome..."
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                required
               />
-            </div>
+            </label>
 
-            {/* Strategic Priority */}
-            <div className="ct-bento-card">
-              <div className="ct-bento-header">
-                <div className="ct-icon-box">
-                  <AlertCircle size={20} className="ct-tinted-icon" />
-                </div>
-                <span className="ct-bento-title">Strategic Priority</span>
-              </div>
-              <div className="ct-segmented-control">
-                {['High', 'Medium', 'Low'].map(level => {
-                  const val = level.toLowerCase();
-                  const isActive = priority === val;
-                  // The exact Tailwind classes mapping for High active state:
-                  // High active -> bg-error-container text-on-error-container
-                  // Others standard -> bg-white text-slate-500
-                  let btnClass = 'ct-segment-btn';
-                  if (isActive) {
-                    if (val === 'high' || val === 'urgent') btnClass += ' active-high';
-                    else if (val === 'medium') btnClass += ' active-medium';
-                    else btnClass += ' active-low';
-                  }
-                  return (
-                    <button 
-                      key={level}
-                      type="button" 
-                      className={btnClass}
-                      onClick={() => setPriority(val)}
+            <label className="ct-field">
+              <span className="ct-label">Description</span>
+              <textarea
+                className="ct-textarea"
+                placeholder="Add the context, expected result, or blockers..."
+                rows={5}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+              />
+            </label>
+
+            <div className="ct-grid">
+              <label className="ct-field ct-info-card">
+                <span className="ct-card-label">
+                  <Calendar size={16} />
+                  Due date
+                </span>
+                <input
+                  type="date"
+                  className="ct-input ct-input-plain"
+                  value={dueDate}
+                  onChange={(event) => setDueDate(event.target.value)}
+                />
+              </label>
+
+              <div className="ct-field ct-info-card">
+                <span className="ct-card-label">
+                  <AlertCircle size={16} />
+                  Priority
+                </span>
+                <div className="ct-priority-group">
+                  {PRIORITY_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className={`ct-priority-btn ${priority === option.value ? 'active' : ''}`}
+                      data-priority={option.value}
+                      onClick={() => setPriority(option.value)}
                     >
-                      {level}
+                      {option.label}
                     </button>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Context & Details */}
-          <div className="ct-field">
-            <label className="ct-label">Context & Details</label>
-            <textarea 
-              className="ct-textarea" 
-              placeholder="Elaborate on the requirements, dependencies, and desired outcome..." 
-              rows={4}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </div>
+            {isAssignedTask && (
+              <label className="ct-field">
+                <span className="ct-label">Related order ID</span>
+                <input
+                  type="text"
+                  className="ct-input"
+                  placeholder="Optional order reference"
+                  value={relatedOrderId}
+                  onChange={(event) => setRelatedOrderId(event.target.value)}
+                />
+              </label>
+            )}
+          </section>
 
-          {/* Assignment Selection (Adapted from "Tags/Project Selection") */}
-          <div className="ct-assignment-card">
-            <div className="ct-assignment-header">
-              <span className="ct-assignment-title">
-                {taskType === 'assigned' ? 'Assign to Person' : 'Assign to Role'}
-              </span>
-              {isAdmin && (
-                <button 
-                  type="button" 
-                  className="ct-toggle-btn"
-                  onClick={() => setTaskType(prev => prev === 'daily' ? 'assigned' : 'daily')}
-                >
-                  {taskType === 'daily' ? 'Switch to Personnel' : 'Switch to Role'}
-                </button>
-              )}
+          <aside className="ct-panel ct-panel-side">
+            <div className="ct-panel-header">
+              <div>
+                <p className="ct-eyebrow">Assignment</p>
+                <h3>{isAssignedTask ? 'Choose a teammate' : 'Choose a role'}</h3>
+              </div>
             </div>
-            
-            <div className="ct-tags-container">
-              {taskType === 'daily' ? (
-                ROLE_OPTIONS.map(role => (
+
+            <div className="ct-assignee-summary">
+              <div className="ct-assignee-icon">
+                {isAssignedTask ? <UserRound size={18} /> : <ClipboardList size={18} />}
+              </div>
+              <div className="ct-assignee-copy">
+                <strong>
+                  {isAssignedTask
+                    ? selectedUser?.name || 'No teammate selected'
+                    : assignedRole}
+                </strong>
+                <span>
+                  {isAssignedTask
+                    ? selectedUser?.email || 'Select one person for ownership.'
+                    : 'Daily recurring work for this operational role.'}
+                </span>
+              </div>
+            </div>
+
+            <div className="ct-chip-grid">
+              {isAssignedTask ? (
+                allUsers.length > 0 ? (
+                  allUsers.map((user) => (
+                    <button
+                      key={user.id}
+                      type="button"
+                      className={`ct-chip ${assignedTo === user.id ? 'active' : ''}`}
+                      onClick={() => setAssignedTo(user.id)}
+                    >
+                      <span>{user.name}</span>
+                      <small>{user.email}</small>
+                    </button>
+                  ))
+                ) : (
+                  <div className="ct-empty-state">Loading team members...</div>
+                )
+              ) : (
+                ROLE_OPTIONS.map((role) => (
                   <button
                     key={role}
                     type="button"
-                    className={`ct-tag ${assignedRole === role ? 'active' : ''}`}
+                    className={`ct-chip ${assignedRole === role ? 'active' : ''}`}
                     onClick={() => setAssignedRole(role)}
                   >
-                    {role}
+                    <span>{role}</span>
+                    <small>Daily responsibility</small>
                   </button>
                 ))
-              ) : (
-                allUsers.map(u => (
-                  <button
-                    key={u.id}
-                    type="button"
-                    className={`ct-tag ${assignedTo === u.id ? 'active' : ''}`}
-                    onClick={() => setAssignedTo(u.id)}
-                  >
-                    {u.name}
-                  </button>
-                ))
-              )}
-              {taskType === 'assigned' && allUsers.length === 0 && (
-                <span className="ct-tag-empty">Loading team...</span>
               )}
             </div>
-          </div>
-
-          {/* Action Area */}
-          <div className="ct-actions">
-            <button type="submit" className="ct-submit-btn">
-              <Plus size={24} strokeWidth={2.5} />
-              Confirm Project Entry
-            </button>
-            <button type="button" onClick={handleClose} className="ct-cancel-btn">
-              Cancel
-            </button>
-          </div>
-        </form>
-
-        {/* Editorial Visual Element */}
-        <div className="ct-decor-wrapper">
-          <div className="ct-decor-box">
-            <div className="ct-decor-inner"></div>
-          </div>
+          </aside>
         </div>
-      </main>
-      
-      {/* Ghost Visual Decor Background */}
-      <div className="ct-bg-glow"></div>
-    </div>
+
+        <div className="ct-actions">
+          <button type="button" className="ct-secondary-btn" onClick={handleClose}>
+            Cancel
+          </button>
+          <button type="submit" className="ct-primary-btn" disabled={submitDisabled}>
+            <Plus size={18} />
+            {isSaving ? 'Creating...' : 'Create task'}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 };
