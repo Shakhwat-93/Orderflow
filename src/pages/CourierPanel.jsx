@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useOrders } from '../context/OrderContext';
+import { useAuth } from '../context/AuthContext';
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
@@ -7,12 +9,32 @@ import { Input } from '../components/Input';
 import { Modal } from '../components/Modal';
 import { OrderEditModal } from '../components/OrderEditModal';
 import { OrderDetailsModal } from '../components/OrderDetailsModal';
-import { Search, Truck, CheckCircle, Package, ClipboardCheck, Edit2, ShieldCheck, ShieldAlert, Shield, RotateCcw, Clock, UserCheck } from 'lucide-react';
+import { Search, Truck, CheckCircle, Package, ClipboardCheck, Edit2, Clock, Trash2 } from 'lucide-react';
 import { usePersistentState } from '../utils/persistentState';
 import './CourierPanel.css';
 
+const containerVariants = {
+  hidden: { opacity: 0, y: 15 },
+  visible: { 
+    opacity: 1, 
+    y: 0,
+    transition: { staggerChildren: 0.1, duration: 0.4, ease: [0.4, 0, 0.2, 1] }
+  }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 10 },
+  visible: { opacity: 1, y: 0 }
+};
+
 export const CourierPanel = () => {
   const { orders, updateOrderStatus, editOrder, dispatchToCourier } = useOrders();
+  const { updatePresenceContext } = useAuth();
+
+  useEffect(() => {
+    updatePresenceContext('Dispatching Orders');
+  }, [updatePresenceContext]);
+
   const [searchTerm, setSearchTerm] = usePersistentState('panel:courier:search', '');
   const [steadfastPending, setSteadfastPending] = useState({});
   const [steadfastSubmitted, setSteadfastSubmitted] = useState({});
@@ -90,174 +112,186 @@ export const CourierPanel = () => {
   };
 
   return (
-    <div className="courier-panel">
-      <div className="page-header">
+    <motion.div 
+      className="courier-panel"
+      initial="hidden"
+      animate="visible"
+      variants={containerVariants}
+    >
+      <header className="page-header">
         <div>
-          <h1>Courier Panel</h1>
-          <p>Assign tracking IDs and dispatch stock-verified orders to the delivery team.</p>
+          <h1 className="premium-title">Courier Panel</h1>
+          <p className="page-subtitle">Assign tracking IDs and dispatch stock-verified orders.</p>
         </div>
         <div className="active-dispatch-stat">
-          <Package size={20} className="text-secondary" />
+          <Truck size={20} />
           <span>{courierQueue.length} Ready for Dispatch</span>
         </div>
-      </div>
+      </header>
 
       <div className="courier-summary-grid">
-        <Card className="courier-summary-card" noPadding>
-          <div className="courier-summary-card-inner">
-            <div className="courier-summary-icon total">
-              <Package size={18} />
+        <motion.div variants={itemVariants}>
+          <Card className="courier-summary-card" noPadding>
+            <div className="courier-summary-card-inner">
+              <div className="courier-summary-icon total"><Package size={22} /></div>
+              <div>
+                <p className="courier-summary-label">Ready Queue</p>
+                <p className="courier-summary-value">{courierQueue.length}</p>
+              </div>
             </div>
-            <div>
-              <p className="courier-summary-label">Ready Queue</p>
-              <p className="courier-summary-value">{courierQueue.length}</p>
-            </div>
-          </div>
-        </Card>
+          </Card>
+        </motion.div>
 
-        <Card className="courier-summary-card" noPadding>
-          <div className="courier-summary-card-inner">
-            <div className="courier-summary-icon assigned">
-              <ClipboardCheck size={18} />
+        <motion.div variants={itemVariants}>
+          <Card className="courier-summary-card" noPadding>
+            <div className="courier-summary-card-inner">
+              <div className="courier-summary-icon assigned"><ClipboardCheck size={22} /></div>
+              <div>
+                <p className="courier-summary-label">Assigned</p>
+                <p className="courier-summary-value">{withTrackingCount}</p>
+              </div>
             </div>
-            <div>
-              <p className="courier-summary-label">Tracking Assigned</p>
-              <p className="courier-summary-value">{withTrackingCount}</p>
-            </div>
-          </div>
-        </Card>
+          </Card>
+        </motion.div>
 
-        <Card className="courier-summary-card" noPadding>
-          <div className="courier-summary-card-inner">
-            <div className="courier-summary-icon pending">
-              <Truck size={18} />
+        <motion.div variants={itemVariants}>
+          <Card className="courier-summary-card" noPadding>
+            <div className="courier-summary-card-inner">
+              <div className="courier-summary-icon pending"><Clock size={22} /></div>
+              <div>
+                <p className="courier-summary-label">Unassigned</p>
+                <p className="courier-summary-value">{pendingTrackingCount}</p>
+              </div>
             </div>
-            <div>
-              <p className="courier-summary-label">Pending Tracking</p>
-              <p className="courier-summary-value">{pendingTrackingCount}</p>
-            </div>
-          </div>
-        </Card>
+          </Card>
+        </motion.div>
       </div>
 
-      <Card className="table-card liquid-glass" noPadding>
+      <Card className="table-card" noPadding>
         <div className="table-search-bar">
           <div className="elite-search-wrapper">
             <Search className="elite-search-icon" size={18} />
             <input
               type="text"
-              placeholder="Search by ID, name or phone..."
+              placeholder="Search ID, recipient or phone..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="elite-search-input"
             />
           </div>
-          <p className="queue-helper-text">
-            <Truck size={14} style={{ display: 'inline', marginRight: '6px' }} />
-            Assign tracking ID first, then dispatch to courier.
-          </p>
+          <div className="queue-helper-text">
+            <Truck size={14} />
+            <span>Target verified inventory</span>
+          </div>
         </div>
 
-        <div className="orders-table-wrapper courier-table-wrapper desktop-only">
-          <table className="management-table premium-table courier-management-table">
+        <div className="courier-table-wrapper desktop-only">
+          <table className="courier-management-table">
             <thead>
               <tr>
-                <th className="id-col">Order ID</th>
-                <th className="customer-col">Customer</th>
-                <th className="product-col">Product & Size</th>
-                <th className="tracking-col">Tracking ID</th>
-                <th className="status-col">Status</th>
-                <th className="courier-actions-col">Actions</th>
+                <th>Reference</th>
+                <th>Recipient</th>
+                <th>Product Package</th>
+                <th>Tracking ID</th>
+                <th>Phase</th>
+                <th className="courier-actions-col">Control</th>
               </tr>
             </thead>
             <tbody>
-              {courierQueue.map(order => (
-                <tr key={order.id} className="order-row courier-order-row cursor-pointer" onClick={() => handleRowClick(order)}>
-                  {(() => {
-                    const isSteadfastSending = Boolean(steadfastPending[order.id]);
-                    const isSteadfastSubmitted = Boolean(steadfastSubmitted[order.id]);
-                    const isSteadfastLocked =
-                      isSteadfastSending ||
-                      isSteadfastSubmitted ||
-                      order.status === 'Courier Submitted' ||
-                      Boolean(order.courier_assigned_id) ||
-                      order.courier_name === 'Steadfast';
+              <AnimatePresence mode="popLayout">
+                {courierQueue.map(order => {
+                  const isSteadfastSending = Boolean(steadfastPending[order.id]);
+                  const isSteadfastSubmitted = Boolean(steadfastSubmitted[order.id]);
+                  const isSteadfastLocked =
+                    isSteadfastSending ||
+                    isSteadfastSubmitted ||
+                    order.status === 'Courier Submitted' ||
+                    Boolean(order.courier_assigned_id) ||
+                    order.courier_name === 'Steadfast';
 
-                    return (
-                      <>
-                  <td className="id-cell order-id-cell">
-                    <span className="saas-id">#{(order.id || '').replace('ORD-', '')}</span>
-                  </td>
-                  <td className="customer-cell">
-                    <div className="courier-customer-stack">
-                      <span className="saas-text-dark">{order.customer_name}</span>
-                      <span className="saas-text">{order.phone}</span>
-                    </div>
-                  </td>
-                  <td className="product-col product-name">
-                    <div className="courier-product-stack">
-                      <span className="saas-text-dark">{order.product_name}</span>
-                      {order.size && <span className="product-size-pill">Size {order.size}</span>}
-                    </div>
-                  </td>
-                  <td className="tracking-col tracking-cell">
-                    {order.tracking_id ? (
-                      <span className="tracking-badge">
-                        <Truck size={14} /> {order.tracking_id}
-                      </span>
-                    ) : (
-                      <span className="text-tertiary text-sm italic">Not Assigned</span>
-                    )}
-                  </td>
-                  <td className="status-cell">
-                    <Badge variant="courier-ready" className="courier-status-pill">{order.status}</Badge>
-                  </td>
-                  <td className="courier-actions-cell">
-                    <div className="dispatch-action-grid">
-                      <button
-                        className="courier-action-btn edit"
-                        onClick={(e) => { e.stopPropagation(); handleOpenEditModal(order); }}
-                        title="Edit Order Details"
-                      >
-                        <Edit2 size={16} /> <span>Edit</span>
-                      </button>
-                      <button
-                        className="courier-action-btn tracking"
-                        onClick={(e) => { e.stopPropagation(); handleOpenTrackingModal(order); }}
-                        title="Add/Edit Tracking ID"
-                      >
-                        <Truck size={16} /> <span>Tracking</span>
-                      </button>
-                      <button
-                        className={`courier-action-btn steadfast ${isSteadfastSending ? 'is-loading' : ''} ${isSteadfastSubmitted ? 'is-submitted' : ''}`}
-                        onClick={(e) => handleSteadfastDispatch(e, order)}
-                        disabled={isSteadfastLocked}
-                        title="Submit to Steadfast API"
-                      >
-                        {isSteadfastSending ? <Clock size={16} /> : <Truck size={16} />}
-                        <span>
-                          {isSteadfastSending ? 'Sending...' : isSteadfastSubmitted ? 'Sent' : 'Steadfast'}
-                        </span>
-                      </button>
-                      <button
-                        className="courier-action-btn submit"
-                        onClick={(e) => { e.stopPropagation(); handleSubmitToCourier(order.id); }}
-                        disabled={!order.tracking_id || isSteadfastSending}
-                        title={!order.tracking_id ? "Requires Tracking ID first" : "Submit to Courier"}
-                      >
-                        <CheckCircle size={16} /> <span>Dispatch</span>
-                      </button>
-                    </div>
-                  </td>
-                      </>
-                    );
-                  })()}
-                </tr>
-              ))}
+                  return (
+                    <motion.tr 
+                      key={order.id} 
+                      layout
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="courier-order-row cursor-pointer" 
+                      onClick={() => handleRowClick(order)}
+                    >
+                      <td className="order-id-cell">
+                        <span className="saas-id">#{(order.id || '').replace('ORD-', '')}</span>
+                      </td>
+                      <td>
+                        <div className="courier-customer-stack">
+                          <span className="saas-text-dark">{order.customer_name}</span>
+                          <span className="saas-text">{order.phone}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="courier-product-stack">
+                          <span className="saas-text-dark">{order.product_name}</span>
+                          {order.size && <span className="product-size-pill">T-{order.size}</span>}
+                        </div>
+                      </td>
+                      <td>
+                        {order.tracking_id ? (
+                          <span className="tracking-badge">
+                            <Truck size={12} /> {order.tracking_id}
+                          </span>
+                        ) : (
+                          <span className="text-tertiary text-xs italic">Awaiting...</span>
+                        )}
+                      </td>
+                      <td>
+                        <Badge variant="courier-ready" className="courier-status-pill">Ready</Badge>
+                      </td>
+                      <td className="courier-actions-cell">
+                        <div className="dispatch-action-grid">
+                          <button
+                            className="courier-action-btn edit"
+                            onClick={(e) => { e.stopPropagation(); handleOpenEditModal(order); }}
+                            title="Adjust Details"
+                          >
+                            <Edit2 size={14} /> <span>Edit</span>
+                          </button>
+                          <button
+                            className="courier-action-btn tracking"
+                            onClick={(e) => { e.stopPropagation(); handleOpenTrackingModal(order); }}
+                            title="Assign Tracking"
+                          >
+                            <Truck size={14} /> <span>Track</span>
+                          </button>
+                          <button
+                            className={`courier-action-btn steadfast ${isSteadfastSending ? 'is-loading' : ''} ${isSteadfastSubmitted ? 'is-submitted' : ''}`}
+                            onClick={(e) => handleSteadfastDispatch(e, order)}
+                            disabled={isSteadfastLocked}
+                            title="Direct API Dispatch"
+                          >
+                            {isSteadfastSending ? <Clock size={14} className="spin" /> : <Zap size={14} />}
+                            <span>{isSteadfastSending ? '...' : isSteadfastSubmitted ? 'Sent' : 'S-Fast'}</span>
+                          </button>
+                          <button
+                            className="courier-action-btn submit"
+                            onClick={(e) => { e.stopPropagation(); handleSubmitToCourier(order.id); }}
+                            disabled={!order.tracking_id || isSteadfastSending}
+                            title="Mark as Dispatched"
+                          >
+                            <CheckCircle size={14} /> <span>Submit</span>
+                          </button>
+                        </div>
+                      </td>
+                    </motion.tr>
+                  );
+                })}
+              </AnimatePresence>
               {courierQueue.length === 0 && (
                 <tr>
                   <td colSpan="6" className="empty-state-cell">
-                    No stock-verified orders ready for dispatch. Orders must pass through Factory Panel first.
+                    <div className="empty-state-content">
+                      <Truck size={40} style={{ opacity: 0.2, marginBottom: '12px' }} />
+                      <p>No verified orders ready for dispatch.</p>
+                    </div>
                   </td>
                 </tr>
               )}
@@ -266,60 +300,60 @@ export const CourierPanel = () => {
         </div>
 
         <div className="courier-mobile-list mobile-only">
-          {courierQueue.map(order => (
-            <div
-              key={order.id}
-              className="order-mobile-card courier-mobile-card"
-              onClick={() => handleRowClick(order)}
-            >
-              <div className="card-header-elite">
-                <div className="id-group">
+          <AnimatePresence>
+            {courierQueue.map(order => (
+              <motion.div
+                key={order.id}
+                layout
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 10 }}
+                className="courier-mobile-card"
+                onClick={() => handleRowClick(order)}
+              >
+                <div className="card-header-elite">
                   <span className="order-id">#{order.id.replace('ORD-', '')}</span>
+                  <Badge variant="courier-ready">Ready</Badge>
                 </div>
-                <Badge variant="courier-ready">{order.status}</Badge>
-              </div>
 
-              <div className="card-body-elite">
                 <div className="customer-primary-box">
                   <h3 className="customer-name-large">{order.customer_name}</h3>
-                  <div className="phone-row">
-                    <span>{order.phone}</span>
-                  </div>
+                  <div className="phone-row">{order.phone}</div>
                 </div>
 
                 <div className="details-grid-elite">
                   <div className="detail-box-elite">
                     <span className="detail-label">Product</span>
                     <span className="detail-value product">{order.product_name}</span>
-                    <span className="detail-subvalue">{order.size ? `Size ${order.size}` : 'No Size'}</span>
+                    {order.size && <span className="detail-subvalue">Size {order.size}</span>}
                   </div>
                   <div className="detail-box-elite">
                     <span className="detail-label">Tracking</span>
-                    <span className="detail-value">{order.tracking_id || 'Not Assigned'}</span>
-                    <span className="detail-subvalue">Ready to dispatch</span>
+                    <span className="detail-value">{order.tracking_id || 'Awaiting'}</span>
                   </div>
                 </div>
-              </div>
 
-              <div className="courier-mobile-actions" onClick={(e) => e.stopPropagation()}>
-                <button
-                  className="courier-action-btn edit"
-                  onClick={() => handleOpenEditModal(order)}
-                >
-                  <Edit2 size={16} /> <span>Edit</span>
-                </button>
-                <button
-                  className="courier-action-btn tracking"
-                  onClick={() => handleOpenTrackingModal(order)}
-                >
-                  <Truck size={16} /> <span>Tracking</span>
-                </button>
-              </div>
-            </div>
-          ))}
+                <div className="courier-mobile-actions" onClick={(e) => e.stopPropagation()}>
+                  <button className="courier-action-btn edit" onClick={() => handleOpenEditModal(order)}>
+                    <Edit2 size={16} /> <span>Edit</span>
+                  </button>
+                  <button className="courier-action-btn tracking" onClick={() => handleOpenTrackingModal(order)}>
+                    <Truck size={16} /> <span>Track</span>
+                  </button>
+                  <button 
+                    className="courier-action-btn submit" 
+                    onClick={() => handleSubmitToCourier(order.id)}
+                    disabled={!order.tracking_id}
+                  >
+                    <CheckCircle size={16} /> <span>Submit</span>
+                  </button>
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
           {courierQueue.length === 0 && (
-            <div className="mobile-empty-state">
-              No stock-verified orders ready for dispatch.
+            <div className="empty-state-cell">
+              <p>No verified orders ready for dispatch.</p>
             </div>
           )}
         </div>
@@ -329,15 +363,18 @@ export const CourierPanel = () => {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="Assign Tracking ID"
+        title="Assign Courier Tracking"
       >
         <form onSubmit={handleSaveTracking} className="tracking-form">
-          <p className="text-secondary mb-4">
-            Enter the courier tracking code for order <strong>{activeOrderId}</strong> to enable dispatching.
-          </p>
+          <div className="mb-4">
+            <p className="saas-text" style={{ fontSize: '0.88rem', lineHeight: '1.6' }}>
+              Enter the tracking identifier for <strong>#{(activeOrderId || '').replace('ORD-', '')}</strong>. 
+              This will enable the final dispatch action.
+            </p>
+          </div>
           <Input
-            label="Tracking ID"
-            placeholder="e.g. STEADFAST-12345678"
+            label="Courier Tracking ID"
+            placeholder="e.g. S-FAST-9921102"
             value={trackingIdInput}
             onChange={e => setTrackingIdInput(e.target.value)}
             required
@@ -345,10 +382,10 @@ export const CourierPanel = () => {
           />
           <div className="form-actions mt-4">
             <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)}>
-              Cancel
+              Discard
             </Button>
             <Button type="submit" variant="primary">
-              Save Tracking
+              Assign Identifier
             </Button>
           </div>
         </form>
@@ -366,6 +403,24 @@ export const CourierPanel = () => {
         order={selectedOrder}
         onEdit={handleOpenEditModal}
       />
-    </div>
+    </motion.div>
   );
 };
+
+// Internal icon for Steadfast
+const Zap = ({ size, className }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    width={size} 
+    height={size} 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2.5" 
+    strokeLinecap="round" 
+    strokeLinejoin="round" 
+    className={className}
+  >
+    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+  </svg>
+);
