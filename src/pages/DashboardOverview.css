@@ -384,15 +384,17 @@
 
 /* ── Dashboard Main Layout ───────────────────────────────────────────────── */
 .dashboard-layout-main {
-  display: grid;
+  display: grid !important;
   grid-template-columns: 1fr 360px;
   gap: 20px;
   align-items: flex-start;
+  /* reset any flex coming from charts-grid */
+  flex-direction: unset;
 }
 
 @media (max-width: 1280px) {
   .dashboard-layout-main {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
   }
   .dashboard-activity-sidebar {
     position: static !important;
@@ -406,6 +408,8 @@
   flex-direction: column;
   gap: 20px;
   min-width: 0;
+  /* Ensure analytics-left doesn't overflow its grid cell */
+  overflow: hidden;
 }
 
 .dashboard-activity-sidebar {
@@ -418,9 +422,8 @@
 }
 
 /* ── Charts Grid ─────────────────────────────────────────────────────────── */
+/* charts-grid alone (stacked) — overridden when combined with dashboard-layout-main */
 .charts-grid {
-  display: flex;
-  flex-direction: column;
   gap: 20px;
 }
 
