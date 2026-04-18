@@ -1,4 +1,10 @@
-/* ================================================================
+const fs = require('fs');
+
+const sidebarJsxPath = 'src/components/Sidebar.jsx';
+const sidebarCssPath = 'src/components/Sidebar.css';
+
+// 1. UPDATE CSS
+const newCss = `/* ================================================================
    ELITE SIDEBAR — SmartShort / Masterpiece Aesthetic
    Glowing left pip, deep gradient active states, minimal typography
    ================================================================ */
@@ -351,12 +357,6 @@
   height: 18px;
 }
 
-/* Search wrapper */
-.sidebar-search-wrapper {
-  padding: 0 16px 12px;
-  flex-shrink: 0;
-}
-
 /* Search Box removed for purity or integrated natively? 
    We will keep it if it was there but style it matte */
 .sidebar-search-box {
@@ -394,3 +394,99 @@
   width: 16px;
   height: 16px;
 }
+`;
+
+fs.writeFileSync(sidebarCssPath, newCss, 'utf8');
+
+// 2. UPDATE JSX
+let jsxContent = fs.readFileSync(sidebarJsxPath, 'utf8');
+
+// Add specific lucide imports
+if (!jsxContent.includes('ChevronRight')) {
+  jsxContent = jsxContent.replace('Moon\n} from \'lucide-react\';', 'Moon,\n  ChevronRight,\n  Plus\n} from \'lucide-react\';');
+}
+
+// Update the groupedItems mapping to use the masterpiece group headers
+jsxContent = jsxContent.replace(
+  /\{groupedItems\.map\(\(\{ group, items \}\) => \([\s\S]*?className="nav-group">\s*<p className="nav-section-label">\{group\}<\/p>([\s\S]*?)<\/nav>/,
+  `{groupedItems.map(({ group, items }) => (
+          <div key={group} className="nav-group">
+            <div className="nav-section-header">
+              <p className="nav-section-label">{group}</p>
+              <Plus className="nav-section-action" size={14} />
+            </div>
+            {items.map((item) => {
+              const Icon = item.icon;
+              const isActive = location.pathname === item.path;
+
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={\`nav-item \${isActive ? 'active' : ''}\`}
+                  onClick={onClose}
+                >
+                  <Icon className="nav-icon" size={18} />
+                  <span className="nav-label">{item.label}</span>
+                  {isActive && <ChevronRight className="nav-active-chevron" size={16} />}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
+      </nav>`
+);
+
+// Note: Ensure the replace regex perfectly hits the nav-group if it was slightly different
+// Let's do a more robust replacement for the map body
+let robustSearch = /\{groupedItems\.map\(\(\{ group, items \}\) => \([\s\S]*?\{isActive && <span className="nav-active-dot" \/>\}\s*<\/Link>\s*\);\s*\}\)\}\s*<\/div>\s*\)\)\}\s*<\/nav>/;
+
+if (robustSearch.test(jsxContent)) {
+  jsxContent = jsxContent.replace(
+    robustSearch,
+    `{groupedItems.map(({ group, items }) => (
+          <div key={group} className="nav-group">
+            <div className="nav-section-header">
+              <p className="nav-section-label">{group}</p>
+              <Plus className="nav-section-action" size={14} />
+            </div>
+            {items.map((item) => {
+              const Icon = item.icon;
+              const isActive = location.pathname === item.path;
+
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={\`nav-item \${isActive ? 'active' : ''}\`}
+                  onClick={onClose}
+                >
+                  <Icon className="nav-icon" size={18} />
+                  <span className="nav-label">{item.label}</span>
+                  {isActive && <ChevronRight className="nav-active-chevron" size={16} />}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
+      </nav>`
+  );
+} else {
+  // If it fails, fallback to simpler replace
+  jsxContent = jsxContent.replace(
+    /<p className="nav-section-label">\{group\}<\/p>/g,
+    `<div className="nav-section-header">
+              <p className="nav-section-label">{group}</p>
+              <Plus className="nav-section-action" size={14} />
+            </div>`
+  );
+  jsxContent = jsxContent.replace(
+    /\{isActive && <span className="nav-active-dot" \/>\}/g,
+    `{isActive && <ChevronRight className="nav-active-chevron" size={16} />}`
+  );
+}
+
+
+fs.writeFileSync(sidebarJsxPath, jsxContent, 'utf8');
+
+console.log("Masterpiece sidebar applied!");

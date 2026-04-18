@@ -201,7 +201,9 @@
   border: none !important;
   transition: transform var(--anim-smooth) var(--ease-out),
               box-shadow var(--anim-smooth) ease !important;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1) !important;
+  box-shadow: var(--dash-shadow) !important;
+  background: var(--dash-card) !important;
+  border: 1px solid var(--dash-border) !important;
   min-height: 168px;
 }
 
@@ -211,16 +213,16 @@
 }
 
 /* Gradient variants */
-.metric-card.success-glow  { background: linear-gradient(135deg, #b832c7, #ed428e) !important; }
-.metric-card.indigo-glow   { background: linear-gradient(135deg, #f96c14, #ed3f2b) !important; }
-.metric-card.teal-glow     { background: linear-gradient(135deg, #22c55e, #0d9488) !important; }
-.metric-card.neutral-glow  { background: linear-gradient(135deg, #06b6d4, #0284c7) !important; }
-.metric-card.orange-glow   { background: linear-gradient(135deg, #0ea5e9, #3b82f6) !important; }
-.metric-card.cyan-glow     { background: linear-gradient(135deg, #6366f1, #4f46e5) !important; }
-.metric-card.purple-glow   { background: linear-gradient(135deg, #a855f7, #8b5cf6) !important; }
-.metric-card.warning-glow  { background: linear-gradient(135deg, #f59e0b, #ea580c) !important; }
-.metric-card.danger-glow   { background: linear-gradient(135deg, #dc2626, #991b1b) !important; }
-.metric-card.processing-glow { background: linear-gradient(135deg, #14b8a6, #047857) !important; }
+.metric-card.success-glow  { border-bottom: 2px solid #ed428e !important; }
+.metric-card.indigo-glow   { border-bottom: 2px solid #f96c14 !important; }
+.metric-card.teal-glow     { border-bottom: 2px solid #22c55e !important; }
+.metric-card.neutral-glow  { border-bottom: 2px solid #06b6d4 !important; }
+.metric-card.orange-glow   { border-bottom: 2px solid #0ea5e9 !important; }
+.metric-card.cyan-glow     { border-bottom: 2px solid #6366f1 !important; }
+.metric-card.purple-glow   { border-bottom: 2px solid #a855f7 !important; }
+.metric-card.warning-glow  { border-bottom: 2px solid #f59e0b !important; }
+.metric-card.danger-glow   { border-bottom: 2px solid #dc2626 !important; }
+.metric-card.processing-glow { border-bottom: 2px solid #14b8a6 !important; }
 
 .metric-top-row {
   display: flex;
@@ -242,7 +244,7 @@
 
 /* Metric text (all white on vibrant bg) */
 .metric-label {
-  color: rgba(255, 255, 255, 0.92) !important;
+  color: var(--dash-text-sec) !important;
   font-weight: 700 !important;
   font-size: 0.78rem !important;
   text-transform: uppercase;
@@ -252,7 +254,7 @@
 }
 
 .metric-value {
-  color: #fff !important;
+  color: var(--dash-text-pri) !important;
   font-size: 1.75rem !important;
   font-weight: 900 !important;
   line-height: 1 !important;
@@ -324,7 +326,7 @@
   margin: 0;
   font-size: 1.125rem;
   font-weight: 800;
-  color: var(--text-primary);
+  color: var(--dash-text-pri);
 }
 
 .chart-container {
@@ -393,7 +395,7 @@
   min-width: 0;
   font-size: 0.94rem;
   font-weight: 700;
-  color: var(--text-secondary);
+  color: var(--dash-text-sec);
   line-height: 1.2;
   overflow-wrap: anywhere;
 }

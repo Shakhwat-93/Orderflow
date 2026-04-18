@@ -10,391 +10,447 @@ import { CreateTaskOverlay } from '../components/CreateTaskOverlay';
 import { usePersistentState } from '../utils/persistentState';
 import {
   ClipboardList, CheckCircle2, Check, Circle, Plus, Calendar, Clock,
-  AlertTriangle, User, Users, Zap, ListChecks, Target,
-  ChevronRight, Loader2, Search, List, Kanban, TrendingUp, Activity, ShieldCheck, MoreHorizontal, ChevronDown
+  AlertTriangle, User, Users, Zap, ListChecks, Target, Filter,
+  ChevronRight, Loader2, Search, List, Kanban, TrendingUp, Activity,
+  ShieldCheck, MoreHorizontal, ChevronDown, ArrowUpRight, Briefcase,
+  FileText, FolderOpen, Star
 } from 'lucide-react';
 import './TaskBoard.css';
 
-// ── Animation Constants ──
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { type: 'spring', damping: 25, stiffness: 100 } }
-};
-
+// ── Priority config ──────────────────────────────────────────────────────────
 const PRIORITY_CONFIG = {
-  urgent: { color: '#ef4444', label: 'Urgent', icon: AlertTriangle },
-  high:   { color: '#f97316', label: 'High',   icon: Zap },
-  medium: { color: '#3b82f6', label: 'Medium', icon: Target },
-  low:    { color: '#94a3b8', label: 'Low',    icon: Circle },
+  urgent: { color: '#ef4444', label: 'Urgent',  bg: 'rgba(239,68,68,0.1)'  },
+  high:   { color: '#f97316', label: 'High',    bg: 'rgba(249,115,22,0.1)' },
+  medium: { color: '#6366f1', label: 'Medium',  bg: 'rgba(99,102,241,0.1)' },
+  low:    { color: '#94a3b8', label: 'Low',     bg: 'rgba(148,163,184,0.1)'},
 };
 
-// ── Sub-components for Elite Dashboard ──
-
-const StatusCard = ({ title, count, total, color, progress }) => (
-  <Card className="status-highlight-card" style={{ backgroundColor: color }}>
-    <div className="card-top">
-       <div className="card-info">
-          <h3>{title}</h3>
-          <p>Task Portfolio</p>
-       </div>
-       <button className="premium-nav-arrow-elite"><ChevronRight size={14} /></button>
-    </div>
-    
-    <div className="card-middle">
-       <div className="avatar-stack-lite">
-          {[1, 2, 3].map(i => (
-             <div key={i} className="stack-av">?</div>
-          ))}
-          <div className="stack-count">+{count > 3 ? count - 3 : 0}</div>
-       </div>
-    </div>
-
-    <div className="card-bottom">
-       <div className="tasks-meta">
-          <span className="count-num">{count}</span>
-          <span className="count-label">Tasks</span>
-       </div>
-       <div className="progress-container-lite">
-          <div className="progress-track-lite">
-             <motion.div 
-               className="progress-fill-lite"
-               style={{ backgroundColor: 'white' }}
-               initial={{ width: 0 }}
-               animate={{ width: `${progress}%` }}
-               transition={{ duration: 1.2, ease: 'easeOut' }}
-             />
-          </div>
-       </div>
-    </div>
-  </Card>
-);
-
-const SummaryWidget = ({ label, value, icon: Icon, trend, trendType = 'up' }) => (
-  <Card className="summary-widget-lite">
-     <div className="widget-row">
-        <div className="widget-icon">
-           <Icon size={18} />
-        </div>
-        {trend && (
-          <div className={`widget-trend ${trendType}`}>
-             {trendType === 'up' ? '▲' : '▼'} {trend}
-          </div>
-        )}
-     </div>
-     <div className="widget-content">
-        <h3>{value}</h3>
-        <p>{label}</p>
-     </div>
-  </Card>
-);
-
-const HorizontalTaskItem = ({ task, onView }) => {
-  const config = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.medium;
-  return (
-    <motion.div 
-      className="horizontal-task-lite"
-      whileHover={{ y: -2, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
-      onClick={onView}
-    >
-      <div className="accent-bar" style={{ backgroundColor: config.color }}></div>
-      <div className="task-main">
-         <h4>{task.title}</h4>
-         <p>{task.assigned_to_name || 'General Operation'}</p>
-      </div>
-      <div className="task-status-indicator">
-         {task.status === 'completed' ? <CheckCircle2 size={18} className="text-success" /> : <div className="status-ring"></div>}
-      </div>
-    </motion.div>
-  );
+const STATUS_CONFIG = {
+  pending:     { label: 'Pending',     color: '#f59e0b', bg: 'rgba(245,158,11,0.12)'  },
+  in_progress: { label: 'In Progress', color: '#6366f1', bg: 'rgba(99,102,241,0.12)' },
+  completed:   { label: 'Completed',   color: '#22c55e', bg: 'rgba(34,197,94,0.12)'  },
 };
 
-const TimelineItem = ({ time, task, color }) => (
-  <div className="timeline-item-elite">
-     <div className="time-col">
-        <span className="time-text">{time}</span>
-        <span className="label-text">Entry</span>
-     </div>
-     <div className="connector-col">
-        <div className="marker" style={{ backgroundColor: color }}></div>
-        <div className="line"></div>
-     </div>
-     <div className="content-col">
-        <div className="timeline-task-preview">
-           <h4>{task.title}</h4>
-           <div className="preview-meta">
-              <span>{task.assigned_role || 'Member'}</span>
-              <ChevronRight size={12} />
-           </div>
-        </div>
-     </div>
+// ── Smart date helper for "due" display ──────────────────────────────────────
+const fmtDate = (d) => {
+  if (!d) return '—';
+  const dt = new Date(d);
+  return dt.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+};
+
+// ── Metric Card ──────────────────────────────────────────────────────────────
+const MetricCard = ({ label, value, icon: Icon, accent, trend }) => (
+  <div className="tb-metric-card">
+    <div className="tb-metric-top">
+      <div className="tb-metric-icon" style={{ background: `${accent}18`, color: accent }}>
+        <Icon size={18} />
+      </div>
+      {trend && (
+        <span className="tb-metric-trend" style={{ color: accent }}>
+          <ArrowUpRight size={13} /> {trend}
+        </span>
+      )}
+    </div>
+    <div className="tb-metric-value">{value}</div>
+    <div className="tb-metric-label">{label}</div>
   </div>
 );
 
-const KanbanColumn = ({ title, tasks, status, icon: Icon, color, onView, onStatusUpdate }) => (
-  <div className="kanban-column-lite">
-    <div className="column-header-lite">
-      <div className="header-left">
-        <div className="icon-box" style={{ backgroundColor: `${color}15`, color: color }}>
-          <Icon size={16} />
+// ── Task Row (Today's Tasks table) ───────────────────────────────────────────
+const TaskRow = ({ task, onView }) => {
+  const p = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.medium;
+  const s = STATUS_CONFIG[task.status] || STATUS_CONFIG.pending;
+  return (
+    <tr className="tb-task-row" onClick={() => onView(task)}>
+      <td className="tb-td">
+        <div className="tb-task-name-cell">
+          <span className="tb-task-color-dot" style={{ background: p.color }} />
+          <span className="tb-task-title">{task.title}</span>
         </div>
-        <h3>{title}</h3>
-        <span className="count-pill">{tasks.length}</span>
-      </div>
+      </td>
+      <td className="tb-td">
+        <div className="tb-project-chip">
+          <FolderOpen size={13} />
+          {task.assigned_role || 'General'}
+        </div>
+      </td>
+      <td className="tb-td">
+        <span className="tb-date-text">{fmtDate(task.due_date)}</span>
+      </td>
+      <td className="tb-td">
+        <span className="tb-status-badge" style={{ background: s.bg, color: s.color }}>
+          {s.label}
+        </span>
+      </td>
+    </tr>
+  );
+};
+
+// ── Project Row (List Projects table) ───────────────────────────────────────
+const ProjectRow = ({ project }) => {
+  const s = STATUS_CONFIG[project.status] || STATUS_CONFIG.pending;
+  const pct = project.progress ?? 0;
+  return (
+    <tr className="tb-task-row">
+      <td className="tb-td">
+        <div className="tb-task-name-cell">
+          <div className="tb-proj-icon"><Briefcase size={13} /></div>
+          <span className="tb-task-title">{project.name}</span>
+        </div>
+      </td>
+      <td className="tb-td">
+        <span className="tb-status-badge" style={{ background: s.bg, color: s.color }}>
+          {s.label}
+        </span>
+      </td>
+      <td className="tb-td">
+        <div className="tb-progress-wrap">
+          <div className="tb-progress-bar">
+            <div className="tb-progress-fill" style={{ width: `${pct}%`, background: s.color }} />
+          </div>
+          <span className="tb-progress-pct">{pct}%</span>
+        </div>
+      </td>
+      <td className="tb-td"><span className="tb-date-text">{project.tasks ?? '—'}</span></td>
+      <td className="tb-td"><span className="tb-date-text">{fmtDate(project.due_date)}</span></td>
+      <td className="tb-td">
+        <div className="tb-owner-chip">
+          <div className="tb-owner-av">{(project.owner ?? 'U').charAt(0)}</div>
+          <span>{project.owner ?? 'Unassigned'}</span>
+        </div>
+      </td>
+    </tr>
+  );
+};
+
+// ── Kanban Column ────────────────────────────────────────────────────────────
+const KanbanColumn = ({ title, tasks, color, onView, onStatusUpdate }) => (
+  <div className="tb-kanban-col">
+    <div className="tb-kanban-col-header">
+      <span className="tb-kanban-col-dot" style={{ background: color }} />
+      <span className="tb-kanban-col-title">{title}</span>
+      <span className="tb-kanban-col-count">{tasks.length}</span>
     </div>
-    <div className="column-scroll-area">
+    <div className="tb-kanban-col-body">
       <AnimatePresence mode="popLayout">
-        {tasks.map((task) => (
-          <motion.div
-            key={task.id}
-            layout
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            transition={{ type: 'spring', damping: 20, stiffness: 150 }}
-          >
-             <Card className="kanban-task-card-lite" onClick={() => onView(task)}>
-                <div className="priority-label" style={{ color }}>{task.priority}</div>
-                <h4>{task.title}</h4>
-                <div className="card-footer-lite">
-                   <div className="av">?</div>
-                   <div className="status-dropdown">
-                      <select 
-                         value={task.status} 
-                         onClick={(e) => e.stopPropagation()}
-                         onChange={(e) => onStatusUpdate(task.id, e.target.value)}
-                      >
-                         <option value="pending">Pending</option>
-                         <option value="in_progress">Active</option>
-                         <option value="completed">Done</option>
-                      </select>
-                   </div>
-                </div>
-             </Card>
-          </motion.div>
-        ))}
+        {tasks.map((task) => {
+          const p = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.medium;
+          return (
+            <motion.div
+              key={task.id}
+              layout
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="tb-kanban-card"
+              onClick={() => onView(task)}
+            >
+              <div className="tb-kanban-card-priority" style={{ color: p.color, background: p.bg }}>
+                {p.label}
+              </div>
+              <div className="tb-kanban-card-title">{task.title}</div>
+              <div className="tb-kanban-card-meta">
+                <span className="tb-kanban-av">?</span>
+                <select
+                  className="tb-kanban-status-select"
+                  value={task.status}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => onStatusUpdate(task.id, e.target.value)}
+                >
+                  <option value="pending">Pending</option>
+                  <option value="in_progress">Active</option>
+                  <option value="completed">Done</option>
+                </select>
+              </div>
+            </motion.div>
+          );
+        })}
       </AnimatePresence>
     </div>
   </div>
 );
 
+// ═════════════════════════════════════════════════════════════════════════════
+// MAIN COMPONENT
+// ═════════════════════════════════════════════════════════════════════════════
 export const TaskBoard = () => {
   const {
     myDailyTasks, assignedTasks, todayCompletions, loading,
-    isCompletedToday,
-    completeDailyTask,
-    updateAssignedTask
+    isCompletedToday, completeDailyTask, updateAssignedTask
   } = useTasks();
   const { user, profile, isAdmin, updatePresenceContext } = useAuth();
 
-  const [activeTab, setActiveTab] = usePersistentState('panel:tasks:tab', 'overview'); 
-  const [isCreateDailyOpen, setIsCreateDailyOpen] = useState(false);
+  const [activeTab, setActiveTab] = usePersistentState('panel:tasks:tab', 'overview');
   const [isCreateAssignedOpen, setIsCreateAssignedOpen] = useState(false);
+  const [isCreateDailyOpen, setIsCreateDailyOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
   const [selectedTaskType, setSelectedTaskType] = useState('daily');
   const [selectedOrderData, setSelectedOrderData] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => {
-    updatePresenceContext?.('Managing Tasks');
-  }, [updatePresenceContext]);
+  useEffect(() => { updatePresenceContext?.('Managing Tasks'); }, [updatePresenceContext]);
 
   const handleOpenOrder = async (orderId) => {
     try {
       const order = await api.getOrderById(orderId);
       if (order) setSelectedOrderData(order);
-    } catch (e) {
-      console.error('Failed to fetch related order:', e);
-    }
+    } catch (e) { console.error('Failed to fetch related order:', e); }
   };
 
-  // Stats Calculations
   const stats = {
-     backlog: assignedTasks.filter(t => t.status === 'pending').length,
-     inProgress: assignedTasks.filter(t => t.status === 'in_progress').length,
-     completed: assignedTasks.filter(t => t.status === 'completed').length,
-     total: assignedTasks.length
+    backlog:    assignedTasks.filter(t => t.status === 'pending').length,
+    inProgress: assignedTasks.filter(t => t.status === 'in_progress').length,
+    completed:  assignedTasks.filter(t => t.status === 'completed').length,
+    total:      assignedTasks.length,
   };
 
-  const myAssignedTasks = assignedTasks.filter(t => t.assigned_to === user?.id);
+  const todayTasks = assignedTasks
+    .filter(t => t.status !== 'completed')
+    .filter(t => !searchQuery || t.title?.toLowerCase().includes(searchQuery.toLowerCase()))
+    .slice(0, 8);
+
+  // Fake "projects" by grouping tasks by assigned_role
+  const roleGroups = [...new Set(assignedTasks.map(t => t.assigned_role).filter(Boolean))];
+  const listProjects = roleGroups.slice(0, 6).map((role, i) => {
+    const roleTasks = assignedTasks.filter(t => t.assigned_role === role);
+    const done = roleTasks.filter(t => t.status === 'completed').length;
+    const pct = roleTasks.length ? Math.round((done / roleTasks.length) * 100) : 0;
+    const status = pct === 100 ? 'completed' : pct > 0 ? 'in_progress' : 'pending';
+    return { name: role, status, progress: pct, tasks: `${done} / ${roleTasks.length}`, due_date: null, owner: profile?.name || 'You' };
+  });
+
+  const completionRate = stats.total
+    ? Math.round((stats.completed / stats.total) * 100)
+    : 0;
+
   const myCompletedTodayCount = todayCompletions.length;
 
-  if (loading) {
-    return <div className="loading-screen">Preparing Workspace...</div>;
-  }
+  if (loading) return <div className="tb-loading">Preparing Workspace…</div>;
 
   return (
-    <div className="task-board-wrapper-lite">
-       <motion.header 
-          className="elite-dashboard-header"
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-       >
-          <div className="header-left">
-             <span className="date-display">{new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-             <h1>Hello, {profile?.name?.split(' ')[0] || 'James'}</h1>
+    <div className="tb-wrapper">
+
+      {/* ── PAGE HEADER ─────────────────────────────────────────────────── */}
+      <motion.div
+        className="tb-page-header"
+        initial={{ opacity: 0, y: -16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+      >
+        <div className="tb-page-header-left">
+          <div className="tb-breadcrumbs">
+            <span>Workspace</span>
+            <ChevronRight size={14} />
+            <span className="tb-breadcrumb-active">Task Board</span>
           </div>
-          <div className="header-right">
-             <div className="elite-search-bar">
-                <Search size={18} />
-                <input type="text" placeholder="Search tasks..." />
-             </div>
-             <button className="add-task-btn-lite" onClick={() => setIsCreateAssignedOpen(true)}>
-                Add New Task
-             </button>
-             <button className="view-toggle-lite" onClick={() => setActiveTab(activeTab === 'kanban' ? 'overview' : 'kanban')}>
-                {activeTab === 'kanban' ? <List size={20} /> : <Kanban size={20} />}
-             </button>
+          <h1 className="tb-page-title">Dashboard</h1>
+        </div>
+
+        <div className="tb-page-header-right">
+          <div className="tb-header-meta">
+            <Clock size={14} />
+            <span>Last updated {new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}</span>
           </div>
-       </motion.header>
+          <div className="tb-header-avatars">
+            {['J', 'M', 'D'].map((l, i) => (
+              <div key={i} className="tb-header-av" style={{ zIndex: 3 - i }}>{l}</div>
+            ))}
+          </div>
+          <button className="tb-export-btn" onClick={() => setIsCreateAssignedOpen(true)}>
+            <Plus size={15} /> New Task
+          </button>
+          <button className="tb-view-toggle" onClick={() => setActiveTab(activeTab === 'kanban' ? 'overview' : 'kanban')}>
+            {activeTab === 'kanban' ? <List size={18} /> : <Kanban size={18} />}
+          </button>
+        </div>
+      </motion.div>
 
-       <div className="dashboard-content-layout">
-          <main className="dashboard-main-area">
-             {activeTab === 'overview' ? (
-                <div className="overview-scrolling-view">
-                   {/* 🧊 Status Category Highlights */}
-                   <section className="status-highlight-section">
-                      <StatusCard 
-                         title="Completed" 
-                         count={stats.completed} 
-                         color="#1d5c5e" 
-                         progress={(stats.completed / (stats.total || 1)) * 100}
-                      />
-                      <StatusCard 
-                         title="In Progress" 
-                         count={stats.inProgress} 
-                         color="#f46d43" 
-                         progress={(stats.inProgress / (stats.total || 1)) * 100}
-                      />
-                      <StatusCard 
-                         title="Backlog" 
-                         count={stats.backlog} 
-                         color="#8b80e8" 
-                         progress={(stats.backlog / (stats.total || 1)) * 100}
-                      />
-                   </section>
+      {/* ── WELCOME BANNER ──────────────────────────────────────────────── */}
+      <motion.div
+        className="tb-welcome-banner"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05, duration: 0.4 }}
+      >
+        <div className="tb-welcome-text">
+          <h2>Welcome Back, {profile?.name?.split(' ')[0] || 'James'} 👋</h2>
+          <p>
+            <span className="tb-badge-pill">{stats.backlog > 0 ? stats.backlog : 0} Tasks Due Today</span>
+            <span className="tb-badge-pill warning">{stats.inProgress} Overdue Tasks</span>
+            <span className="tb-badge-pill info">{stats.total} Upcoming Deadlines (This Week)</span>
+          </p>
+        </div>
+        <button className="tb-export-subtle-btn">
+          Export <ChevronDown size={14} />
+        </button>
+      </motion.div>
 
-                   <div className="summary-upcoming-grid">
-                      <section className="task-summary-section">
-                         <h2>Task Summary</h2>
-                         <div className="summary-grid-lite">
-                            <SummaryWidget label="Active Tasks" value={stats.inProgress} icon={Activity} trend="4%" />
-                            <SummaryWidget label="Completed" value={stats.completed} icon={CheckCircle2} />
-                            <SummaryWidget label="Daily Focus" value={myDailyTasks.length} icon={Zap} />
-                            <SummaryWidget label="Finished Today" value={myCompletedTodayCount} icon={ShieldCheck} trend="8%" />
-                            <SummaryWidget label="Efficiency" value="94%" icon={TrendingUp} />
-                            <SummaryWidget label="Waitlist" value={stats.backlog} icon={ClipboardList} trendType="down" />
-                         </div>
-                      </section>
+      {/* ── METRIC CARDS ────────────────────────────────────────────────── */}
+      <motion.div
+        className="tb-metrics-row"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1, duration: 0.4 }}
+      >
+        <MetricCard label="Total Projects"   value={roleGroups.length || 3} icon={Briefcase}     accent="#6366f1" trend="+5%" />
+        <MetricCard label="Total Tasks"      value={stats.total}            icon={ClipboardList}  accent="#f97316" trend="+2%" />
+        <MetricCard label="In Progress"      value={stats.inProgress}       icon={Activity}       accent="#22c55e" trend={`+${stats.inProgress}`} />
+        <MetricCard label="Completed Tasks"  value={stats.completed}        icon={CheckCircle2}   accent="#06b6d4" trend={`+${myCompletedTodayCount}`} />
+      </motion.div>
 
-                      <section className="upcoming-tasks-section">
-                         <h2>Upcoming Task</h2>
-                         <div className="upcoming-list-lite">
-                            {assignedTasks.filter(t => t.status !== 'completed').slice(0, 4).map(task => (
-                               <HorizontalTaskItem 
-                                  key={task.id} 
-                                  task={task} 
-                                  onView={() => { setSelectedTask(task); setSelectedTaskType('assigned'); }} 
-                               />
-                            ))}
-                            {assignedTasks.length === 0 && <p className="empty-state">No upcoming tasks.</p>}
-                         </div>
-                      </section>
-                   </div>
+      {activeTab === 'overview' ? (
+        <>
+          {/* ── TODAY'S TASKS TABLE ───────────────────────────────────── */}
+          <motion.div
+            className="tb-section-card"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15, duration: 0.4 }}
+          >
+            <div className="tb-section-header">
+              <h2 className="tb-section-title">Today's Tasks</h2>
+              <div className="tb-section-actions">
+                <div className="tb-search-box">
+                  <Search size={14} />
+                  <input
+                    placeholder="Search here..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                  />
                 </div>
-             ) : (
-                <div className="kanban-view-container">
-                   <div className="kanban-board-lite">
-                      <KanbanColumn 
-                        title="Backlog" 
-                        status="pending"
-                        tasks={assignedTasks.filter(t => t.status === 'pending')}
-                        icon={ClipboardList}
-                        color="#8b80e8"
-                        onView={(t) => { setSelectedTask(t); setSelectedTaskType('assigned'); }}
-                        onStatusUpdate={(id, s) => updateAssignedTask(id, { status: s })}
-                      />
-                      <KanbanColumn 
-                        title="In Progress" 
-                        status="in_progress"
-                        tasks={assignedTasks.filter(t => t.status === 'in_progress')}
-                        icon={Activity}
-                        color="#f46d43"
-                        onView={(t) => { setSelectedTask(t); setSelectedTaskType('assigned'); }}
-                        onStatusUpdate={(id, s) => updateAssignedTask(id, { status: s })}
-                      />
-                      <KanbanColumn 
-                        title="Completed" 
-                        status="completed"
-                        tasks={assignedTasks.filter(t => t.status === 'completed')}
-                        icon={CheckCircle2}
-                        color="#1d5c5e"
-                        onView={(t) => { setSelectedTask(t); setSelectedTaskType('assigned'); }}
-                        onStatusUpdate={(id, s) => updateAssignedTask(id, { status: s })}
-                      />
-                   </div>
+                <button className="tb-filter-btn">
+                  <Filter size={14} /> Filter
+                </button>
+              </div>
+            </div>
+
+            <div className="tb-table-wrapper">
+              <table className="tb-table">
+                <thead>
+                  <tr>
+                    <th className="tb-th">Task Name</th>
+                    <th className="tb-th">Project</th>
+                    <th className="tb-th">Due</th>
+                    <th className="tb-th">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {todayTasks.length > 0
+                    ? todayTasks.map(t => (
+                        <TaskRow
+                          key={t.id}
+                          task={t}
+                          onView={() => { setSelectedTask(t); setSelectedTaskType('assigned'); }}
+                        />
+                      ))
+                    : (
+                      <tr>
+                        <td colSpan={4} className="tb-empty-row">
+                          No tasks found — you're all caught up! 🎉
+                        </td>
+                      </tr>
+                    )
+                  }
+                </tbody>
+              </table>
+            </div>
+          </motion.div>
+
+          {/* ── LIST PROJECTS TABLE ───────────────────────────────────── */}
+          <motion.div
+            className="tb-section-card"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.4 }}
+          >
+            <div className="tb-section-header">
+              <h2 className="tb-section-title">List Projects</h2>
+              <div className="tb-section-actions">
+                <div className="tb-search-box">
+                  <Search size={14} />
+                  <input placeholder="Search here..." />
                 </div>
-             )}
-          </main>
+                <button className="tb-filter-btn">
+                  <Filter size={14} /> Filter
+                </button>
+              </div>
+            </div>
+            <div className="tb-table-wrapper">
+              <table className="tb-table">
+                <thead>
+                  <tr>
+                    <th className="tb-th">Project Name</th>
+                    <th className="tb-th">Status</th>
+                    <th className="tb-th">Progress</th>
+                    <th className="tb-th">Total Tasks</th>
+                    <th className="tb-th">Due Date</th>
+                    <th className="tb-th">Owner</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {listProjects.length > 0
+                    ? listProjects.map((p, i) => <ProjectRow key={i} project={p} />)
+                    : (
+                      <tr>
+                        <td colSpan={6} className="tb-empty-row">No project data yet.</td>
+                      </tr>
+                    )
+                  }
+                </tbody>
+              </table>
+            </div>
+          </motion.div>
+        </>
+      ) : (
+        /* ── KANBAN VIEW ──────────────────────────────────────────────── */
+        <motion.div
+          className="tb-kanban-board"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3 }}
+        >
+          <KanbanColumn
+            title="Backlog"
+            tasks={assignedTasks.filter(t => t.status === 'pending')}
+            color="#f59e0b"
+            onView={(t) => { setSelectedTask(t); setSelectedTaskType('assigned'); }}
+            onStatusUpdate={(id, s) => updateAssignedTask(id, { status: s })}
+          />
+          <KanbanColumn
+            title="In Progress"
+            tasks={assignedTasks.filter(t => t.status === 'in_progress')}
+            color="#6366f1"
+            onView={(t) => { setSelectedTask(t); setSelectedTaskType('assigned'); }}
+            onStatusUpdate={(id, s) => updateAssignedTask(id, { status: s })}
+          />
+          <KanbanColumn
+            title="Completed"
+            tasks={assignedTasks.filter(t => t.status === 'completed')}
+            color="#22c55e"
+            onView={(t) => { setSelectedTask(t); setSelectedTaskType('assigned'); }}
+            onStatusUpdate={(id, s) => updateAssignedTask(id, { status: s })}
+          />
+        </motion.div>
+      )}
 
-          <aside className="dashboard-timeline-sidebar">
-             <div className="sidebar-calendar-box">
-                <div className="cal-header">
-                   <Calendar size={18} />
-                   <h3>{new Date().toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</h3>
-                </div>
-                <div className="cal-grid-mini">
-                   {[14, 15, 16, 17, 18, 19, 20].map(d => (
-                      <div key={d} className={`cal-date ${d === 18 ? 'active' : ''}`}>
-                         {d}
-                      </div>
-                   ))}
-                </div>
-             </div>
-
-             <div className="daily-schedule-timeline">
-                <div className="timeline-date-label">Today's Schedule</div>
-                <div className="timeline-scroll-area">
-                   <TimelineItem time="09:00" task={{ title: 'Workflow Setup' }} color="#1d5c5e" />
-                   <TimelineItem time="10:30" task={{ title: 'Factory Coordination' }} color="#f46d43" />
-                   {myAssignedTasks.slice(0, 3).map((t, idx) => (
-                      <TimelineItem 
-                         key={t.id} 
-                         time={`${14 + idx}:00`} 
-                         task={t} 
-                         color={idx % 2 === 0 ? '#8b80e8' : '#1d5c5e'} 
-                      />
-                   ))}
-                </div>
-             </div>
-          </aside>
-       </div>
-
-       <CreateTaskOverlay
-         isOpen={isCreateDailyOpen || isCreateAssignedOpen}
-         onClose={() => {
-           setIsCreateDailyOpen(false);
-           setIsCreateAssignedOpen(false);
-         }}
-         defaultType={isCreateAssignedOpen ? 'assigned' : 'daily'}
-       />
-
-       <TaskDetailsModal
-         task={selectedTask}
-         taskType={selectedTaskType}
-         isOpen={!!selectedTask}
-         onClose={() => setSelectedTask(null)}
-         onOpenOrder={handleOpenOrder}
-       />
-
-       <OrderDetailsModal
-         order={selectedOrderData}
-         isOpen={!!selectedOrderData}
-         onClose={() => setSelectedOrderData(null)}
-       />
+      {/* ── MODALS ────────────────────────────────────────────────────── */}
+      <CreateTaskOverlay
+        isOpen={isCreateDailyOpen || isCreateAssignedOpen}
+        onClose={() => { setIsCreateDailyOpen(false); setIsCreateAssignedOpen(false); }}
+        defaultType={isCreateAssignedOpen ? 'assigned' : 'daily'}
+      />
+      <TaskDetailsModal
+        task={selectedTask}
+        taskType={selectedTaskType}
+        isOpen={!!selectedTask}
+        onClose={() => setSelectedTask(null)}
+        onOpenOrder={handleOpenOrder}
+      />
+      <OrderDetailsModal
+        order={selectedOrderData}
+        isOpen={!!selectedOrderData}
+        onClose={() => setSelectedOrderData(null)}
+      />
     </div>
   );
 };

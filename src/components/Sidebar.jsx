@@ -14,6 +14,8 @@ import {
   ClipboardList,
   Megaphone,
   ChevronDown,
+  ChevronRight,
+  Plus,
   X,
   Sun,
   Moon
@@ -62,47 +64,47 @@ export const Sidebar = ({ isOpen, onClose }) => {
 
   return (
     <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
+
+      {/* ── Header ── */}
       <div className="sidebar-header">
         <div className="sidebar-logo-container">
           <div className="logo-icon">{appName.charAt(0).toUpperCase() || 'O'}</div>
           <span className="logo-text">{appName}</span>
-          <ChevronDown className="logo-chevron" size={18} />
         </div>
-        
+
         <div className="sidebar-header-actions">
           <button
-            className={`theme-toggle ${theme === 'dark' ? 'is-dark' : 'is-light'}`}
+            className="theme-toggle"
             onClick={toggleTheme}
-            title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+            title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
           >
-            <span className={`theme-toggle-thumb ${theme === 'dark' ? 'dark' : ''}`}>
-              {theme === 'light' ? <Moon size={14} /> : <Sun size={14} />}
-            </span>
-            <span className="theme-toggle-icon">
-              <Sun size={12} />
-            </span>
-            <span className="theme-toggle-icon">
-              <Moon size={12} />
-            </span>
+            {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
           </button>
-
           {onClose && (
             <button className="sidebar-close" onClick={onClose}>
-              <X size={24} />
+              <X size={22} />
             </button>
           )}
         </div>
       </div>
 
-      
+
+
+      {/* ── Nav ── */}
       <nav className="sidebar-nav">
         {groupedItems.map(({ group, items }) => (
           <div key={group} className="nav-group">
-            <p className="nav-section-label">{group}</p>
+
+            {/* Section header */}
+            <div className="nav-section-header">
+              <p className="nav-section-label">{group}</p>
+              <Plus className="nav-section-action" size={14} />
+            </div>
+
+            {/* Nav items */}
             {items.map((item) => {
               const Icon = item.icon;
               const isActive = location.pathname === item.path;
-
               return (
                 <Link
                   key={item.path}
@@ -110,18 +112,20 @@ export const Sidebar = ({ isOpen, onClose }) => {
                   className={`nav-item ${isActive ? 'active' : ''}`}
                   onClick={onClose}
                 >
-                  <Icon className="nav-icon" size={20} />
+                  <Icon className="nav-icon" size={18} />
                   <span className="nav-label">{item.label}</span>
-                  {isActive && <span className="nav-active-dot" />}
+                  {isActive && <ChevronRight className="nav-active-chevron" size={16} />}
                 </Link>
               );
             })}
+
           </div>
         ))}
       </nav>
-      
+
+      {/* ── Footer ── */}
       <div className="sidebar-footer">
-        <Link to="/profile" className="sidebar-profile-card sidebar-profile-card-footer" onClick={onClose}>
+        <Link to="/profile" className="sidebar-profile-card" onClick={onClose}>
           <div className="sidebar-profile-avatar">
             {profile?.avatar_url ? (
               <img src={profile.avatar_url} alt={displayName} />
@@ -134,11 +138,13 @@ export const Sidebar = ({ isOpen, onClose }) => {
             <span className="sidebar-profile-role-text">{primaryRole}</span>
           </div>
         </Link>
-        <button className="nav-item logout-btn" onClick={signOut}>
-          <LogOut className="nav-icon" size={20} />
+
+        <button className="logout-btn" onClick={signOut}>
+          <LogOut className="nav-icon" size={16} />
           <span className="nav-label">Sign out</span>
         </button>
       </div>
+
     </aside>
   );
 };
