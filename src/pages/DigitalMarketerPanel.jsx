@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { usePersistentState } from '../utils/persistentState';
 import {
   Megaphone, Plus, Trash2, Send, TrendingUp, DollarSign,
-  ShoppingBag, BarChart2, Calendar, Check,
+  ShoppingBag, BarChart2, Calendar, ChevronDown, Check,
   Clock, AlertCircle, Eye, Loader2, RefreshCw, Edit2
 } from 'lucide-react';
 import { CampaignEntryModal } from '../components/CampaignEntryModal';
