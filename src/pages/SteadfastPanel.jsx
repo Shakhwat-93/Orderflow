@@ -1,15 +1,29 @@
 import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useOrders } from '../context/OrderContext';
 import api from '../lib/api';
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
-import { Search, Truck, RotateCcw, ExternalLink, Calendar, User, Phone, MapPin, RefreshCw, Sparkles } from 'lucide-react';
+import { Search, Truck, RotateCcw, ExternalLink, Calendar, User, Phone, MapPin, RefreshCw, Zap, Package, CheckCircle } from 'lucide-react';
 import { OrderDetailsModal } from '../components/OrderDetailsModal';
-import { PremiumSearch } from '../components/PremiumSearch';
 import { PackingSlip } from '../components/PackingSlip';
 import { usePersistentState } from '../utils/persistentState';
 import './SteadfastPanel.css';
+
+const containerVariants = {
+  hidden: { opacity: 0, y: 15 },
+  visible: { 
+    opacity: 1, 
+    y: 0,
+    transition: { staggerChildren: 0.1, duration: 0.4, ease: [0.4, 0, 0.2, 1] }
+  }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 10 },
+  visible: { opacity: 1, y: 0 }
+};
 
 export const SteadfastPanel = () => {
   const { orders } = useOrders();
@@ -70,7 +84,7 @@ export const SteadfastPanel = () => {
            d.getFullYear() === yesterday.getFullYear();
   };
 
-  // Filter orders that have been dispatched (have tracking_id or dispatched_at)
+  // Filter orders that have been dispatched
   const steadfastOrders = orders.filter(o => {
     const hasDispatch = o.tracking_id || o.dispatched_at;
     if (!hasDispatch) return false;
@@ -97,44 +111,16 @@ export const SteadfastPanel = () => {
     try {
       await api.getSteadfastStatus(orderId, trackingCode);
       setSyncStatus(prev => ({ ...prev, [orderId]: 'done' }));
+      setTimeout(() => setSyncStatus(prev => {
+        const next = { ...prev };
+        delete next[orderId];
+        return next;
+      }), 2000);
     } catch (err) {
       console.error('Manual sync failed:', err);
       setSyncStatus(prev => ({ ...prev, [orderId]: 'error' }));
     }
   };
-
-  // --- Automatic Background Sync ---
-  useEffect(() => {
-    // Only poll active orders in the current view
-    const activeOrders = steadfastOrders.filter(o => 
-      o.tracking_id && 
-      !['delivered', 'cancelled', 'returned'].includes(String(o.courier_status).toLowerCase())
-    ).slice(0, 10); // Sync top 10
-
-    if (activeOrders.length === 0) return;
-
-    const interval = setInterval(() => {
-      activeOrders.forEach(order => {
-        handleSyncStatus(order.id, order.tracking_id);
-      });
-    }, 45000); // 45 seconds for logistics precision
-
-    return () => clearInterval(interval);
-  }, [steadfastOrders]);
-
-  // Proactive ID Recovery: Auto-sync orders with missing numerical IDs
-  useEffect(() => {
-    // Only target orders that are missing the numerical ID
-    const missingIdOrders = steadfastOrders.filter(o => !o.courier_assigned_id);
-    if (missingIdOrders.length > 0) {
-      // Sync them one by one to heal the data gaps
-      missingIdOrders.slice(0, 5).forEach((order, index) => {
-        setTimeout(() => {
-          handleSyncStatus(order.id, order.tracking_id);
-        }, index * 1500); // 1.5s staggered delay
-      });
-    }
-  }, [steadfastOrders.length]); 
 
   const getTimeSinceDispatch = (dispatchedAt) => {
     if (!dispatchedAt) return null;
@@ -155,212 +141,189 @@ export const SteadfastPanel = () => {
   };
 
   return (
-    <div className="steadfast-panel fade-in">
-      <div className="panel-header">
-        <div className="header-content">
-          <h1 className="text-2xl font-bold text-primary flex items-center gap-2">
-            <Truck className="text-accent" size={28} />
-            Steadfast Logistics Hub
-          </h1>
-          <p className="text-secondary">Precision tracking for the packaging and logistics department.</p>
+    <motion.div 
+      className="steadfast-panel"
+      initial="hidden"
+      animate="visible"
+      variants={containerVariants}
+    >
+      <header className="panel-header">
+        <div>
+          <h1 className="premium-title">Steadfast Logistics Hub</h1>
+          <p className="text-secondary">Mission-critical courier tracking and delivery verification.</p>
         </div>
+        <div className="active-dispatch-stat">
+          <Zap size={18} />
+          <span>Node Secured</span>
+        </div>
+      </header>
+
+      <div className="stats-grid">
+        <motion.div variants={itemVariants}>
+          <Card className="stat-card">
+            <div className="stat-label">Active Transit</div>
+            <div className="stat-value text-accent">
+              {steadfastOrders.filter(o => !String(o.courier_status).toLowerCase().includes('delivered')).length}
+            </div>
+          </Card>
+        </motion.div>
+
+        <motion.div variants={itemVariants}>
+          <Card className="stat-card">
+            <div className="stat-label">Delivered Today</div>
+            <div className="stat-value text-success">
+              {steadfastOrders.filter(o => 
+                String(o.courier_status).toLowerCase().includes('delivered') &&
+                isToday(o.updated_at)
+              ).length}
+            </div>
+          </Card>
+        </motion.div>
+
+        <motion.div variants={itemVariants}>
+          <Card className="stat-card">
+            <div className="stat-label">Pending Transit</div>
+            <div className="stat-value text-warning">
+              {steadfastOrders.filter(o => String(o.courier_status).toLowerCase().includes('pending')).length}
+            </div>
+          </Card>
+        </motion.div>
       </div>
 
-      <div className="stats-grid mb-6">
-        <Card className="stat-card">
-          <div className="stat-label">In Transit</div>
-          <div className="stat-value text-accent">
-            {steadfastOrders.filter(o => !String(o.courier_status).toLowerCase().includes('delivered')).length}
-          </div>
-        </Card>
-        <Card className="stat-card">
-          <div className="stat-label">Delivered Today</div>
-          <div className="stat-value text-success">
-            {steadfastOrders.filter(o => 
-              String(o.courier_status).toLowerCase().includes('delivered') &&
-              new Date(o.updated_at).toLocaleDateString() === new Date().toLocaleDateString()
-            ).length}
-          </div>
-        </Card>
-        <Card className="stat-card">
-          <div className="stat-label">Ready for Transit</div>
-          <div className="stat-value text-warning">
-            {steadfastOrders.filter(o => String(o.courier_status).toLowerCase().includes('pending')).length}
-          </div>
-        </Card>
-      </div>
-
-      <div className="hub-actions-bar mb-4">
+      <div className="hub-actions-bar">
         {selectedIds.size > 0 && (
-          <Button 
-            variant="accent" 
-            onClick={handlePrintSelection}
+          <motion.button 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
             className="pulse-glow"
+            onClick={handlePrintSelection}
           >
-            Print Selection ({selectedIds.size})
-          </Button>
+            Mark & Generate Labels ({selectedIds.size})
+          </motion.button>
         )}
       </div>
 
-      <Card className="table-card overflow-hidden">
+      <Card className="table-card" noPadding>
         <div className="table-search-bar">
-          <PremiumSearch
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search by ID, name or tracking..."
-            suggestions={
-              searchTerm ? orders.filter(o => 
-                o.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (o.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (o.tracking_id || '').toLowerCase().includes(searchTerm.toLowerCase())
-              ).slice(0, 5).map(o => ({
-                id: o.id,
-                label: o.customer_name,
-                sub: `${o.id} • ${o.tracking_id || 'No Tracking'}`,
-                type: 'order',
-                original: o
-              })) : []
-            }
-            onSuggestionClick={(item) => {
-              if (item.type === 'order') {
-                handleRowClick(item.original);
-              }
-            }}
-          />
+          <div className="elite-search-wrapper">
+            <Search className="elite-search-icon" size={18} />
+            <input
+              type="text"
+              placeholder="Search logistics by tracking, ID or customer..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="elite-search-input"
+            />
+          </div>
           <div className="date-filter-group">
-            <button 
-              className={`filter-pill ${dateFilter === 'today' ? 'active' : ''}`}
-              onClick={() => setDateFilter('today')}
-            >
-              Today
-            </button>
-            <button 
-              className={`filter-pill ${dateFilter === 'yesterday' ? 'active' : ''}`}
-              onClick={() => setDateFilter('yesterday')}
-            >
-              Yesterday
-            </button>
-            <button 
-              className={`filter-pill ${dateFilter === 'all' ? 'active' : ''}`}
-              onClick={() => setDateFilter('all')}
-            >
-              All Time
-            </button>
+            <button className={`filter-pill ${dateFilter === 'today' ? 'active' : ''}`} onClick={() => setDateFilter('today')}>Today</button>
+            <button className={`filter-pill ${dateFilter === 'yesterday' ? 'active' : ''}`} onClick={() => setDateFilter('yesterday')}>Yesterday</button>
+            <button className={`filter-pill ${dateFilter === 'all' ? 'active' : ''}`} onClick={() => setDateFilter('all')}>All Hub</button>
           </div>
         </div>
 
-        <div className="table-container">
+        <div className="courier-table-wrapper">
           <table className="order-table">
             <thead>
               <tr>
                 <th className="checkbox-col">
-                  <input 
-                    type="checkbox" 
-                    checked={selectedIds.size === steadfastOrders.length && steadfastOrders.length > 0} 
-                    onChange={toggleSelectAll}
-                  />
+                  <input type="checkbox" checked={selectedIds.size === steadfastOrders.length && steadfastOrders.length > 0} onChange={toggleSelectAll} />
                 </th>
-                <th className="logistics-col">Courier Logistics</th>
-                <th>Order & Customer</th>
-                <th>Delivery Status</th>
-                <th>Dispatch Time</th>
-                <th>Actions</th>
+                <th>Logistics Identifiers</th>
+                <th>Consignment & Recipient</th>
+                <th>Node Status</th>
+                <th>Dispatch Analytics</th>
+                <th style={{ textAlign: 'right' }}>Sync</th>
               </tr>
             </thead>
             <tbody>
-              {steadfastOrders.map(order => (
-                <tr key={order.id} className={`tracking-row cursor-pointer ${selectedIds.has(order.id) ? 'row-selected' : ''}`} onClick={() => handleRowClick(order)}>
-                  <td>
-                    <input 
-                      type="checkbox" 
-                      checked={selectedIds.has(order.id)} 
-                      onChange={(e) => toggleSelect(e, order.id)}
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  </td>
-                  <td className="logistics-info-cell">
-                    <div 
-                      className="courier-id-block clickable" 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSyncStatus(order.id, order.tracking_id);
-                      }}
-                      title="Click to Force Sync with Steadfast"
-                    >
-                      <span className="courier-label">Consignment ID</span>
-                      <code className="courier-id-value">
-                        {order.courier_assigned_id || 'Sync Required'}
-                      </code>
-                      {!order.courier_assigned_id && <RefreshCw size={12} className="sync-spinner-subtle" />}
-                    </div>
-                    <div className="tracking-id-block mt-3">
-                      <span className="courier-label">Tracking Code</span>
-                      <div className="tracking-flex">
-                        <code className="tracking-value">{order.tracking_id || 'N/A'}</code>
-                        {order.tracking_id && (
-                          <a 
-                            href={`https://portal.steadfast.com.bd/tracking/${order.tracking_id}`} 
-                            target="_blank" 
-                            rel="noreferrer"
-                            className="external-link"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <ExternalLink size={14} />
-                          </a>
-                        )}
+              <AnimatePresence mode="popLayout">
+                {steadfastOrders.map(order => (
+                  <motion.tr 
+                    key={order.id} 
+                    layout
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className={`tracking-row cursor-pointer ${selectedIds.has(order.id) ? 'row-selected' : ''}`} 
+                    onClick={() => handleRowClick(order)}
+                  >
+                    <td className="checkbox-col">
+                      <input type="checkbox" checked={selectedIds.has(order.id)} onChange={(e) => toggleSelect(e, order.id)} onClick={(e) => e.stopPropagation()} />
+                    </td>
+                    <td className="logistics-info-cell">
+                      <div className="id-block">
+                        <span className="courier-label">Consignment</span>
+                        <code className="courier-id-value">{order.courier_assigned_id || 'Waiting Sync'}</code>
                       </div>
-                    </div>
-                  </td>
-
-                  <td className="customer-details-cell">
-                    <div className="order-id-pills">
-                      <span className="id-badge">#{order.id}</span>
-                      <span className="courier-pill">{order.courier_name || 'Steadfast'}</span>
-                    </div>
-                    <div className="customer-info-stack">
-                      <div className="customer-name-row"><User size={12} /> {order.customer_name}</div>
-                      <div className="customer-phone-row"><Phone size={12} /> {order.phone}</div>
-                      <div className="customer-address-row"><MapPin size={12} /> {order.address}</div>
-                    </div>
-                  </td>
-
-                  <td>
-                    <div className="status-container">
-                      <Badge variant={getStatusVariant(order.courier_status)}>
-                        {order.courier_status || 'Submitted'}
-                      </Badge>
-                      <div className="last-sync-text">
-                        <RotateCcw size={10} /> Auto-Syncing
+                      <div className="id-block" style={{ marginTop: '8px' }}>
+                        <span className="courier-label">Tracking</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span className="tracking-value">{order.tracking_id || 'Unassigned'}</span>
+                          {order.tracking_id && (
+                            <a href={`https://portal.steadfast.com.bd/tracking/${order.tracking_id}`} target="_blank" rel="noreferrer" className="external-link" onClick={e => e.stopPropagation()}>
+                              <ExternalLink size={12} />
+                            </a>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </td>
-
-                  <td className="temporal-cell">
-                    <div className="dispatch-timestamp">
-                      <Calendar size={12} /> 
-                      {order.dispatched_at ? new Date(order.dispatched_at).toLocaleString() : new Date(order.updated_at).toLocaleString()}
-                    </div>
-                    {order.dispatched_at && (
-                      <div className="dispatch-clock pulse-text">
-                        <Truck size={12} /> {getTimeSinceDispatch(order.dispatched_at)}
+                    </td>
+                    <td>
+                      <div className="customer-details-cell">
+                        <div style={{ marginBottom: '8px' }}>
+                          <span className="id-badge">#{order.id}</span>
+                          <span className="courier-pill">S-FAST</span>
+                        </div>
+                        <div className="customer-info-stack">
+                          <div className="customer-name-row"><User size={12} /> {order.customer_name}</div>
+                          <div><Phone size={12} /> {order.phone}</div>
+                          <div className="customer-address-row"><MapPin size={12} /> {order.address}</div>
+                        </div>
                       </div>
-                    )}
-                  </td>
-
-                  <td>
-                    <div className="action-flex">
+                    </td>
+                    <td>
+                      <div className="status-container">
+                        <Badge variant={getStatusVariant(order.courier_status)}>
+                          {order.courier_status || 'Handover'}
+                        </Badge>
+                        <div className="last-sync-text">
+                          <RotateCcw size={10} /> Live Monitoring
+                        </div>
+                      </div>
+                    </td>
+                    <td className="temporal-cell">
+                      <div className="dispatch-timestamp">
+                        <Calendar size={12} /> 
+                        {order.dispatched_at ? new Date(order.dispatched_at).toLocaleDateString() : 'N/A'}
+                      </div>
+                      {order.dispatched_at && (
+                        <div className="dispatch-clock">
+                          <Truck size={12} /> {getTimeSinceDispatch(order.dispatched_at)}
+                        </div>
+                      )}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
                       <button 
                         className={`item-sync-btn ${syncStatus[order.id] || ''}`}
                         onClick={(e) => { e.stopPropagation(); handleSyncStatus(order.id, order.tracking_id); }}
                         disabled={syncStatus[order.id] === 'syncing' || !order.tracking_id}
-                        title="Force Status Sync"
                       >
-                        <RotateCcw size={16} className={syncStatus[order.id] === 'syncing' ? 'animate-spin' : ''} />
+                        <RefreshCw size={16} className={syncStatus[order.id] === 'syncing' ? 'animate-spin' : ''} />
                       </button>
+                    </td>
+                  </motion.tr>
+                ))}
+              </AnimatePresence>
+              {steadfastOrders.length === 0 && (
+                <tr>
+                  <td colSpan="6" className="empty-state-cell">
+                    <div style={{ padding: '60px 0', textAlign: 'center', opacity: 0.5 }}>
+                      <Package size={40} style={{ margin: '0 auto 12px' }} />
+                      <p>No logistics data found for this period.</p>
                     </div>
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
@@ -372,8 +335,7 @@ export const SteadfastPanel = () => {
         order={selectedOrder}
       />
 
-      {/* Hidden Thermal Printer Components */}
       <PackingSlip orders={orders.filter(o => selectedIds.has(o.id))} />
-    </div>
+    </motion.div>
   );
 };
