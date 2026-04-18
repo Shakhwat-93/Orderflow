@@ -236,44 +236,103 @@
   .cem-row-2, .cem-row-3 { grid-template-columns: 1fr; }
 }
 
-/* ── Platform Selector ──────────────────────────────────────── */
+/* ── Platform Multi-Selector ────────────────────────────────── */
 .cem-platform-wrap { position: relative; }
 
+/* Count badge next to label */
+.cem-badge-count {
+  margin-left: auto;
+  font-size: 0.65rem;
+  font-weight: 700;
+  background: var(--ip-accent-bg, rgba(99,102,241,0.08));
+  color: var(--ip-accent, #6366f1);
+  padding: 2px 7px;
+  border-radius: 6px;
+  border: 1px solid var(--ip-accent-border, rgba(99,102,241,0.15));
+}
+
+/* Trigger button — shows mini pills of selected platforms */
 .cem-platform-btn {
   display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 10px 14px;
+  min-height: 42px;
+  padding: 8px 12px;
   background: var(--ip-card, #ffffff);
   border: 1px solid var(--ip-border, rgba(0,0,0,0.09));
   border-radius: 10px;
-  font-size: 0.875rem;
-  font-weight: 700;
-  color: var(--ip-text, #0f172a);
   cursor: pointer;
   font-family: inherit;
   text-align: left;
   transition: border-color 0.18s;
+  flex-wrap: wrap;
 }
 
-.cem-platform-btn:hover { border-color: var(--ip-accent, #6366f1); }
-.cem-platform-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.cem-platform-btn:hover     { border-color: var(--ip-accent, #6366f1); }
+.cem-platform-btn.open      { border-color: var(--ip-accent, #6366f1); box-shadow: 0 0 0 3px var(--ip-accent-bg, rgba(99,102,241,0.08)); }
+.cem-platform-btn:disabled  { opacity: 0.55; cursor: not-allowed; }
+
+.cem-platform-pills-preview {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  flex: 1;
+}
+
+/* Small pill shown inside the trigger button */
+.cem-mini-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border: 1px solid;
+  white-space: nowrap;
+}
+
+.cem-mini-pill.more {
+  background: var(--ip-btn-bg, #f1f5f9);
+  color: var(--ip-text-muted, #94a3b8);
+  border-color: var(--ip-btn-border, #e2e8f0);
+}
+
+.cem-platform-dot-sm {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-block;
+}
 
 .cem-platform-dot {
   width: 9px;
   height: 9px;
   border-radius: 50%;
   flex-shrink: 0;
+  display: inline-block;
 }
 
 .cem-chevron {
   margin-left: auto;
   color: var(--ip-text-muted, #94a3b8);
   transition: transform 0.2s;
+  flex-shrink: 0;
 }
 .cem-chevron.open { transform: rotate(180deg); }
 
+/* Backdrop (transparent) to close dropdown on outside click */
+.cem-dropdown-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background: transparent;
+}
+
+/* Dropdown panel */
 .cem-platform-dropdown {
   position: absolute;
   top: calc(100% + 6px);
@@ -281,16 +340,28 @@
   right: 0;
   background: var(--ip-card, #ffffff);
   border: 1px solid var(--ip-border, rgba(0,0,0,0.08));
-  border-radius: 13px;
-  padding: 7px;
-  box-shadow: 0 10px 32px rgba(0,0,0,0.12);
+  border-radius: 14px;
+  padding: 8px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.14);
   z-index: 1000;
-  max-height: 260px;
+  max-height: 320px;
   overflow-y: auto;
+  scrollbar-width: thin;
 }
 
-[data-theme='dark'] .cem-platform-dropdown { box-shadow: 0 10px 32px rgba(0,0,0,0.5); }
+[data-theme='dark'] .cem-platform-dropdown { box-shadow: 0 10px 40px rgba(0,0,0,0.55); }
 
+.cem-dropdown-hint {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--ip-text-muted, #94a3b8);
+  padding: 4px 8px 8px;
+  margin: 0;
+  border-bottom: 1px solid var(--ip-border, rgba(0,0,0,0.06));
+  margin-bottom: 5px;
+}
+
+/* Each platform option row */
 .cem-platform-opt {
   display: flex;
   align-items: center;
@@ -299,19 +370,109 @@
   padding: 9px 12px;
   border: none;
   background: transparent;
-  border-radius: 8px;
-  font-size: 0.85rem;
+  border-radius: 9px;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--ip-text-sub, #475569);
   cursor: pointer;
   font-family: inherit;
   text-align: left;
-  transition: all 0.15s;
+  transition: background 0.15s;
 }
 
 .cem-platform-opt:hover  { background: var(--ip-btn-bg, #f1f5f9); color: var(--ip-text, #0f172a); }
-.cem-platform-opt.active { background: var(--ip-accent-bg, rgba(99,102,241,0.08)); color: var(--ip-accent, #6366f1); }
-.cem-opt-check { margin-left: auto; color: var(--ip-accent, #6366f1); }
+.cem-platform-opt.active { background: var(--ip-accent-bg, rgba(99,102,241,0.06)); color: var(--ip-text, #0f172a); }
+
+.cem-opt-name { flex: 1; text-align: left; }
+
+/* Custom checkbox */
+.cem-checkbox {
+  width: 17px;
+  height: 17px;
+  border-radius: 5px;
+  border: 2px solid var(--ip-border, rgba(0,0,0,0.18));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #fff;
+  transition: all 0.15s ease;
+}
+
+.cem-checkbox.checked { border-width: 0; }
+
+/* "Running" badge shown on selected option */
+.cem-opt-selected-badge {
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 5px;
+  white-space: nowrap;
+  margin-left: auto;
+}
+
+/* Done button inside dropdown */
+.cem-dropdown-done {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 6px;
+  padding: 10px;
+  border-radius: 9px;
+  background: var(--ip-text, #0f172a);
+  color: var(--ip-card, #ffffff);
+  border: none;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.18s;
+  border-top: 1px solid var(--ip-border, rgba(0,0,0,0.06));
+}
+
+.cem-dropdown-done:hover { opacity: 0.88; }
+
+/* Selected platforms as removable pills below the trigger */
+.cem-selected-platforms-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.cem-selected-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px 4px 10px;
+  border-radius: 8px;
+  border: 1px solid;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+
+.cem-pill-remove {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background: transparent;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.6;
+  padding: 0;
+  margin-left: 2px;
+  transition: opacity 0.15s;
+}
+
+.cem-pill-remove:hover { opacity: 1; }
 
 /* ── CPO Preview ─────────────────────────────────────────────── */
 .cem-cpo-preview {
