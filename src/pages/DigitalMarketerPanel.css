@@ -339,8 +339,8 @@
 
 .dm-table-header-elite {
   display: grid;
-  grid-template-columns: 40px 1.5fr 1fr 1fr 110px 90px 90px 100px;
-  gap: 14px;
+  grid-template-columns: 32px 2fr 1fr 1fr 110px 72px 88px 88px 68px;
+  gap: 10px;
   padding: 10px 16px 10px;
   border-bottom: 1px solid var(--dm-border);
   color: var(--dm-text-muted);
@@ -359,9 +359,9 @@
 
 .dm-campaign-row {
   display: grid;
-  grid-template-columns: 40px 1.5fr 1fr 1fr 110px 90px 90px 100px;
-  gap: 14px;
-  padding: 10px 16px;
+  grid-template-columns: 32px 2fr 1fr 1fr 110px 72px 88px 88px 68px;
+  gap: 10px;
+  padding: 11px 16px;
   align-items: center;
   background: transparent;
   border-bottom: 1px solid var(--dm-border-row);
@@ -378,6 +378,73 @@
   font-size: 0.78rem;
   text-align: center;
 }
+
+/* Read-only row display cells */
+.dm-row-name {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.dm-row-campaign-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--dm-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dm-row-notes-hint {
+  font-size: 0.68rem;
+  color: var(--dm-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dm-row-platform { display: flex; align-items: center; }
+
+.dm-row-cell {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--dm-text-sub);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dm-row-spend { color: var(--dm-text); font-weight: 700; }
+
+.dm-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.dm-campaign-row:hover .dm-row-actions { opacity: 1; }
+
+.dm-row-action-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: transparent;
+  border: 1px solid transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  color: var(--dm-text-muted);
+}
+
+.dm-row-action-btn.edit:hover   { background: var(--dm-accent-bg); color: var(--dm-accent); border-color: var(--dm-accent-bdr); }
+.dm-row-action-btn.delete:hover { background: rgba(239,68,68,0.08); color: #ef4444; border-color: rgba(239,68,68,0.15); }
 
 /* ── Campaign Input ───────────────────────────────────────────────────────── */
 .dm-input {

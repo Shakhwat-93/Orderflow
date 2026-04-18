@@ -5,9 +5,10 @@ import { supabase } from '../lib/supabase';
 import { usePersistentState } from '../utils/persistentState';
 import {
   Megaphone, Plus, Trash2, Send, TrendingUp, DollarSign,
-  ShoppingBag, BarChart2, Calendar, ChevronDown, Check,
+  ShoppingBag, BarChart2, Calendar, Check,
   Clock, AlertCircle, Eye, Loader2, RefreshCw, Edit2
 } from 'lucide-react';
+import { CampaignEntryModal } from '../components/CampaignEntryModal';
 import './DigitalMarketerPanel.css';
 
 const PLATFORMS = ['Facebook', 'Instagram', 'Google', 'TikTok', 'YouTube', 'Twitter', 'LinkedIn', 'Other'];
@@ -49,111 +50,40 @@ const EmptyState = ({ message }) => (
   </div>
 );
 
-// ── Campaign Row Component ──
-const CampaignRow = ({ row, index, onChange, onDelete, disabled }) => {
-  const [platformOpen, setPlatformOpen] = useState(false);
-
+// ── Campaign Read Row (display only) ──
+const CampaignReadRow = ({ row, index, onEdit, onDelete, disabled }) => {
+  const cpo = row.orders_received > 0 ? row.spend / row.orders_received : null;
+  const color = PLATFORM_COLORS[row.platform] || '#6b7280';
   return (
     <div className="dm-campaign-row">
       <div className="dm-row-index">{index + 1}</div>
-
-      <input
-        className="dm-input"
-        placeholder="Campaign Title"
-        value={row.campaign_name}
-        onChange={(e) => onChange('campaign_name', e.target.value)}
-        disabled={disabled}
-      />
-
-      {/* Platform custom dropdown */}
-      <div className="dm-platform-select-wrapper">
-        <button
-          type="button"
-          className="dm-platform-btn shadow-sm"
-          onClick={() => setPlatformOpen(p => !p)}
-          disabled={disabled}
-          style={{ borderLeft: `3px solid ${PLATFORM_COLORS[row.platform] || '#6b7280'}` }}
-        >
-          <span>{row.platform || 'Platform'}</span>
-          <ChevronDown size={14} />
-        </button>
-        <AnimatePresence>
-          {platformOpen && (
-            <motion.div 
-              initial={{ opacity: 0, y: 8, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8, scale: 0.95 }}
-              transition={{ duration: 0.15 }}
-              className="dm-platform-dropdown-elite"
-            >
-              {PLATFORMS.map(p => (
-                <button
-                  key={p}
-                  type="button"
-                  className={`dm-platform-option-elite ${row.platform === p ? 'active' : ''}`}
-                  onClick={() => { onChange('platform', p); setPlatformOpen(false); }}
-                >
-                  <span className="dm-platform-dot" style={{ background: PLATFORM_COLORS[p] }}></span>
-                  {p}
-                  {row.platform === p && <Check size={12} className="dm-check-icon" />}
-                </button>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
+      <div className="dm-row-name">
+        <span className="dm-row-campaign-title">{row.campaign_name || '—'}</span>
+        {row.notes && <span className="dm-row-notes-hint">{row.notes.slice(0, 50)}{row.notes.length > 50 ? '…' : ''}</span>}
       </div>
-
-      <input
-        className="dm-input"
-        placeholder="Focus Product"
-        value={row.product_name}
-        onChange={(e) => onChange('product_name', e.target.value)}
-        disabled={disabled}
-      />
-
-      <input
-        className="dm-input"
-        type="number"
-        min="0"
-        step="0.01"
-        placeholder="0.00"
-        value={row.spend}
-        onChange={(e) => onChange('spend', parseFloat(e.target.value) || 0)}
-        disabled={disabled}
-      />
-
-      <input
-        className="dm-input"
-        type="number"
-        min="0"
-        placeholder="Orders"
-        value={row.orders_received}
-        onChange={(e) => onChange('orders_received', parseInt(e.target.value) || 0)}
-        disabled={disabled}
-      />
-
-      <input
-        className="dm-input"
-        type="number"
-        min="0"
-        placeholder="Impressions"
-        value={row.impressions}
-        onChange={(e) => onChange('impressions', parseInt(e.target.value) || 0)}
-        disabled={disabled}
-      />
-
-      {/* Auto CPO */}
-      <div className="dm-cpo-badge">
-        <span className="dm-cpo-label">CPO</span>
-        <span className="dm-cpo-value">
-          {row.orders_received > 0 ? formatCurrency(row.spend / row.orders_received) : '—'}
+      <div className="dm-row-platform">
+        <span className="dm-pf-pill" style={{ background: `${color}14`, color }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, display: 'inline-block', marginRight: 5, flexShrink: 0 }} />
+          {row.platform}
         </span>
       </div>
-
+      <span className="dm-row-cell">{row.product_name || '—'}</span>
+      <span className="dm-row-cell dm-row-spend">{formatCurrency(row.spend)}</span>
+      <span className="dm-row-cell">{row.orders_received}</span>
+      <span className="dm-row-cell">{(row.impressions || 0).toLocaleString()}</span>
+      <div className="dm-cpo-badge">
+        <span className="dm-cpo-label">CPO</span>
+        <span className="dm-cpo-value">{cpo ? formatCurrency(cpo) : '—'}</span>
+      </div>
       {!disabled && (
-        <button type="button" className="dm-delete-row-btn" onClick={onDelete}>
-          <Trash2 size={13} />
-        </button>
+        <div className="dm-row-actions">
+          <button className="dm-row-action-btn edit" onClick={() => onEdit(row, index)} title="Edit">
+            <Edit2 size={13} />
+          </button>
+          <button className="dm-row-action-btn delete" onClick={() => onDelete(index)} title="Delete">
+            <Trash2 size={13} />
+          </button>
+        </div>
       )}
     </div>
   );
@@ -176,6 +106,10 @@ export const DigitalMarketerPanel = () => {
   const [historyCampaigns, setHistoryCampaigns] = useState({});
   const [historyLoading, setHistoryLoading] = useState(false);
   const [isEditingSubmitted, setIsEditingSubmitted] = useState(false);
+
+  // ── Campaign Entry Modal state ──
+  const [isCampaignModalOpen, setIsCampaignModalOpen] = useState(false);
+  const [editingCampaign, setEditingCampaign] = useState(null); // { row, index } or null
 
   const todayStr = new Date().toISOString().split('T')[0];
   
@@ -252,23 +186,43 @@ export const DigitalMarketerPanel = () => {
   const totalOrders = campaigns.reduce((s, c) => s + (parseInt(c.orders_received) || 0), 0);
   const avgCPO = totalOrders > 0 ? totalSpend / totalOrders : 0;
 
-  // ── Add empty campaign row ──
-  const addRow = () => {
-    setCampaigns(prev => [...prev, {
-      _new: true,
-      id: `new-${Date.now()}`,
-      campaign_name: '',
-      platform: 'Facebook',
-      product_name: '',
-      spend: 0,
-      orders_received: 0,
-      impressions: 0,
-    }]);
+  // ── Open modal for new entry ──
+  const openNewCampaignModal = () => {
+    setEditingCampaign(null);
+    setIsCampaignModalOpen(true);
   };
 
-  // ── Update row field ──
-  const updateRow = (index, field, value) => {
-    setCampaigns(prev => prev.map((r, i) => i === index ? { ...r, [field]: value } : r));
+  // ── Open modal to edit existing row ──
+  const openEditCampaignModal = (row, index) => {
+    setEditingCampaign({ row, index });
+    setIsCampaignModalOpen(true);
+  };
+
+  // ── Save from modal (new or edit) ──
+  const handleCampaignModalSave = async (formData) => {
+    if (editingCampaign) {
+      // Update in-memory
+      const updated = { ...editingCampaign.row, ...formData };
+      setCampaigns(prev => prev.map((r, i) => i === editingCampaign.index ? updated : r));
+      // Persist if it has a real id
+      if (editingCampaign.row.id && !editingCampaign.row._new) {
+        await supabase.from('ads_campaigns').update({
+          campaign_name:   formData.campaign_name,
+          platform:        formData.platform,
+          product_name:    formData.product_name,
+          spend:           formData.spend,
+          orders_received: formData.orders_received,
+          impressions:     formData.impressions,
+        }).eq('id', editingCampaign.row.id);
+      }
+    } else {
+      // Add new temp row — will be saved to DB on saveReport
+      setCampaigns(prev => [...prev, {
+        _new: true,
+        id: `new-${Date.now()}`,
+        ...formData,
+      }]);
+    }
   };
 
   // ── Delete row ──
@@ -513,7 +467,7 @@ export const DigitalMarketerPanel = () => {
                       <p>Capture real-time performance data</p>
                     </div>
                     {canEdit && (
-                      <button className="dm-btn-add-campaign" onClick={addRow}>
+                      <button className="dm-btn-add-campaign" onClick={openNewCampaignModal}>
                         <Plus size={16} /> New Entry
                       </button>
                     )}
@@ -523,13 +477,14 @@ export const DigitalMarketerPanel = () => {
                     <div className="dm-table-container-elite">
                       <div className="dm-table-header-elite">
                         <span className="col-idx">#</span>
-                        <span className="col-camp">Campaign Title</span>
-                        <span className="col-platform">Platform</span>
-                        <span className="col-product">Product Focus</span>
-                        <span className="col-metrics">Spend ($)</span>
-                        <span className="col-metrics">Orders</span>
-                        <span className="col-metrics">Reach</span>
-                        <span className="col-cpo">CPO</span>
+                        <span>Campaign Title</span>
+                        <span>Platform</span>
+                        <span>Product Focus</span>
+                        <span>Spend</span>
+                        <span>Orders</span>
+                        <span>Reach</span>
+                        <span>CPO</span>
+                        {canEdit && <span></span>}
                       </div>
 
                       <div className="dm-campaigns-list">
@@ -543,11 +498,11 @@ export const DigitalMarketerPanel = () => {
                               exit={{ opacity: 0, scale: 0.98 }}
                               transition={{ duration: 0.2 }}
                             >
-                              <CampaignRow
+                              <CampaignReadRow
                                 key={row.id}
                                 row={row}
                                 index={i}
-                                onChange={(field, val) => updateRow(i, field, val)}
+                                onEdit={openEditCampaignModal}
                                 onDelete={() => deleteRow(i)}
                                 disabled={!canEdit}
                               />
@@ -785,6 +740,15 @@ export const DigitalMarketerPanel = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ── Campaign Entry Modal ── */}
+      <CampaignEntryModal
+        isOpen={isCampaignModalOpen}
+        onClose={() => setIsCampaignModalOpen(false)}
+        onSave={handleCampaignModalSave}
+        initialData={editingCampaign?.row || null}
+        disabled={!canEdit}
+      />
     </div>
   );
 };
