@@ -98,7 +98,6 @@ export const Sidebar = ({ isOpen, onClose }) => {
             {/* Section header */}
             <div className="nav-section-header">
               <p className="nav-section-label">{group}</p>
-              <Plus className="nav-section-action" size={14} />
             </div>
 
             {/* Nav items */}
