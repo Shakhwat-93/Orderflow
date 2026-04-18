@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
 import { Card } from '../components/Card';
@@ -12,6 +13,20 @@ import { usePersistentState } from '../utils/persistentState';
 import { getToyBoxStockKey } from '../utils/productCatalog';
 import './FactoryPanel.css';
 
+const containerVariants = {
+  hidden: { opacity: 0, y: 15 },
+  visible: { 
+    opacity: 1, 
+    y: 0,
+    transition: { staggerChildren: 0.1, duration: 0.4, ease: [0.4, 0, 0.2, 1] }
+  }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 10 },
+  visible: { opacity: 1, y: 0 }
+};
+
 export const FactoryPanel = () => {
   const { orders, toyBoxes, autoDistributeOrders, updateOrderStatus } = useOrders();
   const { updatePresenceContext } = useAuth();
@@ -19,6 +34,7 @@ export const FactoryPanel = () => {
   useEffect(() => {
     updatePresenceContext('Checking Production');
   }, [updatePresenceContext]);
+  
   const [searchTerm, setSearchTerm] = usePersistentState('panel:factory:search', '');
   const [isDistributing, setIsDistributing] = useState(false);
   const [distributeResult, setDistributeResult] = useState(null);
@@ -67,9 +83,8 @@ export const FactoryPanel = () => {
     });
 
     const missing = items.filter(item => {
-      // Handle both legacy (number/string) and new (object) formats
       const boxNum = typeof item === 'object' ? item.toyBoxNumber : item;
-      if (boxNum == null) return false; // Not a toy box item or no number assigned
+      if (boxNum == null) return false;
       const productName = typeof item === 'object' ? (item.name || order.product_name || 'TOY BOX') : 'TOY BOX';
       return (stockMap[getToyBoxStockKey(productName, boxNum)] || 0) < 1;
     });
@@ -101,16 +116,20 @@ export const FactoryPanel = () => {
   };
 
   const handleRetryDistribute = async (orderId) => {
-    // Move back to Confirmed so it gets picked up by next auto distribute
     await updateOrderStatus(orderId, 'Confirmed');
   };
 
   return (
-    <div className="factory-panel">
-      <div className="page-header">
+    <motion.div 
+      className="factory-panel"
+      initial="hidden"
+      animate="visible"
+      variants={containerVariants}
+    >
+      <header className="page-header">
         <div>
           <h1 className="premium-title">Factory Panel</h1>
-          <p className="page-subtitle">Stock verification & distribution engine. Confirmed orders are checked against inventory before courier dispatch.</p>
+          <p className="page-subtitle">Production distribution & inventory verification hub.</p>
         </div>
         <div className="factory-header-actions">
           <Button 
@@ -123,66 +142,79 @@ export const FactoryPanel = () => {
             <span>Auto Distribute ({confirmedOrders.length})</span>
           </Button>
         </div>
-      </div>
+      </header>
 
       {/* Result Toast */}
-      {distributeResult && !distributeResult.error && (
-        <div className="distribute-result-toast success">
-          <CheckCircle size={18} />
-          <span>
-            Distribution complete! <strong>{distributeResult.distributed}</strong> → Courier Ready, 
-            <strong> {distributeResult.queued}</strong> → Factory Queue (stock insufficient)
-          </span>
-        </div>
-      )}
-      {distributeResult?.error && (
-        <div className="distribute-result-toast error">
-          <AlertTriangle size={18} />
-          <span>Error: {distributeResult.error}</span>
-        </div>
-      )}
+      <AnimatePresence>
+        {distributeResult && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className={`distribute-result-toast ${distributeResult.error ? 'error' : 'success'}`}
+          >
+            {distributeResult.error ? <AlertTriangle size={18} /> : <CheckCircle size={18} />}
+            <span>
+              {distributeResult.error ? `Error: ${distributeResult.error}` : (
+                <>
+                  Distribution complete! <strong>{distributeResult.distributed}</strong> Approvals, 
+                  <strong> {distributeResult.queued}</strong> Queued for stock.
+                </>
+              )}
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Stats */}
-      <div className="factory-stats-row">
-        <Card className="factory-stat-card glass-card">
-          <div className="stat-icon-box blue"><Package size={20} /></div>
-          <div className="stat-info">
-            <span className="label">Confirmed</span>
-            <span className="value">{confirmedOrders.length}</span>
-          </div>
-        </Card>
-        <Card className="factory-stat-card glass-card">
-          <div className="stat-icon-box orange"><AlertTriangle size={20} /></div>
-          <div className="stat-info">
-            <span className="label">Factory Queue</span>
-            <span className="value">{queuedOrders.length}</span>
-          </div>
-        </Card>
-        <Card className="factory-stat-card glass-card">
-          <div className="stat-icon-box green"><CheckCircle size={20} /></div>
-          <div className="stat-info">
-            <span className="label">Courier Ready</span>
-            <span className="value">{orders.filter(o => o.status === 'Courier Ready').length}</span>
-          </div>
-        </Card>
-      </div>
+      <section className="factory-stats-row">
+        <motion.div variants={itemVariants}>
+          <Card className="factory-stat-card">
+            <div className="stat-icon-box blue"><Package size={22} /></div>
+            <div className="stat-info">
+              <span className="label">Confirmed</span>
+              <span className="value">{confirmedOrders.length}</span>
+            </div>
+          </Card>
+        </motion.div>
+        <motion.div variants={itemVariants}>
+          <Card className="factory-stat-card">
+            <div className="stat-icon-box orange"><AlertTriangle size={22} /></div>
+            <div className="stat-info">
+              <span className="label">Total Queued</span>
+              <span className="value">{queuedOrders.length}</span>
+            </div>
+          </Card>
+        </motion.div>
+        <motion.div variants={itemVariants}>
+          <Card className="factory-stat-card">
+            <div className="stat-icon-box green"><CheckCircle size={22} /></div>
+            <div className="stat-info">
+              <span className="label">Courier Ready</span>
+              <span className="value">{orders.filter(o => o.status === 'Courier Ready').length}</span>
+            </div>
+          </Card>
+        </motion.div>
+      </section>
 
       {/* Tab Toggle */}
-      <div className="factory-tabs">
-        <button className={`factory-tab ${activeTab === 'confirmed' ? 'active' : ''}`} onClick={() => setActiveTab('confirmed')}>
-          <Package size={16} /> Confirmed ({confirmedOrders.length})
-        </button>
-        <button className={`factory-tab ${activeTab === 'queued' ? 'active' : ''}`} onClick={() => setActiveTab('queued')}>
-          <AlertTriangle size={16} /> Factory Queue ({queuedOrders.length})
-        </button>
+      <div className="factory-tabs-container">
+        <div className="factory-tabs">
+          <button className={`factory-tab ${activeTab === 'confirmed' ? 'active' : ''}`} onClick={() => setActiveTab('confirmed')}>
+            <Package size={16} /> Confirmed ({confirmedOrders.length})
+          </button>
+          <button className={`factory-tab ${activeTab === 'queued' ? 'active' : ''}`} onClick={() => setActiveTab('queued')}>
+            <AlertTriangle size={16} /> Queue ({queuedOrders.length})
+          </button>
+        </div>
       </div>
 
-      <Card className="table-card liquid-glass" noPadding>
+      <Card className="table-card" noPadding>
         <div className="table-search-bar">
           <PremiumSearch
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search ID, product or customer..."
+            placeholder="Search by ID, name or product..."
             suggestions={
               searchTerm ? orders.filter(o => 
                 o.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -203,107 +235,124 @@ export const FactoryPanel = () => {
             }}
           />
           <div className="filter-actions-group">
-            <span className="order-count-badge">{displayOrders.length} orders</span>
+            <span className="order-count-badge">{displayOrders.length} records found</span>
           </div>
         </div>
         
-        <div className="orders-table-wrapper factory-table-wrapper desktop-only">
-          <table className="management-table premium-table factory-management-table">
+        <div className="factory-table-wrapper">
+          <table className="factory-management-table">
             <thead>
               <tr>
-                <th>Order ID</th>
-                <th>Customer</th>
-                <th>Products & Items</th>
-                <th>Inventory Check</th>
+                <th>Reference</th>
+                <th>Recipient</th>
+                <th>Focus Products</th>
+                <th>Stock Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {displayOrders.map(order => {
-                const stock = getStockStatus(order);
-                const isToyBox = (order.product_name || '').toUpperCase().includes('TOY BOX');
-                
-                return (
-                  <tr key={order.id} className="order-row factory-order-row cursor-pointer" onClick={() => handleRowClick(order)}>
-                    <td className="id-cell order-id-cell">
-                      <span className="saas-id">#{(order.id || '').replace('ORD-', '')}</span>
-                    </td>
-                    <td className="customer-cell">
-                      <div className="factory-customer-stack">
-                        <span className="saas-text-dark">{order.customer_name}</span>
-                        <span className="saas-text">{order.phone}</span>
-                      </div>
-                    </td>
-                    <td className="product-info-cell">
-                      <div className="factory-product-stack">
-                        <div className="factory-product-line">
-                          <span className="saas-text-dark">{order.product_name}</span>
-                          {order.size && <span className="factory-size-pill">Size {order.size}</span>}
+              <AnimatePresence mode="popLayout">
+                {displayOrders.map(order => {
+                  const stock = getStockStatus(order);
+                  const isToyBox = (order.product_name || '').toUpperCase().includes('TOY BOX');
+                  
+                  return (
+                    <motion.tr 
+                      key={order.id} 
+                      layout
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="factory-order-row cursor-pointer" 
+                      onClick={() => handleRowClick(order)}
+                    >
+                      <td className="order-id-cell">
+                        <span className="saas-id">#{(order.id || '').replace('ORD-', '')}</span>
+                      </td>
+                      <td>
+                        <div className="factory-customer-stack">
+                          <span className="saas-text-dark">{order.customer_name}</span>
+                          <span className="saas-text">{order.phone}</span>
                         </div>
-                      </div>
-                      {isToyBox && (order.ordered_items || []).length > 0 && (
-                        <div className="factory-item-pills">
-                          {(order.ordered_items || []).map((item, idx) => {
-                            const boxNum = typeof item === 'object' ? item.toyBoxNumber : item;
-                            if (boxNum == null) return null;
-                            const productName = typeof item === 'object' ? (item.name || order.product_name || 'TOY BOX') : 'TOY BOX';
-                            const stockKey = getToyBoxStockKey(productName, boxNum);
-                            const stockQty = toyBoxes.find((box) => getToyBoxStockKey(box.product_name || 'TOY BOX', box.toy_box_number) === stockKey)?.stock_quantity || 0;
-                            const isOut = stockQty < 1;
+                      </td>
+                      <td>
+                        <div className="factory-product-stack">
+                          <div className="factory-product-line">
+                            <span className="saas-text-dark">{order.product_name}</span>
+                            {order.size && <span className="factory-size-pill">T-{order.size}</span>}
+                          </div>
+                          {isToyBox && (order.ordered_items || []).length > 0 && (
+                            <div className="factory-item-pills">
+                              {(order.ordered_items || []).map((item, idx) => {
+                                const boxNum = typeof item === 'object' ? item.toyBoxNumber : item;
+                                if (boxNum == null) return null;
+                                const productName = typeof item === 'object' ? (item.name || order.product_name || 'TOY BOX') : 'TOY BOX';
+                                const stockKey = getToyBoxStockKey(productName, boxNum);
+                                const stockQty = toyBoxes.find((box) => getToyBoxStockKey(box.product_name || 'TOY BOX', box.toy_box_number) === stockKey)?.stock_quantity || 0;
+                                const isOut = stockQty < 1;
 
-                            return (
-                              <span key={`${order.id}-item-${idx}`} className={`factory-item-pill ${isOut ? 'out' : ''}`}>
-                                {item?.name ? `${item.name} #${boxNum}` : `#${boxNum}`}
-                              </span>
-                            );
-                          })}
+                                return (
+                                  <span key={`${order.id}-item-${idx}`} className={`factory-item-pill ${isOut ? 'out' : ''}`}>
+                                    {item?.name ? `${item.name.charAt(0)}${boxNum}` : `#${boxNum}`}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </td>
-                    <td>
-                      <div className="factory-stock-block">
-                        <Badge variant={stock.matched ? 'success' : 'warning'} className="factory-stock-pill">
-                          {stock.matched ? 'Ready to Ship' : `${stock.missing.length} Out of Stock`}
-                        </Badge>
-                        {!stock.matched && (
-                          <div className="factory-meta-note">Requires replacement or restock</div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="factory-actions-cell">
-                      <div className="factory-action-grid">
-                        <button className="factory-action-btn edit" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(order); }} title="Edit Order">
-                          <Edit2 size={16} /> <span>Edit</span>
-                        </button>
-                        {order.status === 'Confirmed' && stock.matched && (
-                          <button className="factory-action-btn send" onClick={(e) => { e.stopPropagation(); handleManualSend(order.id); }} title="Send to Courier Ready">
-                            <ArrowRight size={16} /> <span>Approve</span>
+                      </td>
+                      <td>
+                        <div className="factory-stock-block">
+                          <Badge variant={stock.matched ? 'success' : 'warning'} className="factory-stock-pill">
+                            {stock.matched ? 'Full Stock' : `${stock.missing.length} Missing`}
+                          </Badge>
+                          {!stock.matched && (
+                             <div className="factory-meta-note">Awaiting replenishment</div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="factory-actions-cell">
+                        <div className="factory-action-grid">
+                          <button className="factory-action-btn edit" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(order); }} title="Adjust Order">
+                            <Edit2 size={14} /> <span>Edit</span>
                           </button>
-                        )}
-                        {order.status === 'Factory Queue' && (
-                          <button className="factory-action-btn retry" onClick={(e) => { e.stopPropagation(); handleRetryDistribute(order.id); }} title="Retry Distribution">
-                             <Zap size={16} /> <span>Recheck</span>
-                           </button>
-                        )}
-                        {order.status === 'Confirmed' && !stock.matched && (
-                          <span className="factory-inline-note">Waiting for stock</span>
-                        )}
-                        {order.status === 'Factory Queue' && !stock.matched && (
-                          <span className="factory-inline-note">Still missing items</span>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                          {order.status === 'Confirmed' && stock.matched && (
+                            <button className="factory-action-btn send" onClick={(e) => { e.stopPropagation(); handleManualSend(order.id); }} title="Dispatch to Courier">
+                              <CheckCircle size={14} /> <span>Approve</span>
+                            </button>
+                          )}
+                          {order.status === 'Factory Queue' && (
+                            <button className="factory-action-btn retry" onClick={(e) => { e.stopPropagation(); handleRetryDistribute(order.id); }} title="Recheck Inventory">
+                               <Zap size={14} /> <span>Recheck</span>
+                             </button>
+                          )}
+                          {!stock.matched && (
+                            <span className="factory-inline-note">{order.status === 'Confirmed' ? 'Blocked' : 'Insufficient'}</span>
+                          )}
+                        </div>
+                      </td>
+                    </motion.tr>
+                  );
+                })}
+              </AnimatePresence>
               {displayOrders.length === 0 && (
                 <tr>
                   <td colSpan="5" className="empty-state-cell">
-                    <div className="empty-state-content">
-                      <PackageSearch size={40} />
-                      <h3>{activeTab === 'confirmed' ? 'No confirmed orders pending distribution' : 'No orders in factory queue'}</h3>
-                      <p>{activeTab === 'confirmed' ? 'Orders will appear here when Call Team or Moderator confirms them.' : 'All items are in stock — great job!'}</p>
-                    </div>
+                    <motion.div 
+                      className="empty-state-content"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                    >
+                      <div className="empty-icon-wrapper" style={{ opacity: 0.2 }}>
+                        <PackageSearch size={64} />
+                      </div>
+                      <h3>No records found</h3>
+                      <p>
+                        {activeTab === 'confirmed' 
+                          ? 'Incoming confirmed orders will appear here for verification.' 
+                          : 'Queue is empty. No orders are currently blocked due to stock.'}
+                      </p>
+                    </motion.div>
                   </td>
                 </tr>
               )}
@@ -324,6 +373,6 @@ export const FactoryPanel = () => {
         order={selectedOrder}
         onEdit={handleOpenEditModal}
       />
-    </div>
+    </motion.div>
   );
 };
