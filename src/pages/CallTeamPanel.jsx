@@ -23,7 +23,7 @@ const QUICK_CALL_STATUSES = [
 ];
 
 export const CallTeamPanel = () => {
-  const { orders, stats, inventory, updateOrderStatus } = useOrders();
+  const { orders, stats, inventory, updateOrderStatus, fetchOrders } = useOrders();
   const { user, profile, userRoles, updatePresenceContext } = useAuth();
   const productOptions = getProductOptions(inventory);
 
@@ -44,7 +44,7 @@ export const CallTeamPanel = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [, setLoggingAttemptId] = useState(null);
+  const [loggingAttemptId, setLoggingAttemptId] = useState(null);
   
   // Globabl Ratio Cache & Auto-fetch
   const { ratios, checkPhone } = useCourierRatio();
@@ -63,6 +63,7 @@ export const CallTeamPanel = () => {
     setLoggingAttemptId(orderId);
     try {
       await api.logCallAttempt(orderId, attemptStatus, user.id, profile?.name || 'Call Team', userRoles);
+      if (fetchOrders) await fetchOrders();
     } catch (err) {
       console.error('Failed to log attempt:', err);
       alert(err.message || 'Failed to log call attempt.');
@@ -353,15 +354,18 @@ export const CallTeamPanel = () => {
                       <div className="elite-action-grid">
                         {QUICK_CALL_STATUSES.map((item) => {
                           const Icon = item.icon;
+                          const isLoading = loggingAttemptId === order.id;
                           return (
                             <button
                               key={item.id}
-                              className={`elite-quick-chip ${item.tone}`}
+                              className={`elite-quick-chip ${item.tone} ${isLoading ? 'loading' : ''}`}
                               title={item.label}
                               onClick={(e) => handleAction(e, order.id, item.id)}
+                              disabled={isLoading}
+                              style={{ opacity: isLoading ? 0.7 : 1, cursor: isLoading ? 'wait' : 'pointer' }}
                             >
-                              <Icon size={12} />
-                              <span>{item.label}</span>
+                              {isLoading ? <Loader2 size={12} className="lucide-spin" /> : <Icon size={12} />}
+                              <span>{isLoading ? 'Wait...' : item.label}</span>
                             </button>
                           );
                         })}
