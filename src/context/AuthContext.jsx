@@ -175,7 +175,7 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
-      const shouldBlockUi = !authReadyRef.current || event === 'SIGNED_IN' || previousUserId !== nextUserId;
+      const shouldBlockUi = !authReadyRef.current || previousUserId !== nextUserId;
 
       fetchProfile(nextUserId, { blockUi: shouldBlockUi })
         .finally(markAuthReady);
