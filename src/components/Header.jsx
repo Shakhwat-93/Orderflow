@@ -264,7 +264,10 @@ export const Header = ({ onMenuToggle }) => {
 
       <div className="header-spacer" />
 
-      <PresenceStack />
+      {/* PresenceStack: always on desktop, overview-only on mobile */}
+      <div className={isOverviewPage ? 'presence-wrap' : 'presence-wrap desktop-only'}>
+        <PresenceStack />
+      </div>
 
       {/* Floating Real-time Toasts */}
       <div className="notification-toasts-container">

@@ -2,6 +2,7 @@ import { useState, useLayoutEffect, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { MobileBottomNav } from './MobileBottomNav';
 import './DashboardLayout.css';
 
 
@@ -50,6 +51,9 @@ export const DashboardLayout = () => {
           <Outlet />
         </main>
       </div>
+
+      {/* Fixed bottom nav — mobile only, all routes */}
+      <MobileBottomNav />
     </div>
   );
 };
