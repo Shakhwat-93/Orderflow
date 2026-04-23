@@ -9,7 +9,18 @@ import { supabase } from './supabase';
 
 export const api = {
   orderModernColumnsState: null,
-  toyBoxProductNameColumnState: null,
+  // Use a getter/setter or just handle it in the methods to persist the column state
+  getToyBoxProductNameColumnState() {
+    if (this._toyBoxProductNameColumnState !== undefined) return this._toyBoxProductNameColumnState;
+    const cached = localStorage.getItem('of_toybox_pname_state');
+    if (cached === 'true') return (this._toyBoxProductNameColumnState = true);
+    if (cached === 'false') return (this._toyBoxProductNameColumnState = false);
+    return (this._toyBoxProductNameColumnState = null);
+  },
+  setToyBoxProductNameColumnState(val) {
+    this._toyBoxProductNameColumnState = val;
+    localStorage.setItem('of_toybox_pname_state', String(val));
+  },
 
   isMissingColumnError(error, columnName = '') {
     const message = [
@@ -422,7 +433,8 @@ ${rawText}`;
   },
 
   async getToyBoxInventoryRow(id) {
-    const columns = this.toyBoxProductNameColumnState === false
+    const state = this.getToyBoxProductNameColumnState();
+    const columns = state === false
       ? 'id,toy_box_number,stock_quantity,updated_at'
       : 'id,toy_box_number,stock_quantity,updated_at,product_name';
 
@@ -432,15 +444,15 @@ ${rawText}`;
       .eq('id', id)
       .single();
 
-    if (error && this.toyBoxProductNameColumnState === null && this.isMissingColumnError(error, 'product_name')) {
-      this.toyBoxProductNameColumnState = false;
+    if (error && state === null && this.isMissingColumnError(error, 'product_name')) {
+      this.setToyBoxProductNameColumnState(false);
       ({ data, error } = await supabase
         .from('toy_box_inventory')
         .select('id,toy_box_number,stock_quantity,updated_at')
         .eq('id', id)
         .single());
-    } else if (!error && this.toyBoxProductNameColumnState === null) {
-      this.toyBoxProductNameColumnState = true;
+    } else if (!error && state === null) {
+      this.setToyBoxProductNameColumnState(true);
     }
 
     if (error) throw error;
@@ -1795,7 +1807,8 @@ ${rawText}`;
    * Fetch all toy box inventory
    */
   async getToyBoxInventory() {
-    const columns = this.toyBoxProductNameColumnState === false
+    const state = this.getToyBoxProductNameColumnState();
+    const columns = state === false
       ? 'id,toy_box_number,stock_quantity,updated_at'
       : 'id,toy_box_number,stock_quantity,updated_at,product_name';
 
@@ -1804,14 +1817,14 @@ ${rawText}`;
       .select(columns)
       .order('toy_box_number', { ascending: true });
 
-    if (error && this.toyBoxProductNameColumnState === null && this.isMissingColumnError(error, 'product_name')) {
-      this.toyBoxProductNameColumnState = false;
+    if (error && state === null && this.isMissingColumnError(error, 'product_name')) {
+      this.setToyBoxProductNameColumnState(false);
       ({ data, error } = await supabase
         .from('toy_box_inventory')
         .select('id,toy_box_number,stock_quantity,updated_at')
         .order('toy_box_number', { ascending: true }));
-    } else if (!error && this.toyBoxProductNameColumnState === null) {
-      this.toyBoxProductNameColumnState = true;
+    } else if (!error && state === null) {
+      this.setToyBoxProductNameColumnState(true);
     }
 
     if (error) throw error;
