@@ -388,6 +388,95 @@ export const CallTeamPanel = () => {
                   )}
                 </div>
 
+                {/* ══ MOBILE CARD LAYOUT (hidden on desktop via CSS) ══ */}
+                <div className="mob-card-top">
+                  <div className="elite-avatar">{getInitials(order.customer_name)}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+                      <span className="elite-cust-name" style={{ fontSize: 15 }}>{order.customer_name}</span>
+                      <span style={{ fontWeight: 800, fontSize: 15, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+                        ৳{Number(order.amount || 0).toLocaleString()}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <span className={`elite-status-pill ${statusPill}`} style={{ fontSize: 10 }}>{order.status}</span>
+                      {order.last_call_status && !['Confirmed', 'Cancelled'].includes(order.status) && (
+                        <span className={`elite-call-pill ${getCallStatusTone(order.last_call_status)}`}>
+                          {order.last_call_status}
+                        </span>
+                      )}
+                      <span className={`elite-trust-badge ${trustClass}`} style={{ marginLeft: 'auto' }}>
+                        <Zap size={9} strokeWidth={3} /> {showTrust ? `${successRatio}%` : 'NEW'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mob-card-body">
+                  <div className="mob-card-product">
+                    {order.product_name || 'Premium Item'}
+                    <span style={{ color: 'var(--text-tertiary)', marginLeft: 6, fontSize: 12 }}>
+                      · {order.size ? `Size: ${order.size}` : `Qty: ${order.quantity || 1}`}
+                    </span>
+                  </div>
+                  <div className="mob-card-meta">
+                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-tertiary)' }}>
+                      #{order.id.replace('ORD-', '')}
+                    </span>
+                    <span className={`elite-col-sla ${slaClass}`} style={{ fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      {slaIcon} {order.status === 'Confirmed' ? 'COMPLETED' : slaText}
+                    </span>
+                    {order.last_call_at && (
+                      <span className="elite-last-call-tag">
+                        <PhoneCall size={9} /> {getTimeAgo(order.last_call_at)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {(order.status === 'New' || order.status === 'Pending Call') && (
+                  <div className="mob-card-actions" onClick={(e) => e.stopPropagation()}>
+                    <div className="elite-action-dock">
+                      <button className="elite-btn-primary" onClick={(e) => handleAction(e, order.id, 'confirm')}>
+                        <CheckCircle size={15} /> Confirm Order
+                      </button>
+                      <div className="elite-action-grid">
+                        {QUICK_CALL_STATUSES.map((item) => {
+                          const Icon = item.icon;
+                          const isLoading = loggingAttemptId === order.id;
+                          return (
+                            <button
+                              key={item.id}
+                              className={`elite-quick-chip ${item.tone}`}
+                              onClick={(e) => handleAction(e, order.id, item.id)}
+                              disabled={isLoading}
+                              style={{ opacity: isLoading ? 0.7 : 1 }}
+                            >
+                              {isLoading ? <Loader2 size={13} className="lucide-spin" /> : <Icon size={13} />}
+                              <span>{isLoading ? '...' : item.label}</span>
+                            </button>
+                          );
+                        })}
+                        <button className="elite-quick-chip cancel" onClick={(e) => handleAction(e, order.id, 'cancel')}>
+                          <XCircle size={13} /><span>Cancel</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {order.status === 'Confirmed' && (
+                  <div className="mob-card-actions" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      className="elite-btn-primary"
+                      style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', boxShadow: 'none', border: '1px solid var(--glass-border)' }}
+                      onClick={(e) => { e.stopPropagation(); handleOpenEditModal(order); }}
+                    >
+                      <Edit2 size={14} /> Edit Order
+                    </button>
+                  </div>
+                )}
+
               </div>
             );
           })}

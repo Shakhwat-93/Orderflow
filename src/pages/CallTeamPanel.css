@@ -318,7 +318,16 @@
   color: var(--text-primary);
 }
 
-/* ── Elite List Header (Columns) ── */
+/* ══════════════════════════════════════
+   ELITE LIST — DESKTOP (Grid Layout)
+   ══════════════════════════════════════ */
+
+.elite-list-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+}
+
 .elite-list-headers {
   display: grid;
   grid-template-columns: 70px minmax(130px, 1.5fr) minmax(150px, 2fr) 90px 105px 115px 195px;
@@ -329,6 +338,7 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-tertiary);
+  min-width: 920px;
 }
 
 /* ── Elite List Cards ── */
@@ -349,18 +359,17 @@
   gap: var(--sp-4);
   align-items: center;
   transition: all var(--anim-smooth);
+  min-width: 920px;
 }
 
-.elite-list-card > * {
-  min-width: 0;
-}
+.elite-list-card > * { min-width: 0; }
 
 .elite-list-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 30px rgba(0,0,0,0.06);
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1200px) and (min-width: 641px) {
   .elite-list-card, .elite-list-headers {
     grid-template-columns: 80px 2fr 2fr 90px 180px;
   }
@@ -370,19 +379,188 @@
   }
 }
 
-.elite-list-container {
-  overflow-x: auto;
-  padding-bottom: 12px;
-}
+/* ══════════════════════════════════════
+   MOBILE — App-Style Card Layout
+   ══════════════════════════════════════ */
+@media (max-width: 640px) {
+  .call-team-panel {
+    gap: 12px;
+    padding-bottom: 80px;
+  }
 
-.elite-list-headers, .elite-list-card {
-  min-width: 920px;
+  /* Hide desktop grid headers on mobile */
+  .elite-list-headers { display: none !important; }
+
+  /* Disable horizontal scroll wrapper on mobile */
+  .elite-list-container {
+    overflow-x: visible;
+    padding-bottom: 0;
+  }
+
+  .elite-order-list {
+    gap: 12px;
+  }
+
+  /* Mobile Card — Full Width Flex Column */
+  .elite-list-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+    border-radius: 20px;
+    min-width: 0;
+    cursor: pointer;
+    overflow: hidden;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    transform: none !important;
+  }
+
+  /* ── Mobile Card Top Section ── */
+  .elite-list-card .mob-card-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px 10px;
+  }
+
+  /* ── Mobile Card Body ── */
+  .elite-list-card .mob-card-body {
+    padding: 0 16px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* ── Mobile Card Meta Row ── */
+  .elite-list-card .mob-card-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  /* ── Mobile Card Product Row ── */
+  .elite-list-card .mob-card-product {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    line-height: 1.4;
+  }
+
+  /* ── Mobile Card Actions ── */
+  .elite-list-card .mob-card-actions {
+    padding: 10px 12px 12px;
+    border-top: 1px solid var(--glass-border);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* Confirm button — full width on mobile */
+  .elite-list-card .elite-btn-primary {
+    width: 100%;
+    min-height: 44px;
+    border-radius: 14px;
+    font-size: 13px;
+  }
+
+  /* Quick action chips — 2 per row on mobile */
+  .elite-list-card .elite-action-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .elite-list-card .elite-quick-chip {
+    min-height: 40px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  /* Hide original grid columns on mobile — use mob-* elements instead */
+  .elite-list-card .elite-col-order,
+  .elite-list-card .elite-col-customer,
+  .elite-list-card .elite-col-product,
+  .elite-list-card .elite-col-amount,
+  .elite-list-card .elite-col-status,
+  .elite-list-card .elite-col-sla,
+  .elite-list-card .elite-col-actions {
+    display: none !important;
+  }
+
+  /* Re-show the action dock inside mob-card-actions */
+  .elite-list-card .mob-card-actions .elite-action-dock {
+    display: flex !important;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 100%;
+    width: 100%;
+  }
+
+  /* Hide metrics section on mobile to save space */
+  .elite-metrics-grid {
+    display: none;
+  }
+
+  /* Compact header on mobile */
+  .elite-header-titles h1 {
+    font-size: 22px;
+  }
+
+  .elite-header-titles p {
+    font-size: 13px;
+  }
+
+  /* Stack badges vertically on very small screens */
+  .elite-header-badges {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .elite-top-badge {
+    padding: 6px 16px 6px 6px;
+  }
+
+  /* Compact pill filter tabs on mobile */
+  .elite-pill-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+    scrollbar-width: none;
+  }
+  .elite-pill-tabs::-webkit-scrollbar { display: none; }
+
+  .elite-filter-row {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .elite-pill-tab {
+    padding: 8px 14px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* Pagination compact on mobile */
+  .elite-pagination-footer {
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+  }
 }
 
 .elite-col-order {
   font-weight: 800;
   font-size: 15px;
   color: var(--text-primary);
+}
+
+/* Mobile card sections — hidden by default, shown on mobile only */
+.mob-card-top,
+.mob-card-body,
+.mob-card-actions {
+  display: none;
 }
 
 .elite-col-customer {
