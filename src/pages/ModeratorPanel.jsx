@@ -297,7 +297,8 @@ export const ModeratorPanel = () => {
 
       {/* Orders Table */}
       <Card className="table-card liquid-glass" noPadding>
-        <div className="orders-table-wrapper desktop-only">
+        {/* ── Desktop Table ── */}
+        <div className="orders-table-wrapper">
           <table className="management-table premium-table">
             <thead>
               <tr>
@@ -327,6 +328,35 @@ export const ModeratorPanel = () => {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* ── Mobile Order Cards ── */}
+        <div className="mod-mobile-list">
+          {filteredOrders.length === 0 && (
+            <div className="mod-mobile-empty">No orders found matching your filters.</div>
+          )}
+          {filteredOrders.map(order => (
+            <div key={order.id} className="mod-mobile-card" onClick={() => handleRowClick(order)}>
+              <div className="mod-mobile-card-row">
+                <div className="mod-mobile-id">#{order.id.replace('ORD-', '')}</div>
+                <span className={`mod-mobile-status status-${(order.status || '').toLowerCase().replace(/\s+/g, '-')}`}>
+                  {order.status}
+                </span>
+              </div>
+              <div className="mod-mobile-card-row" style={{ marginTop: 6 }}>
+                <div>
+                  <div className="mod-mobile-name">{order.customer_name}</div>
+                  <div className="mod-mobile-meta">{order.phone} · {order.product_name}</div>
+                </div>
+                <div className="mod-mobile-amount">৳{Number(order.amount || 0).toLocaleString()}</div>
+              </div>
+              <div className="mod-mobile-card-footer" onClick={e => e.stopPropagation()}>
+                <button className="mod-mobile-edit-btn" onClick={() => handleOpenEditModal(order)}>
+                  <Edit2 size={13} /> Edit
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       </Card>
 
