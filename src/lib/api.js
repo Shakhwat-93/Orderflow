@@ -422,20 +422,24 @@ ${rawText}`;
   },
 
   async getToyBoxInventoryRow(id) {
+    const columns = this.toyBoxProductNameColumnState === false
+      ? 'id,toy_box_number,stock_quantity,updated_at'
+      : 'id,toy_box_number,stock_quantity,updated_at,product_name';
+
     let { data, error } = await supabase
       .from('toy_box_inventory')
-      .select('id,toy_box_number,stock_quantity,updated_at,product_name')
+      .select(columns)
       .eq('id', id)
       .single();
 
-    if (error && this.isMissingColumnError(error, 'product_name')) {
+    if (error && this.toyBoxProductNameColumnState === null && this.isMissingColumnError(error, 'product_name')) {
       this.toyBoxProductNameColumnState = false;
       ({ data, error } = await supabase
         .from('toy_box_inventory')
         .select('id,toy_box_number,stock_quantity,updated_at')
         .eq('id', id)
         .single());
-    } else if (!error) {
+    } else if (!error && this.toyBoxProductNameColumnState === null) {
       this.toyBoxProductNameColumnState = true;
     }
 
@@ -1791,18 +1795,22 @@ ${rawText}`;
    * Fetch all toy box inventory
    */
   async getToyBoxInventory() {
+    const columns = this.toyBoxProductNameColumnState === false
+      ? 'id,toy_box_number,stock_quantity,updated_at'
+      : 'id,toy_box_number,stock_quantity,updated_at,product_name';
+
     let { data, error } = await supabase
       .from('toy_box_inventory')
-      .select('id,toy_box_number,stock_quantity,updated_at,product_name')
+      .select(columns)
       .order('toy_box_number', { ascending: true });
 
-    if (error && this.isMissingColumnError(error, 'product_name')) {
+    if (error && this.toyBoxProductNameColumnState === null && this.isMissingColumnError(error, 'product_name')) {
       this.toyBoxProductNameColumnState = false;
       ({ data, error } = await supabase
         .from('toy_box_inventory')
         .select('id,toy_box_number,stock_quantity,updated_at')
         .order('toy_box_number', { ascending: true }));
-    } else if (!error) {
+    } else if (!error && this.toyBoxProductNameColumnState === null) {
       this.toyBoxProductNameColumnState = true;
     }
 
