@@ -50,6 +50,29 @@ export const api = {
     );
   },
 
+  isMissingTableError(error, tableName = '') {
+    const message = [
+      error?.message,
+      error?.details,
+      error?.hint
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    if (!message) return false;
+    const normalizedTable = String(tableName || '').toLowerCase();
+    return (
+      String(error?.code || '').toUpperCase() === 'PGRST205' ||
+      (message.includes('schema cache') && (!normalizedTable || message.includes(normalizedTable))) ||
+      (message.includes('could not find the table') && (!normalizedTable || message.includes(normalizedTable))) ||
+      (message.includes('relation') && message.includes('does not exist') && (!normalizedTable || message.includes(normalizedTable)))
+    );
+  },
+
+  normalizeIpAddress(value = '') {
+    return String(value || '').trim().toLowerCase();
+  },
+
   async getOrderById(orderId) {
     const { data, error } = await supabase
       .from('orders')
@@ -2281,6 +2304,123 @@ ${rawText}`;
       .delete()
       .eq('id', taskId);
     if (error) throw error;
+  },
+
+  // --- Fraud Controls / IP Blocking ---
+  async getIpBlocklist() {
+    const { data, error } = await supabase
+      .from('blocked_ip_addresses')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      if (this.isMissingTableError(error, 'blocked_ip_addresses')) {
+        return { configured: false, blocks: [], error };
+      }
+      throw error;
+    }
+
+    return { configured: true, blocks: data || [] };
+  },
+
+  async blockIpAddress(ipAddress, reason, userId, userName) {
+    const normalizedIp = this.normalizeIpAddress(ipAddress);
+    if (!normalizedIp) throw new Error('IP address is required.');
+
+    const payload = {
+      ip_address: normalizedIp,
+      reason: String(reason || '').trim() || 'Blocked from fraud control',
+      is_active: true,
+      blocked_by: userId || null,
+      blocked_by_name: userName || 'System',
+      updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabase
+      .from('blocked_ip_addresses')
+      .upsert(payload, { onConflict: 'ip_address' })
+      .select()
+      .single();
+
+    if (error) {
+      if (this.isMissingTableError(error, 'blocked_ip_addresses')) {
+        throw new Error('IP blocklist database table is not installed yet.');
+      }
+      throw error;
+    }
+
+    return data;
+  },
+
+  async unblockIpAddress(ipAddress) {
+    const normalizedIp = this.normalizeIpAddress(ipAddress);
+    if (!normalizedIp) throw new Error('IP address is required.');
+
+    const { data, error } = await supabase
+      .from('blocked_ip_addresses')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq('ip_address', normalizedIp)
+      .select()
+      .single();
+
+    if (error) {
+      if (this.isMissingTableError(error, 'blocked_ip_addresses')) {
+        throw new Error('IP blocklist database table is not installed yet.');
+      }
+      throw error;
+    }
+
+    return data;
+  },
+
+  async getOrderIpIntelligence(limit = 1000) {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('id,ip_address,created_at,customer_name,phone,status')
+      .not('ip_address', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      if (this.isMissingColumnError(error, 'ip_address')) return [];
+      throw error;
+    }
+
+    const rowsByIp = new Map();
+
+    (data || []).forEach((order) => {
+      const ip = this.normalizeIpAddress(order.ip_address);
+      if (!ip) return;
+
+      const current = rowsByIp.get(ip) || {
+        ip_address: ip,
+        total_orders: 0,
+        latest_order_at: null,
+        latest_order: null,
+        statuses: {}
+      };
+
+      current.total_orders += 1;
+      current.statuses[order.status || 'Unknown'] = (current.statuses[order.status || 'Unknown'] || 0) + 1;
+
+      if (!current.latest_order_at || new Date(order.created_at) > new Date(current.latest_order_at)) {
+        current.latest_order_at = order.created_at;
+        current.latest_order = {
+          id: order.id,
+          customer_name: order.customer_name,
+          phone: order.phone,
+          status: order.status
+        };
+      }
+
+      rowsByIp.set(ip, current);
+    });
+
+    return Array.from(rowsByIp.values())
+      .sort((a, b) => {
+        if (b.total_orders !== a.total_orders) return b.total_orders - a.total_orders;
+        return new Date(b.latest_order_at || 0) - new Date(a.latest_order_at || 0);
+      });
   },
 
   // --- Push Notifications ---

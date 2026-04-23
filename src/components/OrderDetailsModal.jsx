@@ -62,6 +62,12 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
     // User gets a silent copy or you could add a toast here
   };
 
+  const ipAddress = typeof order.ip_address === 'string'
+    ? order.ip_address.trim()
+    : order.ip_address
+      ? String(order.ip_address)
+      : '';
+
   return (
     <Modal 
       isOpen={isOpen} 
@@ -140,6 +146,12 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
                       <Phone size={14} />
                     </a>
                   </div>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">IP Address</span>
+                  <span className={`info-value ip-address-value ${ipAddress ? '' : 'muted'}`}>
+                    {ipAddress || 'Not captured'}
+                  </span>
                 </div>
                 <div className="info-item vertical">
                   <span className="info-label">Delivery Address</span>

@@ -449,8 +449,8 @@
 
 @media (max-width: 480px) {
   .chatbot-fab {
-    bottom: 18px;
-    right: 18px;
+    bottom: calc(78px + var(--safe-bottom, 0px));
+    right: 16px;
     width: 52px;
     height: 52px;
     border-radius: 16px;

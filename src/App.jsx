@@ -29,6 +29,7 @@ const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.S
 const TaskBoard = lazy(() => import('./pages/TaskBoard').then(m => ({ default: m.TaskBoard })));
 const DigitalMarketerPanel = lazy(() => import('./pages/DigitalMarketerPanel').then(m => ({ default: m.DigitalMarketerPanel })));
 const SteadfastPanel = lazy(() => import('./pages/SteadfastPanel').then(m => ({ default: m.SteadfastPanel })));
+const FraudControl = lazy(() => import('./pages/FraudControl').then(m => ({ default: m.FraudControl })));
 
 // ── Premium Skeleton Loading Screen ──
 const SkeletonScreen = () => (
@@ -142,6 +143,7 @@ function App() {
                       <Route path="courier" element={<RoleRoute roles={['Admin', 'Courier Team']}><CourierPanel /></RoleRoute>} />
                       <Route path="factory" element={<RoleRoute roles={['Admin', 'Factory Team']}><FactoryPanel /></RoleRoute>} />
                       <Route path="users" element={<RoleRoute roles={['Admin']}><UserManagement /></RoleRoute>} />
+                      <Route path="fraud" element={<RoleRoute roles={['Admin']}><FraudControl /></RoleRoute>} />
                       <Route path="inventory" element={<RoleRoute roles={['Admin', 'Moderator']}><InventoryPage /></RoleRoute>} />
                       <Route path="reports" element={<RoleRoute roles={['Admin']}><ReportsPanel /></RoleRoute>} />
                       <Route path="profile" element={<Profile />} />

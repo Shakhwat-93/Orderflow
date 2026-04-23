@@ -67,6 +67,8 @@
 .info-label  { font-size: 0.72rem; font-weight: 600; color: var(--m-text-muted); white-space: nowrap; }
 .info-value  { font-size: 0.875rem; font-weight: 650; color: var(--m-text); text-align: right; }
 .info-value-flex { display: flex; align-items: center; gap: 8px; }
+.ip-address-value { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.78rem; word-break: break-all; }
+.ip-address-value.muted { font-family: inherit; color: var(--m-text-muted); font-weight: 600; }
 
 /* ── Action circle button ── */
 .action-circle-btn { width: 28px; height: 28px; border-radius: 50%; background: var(--m-btn-bg); border: 1px solid var(--m-btn-border); color: var(--m-accent); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.18s ease; flex-shrink: 0; }
