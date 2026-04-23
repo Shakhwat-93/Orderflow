@@ -51,6 +51,8 @@ export const ModeratorPanel = () => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   // Track which order is currently saving a status change
   const [savingStatusId, setSavingStatusId] = useState(null);
+  // Track which order's status dropdown is open on mobile
+  const [openStatusDropdownId, setOpenStatusDropdownId] = useState(null);
 
   const handleOpenEditModal = (order) => {
     setSelectedOrder(order);
@@ -400,15 +402,37 @@ export const ModeratorPanel = () => {
                     {isSaving
                       ? <span className="mod-status-saving"><Loader2 size={13} className="spin-anim" /> Saving...</span>
                       : (
-                        <select
-                          className="mod-mobile-status-select"
-                          value={order.status || ''}
-                          onChange={e => handleMobileStatusChange(order.id, e.target.value)}
-                        >
-                          {ORDER_STATUSES.map(s => (
-                            <option key={s} value={s}>{s}</option>
-                          ))}
-                        </select>
+                        <div className="premium-status-dropdown-wrap">
+                          <button 
+                            className={`premium-status-trigger ${openStatusDropdownId === order.id ? 'active' : ''}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenStatusDropdownId(openStatusDropdownId === order.id ? null : order.id);
+                            }}
+                          >
+                            <span className={`status-dot dot-${(order.status || '').toLowerCase().replace(/\s+/g, '-')}`} />
+                            <span className="trigger-label">{order.status}</span>
+                            <ChevronDown size={14} className={`trigger-chevron ${openStatusDropdownId === order.id ? 'rotate' : ''}`} />
+                          </button>
+
+                          {openStatusDropdownId === order.id && (
+                            <div className="premium-status-menu">
+                              {ORDER_STATUSES.map(s => (
+                                <button
+                                  key={s}
+                                  className={`status-option ${order.status === s ? 'selected' : ''}`}
+                                  onClick={() => {
+                                    handleMobileStatusChange(order.id, s);
+                                    setOpenStatusDropdownId(null);
+                                  }}
+                                >
+                                  <span className={`status-dot dot-${s.toLowerCase().replace(/\s+/g, '-')}`} />
+                                  {s}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       )
                     }
                   </div>
