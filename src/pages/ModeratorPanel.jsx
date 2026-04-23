@@ -11,7 +11,7 @@ import { DateRangePicker } from '../components/DateRangePicker';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import { 
   Edit2, Trash2, Plus, Search, Package, DollarSign, ShoppingCart, 
-  Globe, ChevronDown, ChevronLeft, ChevronRight, Wand2, Trash, Truck, MapPin, X, Sparkles
+  Globe, ChevronDown, ChevronLeft, ChevronRight, Wand2, Trash, Truck, MapPin, X, Sparkles, CheckCircle2, Loader2
 } from 'lucide-react';
 import { PremiumSearch } from '../components/PremiumSearch';
 import CurrencyIcon from '../components/CurrencyIcon';
@@ -49,6 +49,8 @@ export const ModeratorPanel = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  // Track which order is currently saving a status change
+  const [savingStatusId, setSavingStatusId] = useState(null);
 
   const handleOpenEditModal = (order) => {
     setSelectedOrder(order);
@@ -64,6 +66,35 @@ export const ModeratorPanel = () => {
     if (ref.current) {
       ref.current.scrollBy({ left: direction === 'left' ? -200 : 200, behavior: 'smooth' });
     }
+  };
+
+  /**
+   * Handle inline status change from mobile card dropdown.
+   * Calls updateOrderStatus and tracks loading state per order.
+   */
+  const handleMobileStatusChange = async (orderId, newStatus) => {
+    setSavingStatusId(orderId);
+    try {
+      await updateOrderStatus(orderId, newStatus);
+    } catch (err) {
+      console.error('Status update failed:', err);
+      alert(err.message || 'Failed to update status.');
+    } finally {
+      setSavingStatusId(null);
+    }
+  };
+
+  /**
+   * Format a date string to readable date + time.
+   * e.g. "23 Apr 2026, 12:34 PM"
+   */
+  const formatDateTime = (dateStr) => {
+    if (!dateStr) return '—';
+    const d = new Date(dateStr);
+    return d.toLocaleString('en-GB', {
+      day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', hour12: true
+    });
   };
 
   // Apply all filters
@@ -335,28 +366,61 @@ export const ModeratorPanel = () => {
           {filteredOrders.length === 0 && (
             <div className="mod-mobile-empty">No orders found matching your filters.</div>
           )}
-          {filteredOrders.map(order => (
-            <div key={order.id} className="mod-mobile-card" onClick={() => handleRowClick(order)}>
-              <div className="mod-mobile-card-row">
-                <div className="mod-mobile-id">#{order.id.replace('ORD-', '')}</div>
-                <span className={`mod-mobile-status status-${(order.status || '').toLowerCase().replace(/\s+/g, '-')}`}>
-                  {order.status}
-                </span>
-              </div>
-              <div className="mod-mobile-card-row" style={{ marginTop: 6 }}>
-                <div>
-                  <div className="mod-mobile-name">{order.customer_name}</div>
-                  <div className="mod-mobile-meta">{order.phone} · {order.product_name}</div>
+          {filteredOrders.map(order => {
+            const isSaving = savingStatusId === order.id;
+            return (
+              <div key={order.id} className="mod-mobile-card" onClick={() => handleRowClick(order)}>
+                {/* ── Row 1: Order ID + Status pill ── */}
+                <div className="mod-mobile-card-row">
+                  <div>
+                    <div className="mod-mobile-id">#{order.id.replace('ORD-', '')}</div>
+                    <div className="mod-mobile-datetime">{formatDateTime(order.created_at)}</div>
+                  </div>
+                  <span className={`mod-mobile-status status-${(order.status || '').toLowerCase().replace(/\s+/g, '-')}`}>
+                    {order.status}
+                  </span>
                 </div>
-                <div className="mod-mobile-amount">৳{Number(order.amount || 0).toLocaleString()}</div>
+
+                {/* ── Row 2: Customer + Amount ── */}
+                <div className="mod-mobile-card-row" style={{ marginTop: 8 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="mod-mobile-name">{order.customer_name}</div>
+                    <div className="mod-mobile-meta">
+                      {order.phone}
+                      {order.product_name && <> · <span style={{ fontStyle: 'italic' }}>{order.product_name}</span></>}
+                    </div>
+                  </div>
+                  <div className="mod-mobile-amount">৳{Number(order.amount || 0).toLocaleString()}</div>
+                </div>
+
+                {/* ── Footer: Status Changer + Edit ── */}
+                <div className="mod-mobile-card-footer" onClick={e => e.stopPropagation()}>
+                  {/* Status dropdown */}
+                  <div className="mod-mobile-status-select-wrap">
+                    {isSaving
+                      ? <span className="mod-status-saving"><Loader2 size={13} className="spin-anim" /> Saving...</span>
+                      : (
+                        <select
+                          className="mod-mobile-status-select"
+                          value={order.status || ''}
+                          onChange={e => handleMobileStatusChange(order.id, e.target.value)}
+                        >
+                          {ORDER_STATUSES.map(s => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                      )
+                    }
+                  </div>
+
+                  {/* Edit button */}
+                  <button className="mod-mobile-edit-btn" onClick={() => handleOpenEditModal(order)}>
+                    <Edit2 size={13} /> Edit
+                  </button>
+                </div>
               </div>
-              <div className="mod-mobile-card-footer" onClick={e => e.stopPropagation()}>
-                <button className="mod-mobile-edit-btn" onClick={() => handleOpenEditModal(order)}>
-                  <Edit2 size={13} /> Edit
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </Card>
 

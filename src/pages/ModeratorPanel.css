@@ -492,3 +492,72 @@
   }
   .mod-mobile-edit-btn:active { transform: scale(0.95); background: var(--accent); color: #fff; }
 }
+
+/* -- Mobile Card — DateTime & Status Select -- */
+.mod-mobile-datetime {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+  letter-spacing: 0.01em;
+}
+
+/* Status select wrapper */
+.mod-mobile-status-select-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The native select styled as a premium dropdown */
+.mod-mobile-status-select {
+  width: 100%;
+  padding: 9px 14px;
+  border-radius: 10px;
+  border: 1.5px solid var(--glass-border);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+}
+
+.mod-mobile-status-select:focus {
+  border-color: var(--accent, #6366f1);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+[data-theme='dark'] .mod-mobile-status-select {
+  background-color: var(--bg-elevated);
+  border-color: rgba(255,255,255,0.1);
+  color: #f1f5f9;
+}
+
+/* Saving indicator */
+.mod-status-saving {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent, #6366f1);
+  padding: 9px 14px;
+  background: rgba(99,102,241,0.06);
+  border-radius: 10px;
+  border: 1.5px solid rgba(99,102,241,0.15);
+}
+
+@keyframes spin-icon {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.spin-anim { animation: spin-icon 0.8s linear infinite; }
