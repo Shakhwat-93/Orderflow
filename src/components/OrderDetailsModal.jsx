@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Modal } from './Modal';
 import { Badge } from './Badge';
 import { Button } from './Button';
 import { 
   User, Phone, MapPin, Package, Calendar, Clock, 
-  History, Edit2, X, Clipboard, ExternalLink, 
+  History, Edit2, X, Clipboard, Copy, ExternalLink, 
   Truck, CheckCircle2, AlertCircle, Info 
 } from 'lucide-react';
 import CurrencyIcon from './CurrencyIcon';
@@ -14,6 +14,8 @@ import './OrderDetailsModal.css';
 export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
   const [activityLogs, setActivityLogs] = useState([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+  const [copiedSummary, setCopiedSummary] = useState(false);
+  const copyTimeoutRef = useRef(null);
 
   useEffect(() => {
     if (isOpen && order?.id) {
@@ -47,6 +49,12 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
     }
   }, [isOpen, order?.id]);
 
+  useEffect(() => () => {
+    if (copyTimeoutRef.current) {
+      window.clearTimeout(copyTimeoutRef.current);
+    }
+  }, []);
+
   if (!order) return null;
 
   const getStatusVariant = (status) => {
@@ -74,6 +82,66 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
     : order.ip_address
       ? String(order.ip_address)
       : '';
+
+  const orderDateTime = order.created_at
+    ? new Date(order.created_at).toLocaleString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      })
+    : 'N/A';
+
+  const productDetails = Array.isArray(order.order_lines_payload) && order.order_lines_payload.length > 0
+    ? order.order_lines_payload.map((item) => ({
+        name: item.product_name || 'Unknown Product',
+        quantity: item.quantity || 1,
+        size: item.size || '',
+        price: Number(item.line_total ?? ((item.unit_price || 0) * (item.quantity || 1))) || 0
+      }))
+    : Array.isArray(order.ordered_items) && order.ordered_items.length > 0 && typeof order.ordered_items[0] === 'object'
+      ? order.ordered_items.map((item) => ({
+          name: item.name || item.product_name || 'Unknown Product',
+          quantity: item.quantity || 1,
+          size: item.size || '',
+          price: Number((item.price || 0) * (item.quantity || 1)) || 0
+        }))
+      : [{
+          name: order.product_name || 'Unknown Product',
+          quantity: order.quantity || 1,
+          size: order.size || '',
+          price: Number(order.amount || 0) || 0
+        }];
+
+  const copyOrderSummary = () => {
+    const productLines = productDetails
+      .map((item, index) => {
+        const sizeLabel = item.size ? `, Size: ${item.size}` : '';
+        return `${index + 1}. ${item.name} x${item.quantity}${sizeLabel}, Price: ${item.price.toLocaleString()}`;
+      })
+      .join('\n');
+
+    const summaryText = [
+      `Customer Name: ${order.customer_name || 'N/A'}`,
+      `Phone: ${order.phone || 'N/A'}`,
+      `Address: ${order.address || 'N/A'}`,
+      `Amount: ${Number(order.amount || 0).toLocaleString()}`,
+      `Date: ${orderDateTime}`,
+      'Product Details:',
+      productLines
+    ].join('\n');
+
+    copyToClipboard(summaryText);
+    setCopiedSummary(true);
+    if (copyTimeoutRef.current) {
+      window.clearTimeout(copyTimeoutRef.current);
+    }
+    copyTimeoutRef.current = window.setTimeout(() => {
+      setCopiedSummary(false);
+    }, 1800);
+  };
 
   return (
     <Modal 
@@ -143,8 +211,19 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
             {/* Customer Info */}
             <div className="details-section-card glass-card half">
               <div className="section-title">
-                <User size={18} className="text-accent" />
-                <span>Customer Information</span>
+                <div className="section-title-main">
+                  <User size={18} className="text-accent" />
+                  <span>Customer Information</span>
+                </div>
+                <button
+                  type="button"
+                  className={`section-copy-btn ${copiedSummary ? 'copied' : ''}`}
+                  onClick={copyOrderSummary}
+                  title="Copy customer and order summary"
+                >
+                  <Copy size={14} />
+                  <span>{copiedSummary ? 'Copied' : 'Copy'}</span>
+                </button>
               </div>
               <div className="info-list">
                 <div className="info-item">

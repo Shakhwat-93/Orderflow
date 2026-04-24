@@ -59,8 +59,17 @@
 .glass-card { background: var(--m-btn-bg); border: 1px solid var(--m-border); border-radius: 14px; padding: 18px 20px; }
 .card-header-flex { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
 .details-section-card { display: flex; flex-direction: column; gap: 14px; }
-.section-title { display: flex; align-items: center; gap: 9px; font-size: 0.72rem; font-weight: 700; color: var(--m-text); padding-bottom: 12px; border-bottom: 1px solid var(--m-border-sub); text-transform: uppercase; letter-spacing: 0.04em; }
+.section-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 0.72rem; font-weight: 700; color: var(--m-text); padding-bottom: 12px; border-bottom: 1px solid var(--m-border-sub); text-transform: uppercase; letter-spacing: 0.04em; }
+.section-title-main { display: inline-flex; align-items: center; gap: 9px; min-width: 0; }
 .section-title svg { color: var(--m-accent); }
+.section-copy-btn { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; height: 30px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--m-btn-border); background: var(--m-btn-bg); color: var(--m-accent); font-size: 0.72rem; font-weight: 700; cursor: pointer; transition: all 0.18s ease; font-family: inherit; text-transform: none; letter-spacing: 0; }
+.section-copy-btn:hover { background: var(--m-accent-bg); border-color: rgba(99,102,241,0.24); }
+.section-copy-btn.copied { background: rgba(16,185,129,0.12); color: #059669; border-color: rgba(16,185,129,0.24); }
+[data-theme='dark'] .section-copy-btn.copied { color: #6ee7b7; border-color: rgba(52,211,153,0.28); background: rgba(16,185,129,0.16); }
+@media (max-width: 580px) {
+  .section-title { align-items: flex-start; }
+  .section-copy-btn { padding: 0 9px; }
+}
 .info-list { display: flex; flex-direction: column; gap: 11px; }
 .info-item { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .info-item.vertical { flex-direction: column; align-items: flex-start; gap: 6px; }
