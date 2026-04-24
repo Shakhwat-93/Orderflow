@@ -46,6 +46,15 @@
   display: block;
 }
 
+.timestamp-text {
+  white-space: normal;
+  line-height: 1.35;
+}
+
+.product-name-cell {
+  max-width: 180px;
+}
+
 /* SAAS BADGE SYSTEM */
 .saas-badge {
   display: inline-flex;
@@ -245,7 +254,7 @@
   .order-row .date-cell::before { content: "Date"; }
   .order-row .customer-cell::before { content: "Customer"; }
   .order-row .amount-cell::before { content: "Total"; }
-  .order-row .payment-status-cell::before { content: "Payment"; }
+  .order-row .product-cell::before { content: "Product"; }
   .order-row .shipping-cell::before { content: "Delivery"; }
   .order-row .items-cell::before { content: "Items"; }
   .order-row .status-cell::before { content: "Fulfilment"; }

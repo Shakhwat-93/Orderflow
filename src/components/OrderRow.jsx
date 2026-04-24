@@ -51,6 +51,19 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
     'Factory Processing', 'Completed', 'Cancelled'
   ];
 
+  const orderTimestamp = order.created_at
+    ? new Date(order.created_at).toLocaleString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      })
+    : 'N/A';
+
+  const productName = String(order.product_name || 'Unknown Product').trim() || 'Unknown Product';
+
   return (
     <motion.tr 
       className={`order-row clickable-row ${isSelected ? 'row-selected' : ''}`} 
@@ -74,18 +87,15 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
       </td>
 
       <td className="date-cell">
-        <span className="saas-text">{new Date(order.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+        <span className="saas-text timestamp-text">{orderTimestamp}</span>
       </td>
 
       <td className="customer-cell">
         <span className="saas-text-dark">{order.customer_name}</span>
       </td>
 
-      <td className="payment-status-cell">
-        <div className={`saas-badge ${order.payment_status === 'Paid' ? 'saas-badge-success' : 'saas-badge-warning'}`}>
-          <span className="dot"></span>
-          {order.payment_status === 'Paid' ? 'Success' : 'Pending'}
-        </div>
+      <td className="product-cell">
+        <span className="saas-text-dark product-name-cell" title={productName}>{productName}</span>
       </td>
 
       <td className="amount-cell">

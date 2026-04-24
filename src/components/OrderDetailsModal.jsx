@@ -57,6 +57,13 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
     return 'neutral';
   };
 
+  const getPaymentVariant = (status) => {
+    const s = String(status || '').toLowerCase();
+    if (['paid', 'success', 'completed'].includes(s)) return 'success';
+    if (['failed', 'cancelled', 'refunded'].includes(s)) return 'danger';
+    return 'warning';
+  };
+
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
     // User gets a silent copy or you could add a toast here
@@ -103,6 +110,12 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
               <div className="meta-item">
                 <Info size={14} />
                 <span>Source: {order.source || 'Direct'}</span>
+              </div>
+              <div className="meta-item">
+                <span>Payment:</span>
+                <Badge variant={getPaymentVariant(order.payment_status)}>
+                  {order.payment_status === 'Paid' ? 'Paid' : (order.payment_status || 'Pending')}
+                </Badge>
               </div>
             </div>
           </div>

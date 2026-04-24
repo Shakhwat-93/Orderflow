@@ -69,10 +69,14 @@ export const OrdersBoard = () => {
     fetchOrderLogs, fetchStats, stats, addOrder, deleteOrder, fraudFlags, automationFlags,
     pageSize, filters, updateOrderStatus, autoDistributeOrders, toyBoxes, inventory
   } = useOrders();
-  const productCheckpoints = getProductCheckpoints(inventory);
+  const inventoryProductCheckpoints = useMemo(() => getProductCheckpoints(inventory), [inventory]);
 
   const [distributing, setDistributing] = useState(false);
   const [deepLinkOrder, setDeepLinkOrder] = useState(null);
+  const [productBreakdown, setProductBreakdown] = useState([]);
+  const [isLoadingProductBreakdown, setIsLoadingProductBreakdown] = useState(false);
+  const [statusBreakdown, setStatusBreakdown] = useState([]);
+  const [isLoadingStatusBreakdown, setIsLoadingStatusBreakdown] = useState(false);
 
   const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [isNewOrderModalOpen, setIsNewOrderModalOpen] = useState(false);
@@ -412,6 +416,136 @@ export const OrdersBoard = () => {
 
   const totalPages = Math.ceil(totalCount / pageSize);
 
+  useEffect(() => {
+    let isActive = true;
+
+    const loadProductBreakdown = async () => {
+      setIsLoadingProductBreakdown(true);
+      try {
+        const data = await api.getOrderProductBreakdown({
+          ...filters,
+          productName: ''
+        });
+
+        if (isActive) {
+          setProductBreakdown(data || []);
+        }
+      } catch (error) {
+        console.error('Failed to load product breakdown:', error);
+        if (isActive) {
+          setProductBreakdown([]);
+        }
+      } finally {
+        if (isActive) {
+          setIsLoadingProductBreakdown(false);
+        }
+      }
+    };
+
+    loadProductBreakdown();
+
+    return () => {
+      isActive = false;
+    };
+  }, [filters.dateRange, filters.searchTerm, filters.source, filters.status]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadStatusBreakdown = async () => {
+      setIsLoadingStatusBreakdown(true);
+      try {
+        const data = await api.getOrderStatusBreakdown({
+          ...filters,
+          status: 'All'
+        });
+
+        if (isActive) {
+          setStatusBreakdown(data || []);
+        }
+      } catch (error) {
+        console.error('Failed to load status breakdown:', error);
+        if (isActive) {
+          setStatusBreakdown([]);
+        }
+      } finally {
+        if (isActive) {
+          setIsLoadingStatusBreakdown(false);
+        }
+      }
+    };
+
+    loadStatusBreakdown();
+
+    return () => {
+      isActive = false;
+    };
+  }, [filters.dateRange, filters.productName, filters.searchTerm, filters.source]);
+
+  const inventoryColorMap = useMemo(
+    () => new Map(
+      inventoryProductCheckpoints
+        .filter((item) => item.id !== 'all')
+        .map((item) => [item.name, item.color])
+    ),
+    [inventoryProductCheckpoints]
+  );
+
+  const getFallbackProductColor = (productName = '') => {
+    const palette = ['#6366f1', '#22c55e', '#f97316', '#06b6d4', '#e11d48', '#8b5cf6', '#14b8a6', '#f59e0b'];
+    const hash = String(productName)
+      .split('')
+      .reduce((sum, char) => sum + char.charCodeAt(0), 0);
+    return palette[hash % palette.length];
+  };
+
+  const visibleProductBreakdown = useMemo(() => {
+    const fallbackBreakdown = Array.from(
+      orders.reduce((acc, order) => {
+        const productName = String(order?.product_name || 'Unknown Product').trim() || 'Unknown Product';
+        acc.set(productName, (acc.get(productName) || 0) + 1);
+        return acc;
+      }, new Map())
+    )
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => {
+        if (b.count !== a.count) return b.count - a.count;
+        return a.name.localeCompare(b.name);
+      });
+
+    const source = productBreakdown.length > 0 ? productBreakdown : fallbackBreakdown;
+    const totalOrdersForBreakdown = source.reduce((sum, item) => sum + item.count, 0);
+
+    return [
+      {
+        id: 'all',
+        name: 'All Products',
+        color: '#64748b',
+        count: totalOrdersForBreakdown
+      },
+      ...source.map((item) => ({
+        id: item.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        name: item.name,
+        color: inventoryColorMap.get(item.name) || getFallbackProductColor(item.name),
+        count: item.count
+      }))
+    ];
+  }, [inventoryColorMap, orders, productBreakdown]);
+
+  const statusTabs = useMemo(() => {
+    const counts = new Map(statusBreakdown.map((item) => [item.status, item.count]));
+    const totalOrdersForStatuses = statusBreakdown.reduce((sum, item) => sum + item.count, 0);
+
+    return [
+      { value: 'All', label: 'All Orders', count: totalOrdersForStatuses },
+      ...ORDER_STATUSES.map((status) => ({
+        value: status,
+        label: status,
+        count: counts.get(status) || 0
+      }))
+    ];
+  }, [statusBreakdown]);
+
 
   return (
     <div className="orders-management">
@@ -463,13 +597,14 @@ export const OrdersBoard = () => {
           <ChevronLeft size={16} />
         </button>
         <div className="status-tabs-bar" ref={statusTabsRef}>
-          {['All', 'New', 'Pending Call', 'Confirmed', 'Courier Submitted', 'Factory Processing', 'Completed', 'Cancelled'].map((tab) => (
+          {statusTabs.map((tab) => (
             <button
-              key={tab}
-              className={`status-tab ${filters.status === tab ? 'active' : ''}`}
-              onClick={() => handleFilterChange('status', tab)}
+              key={tab.value}
+              className={`status-tab ${filters.status === tab.value ? 'active' : ''}`}
+              onClick={() => handleFilterChange('status', tab.value)}
             >
-              {tab === 'All' ? 'All Orders' : tab}
+              <span className="status-tab-label">{tab.label}</span>
+              <span className="status-tab-count">{tab.count}</span>
             </button>
           ))}
         </div>
@@ -477,6 +612,9 @@ export const OrdersBoard = () => {
           <ChevronRight size={16} />
         </button>
       </div>
+      {isLoadingStatusBreakdown && (
+        <div className="status-breakdown-status">Refreshing status-wise order counts...</div>
+      )}
 
       {/* ── Unified Filter Bar ── */}
       <div className="unified-filter-bar">
@@ -530,7 +668,7 @@ export const OrdersBoard = () => {
           <ChevronLeft size={16} />
         </button>
         <div className="product-checkpoints-strip" ref={checkpointsRef}>
-          {productCheckpoints.map((product) => (
+          {visibleProductBreakdown.map((product) => (
             <button
               key={product.id}
               className={`checkpoint-pill ${filters.productName === (product.id === 'all' ? '' : product.name) ? 'active' : ''}`}
@@ -542,7 +680,8 @@ export const OrdersBoard = () => {
               onClick={() => handleFilterChange('productName', product.id === 'all' ? '' : product.name)}
             >
               <span className="dot" style={{ backgroundColor: product.color }}></span>
-              {product.name}
+              <span className="checkpoint-label">{product.name}</span>
+              <span className="checkpoint-count">{product.count}</span>
             </button>
           ))}
         </div>
@@ -550,6 +689,9 @@ export const OrdersBoard = () => {
           <ChevronRight size={16} />
         </button>
       </div>
+      {isLoadingProductBreakdown && (
+        <div className="product-breakdown-status">Refreshing product-wise order counts...</div>
+      )}
 
       <Card className="table-card liquid-glass" noPadding>
         <div className="orders-table-wrapper desktop-only">
@@ -565,9 +707,9 @@ export const OrdersBoard = () => {
                   />
                 </th>
                 <th className="id-col">Order</th>
-                <th className="date-col">Date</th>
+                <th className="date-col">Timestamp</th>
                 <th className="customer-col">Customer</th>
-                <th className="payment-status-col">Payment</th>
+                <th className="product-col">Product</th>
                 <th className="amount-col">Total</th>
                 <th className="shipping-col">Delivery</th>
                 <th className="items-col">Items</th>
@@ -655,7 +797,15 @@ export const OrdersBoard = () => {
 
               <div className="card-footer-elite">
                 <span className="created-at">
-                  {order.created_at ? new Date(order.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : 'N/A'}
+                  {order.created_at
+                    ? new Date(order.created_at).toLocaleString('en-GB', {
+                        day: '2-digit',
+                        month: 'short',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true
+                      })
+                    : 'N/A'}
                 </span>
                 <div className="footer-actions">
                   <button 

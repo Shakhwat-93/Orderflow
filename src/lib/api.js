@@ -1,3 +1,4 @@
+import { createClient } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 
 /**
@@ -71,6 +72,116 @@ export const api = {
 
   normalizeIpAddress(value = '') {
     return String(value || '').trim().toLowerCase();
+  },
+
+  shouldUseAuthSignupFallback(error) {
+    const message = [
+      error?.message,
+      error?.details,
+      error?.hint,
+      error?.context?.msg
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    return (
+      message.includes('failed to send a request to the edge function') ||
+      message.includes('failed to fetch') ||
+      message.includes('cors') ||
+      message.includes('not found') ||
+      message.includes('requested function was not found')
+    );
+  },
+
+  createIsolatedSignupClient() {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error('Missing Supabase environment variables.');
+    }
+
+    return createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false
+      }
+    });
+  },
+
+  async adminCreateUserViaSignup(userData) {
+    const signupClient = this.createIsolatedSignupClient();
+    const normalizedEmail = String(userData?.email || '').trim().toLowerCase();
+    const displayName = String(userData?.name || normalizedEmail.split('@')[0] || 'Team Member').trim();
+    const roleId = String(userData?.role || 'Call Team').trim() || 'Call Team';
+
+    try {
+      const { data: signupData, error: signupError } = await signupClient.auth.signUp({
+        email: normalizedEmail,
+        password: userData?.password,
+        options: {
+          data: {
+            name: displayName
+          }
+        }
+      });
+
+      if (signupError) throw signupError;
+
+      const createdUser = signupData?.user;
+      if (!createdUser?.id) {
+        throw new Error('User account was not created.');
+      }
+
+      const profilePayload = {
+        id: createdUser.id,
+        name: displayName,
+        email: normalizedEmail,
+        status: 'active'
+      };
+
+      let { error: profileError } = await signupClient
+        .from('users')
+        .upsert(profilePayload, { onConflict: 'id' });
+
+      if (profileError) {
+        const adminProfileWrite = await supabase
+          .from('users')
+          .upsert(profilePayload, { onConflict: 'id' });
+        profileError = adminProfileWrite.error;
+      }
+
+      if (profileError) throw profileError;
+
+      let { error: roleError } = await supabase
+        .from('user_roles')
+        .insert({
+          user_id: createdUser.id,
+          role_id: roleId
+        });
+
+      if (roleError) {
+        const signupRoleWrite = await signupClient
+          .from('user_roles')
+          .insert({
+            user_id: createdUser.id,
+            role_id: roleId
+          });
+        roleError = signupRoleWrite.error;
+      }
+
+      if (roleError) throw roleError;
+
+      return {
+        success: true,
+        user: createdUser,
+        fallbackUsed: true
+      };
+    } finally {
+      await signupClient.auth.signOut();
+    }
   },
 
   async getOrderById(orderId) {
@@ -787,6 +898,110 @@ ${rawText}`;
     return count || 0;
   },
 
+  async getOrderProductBreakdown(filters = {}, limit = 2000) {
+    const batchSize = 1000;
+    const rows = [];
+    let from = 0;
+
+    while (rows.length < limit) {
+      let query = supabase
+        .from('orders')
+        .select('product_name')
+        .order('created_at', { ascending: false })
+        .range(from, from + batchSize - 1);
+
+      if (filters.status && filters.status !== 'All') {
+        query = query.eq('status', filters.status);
+      }
+      if (filters.source && filters.source !== 'All') {
+        query = query.eq('source', filters.source);
+      }
+      if (filters.searchTerm) {
+        query = query.or(`id.ilike.%${filters.searchTerm}%,customer_name.ilike.%${filters.searchTerm}%,phone.ilike.%${filters.searchTerm}%`);
+      }
+      if (filters.dateRange?.start && filters.dateRange?.end) {
+        query = query
+          .gte('created_at', filters.dateRange.start.toISOString())
+          .lte('created_at', filters.dateRange.end.toISOString());
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      const batch = data || [];
+      rows.push(...batch);
+
+      if (batch.length < batchSize) break;
+      from += batchSize;
+    }
+
+    const counts = new Map();
+
+    rows.forEach((row) => {
+      const productName = String(row?.product_name || 'Unknown Product').trim() || 'Unknown Product';
+      counts.set(productName, (counts.get(productName) || 0) + 1);
+    });
+
+    return Array.from(counts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => {
+        if (b.count !== a.count) return b.count - a.count;
+        return a.name.localeCompare(b.name);
+      });
+  },
+
+  async getOrderStatusBreakdown(filters = {}, limit = 2000) {
+    const batchSize = 1000;
+    const rows = [];
+    let from = 0;
+
+    while (rows.length < limit) {
+      let query = supabase
+        .from('orders')
+        .select('status')
+        .order('created_at', { ascending: false })
+        .range(from, from + batchSize - 1);
+
+      if (filters.source && filters.source !== 'All') {
+        query = query.eq('source', filters.source);
+      }
+      if (filters.searchTerm) {
+        query = query.or(`id.ilike.%${filters.searchTerm}%,customer_name.ilike.%${filters.searchTerm}%,phone.ilike.%${filters.searchTerm}%`);
+      }
+      if (filters.productName) {
+        query = query.ilike('product_name', `%${filters.productName}%`);
+      }
+      if (filters.dateRange?.start && filters.dateRange?.end) {
+        query = query
+          .gte('created_at', filters.dateRange.start.toISOString())
+          .lte('created_at', filters.dateRange.end.toISOString());
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      const batch = data || [];
+      rows.push(...batch);
+
+      if (batch.length < batchSize) break;
+      from += batchSize;
+    }
+
+    const counts = new Map();
+
+    rows.forEach((row) => {
+      const status = String(row?.status || 'Unknown').trim() || 'Unknown';
+      counts.set(status, (counts.get(status) || 0) + 1);
+    });
+
+    return Array.from(counts.entries())
+      .map(([status, count]) => ({ status, count }))
+      .sort((a, b) => {
+        if (b.count !== a.count) return b.count - a.count;
+        return a.status.localeCompare(b.status);
+      });
+  },
+
 
 
   /**
@@ -1465,7 +1680,12 @@ ${rawText}`;
 
     console.log("DEBUG: adminCreateUser Response", { data, error });
 
-    if (error) throw error;
+    if (error) {
+      if (this.shouldUseAuthSignupFallback(error)) {
+        return this.adminCreateUserViaSignup(userData);
+      }
+      throw error;
+    }
     if (data?.error) throw new Error(data.error);
 
     return data;
