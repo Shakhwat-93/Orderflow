@@ -11,10 +11,11 @@ import {
   Package,
   Factory,
   Users,
-  MoreHorizontal
+  MoreHorizontal,
+  Download
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import './MobileBottomNav.css';
 
 /**
@@ -23,9 +24,11 @@ import './MobileBottomNav.css';
  * Always shows max 5 tabs (overflow handled by a "More" sheet).
  */
 export const MobileBottomNav = () => {
-  const { hasAnyRole, userRoles } = useAuth();
+  const { hasAnyRole } = useAuth();
   const location = useLocation();
   const [isMoreOpen, setIsMoreOpen] = useState(false);
+  const [installPromptEvent, setInstallPromptEvent] = useState(null);
+  const [isInstalled, setIsInstalled] = useState(false);
 
   const allItems = [
     { path: '/',                label: 'Overview',   icon: LayoutDashboard, roles: null },
@@ -46,6 +49,58 @@ export const MobileBottomNav = () => {
   const visibleItems = allItems.filter(item =>
     !item.roles || hasAnyRole(item.roles)
   );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const standaloneMedia = window.matchMedia?.('(display-mode: standalone)');
+    const updateInstalledState = () => {
+      const standalone = standaloneMedia?.matches || window.navigator.standalone === true;
+      setIsInstalled(Boolean(standalone));
+    };
+
+    const handleBeforeInstallPrompt = (event) => {
+      event.preventDefault();
+      setInstallPromptEvent(event);
+      updateInstalledState();
+    };
+
+    const handleAppInstalled = () => {
+      setIsInstalled(true);
+      setInstallPromptEvent(null);
+      setIsMoreOpen(false);
+    };
+
+    updateInstalledState();
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+    standaloneMedia?.addEventListener?.('change', updateInstalledState);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+      standaloneMedia?.removeEventListener?.('change', updateInstalledState);
+    };
+  }, []);
+
+  const canInstallPwa = Boolean(installPromptEvent) && !isInstalled;
+
+  const handleInstallClick = async () => {
+    if (!installPromptEvent) {
+      return;
+    }
+
+    try {
+      await installPromptEvent.prompt();
+      await installPromptEvent.userChoice;
+    } finally {
+      setInstallPromptEvent(null);
+      setIsMoreOpen(false);
+    }
+  };
 
   // Show first 4 items in bar, rest in "More" sheet
   const primaryItems = visibleItems.slice(0, 4);
@@ -102,7 +157,7 @@ export const MobileBottomNav = () => {
           <div className="mob-more-sheet">
             <div className="mob-more-handle" />
             <p className="mob-more-title">More Sections</p>
-            <div className="mob-more-grid">
+            <div className="mob-more-grid has-install">
               {overflowItems.map((item) => {
                 const Icon = item.icon;
                 const active = isActive(item.path);
@@ -120,6 +175,18 @@ export const MobileBottomNav = () => {
                   </Link>
                 );
               })}
+              <button
+                type="button"
+                className={`mob-more-item mob-more-install ${canInstallPwa ? 'install-ready' : ''} ${isInstalled ? 'is-installed' : ''}`}
+                onClick={handleInstallClick}
+                disabled={!canInstallPwa}
+                title={isInstalled ? 'App installed' : canInstallPwa ? 'Install app' : 'Install not available yet'}
+              >
+                <div className="mob-more-icon-box mob-more-icon-box-install">
+                  <Download size={20} strokeWidth={2.2} />
+                </div>
+                <span>{isInstalled ? 'Installed' : 'Install App'}</span>
+              </button>
             </div>
           </div>
         </>

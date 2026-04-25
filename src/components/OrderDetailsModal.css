@@ -103,11 +103,34 @@
 
 /* ── Notes Box ── */
 .order-notes-box { background: rgba(245,158,11,0.06); border-left: 3px solid #f59e0b; padding: 11px 14px; border-radius: 0 8px 8px 0; }
+.order-notes-box.prominent { margin-top: 10px; }
 .notes-label { font-size: 0.65rem; text-transform: uppercase; font-weight: 700; color: #b45309; letter-spacing: 0.06em; }
-.order-notes-box p { margin: 4px 0 0; font-size: 0.82rem; font-weight: 500; line-height: 1.5; color: #92400e; }
+.order-notes-box p { margin: 4px 0 0; font-size: 0.82rem; font-weight: 500; line-height: 1.5; color: #92400e; white-space: pre-line; }
 [data-theme='dark'] .order-notes-box { background: rgba(251,191,36,0.06); border-left-color: #fbbf24; }
 [data-theme='dark'] .notes-label { color: #fbbf24; }
 [data-theme='dark'] .order-notes-box p { color: #fcd34d; }
+
+.order-note-editor { display: flex; flex-direction: column; gap: 10px; }
+.order-note-textarea {
+  width: 100%;
+  min-height: 108px;
+  resize: vertical;
+  border: 1px solid var(--m-btn-border);
+  border-radius: 10px;
+  background: var(--m-bg);
+  color: var(--m-text);
+  font: inherit;
+  font-size: 0.84rem;
+  line-height: 1.55;
+  padding: 12px 13px;
+  outline: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.order-note-textarea:focus {
+  border-color: var(--m-accent);
+  box-shadow: 0 0 0 3px var(--m-accent-bg);
+}
+.order-note-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 
 /* ── Logistics Grid ── */
 .logistics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }

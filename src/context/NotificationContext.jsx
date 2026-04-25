@@ -133,6 +133,22 @@ export const NotificationProvider = ({ children }) => {
     }, 5000);
   }, [playNotificationSound, showBrowserNotification]);
 
+  const buildExternalOrderNotification = useCallback((order) => ({
+    id: `order-${order.id}`,
+    type: 'ORDER_CREATED',
+    title: 'New Order Received',
+    message: `Order #${order.id} for ${order.customer_name || 'Unknown Customer'} has been placed via ${order.source || 'Website'}.`,
+    actor_name: order.source || 'Landing Page',
+    is_read: false,
+    created_at: order.created_at || new Date().toISOString(),
+    data: {
+      orderId: order.id,
+      customer: order.customer_name || 'Unknown Customer',
+      source: order.source || 'Website',
+      shippingZone: order.shipping_zone || null
+    }
+  }), []);
+
   const fetchNotifications = useCallback(async () => {
     if (!userId) return;
     setLoading(true);
@@ -252,10 +268,43 @@ export const NotificationProvider = ({ children }) => {
       )
       .subscribe();
 
+    const externalOrderChannel = supabase
+      .channel('external_order_notifications')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'orders' },
+        (payload) => {
+          const order = payload.new;
+
+          // In-app order creation already creates a persisted notification.
+          // This fallback only covers direct landing-page inserts.
+          if (order?.created_by) return;
+
+          const clearedAt = localStorage.getItem('notifs_cleared_at');
+          const createdAt = order?.created_at || new Date().toISOString();
+          if (clearedAt && new Date(createdAt) <= new Date(clearedAt)) return;
+
+          const notif = buildExternalOrderNotification(order);
+
+          setNotifications((prev) => {
+            const alreadyExists = prev.some((item) =>
+              item.id === notif.id ||
+              (item.type === 'ORDER_CREATED' && item.data?.orderId === order.id)
+            );
+            if (alreadyExists) return prev;
+            addToast(notif);
+            setUnreadCount((count) => count + 1);
+            return [notif, ...prev];
+          });
+        }
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(externalOrderChannel);
     };
-  }, [addToast, fetchNotifications, userId]);
+  }, [addToast, buildExternalOrderNotification, fetchNotifications, userId]);
 
   const markAsRead = async (id) => {
     try {

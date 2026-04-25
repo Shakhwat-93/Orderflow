@@ -55,6 +55,76 @@
   max-width: 180px;
 }
 
+.customer-cell-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.customer-quick-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.customer-phone-text {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.customer-quick-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.customer-quick-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(148, 163, 184, 0.08);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  text-decoration: none;
+}
+
+.customer-quick-btn:hover {
+  background: rgba(99, 102, 241, 0.1);
+  border-color: rgba(99, 102, 241, 0.22);
+  color: var(--text-primary);
+}
+
+.customer-quick-btn.whatsapp:hover {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.24);
+  color: #16a34a;
+}
+
+.customer-quick-btn.copied {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.22);
+  color: #059669;
+}
+
+.customer-quick-btn:disabled,
+.customer-quick-btn[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 /* SAAS BADGE SYSTEM */
 .saas-badge {
   display: inline-flex;
@@ -265,4 +335,7 @@
     padding-top: 12px !important;
   }
   .order-row .actions-cell::before { content: "Action"; justify-self: flex-start; }
+  .customer-cell-stack { align-items: flex-end; }
+  .customer-quick-row { justify-content: flex-end; }
+  .customer-phone-text { max-width: 130px; text-align: right; }
 }

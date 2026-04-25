@@ -277,7 +277,12 @@
   .card-body-elite { display: flex; flex-direction: column; gap: 12px; }
   .customer-primary-box { margin-bottom: 2px; }
   .customer-name-large { font-size: 1rem; font-weight: 700; color: var(--ob-text); margin: 0 0 5px; letter-spacing: -0.01em; }
-  .phone-row { display: flex; align-items: center; gap: 7px; font-size: 0.82rem; color: var(--ob-text-sub); font-weight: 500; }
+  .phone-row { display: flex; align-items: center; gap: 7px; font-size: 0.82rem; color: var(--ob-text-sub); font-weight: 500; flex-wrap: wrap; }
+  .phone-quick-actions { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+  .phone-quick-btn { width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; border: 1px solid var(--ob-btn-border); background: var(--ob-btn-bg); color: var(--ob-text-sub); cursor: pointer; text-decoration: none; transition: all 0.18s ease; flex-shrink: 0; }
+  .phone-quick-btn:hover { background: var(--ob-card-hover); color: var(--ob-text); }
+  .phone-quick-btn.whatsapp:hover { color: #16a34a; border-color: rgba(34, 197, 94, 0.24); background: rgba(34, 197, 94, 0.1); }
+  .phone-quick-btn[aria-disabled='true'] { opacity: 0.45; pointer-events: none; }
   .details-grid-elite { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: var(--ob-btn-bg); padding: 12px; border-radius: 10px; border: 1px solid var(--ob-border-row); }
   .detail-box-elite { display: flex; flex-direction: column; gap: 3px; }
   .detail-label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ob-text-muted); }

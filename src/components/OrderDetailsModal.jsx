@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Modal } from './Modal';
 import { Badge } from './Badge';
 import { Button } from './Button';
+import { useAuth } from '../context/AuthContext';
 import { 
   User, Phone, MapPin, Package, Calendar, Clock, 
   History, Edit2, X, Clipboard, Copy, ExternalLink, 
@@ -15,7 +16,11 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
   const [activityLogs, setActivityLogs] = useState([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const [copiedSummary, setCopiedSummary] = useState(false);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [savedNotesOverride, setSavedNotesOverride] = useState(null);
+  const [isSavingNote, setIsSavingNote] = useState(false);
   const copyTimeoutRef = useRef(null);
+  const { user, profile, userRoles } = useAuth();
 
   useEffect(() => {
     if (isOpen && order?.id) {
@@ -48,6 +53,11 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
         setActivityLogs([]);
     }
   }, [isOpen, order?.id]);
+
+  useEffect(() => {
+    setNoteDraft(String(order?.notes || ''));
+    setSavedNotesOverride(null);
+  }, [order?.id, order?.notes, isOpen]);
 
   useEffect(() => () => {
     if (copyTimeoutRef.current) {
@@ -82,6 +92,8 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
     : order.ip_address
       ? String(order.ip_address)
       : '';
+
+  const visibleNotes = savedNotesOverride ?? order.notes ?? '';
 
   const orderDateTime = order.created_at
     ? new Date(order.created_at).toLocaleString('en-GB', {
@@ -141,6 +153,30 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
     copyTimeoutRef.current = window.setTimeout(() => {
       setCopiedSummary(false);
     }, 1800);
+  };
+
+  const saveOrderNote = async () => {
+    if (!order?.id || !user?.id) return;
+    const trimmedNote = String(noteDraft || '').trim();
+
+    setIsSavingNote(true);
+    try {
+      const updatedOrder = await api.appendOrderNote(
+        order.id,
+        trimmedNote,
+        user.id,
+        profile?.name || user?.email || 'Unknown User',
+        userRoles,
+        'Order Note'
+      );
+      setSavedNotesOverride(updatedOrder?.notes || '');
+      setNoteDraft(updatedOrder?.notes || '');
+    } catch (error) {
+      console.error('Failed to save order note:', error);
+      alert(error.message || 'Failed to save note.');
+    } finally {
+      setIsSavingNote(false);
+    }
   };
 
   return (
@@ -252,6 +288,42 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
                     <span>{order.address}</span>
                   </div>
                 </div>
+                <div className="info-item vertical">
+                  <span className="info-label">Order Note</span>
+                  <div className="order-note-editor">
+                    <textarea
+                      className="order-note-textarea"
+                      value={noteDraft}
+                      onChange={(e) => setNoteDraft(e.target.value)}
+                      placeholder="Add or update a single important call note for this order"
+                      rows={4}
+                    />
+                    <div className="order-note-actions">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setNoteDraft(String(visibleNotes || ''))}
+                        disabled={isSavingNote}
+                      >
+                        Reset
+                      </Button>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={saveOrderNote}
+                        disabled={isSavingNote || noteDraft === String(visibleNotes || '')}
+                      >
+                        {isSavingNote ? 'Saving...' : 'Save Note'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                {visibleNotes && (
+                  <div className="order-notes-box prominent">
+                    <span className="notes-label">Current Note:</span>
+                    <p>{visibleNotes}</p>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -297,12 +369,6 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
                   </div>
                 )}
               </div>
-              {order.notes && (
-                <div className="order-notes-box">
-                  <span className="notes-label">Internal Notes:</span>
-                  <p>{order.notes}</p>
-                </div>
-              )}
             </div>
           </div>
 

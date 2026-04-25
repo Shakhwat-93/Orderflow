@@ -171,6 +171,10 @@
     gap: 12px;
   }
 
+  .mob-more-grid.has-install {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
   .mob-more-item {
     display: flex;
     flex-direction: column;
@@ -180,6 +184,15 @@
     color: var(--text-secondary, #64748b);
     -webkit-tap-highlight-color: transparent;
     transition: color 0.2s, transform 0.15s;
+  }
+
+  button.mob-more-item {
+    appearance: none;
+    background: transparent;
+    border: none;
+    padding: 0;
+    font: inherit;
+    cursor: pointer;
   }
 
   .mob-more-item:active {
@@ -215,6 +228,39 @@
     font-weight: 700;
     text-align: center;
     line-height: 1.2;
+  }
+
+  .mob-more-install {
+    color: var(--text-secondary, #64748b);
+  }
+
+  .mob-more-install.install-ready {
+    color: var(--accent, #6366f1);
+  }
+
+  .mob-more-install.is-installed {
+    color: var(--sb-nav-glow, #22c55e);
+  }
+
+  .mob-more-install:disabled {
+    opacity: 0.72;
+    cursor: not-allowed;
+  }
+
+  .mob-more-icon-box-install {
+    background: linear-gradient(180deg, rgba(99, 102, 241, 0.14), rgba(99, 102, 241, 0.08));
+    border: 1px solid rgba(99, 102, 241, 0.14);
+  }
+
+  .mob-more-install.install-ready .mob-more-icon-box-install {
+    box-shadow: 0 10px 22px rgba(99, 102, 241, 0.18);
+    background: linear-gradient(180deg, rgba(99, 102, 241, 0.2), rgba(99, 102, 241, 0.1));
+  }
+
+  .mob-more-install.is-installed .mob-more-icon-box-install {
+    background: color-mix(in srgb, var(--sb-nav-glow, #22c55e) 16%, transparent);
+    border-color: color-mix(in srgb, var(--sb-nav-glow, #22c55e) 30%, transparent);
+    box-shadow: 0 8px 20px color-mix(in srgb, var(--sb-nav-glow, #22c55e) 18%, transparent);
   }
 
   /* ── Bottom padding for page content to clear the nav ── */

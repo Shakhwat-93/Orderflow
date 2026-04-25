@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+﻿import { useState, useEffect, useMemo } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { OrderEditModal } from '../components/OrderEditModal';
 import { OrderDetailsModal } from '../components/OrderDetailsModal';
@@ -13,6 +13,8 @@ import { useCourierRatio } from '../context/CourierRatioContext';
 import api from '../lib/api';
 import { deserializeDateRange, usePersistentState } from '../utils/persistentState';
 import { getProductOptions } from '../utils/productCatalog';
+import CurrencyIcon from '../components/CurrencyIcon';
+import { Modal } from '../components/Modal';
 import './CallTeamPanel.css';
 
 const STATUS_OPTIONS = ['ALL ORDERS', 'NEW', 'PENDING', 'CONFIRMED', 'CANCELLED'];
@@ -21,6 +23,34 @@ const QUICK_CALL_STATUSES = [
   { id: 'not-pick', label: 'Not Pick', logLabel: 'Not Pick', icon: PhoneMissed, tone: 'not-pick' },
   { id: 'hold', label: 'Hold', logLabel: 'On Hold', icon: PauseCircle, tone: 'hold' }
 ];
+
+const ACTION_NOTE_CONFIG = {
+  confirm: {
+    title: 'Confirm Order',
+    actionLabel: 'Confirmed',
+    placeholder: 'Example: Customer confirmed. Requested delivery after 7 PM.'
+  },
+  cancel: {
+    title: 'Cancel Order',
+    actionLabel: 'Cancelled',
+    placeholder: 'Example: Customer cancelled. Ordered by mistake.'
+  },
+  busy: {
+    title: 'Mark Busy',
+    actionLabel: 'Busy',
+    placeholder: 'Example: Customer was busy. Asked to call again in 20 minutes.'
+  },
+  'not-pick': {
+    title: 'Mark Not Pick',
+    actionLabel: 'Not Pick',
+    placeholder: 'Example: No answer. Try again after 30 minutes.'
+  },
+  hold: {
+    title: 'Put On Hold',
+    actionLabel: 'On Hold',
+    placeholder: 'Example: Customer asked for callback tomorrow morning.'
+  }
+};
 
 export const CallTeamPanel = () => {
   const { orders, stats, inventory, updateOrderStatus, fetchOrders } = useOrders();
@@ -45,9 +75,20 @@ export const CallTeamPanel = () => {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [loggingAttemptId, setLoggingAttemptId] = useState(null);
+  const [pendingNoteAction, setPendingNoteAction] = useState(null);
+  const [actionNote, setActionNote] = useState('');
+  const [isSubmittingAction, setIsSubmittingAction] = useState(false);
   
   // Globabl Ratio Cache & Auto-fetch
   const { ratios, checkPhone } = useCourierRatio();
+
+  useEffect(() => {
+    if (!selectedOrder?.id) return;
+    const latestSelectedOrder = orders.find((order) => order.id === selectedOrder.id);
+    if (latestSelectedOrder && latestSelectedOrder !== selectedOrder) {
+      setSelectedOrder(latestSelectedOrder);
+    }
+  }, [orders, selectedOrder]);
 
   const handleOpenEditModal = (order) => {
     setSelectedOrder(order);
@@ -59,10 +100,10 @@ export const CallTeamPanel = () => {
     setIsDetailsModalOpen(true);
   };
 
-  const handleLogAttempt = async (orderId, attemptStatus) => {
+  const handleLogAttempt = async (orderId, attemptStatus, noteText = '') => {
     setLoggingAttemptId(orderId);
     try {
-      await api.logCallAttempt(orderId, attemptStatus, user.id, profile?.name || 'Call Team', userRoles);
+      await api.logCallAttempt(orderId, attemptStatus, user.id, profile?.name || 'Call Team', userRoles, noteText);
       if (fetchOrders) await fetchOrders();
     } catch (err) {
       console.error('Failed to log attempt:', err);
@@ -133,15 +174,70 @@ export const CallTeamPanel = () => {
     ? stats.confirmedTodayCount
     : orders.filter(o => o.status === 'Confirmed' && new Date(o.updated_at || o.created_at).toDateString() === new Date().toDateString()).length;
 
-  const handleAction = async (e, orderId, action) => {
+  const closeActionNoteModal = (force = false) => {
+    if (isSubmittingAction && !force) return;
+    setPendingNoteAction(null);
+    setActionNote('');
+  };
+
+  const getLatestNotePreview = (notesValue) => {
+    const notes = String(notesValue || '').trim();
+    if (!notes) return '';
+    const [latestBlock] = notes.split(/\n\s*\n/);
+    const lines = latestBlock
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (lines.length <= 1) return lines[0] || '';
+    return lines.slice(1).join(' ');
+  };
+
+  const openActionNoteModal = (e, order, action) => {
     e.stopPropagation();
-    switch (action) {
-      case 'confirm': await updateOrderStatus(orderId, 'Confirmed'); break;
-      case 'cancel': await updateOrderStatus(orderId, 'Cancelled'); break;
-      case 'busy': await handleLogAttempt(orderId, 'Busy'); break;
-      case 'not-pick': await handleLogAttempt(orderId, 'Not Pick'); break;
-      case 'hold': await handleLogAttempt(orderId, 'On Hold'); break;
-      default: break;
+    const actionMeta = ACTION_NOTE_CONFIG[action];
+    if (!actionMeta) return;
+
+    setPendingNoteAction({
+      orderId: order.id,
+      customerName: order.customer_name || 'Unknown Customer',
+      action,
+      ...actionMeta
+    });
+    setActionNote('');
+  };
+
+  const submitActionWithNote = async () => {
+    if (!pendingNoteAction || !actionNote.trim()) return;
+
+    setIsSubmittingAction(true);
+    try {
+      switch (pendingNoteAction.action) {
+        case 'confirm':
+          await updateOrderStatus(pendingNoteAction.orderId, 'Confirmed', actionNote);
+          break;
+        case 'cancel':
+          await updateOrderStatus(pendingNoteAction.orderId, 'Cancelled', actionNote);
+          break;
+        case 'busy':
+          await handleLogAttempt(pendingNoteAction.orderId, 'Busy', actionNote);
+          break;
+        case 'not-pick':
+          await handleLogAttempt(pendingNoteAction.orderId, 'Not Pick', actionNote);
+          break;
+        case 'hold':
+          await handleLogAttempt(pendingNoteAction.orderId, 'On Hold', actionNote);
+          break;
+        default:
+          break;
+      }
+
+      if (fetchOrders) await fetchOrders();
+      closeActionNoteModal(true);
+    } catch (error) {
+      console.error('Failed to save call action note:', error);
+      alert(error.message || 'Failed to save note and update status.');
+    } finally {
+      setIsSubmittingAction(false);
     }
   };
 
@@ -162,7 +258,7 @@ export const CallTeamPanel = () => {
   return (
     <div className="call-team-panel">
       
-      {/* ── 1. Top Header Row ── */}
+      {/* â”€â”€ 1. Top Header Row â”€â”€ */}
       <div className="elite-header-wrapper">
         <div className="elite-header-titles">
           <h1>Call Operations</h1>
@@ -188,7 +284,7 @@ export const CallTeamPanel = () => {
         </div>
       </div>
 
-      {/* ── 2. Metric Cards Row ── */}
+      {/* â”€â”€ 2. Metric Cards Row â”€â”€ */}
       <div className="elite-metrics-grid">
         
         {/* Performance Card */}
@@ -233,7 +329,7 @@ export const CallTeamPanel = () => {
 
       </div>
 
-      {/* ── 3. Pill Filter Row ── */}
+      {/* â”€â”€ 3. Pill Filter Row â”€â”€ */}
       <div className="elite-filter-row">
         <div className="elite-pill-tabs">
           {STATUS_OPTIONS.map(tab => (
@@ -263,7 +359,7 @@ export const CallTeamPanel = () => {
         </div>
       </div>
 
-      {/* ── 4. Premium Card List ── */}
+      {/* â”€â”€ 4. Premium Card List â”€â”€ */}
       <div className="elite-list-container">
         <div className="elite-list-headers">
           <div>ORDER #</div>
@@ -290,24 +386,38 @@ export const CallTeamPanel = () => {
             const successRatio = rt.ratio !== undefined ? rt.ratio : (order.phone ? '...' : '0');
             const showTrust = rt.fetched && rt.total > 0;
             const trustClass = successRatio > 70 ? 'high' : successRatio > 40 ? 'neutral' : 'low';
+            const isActionable = order.status === 'New' || order.status === 'Pending Call';
+            const latestNotePreview = getLatestNotePreview(order.notes);
+            const orderCreatedLabel = order.created_at
+              ? new Date(order.created_at).toLocaleString('en-GB', {
+                  day: '2-digit',
+                  month: 'short',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  hour12: true
+                })
+              : 'N/A';
 
             // Status Badge Formatting
             let statusPill = 'neutral';
             if (order.status === 'New') statusPill = 'pending';
             if (order.status === 'Pending Call') statusPill = 'active';
+            if (order.status === 'Confirmed') statusPill = 'confirmed';
             if (order.status === 'Cancelled') statusPill = 'urgent';
 
             return (
               <div key={order.id} className="elite-list-card" onClick={() => handleRowClick(order)}>
                 
                 <div className="elite-col-order">
-                  #{order.id.replace('ORD-', '')}
+                  <span className="elite-order-code">#{order.id.replace('ORD-', '')}</span>
+                  <span className="elite-order-time">{orderCreatedLabel}</span>
                 </div>
 
                 <div className="elite-col-customer">
                   <div className="elite-avatar">{getInitials(order.customer_name)}</div>
                   <div className="elite-cust-info">
                     <span className="elite-cust-name">{order.customer_name}</span>
+                    <span className="elite-cust-phone">{order.phone || 'No phone'}</span>
                     <div className="elite-cust-meta-row">
                       <span className={`elite-trust-badge ${trustClass}`}>
                         <Zap size={10} strokeWidth={3} /> {showTrust ? `${successRatio}% SUCCESS` : 'NEW LEAD'}
@@ -318,16 +428,27 @@ export const CallTeamPanel = () => {
                         </span>
                       )}
                     </div>
+                    {latestNotePreview && (
+                      <div className="elite-note-preview" title={latestNotePreview}>
+                        {latestNotePreview}
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 <div className="elite-col-product">
-                  <span className="elite-prod-name">{order.product_name || 'Premium Item'}</span>
-                  <span className="elite-prod-meta">{order.size ? `Variant: ${order.size}` : `Qty: ${order.quantity || 1} Units`}</span>
+                  <span className="elite-prod-name">{order.product_name || 'Unknown Product'}</span>
+                  <span className="elite-prod-meta">
+                    {order.size ? `Size: ${order.size}` : `Qty: ${order.quantity || 1}`} • {order.source || 'Direct'}
+                  </span>
                 </div>
 
                 <div className="elite-col-amount">
-                  ${Number(order.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  <span className="elite-amount-value">
+                    <CurrencyIcon size={13} className="currency-icon-elite" />
+                    {Number(order.amount || 0).toLocaleString()}
+                  </span>
+                  <span className="elite-amount-meta">{order.shipping_zone || 'Delivery pending'}</span>
                 </div>
 
                 <div className="elite-col-status status-col">
@@ -346,9 +467,9 @@ export const CallTeamPanel = () => {
                 </div>
 
                 <div className="elite-col-actions">
-                  {(order.status === 'New' || order.status === 'Pending Call') && (
+                  {isActionable && (
                     <div className="elite-action-dock">
-                      <button className="elite-btn-primary" onClick={(e) => handleAction(e, order.id, 'confirm')}>
+                      <button className="elite-btn-primary" onClick={(e) => openActionNoteModal(e, order, 'confirm')}>
                         <CheckCircle size={14} /> Confirm Order
                       </button>
                       <div className="elite-action-grid">
@@ -360,7 +481,7 @@ export const CallTeamPanel = () => {
                               key={item.id}
                               className={`elite-quick-chip ${item.tone} ${isLoading ? 'loading' : ''}`}
                               title={item.label}
-                              onClick={(e) => handleAction(e, order.id, item.id)}
+                              onClick={(e) => openActionNoteModal(e, order, item.id)}
                               disabled={isLoading}
                               style={{ opacity: isLoading ? 0.7 : 1, cursor: isLoading ? 'wait' : 'pointer' }}
                             >
@@ -372,7 +493,7 @@ export const CallTeamPanel = () => {
                         <button
                           className="elite-quick-chip cancel"
                           title="Cancel Order"
-                          onClick={(e) => handleAction(e, order.id, 'cancel')}
+                          onClick={(e) => openActionNoteModal(e, order, 'cancel')}
                         >
                           <XCircle size={12} />
                           <span>Cancel</span>
@@ -382,30 +503,31 @@ export const CallTeamPanel = () => {
                   )}
 
                   {order.status === 'Confirmed' && (
-                     <button className="elite-icon-btn" style={{opacity: 0.5}} onClick={(e) => { e.stopPropagation(); handleOpenEditModal(order); }}>
+                     <button className="elite-icon-btn edit-order-btn" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(order); }}>
                        <Edit2 size={14} />
                      </button>
                   )}
                 </div>
 
-                {/* ══ MOBILE CARD LAYOUT (hidden on desktop via CSS) ══ */}
+                {/* â•â• MOBILE CARD LAYOUT (hidden on desktop via CSS) â•â• */}
                 <div className="mob-card-top">
                   <div className="elite-avatar">{getInitials(order.customer_name)}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
-                      <span className="elite-cust-name" style={{ fontSize: 15 }}>{order.customer_name}</span>
-                      <span style={{ fontWeight: 800, fontSize: 15, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-                        ৳{Number(order.amount || 0).toLocaleString()}
+                  <div className="mob-card-head">
+                    <div className="mob-card-title-row">
+                      <span className="elite-cust-name mob-cust-name">{order.customer_name}</span>
+                      <span className="mob-card-amount">
+                        <CurrencyIcon size={13} className="currency-icon-elite" />
+                        {Number(order.amount || 0).toLocaleString()}
                       </span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                      <span className={`elite-status-pill ${statusPill}`} style={{ fontSize: 10 }}>{order.status}</span>
+                    <div className="mob-card-status-row">
+                      <span className={`elite-status-pill ${statusPill} compact`}>{order.status}</span>
                       {order.last_call_status && !['Confirmed', 'Cancelled'].includes(order.status) && (
                         <span className={`elite-call-pill ${getCallStatusTone(order.last_call_status)}`}>
                           {order.last_call_status}
                         </span>
                       )}
-                      <span className={`elite-trust-badge ${trustClass}`} style={{ marginLeft: 'auto' }}>
+                      <span className={`elite-trust-badge ${trustClass} mob-trust-badge`}>
                         <Zap size={9} strokeWidth={3} /> {showTrust ? `${successRatio}%` : 'NEW'}
                       </span>
                     </div>
@@ -414,16 +536,16 @@ export const CallTeamPanel = () => {
 
                 <div className="mob-card-body">
                   <div className="mob-card-product">
-                    {order.product_name || 'Premium Item'}
-                    <span style={{ color: 'var(--text-tertiary)', marginLeft: 6, fontSize: 12 }}>
-                      · {order.size ? `Size: ${order.size}` : `Qty: ${order.quantity || 1}`}
+                    {order.product_name || 'Unknown Product'}
+                    <span className="mob-card-product-meta">
+                      • {order.size ? `Size: ${order.size}` : `Qty: ${order.quantity || 1}`} • {order.source || 'Direct'}
                     </span>
                   </div>
                   <div className="mob-card-meta">
-                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-tertiary)' }}>
-                      #{order.id.replace('ORD-', '')}
+                    <span className="mob-order-meta">
+                      #{order.id.replace('ORD-', '')} • {orderCreatedLabel}
                     </span>
-                    <span className={`elite-col-sla ${slaClass}`} style={{ fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span className={`elite-col-sla ${slaClass} mob-sla`}>
                       {slaIcon} {order.status === 'Confirmed' ? 'COMPLETED' : slaText}
                     </span>
                     {order.last_call_at && (
@@ -434,10 +556,10 @@ export const CallTeamPanel = () => {
                   </div>
                 </div>
 
-                {(order.status === 'New' || order.status === 'Pending Call') && (
+                {isActionable && (
                   <div className="mob-card-actions" onClick={(e) => e.stopPropagation()}>
                     <div className="elite-action-dock">
-                      <button className="elite-btn-primary" onClick={(e) => handleAction(e, order.id, 'confirm')}>
+                      <button className="elite-btn-primary" onClick={(e) => openActionNoteModal(e, order, 'confirm')}>
                         <CheckCircle size={15} /> Confirm Order
                       </button>
                       <div className="elite-action-grid">
@@ -448,7 +570,7 @@ export const CallTeamPanel = () => {
                             <button
                               key={item.id}
                               className={`elite-quick-chip ${item.tone}`}
-                              onClick={(e) => handleAction(e, order.id, item.id)}
+                              onClick={(e) => openActionNoteModal(e, order, item.id)}
                               disabled={isLoading}
                               style={{ opacity: isLoading ? 0.7 : 1 }}
                             >
@@ -457,7 +579,7 @@ export const CallTeamPanel = () => {
                             </button>
                           );
                         })}
-                        <button className="elite-quick-chip cancel" onClick={(e) => handleAction(e, order.id, 'cancel')}>
+                        <button className="elite-quick-chip cancel" onClick={(e) => openActionNoteModal(e, order, 'cancel')}>
                           <XCircle size={13} /><span>Cancel</span>
                         </button>
                       </div>
@@ -489,7 +611,7 @@ export const CallTeamPanel = () => {
         </div>
       </div>
 
-      {/* ── 5. Footer Pagination ── */}
+      {/* â”€â”€ 5. Footer Pagination â”€â”€ */}
       {filteredOrders.length > 0 && (
         <div className="elite-pagination-footer">
           <div className="elite-pagination-stats">
@@ -518,6 +640,47 @@ export const CallTeamPanel = () => {
         order={selectedOrder}
         onEdit={handleOpenEditModal}
       />
+
+      <Modal
+        isOpen={Boolean(pendingNoteAction)}
+        onClose={closeActionNoteModal}
+        title={pendingNoteAction ? pendingNoteAction.title : 'Add Note'}
+        subtitle={pendingNoteAction ? `${pendingNoteAction.customerName} • #${pendingNoteAction.orderId.replace('ORD-', '')}` : ''}
+      >
+        <div className="call-action-note-modal">
+          <label className="call-action-note-label" htmlFor="call-action-note">
+            Save this note with the order before updating the call status.
+          </label>
+          <textarea
+            id="call-action-note"
+            className="call-action-note-input"
+            value={actionNote}
+            onChange={(e) => setActionNote(e.target.value)}
+            placeholder={pendingNoteAction?.placeholder || 'Write an important customer note'}
+            rows={5}
+            autoFocus
+          />
+          <div className="call-action-note-footer">
+            <button
+              type="button"
+              className="call-note-btn secondary"
+              onClick={closeActionNoteModal}
+              disabled={isSubmittingAction}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="call-note-btn primary"
+              onClick={submitActionWithNote}
+              disabled={isSubmittingAction || !actionNote.trim()}
+            >
+              {isSubmittingAction ? 'Saving...' : `Save & ${pendingNoteAction?.title || 'Update'}`}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
+

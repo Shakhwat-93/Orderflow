@@ -229,7 +229,7 @@ export const OrderProvider = ({ children }) => {
     setTimeout(() => fetchOrders(1), 0);
   }, [fetchOrders]);
 
-  const updateOrderStatus = async (orderId, newStatus) => {
+  const updateOrderStatus = async (orderId, newStatus, noteText = '') => {
     const currentUserName = profile?.name || user?.user_metadata?.full_name || user?.email || 'Unknown User';
     const order = orders.find(o => o.id === orderId);
     const oldStatus = order?.status;
@@ -237,7 +237,13 @@ export const OrderProvider = ({ children }) => {
     setOrders(prev => prev.map(order => order.id === orderId ? { ...order, status: newStatus } : order));
 
     try {
-      await api.changeOrderStatus(orderId, newStatus, user?.id, currentUserName, userRoles);
+      const updatedOrder = await api.changeOrderStatus(orderId, newStatus, user?.id, currentUserName, userRoles, noteText);
+
+      if (updatedOrder?.id) {
+        setOrders(prev => prev.map(existingOrder => (
+          existingOrder.id === orderId ? { ...existingOrder, ...updatedOrder } : existingOrder
+        )));
+      }
 
       // Auto stock deduction on confirmation
       if ((newStatus === 'Confirmed' || newStatus === 'Factory Processing') &&
@@ -248,9 +254,11 @@ export const OrderProvider = ({ children }) => {
       }
 
       fetchStats();
+      return updatedOrder;
     } catch (error) {
       console.error('Update status error:', error);
       fetchOrders();
+      throw error;
     }
   };
 
@@ -372,15 +380,17 @@ export const OrderProvider = ({ children }) => {
 
     try {
       // Notify before deletion to ensure we have data
-      /* 
-      await api.createNotification({
-        type: 'ORDER_DELETED',
-        title: 'Order Deleted',
-        message: `Order #${orderId} (${order?.customer_name || 'N/A'}) was permanently removed.`,
-        data: { orderId, customer: order?.customer_name },
-        actor_name: currentUserName
-      });
-      */
+      try {
+        await api.createNotification({
+          type: 'ORDER_DELETED',
+          title: 'Order Deleted',
+          message: `Order #${orderId} (${order?.customer_name || 'N/A'}) was permanently removed.`,
+          data: { orderId, customer: order?.customer_name },
+          actor_name: currentUserName
+        });
+      } catch (notificationError) {
+        console.error('Order deletion notification failed:', notificationError);
+      }
 
       const { error } = await supabase
         .from('orders')

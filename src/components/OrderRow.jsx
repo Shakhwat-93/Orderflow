@@ -1,8 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import ReactDOM from 'react-dom';
-import { Badge } from './Badge';
-import { FileText, MessageSquare, ChevronDown, Clock, AlertTriangle } from 'lucide-react';
+import { FileText, Clock, AlertTriangle, Phone, Copy, MessageCircle, Edit2 } from 'lucide-react';
 import CurrencyIcon from './CurrencyIcon';
 import './OrderRow.css';
 
@@ -32,6 +31,8 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const stopRowClick = (e) => e.stopPropagation();
 
   const getStatusBadgeVariant = (status) => {
     switch (status) {
@@ -63,6 +64,14 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
     : 'N/A';
 
   const productName = String(order.product_name || 'Unknown Product').trim() || 'Unknown Product';
+  const rawPhone = String(order.phone || '').trim();
+  const normalizedPhone = rawPhone.replace(/\D/g, '');
+  const whatsappPhone = normalizedPhone.startsWith('880')
+    ? normalizedPhone
+    : normalizedPhone.startsWith('0')
+      ? `88${normalizedPhone}`
+      : normalizedPhone;
+  const whatsappLink = whatsappPhone ? `https://wa.me/${whatsappPhone}` : null;
 
   return (
     <motion.tr 
@@ -91,7 +100,43 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
       </td>
 
       <td className="customer-cell">
-        <span className="saas-text-dark">{order.customer_name}</span>
+        <div className="customer-cell-stack">
+          <span className="saas-text-dark">{order.customer_name}</span>
+          <div className="customer-quick-row">
+            <span className="customer-phone-text">{rawPhone || 'No phone'}</span>
+            <div className="customer-quick-actions" onClick={stopRowClick}>
+              <button
+                type="button"
+                className={`customer-quick-btn ${copied ? 'copied' : ''}`}
+                title={copied ? 'Copied' : 'Copy phone'}
+                onClick={(e) => handleCopy(e, rawPhone)}
+                disabled={!rawPhone}
+              >
+                <Copy size={12} />
+              </button>
+              <a
+                href={rawPhone ? `tel:${rawPhone}` : undefined}
+                className="customer-quick-btn"
+                title="Call customer"
+                onClick={stopRowClick}
+                aria-disabled={!rawPhone}
+              >
+                <Phone size={12} />
+              </a>
+              <a
+                href={whatsappLink || undefined}
+                target="_blank"
+                rel="noreferrer"
+                className="customer-quick-btn whatsapp"
+                title="Open WhatsApp"
+                onClick={stopRowClick}
+                aria-disabled={!whatsappLink}
+              >
+                <MessageCircle size={12} />
+              </a>
+            </div>
+          </div>
+        </div>
       </td>
 
       <td className="product-cell">
@@ -160,8 +205,8 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
           <button className="saas-icon-btn" title="View Document" onClick={(e) => { e.stopPropagation(); onDetails(order); }}>
             <FileText size={16} strokeWidth={1.5} />
           </button>
-          <button className="saas-icon-btn" title="Message" onClick={(e) => { e.stopPropagation(); onEdit && onEdit(order); }}>
-            <MessageSquare size={16} strokeWidth={1.5} />
+          <button className="saas-icon-btn" title="Edit Order" onClick={(e) => { e.stopPropagation(); onEdit && onEdit(order); }}>
+            <Edit2 size={16} strokeWidth={1.5} />
           </button>
         </div>
       </td>

@@ -5,7 +5,7 @@ import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
-import { Search, Globe, ChevronDown, ChevronLeft, ChevronRight, CheckCircle, Clock, Printer, Trash2, X, AlertTriangle, Edit2, Plus, Download, Calendar, MoreHorizontal, Phone, Sparkles } from 'lucide-react';
+import { Search, Globe, ChevronDown, ChevronLeft, ChevronRight, CheckCircle, Clock, Printer, Trash2, X, AlertTriangle, Edit2, Plus, Download, Calendar, MoreHorizontal, Phone, Sparkles, Copy, MessageCircle } from 'lucide-react';
 import CurrencyIcon from '../components/CurrencyIcon';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
@@ -413,6 +413,20 @@ export const OrdersBoard = () => {
     setFilters(prev => ({ ...prev, [key]: value }));
   };
 
+  const copyPhoneNumber = (event, phone) => {
+    event.stopPropagation();
+    if (!phone) return;
+    navigator.clipboard.writeText(String(phone));
+  };
+
+  const getWhatsAppLink = (phone) => {
+    const digits = String(phone || '').replace(/\D/g, '');
+    if (!digits) return null;
+    if (digits.startsWith('880')) return `https://wa.me/${digits}`;
+    if (digits.startsWith('0')) return `https://wa.me/88${digits}`;
+    return `https://wa.me/${digits}`;
+  };
+
 
   const totalPages = Math.ceil(totalCount / pageSize);
 
@@ -775,6 +789,36 @@ export const OrdersBoard = () => {
                   <div className="phone-row">
                     <Phone size={12} />
                     <span>{order.phone}</span>
+                    <div className="phone-quick-actions" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        className="phone-quick-btn"
+                        title="Copy phone"
+                        onClick={(e) => copyPhoneNumber(e, order.phone)}
+                      >
+                        <Copy size={12} />
+                      </button>
+                      <a
+                        href={order.phone ? `tel:${order.phone}` : undefined}
+                        className="phone-quick-btn"
+                        title="Call customer"
+                        onClick={(e) => e.stopPropagation()}
+                        aria-disabled={!order.phone}
+                      >
+                        <Phone size={12} />
+                      </a>
+                      <a
+                        href={getWhatsAppLink(order.phone) || undefined}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="phone-quick-btn whatsapp"
+                        title="Open WhatsApp"
+                        onClick={(e) => e.stopPropagation()}
+                        aria-disabled={!getWhatsAppLink(order.phone)}
+                      >
+                        <MessageCircle size={12} />
+                      </a>
+                    </div>
                   </div>
                 </div>
 

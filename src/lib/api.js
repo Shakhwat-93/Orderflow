@@ -1069,8 +1069,6 @@ ${rawText}`;
       console.error('Order creation log failed:', sideEffectError);
     }
 
-    // Notify
-    /* 
     try {
       await this.createNotification({
         type: 'ORDER_CREATED',
@@ -1087,7 +1085,6 @@ ${rawText}`;
     } catch (sideEffectError) {
       console.error('Order creation notification failed:', sideEffectError);
     }
-    */
 
     return data;
   },
@@ -1171,16 +1168,17 @@ ${rawText}`;
       action_description: `${userName} updated the details for order #${orderId}`
     });
 
-    // Notify
-    /* 
-    await this.createNotification({
-      type: 'ORDER_UPDATED',
-      title: 'Order Details Modified',
-      message: changeMsg,
-      data: { orderId, changes },
-      actor_name: userName
-    });
-    */
+    try {
+      await this.createNotification({
+        type: 'ORDER_UPDATED',
+        title: 'Order Details Modified',
+        message: changeMsg,
+        data: { orderId, changes },
+        actor_name: userName
+      });
+    } catch (notificationError) {
+      console.error('Order update notification failed:', notificationError);
+    }
 
     return data;
   },
@@ -1190,7 +1188,7 @@ ${rawText}`;
    * Change order status
    * Roles: Specific per status
    */
-  async changeOrderStatus(orderId, newStatus, userId, userName, userRoles = []) {
+  async changeOrderStatus(orderId, newStatus, userId, userName, userRoles = [], noteText = '') {
     const isAdmin = userRoles.includes('Admin');
 
 
@@ -1240,16 +1238,82 @@ ${rawText}`;
       action_description: `${userName} changed the status of order #${orderId} to ${newStatus}`
     });
 
-    // Notify
-    /* 
-    await this.createNotification({
-      type: 'STATUS_CHANGE',
-      title: 'Order Status Updated',
-      message: `Order #${orderId} changed from "${oldData?.status || 'N/A'}" to "${newStatus}".`,
-      data: { orderId, oldStatus: oldData?.status, newStatus },
-      actor_name: userName
+    try {
+      await this.createNotification({
+        type: 'STATUS_CHANGE',
+        title: 'Order Status Updated',
+        message: `Order #${orderId} changed from "${oldData?.status || 'N/A'}" to "${newStatus}".`,
+        data: { orderId, oldStatus: oldData?.status, newStatus },
+        actor_name: userName
+      });
+    } catch (notificationError) {
+      console.error('Status change notification failed:', notificationError);
+    }
+
+    if (String(noteText || '').trim()) {
+      return this.appendOrderNote(orderId, noteText, userId, userName, userRoles, newStatus, data?.notes || '');
+    }
+
+    return data;
+  },
+
+  formatOrderNoteEntry(noteText, actionLabel, userName, timestamp = new Date().toISOString()) {
+    const cleanNote = String(noteText || '').trim();
+    if (!cleanNote) return '';
+
+    const stamp = new Date(timestamp).toLocaleString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
     });
-    */
+
+    return `[${stamp}] ${userName} - ${actionLabel}\n${cleanNote}`;
+  },
+
+  mergeOrderNotes(existingNotes, nextEntry) {
+    const entry = String(nextEntry || '').trim();
+    return entry;
+  },
+
+  async appendOrderNote(orderId, noteText, userId, userName, userRoles = [], actionLabel = 'Note', existingNotes = null) {
+    const hasPermission = userRoles.some(r => ['Admin', 'Call Team', 'Moderator'].includes(r));
+    if (!hasPermission) throw new Error('Unauthorized: You do not have permission to add order notes.');
+
+    const entry = this.formatOrderNoteEntry(noteText, actionLabel, userName);
+    if (!entry) return null;
+
+    let currentNotes = existingNotes;
+    if (currentNotes == null) {
+      const { data: currentOrder, error: currentOrderError } = await supabase
+        .from('orders')
+        .select('notes')
+        .eq('id', orderId)
+        .single();
+      if (currentOrderError) throw currentOrderError;
+      currentNotes = currentOrder?.notes || '';
+    }
+
+    const mergedNotes = this.mergeOrderNotes(currentNotes, entry);
+
+    const { data, error } = await supabase
+      .from('orders')
+      .update({ notes: mergedNotes })
+      .eq('id', orderId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    await this.logActivity({
+      order_id: orderId,
+      action_type: 'UPDATE',
+      changed_by_user_id: userId,
+      changed_by_user_name: userName,
+      action_description: `${userName} added a note for ${String(actionLabel || 'update').toLowerCase()} on order #${orderId}`
+    });
 
     return data;
   },
@@ -1258,7 +1322,7 @@ ${rawText}`;
    * Log a call attempt (No Answer, Busy, etc.)
    * Roles: Admin, Call Team
    */
-  async logCallAttempt(orderId, status, userId, userName, userRoles = []) {
+  async logCallAttempt(orderId, status, userId, userName, userRoles = [], noteText = '') {
     const hasPermission = userRoles.some(r => ['Admin', 'Call Team'].includes(r));
     if (!hasPermission) throw new Error('Unauthorized: Only Admin or Call Team can log call attempts.');
 
@@ -1687,6 +1751,10 @@ ${rawText}`;
       throw error;
     }
     if (data?.error) throw new Error(data.error);
+
+    if (String(noteText || '').trim()) {
+      return this.appendOrderNote(orderId, noteText, userId, userName, userRoles, status, data?.notes || '');
+    }
 
     return data;
   },
