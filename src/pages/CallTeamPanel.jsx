@@ -17,7 +17,22 @@ import CurrencyIcon from '../components/CurrencyIcon';
 import { Modal } from '../components/Modal';
 import './CallTeamPanel.css';
 
-const STATUS_OPTIONS = ['ALL ORDERS', 'NEW', 'PENDING', 'CONFIRMED', 'CANCELLED'];
+const STATUS_OPTIONS = ['ACTIVE', 'NEW', 'PENDING'];
+const ACTIVE_CALL_STATUSES = ['New', 'Pending Call'];
+const CALL_TASKS_PER_PAGE = 10;
+
+const getVisiblePageNumbers = (currentPage, totalPages, maxVisible = 5) => {
+  if (totalPages <= maxVisible) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const half = Math.floor(maxVisible / 2);
+  let start = Math.max(1, currentPage - half);
+  const end = Math.min(totalPages, start + maxVisible - 1);
+  start = Math.max(1, end - maxVisible + 1);
+
+  return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+};
 const QUICK_CALL_STATUSES = [
   { id: 'busy', label: 'Busy', logLabel: 'Busy', icon: PhoneOff, tone: 'busy' },
   { id: 'not-pick', label: 'Not Pick', logLabel: 'Not Pick', icon: PhoneMissed, tone: 'not-pick' },
@@ -63,7 +78,7 @@ export const CallTeamPanel = () => {
 
   // Filters
   const [searchTerm, _setSearchTerm] = usePersistentState('panel:call-team:search', '');
-  const [statusFilter, setStatusFilter] = usePersistentState('panel:call-team:status', 'ALL ORDERS');
+  const [statusFilter, setStatusFilter] = usePersistentState('panel:call-team:status', 'ACTIVE');
   const [productFilter, setProductFilter] = usePersistentState('panel:call-team:product', '');
   const [dateRange, _setDateRange] = usePersistentState(
     'panel:call-team:dateRange',
@@ -78,6 +93,7 @@ export const CallTeamPanel = () => {
   const [pendingNoteAction, setPendingNoteAction] = useState(null);
   const [actionNote, setActionNote] = useState('');
   const [isSubmittingAction, setIsSubmittingAction] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   
   // Globabl Ratio Cache & Auto-fetch
   const { ratios, checkPhone } = useCourierRatio();
@@ -89,6 +105,16 @@ export const CallTeamPanel = () => {
       setSelectedOrder(latestSelectedOrder);
     }
   }, [orders, selectedOrder]);
+
+  useEffect(() => {
+    if (!STATUS_OPTIONS.includes(statusFilter)) {
+      setStatusFilter('ACTIVE');
+    }
+  }, [statusFilter, setStatusFilter]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, productFilter, dateRange.start, dateRange.end]);
 
   const handleOpenEditModal = (order) => {
     setSelectedOrder(order);
@@ -136,14 +162,15 @@ export const CallTeamPanel = () => {
         (o.product_name || '').toLowerCase().includes(term);
 
       const statusMap = {
-        'ALL ORDERS': ['New', 'Pending Call', 'Confirmed', 'Cancelled'],
+        'ACTIVE': ACTIVE_CALL_STATUSES,
+        'ALL ORDERS': ACTIVE_CALL_STATUSES,
         'NEW': ['New'],
         'PENDING': ['Pending Call'],
-        'CONFIRMED': ['Confirmed'],
-        'CANCELLED': ['Cancelled']
+        'CONFIRMED': ACTIVE_CALL_STATUSES,
+        'CANCELLED': ACTIVE_CALL_STATUSES
       };
 
-      const validStatuses = statusMap[statusFilter] || statusMap['ALL ORDERS'];
+      const validStatuses = statusMap[statusFilter] || statusMap.ACTIVE;
       const matchesStatus = validStatuses.includes(o.status);
 
       const matchesProduct = !productFilter || o.product_name === productFilter;
@@ -158,6 +185,19 @@ export const CallTeamPanel = () => {
     });
   }, [orders, searchTerm, statusFilter, productFilter, dateRange]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / CALL_TASKS_PER_PAGE));
+  const paginatedOrders = useMemo(() => {
+    const startIndex = (currentPage - 1) * CALL_TASKS_PER_PAGE;
+    return filteredOrders.slice(startIndex, startIndex + CALL_TASKS_PER_PAGE);
+  }, [filteredOrders, currentPage]);
+  const visiblePages = useMemo(() => getVisiblePageNumbers(currentPage, totalPages), [currentPage, totalPages]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
   // Auto-queue visible phones for Courier Ratio checking
   useEffect(() => {
     const unchecked = [...new Set(
@@ -169,7 +209,7 @@ export const CallTeamPanel = () => {
   }, [filteredOrders, checkPhone, ratios]);
 
   // Metrics Calculations
-  const pendingCount = orders.filter(o => ['New', 'Pending Call'].includes(o.status)).length;
+  const pendingCount = orders.filter(o => ACTIVE_CALL_STATUSES.includes(o.status)).length;
   const confirmedToday = typeof stats?.confirmedTodayCount === 'number'
     ? stats.confirmedTodayCount
     : orders.filter(o => o.status === 'Confirmed' && new Date(o.updated_at || o.created_at).toDateString() === new Date().toDateString()).length;
@@ -372,7 +412,7 @@ export const CallTeamPanel = () => {
         </div>
 
         <div className="elite-order-list">
-          {filteredOrders.slice(0, 10).map(order => {
+          {paginatedOrders.map(order => {
             
             // Generate Mock Elite status for Timer based on created_at
             let slaClass = 'elapsed'; let slaIcon = <Clock size={12} />; let slaText = 'Just now';
@@ -615,14 +655,33 @@ export const CallTeamPanel = () => {
       {filteredOrders.length > 0 && (
         <div className="elite-pagination-footer">
           <div className="elite-pagination-stats">
-            Showing {Math.min(filteredOrders.length, 10)} of {filteredOrders.length} active call tasks
+            Showing {(currentPage - 1) * CALL_TASKS_PER_PAGE + 1}-
+            {Math.min(currentPage * CALL_TASKS_PER_PAGE, filteredOrders.length)} of {filteredOrders.length} active call tasks
           </div>
           <div className="elite-pagination-controls">
-            <button className="elite-page-btn">&lt;</button>
-            <button className="elite-page-btn active">1</button>
-            {Math.ceil(filteredOrders.length / 10) > 1 && <button className="elite-page-btn">2</button>}
-            {Math.ceil(filteredOrders.length / 10) > 2 && <button className="elite-page-btn">3</button>}
-            <button className="elite-page-btn">&gt;</button>
+            <button
+              className="elite-page-btn"
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+            >
+              &lt;
+            </button>
+            {visiblePages.map((pageNumber) => (
+              <button
+                key={pageNumber}
+                className={`elite-page-btn ${currentPage === pageNumber ? 'active' : ''}`}
+                onClick={() => setCurrentPage(pageNumber)}
+              >
+                {pageNumber}
+              </button>
+            ))}
+            <button
+              className="elite-page-btn"
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+            >
+              &gt;
+            </button>
           </div>
         </div>
       )}

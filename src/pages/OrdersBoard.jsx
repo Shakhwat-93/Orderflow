@@ -431,6 +431,12 @@ export const OrdersBoard = () => {
   const totalPages = Math.ceil(totalCount / pageSize);
 
   useEffect(() => {
+    if (totalPages > 0 && page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages, setPage]);
+
+  useEffect(() => {
     let isActive = true;
 
     const loadProductBreakdown = async () => {

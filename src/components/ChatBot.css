@@ -5,7 +5,7 @@
 /* Floating Action Button */
 .chatbot-fab {
   position: fixed;
-  bottom: 28px;
+  bottom: 96px;
   right: 28px;
   z-index: 9999;
   width: 58px;
@@ -126,7 +126,7 @@
 /* Chat Panel */
 .chatbot-panel {
   position: fixed;
-  bottom: 100px;
+  bottom: 168px;
   right: 28px;
   z-index: 9998;
   width: 420px;
@@ -477,6 +477,11 @@
 }
 
 @media (min-width: 481px) and (max-width: 768px) {
+  .chatbot-fab {
+    bottom: 20px;
+    right: 20px;
+  }
+
   .chatbot-panel {
     width: calc(100vw - 40px);
     right: 20px;

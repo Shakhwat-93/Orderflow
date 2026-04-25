@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { Card } from '../components/Card';
 import { Input } from '../components/Input';
@@ -25,6 +25,20 @@ const ORDER_STATUSES = [
 ];
 
 const SOURCES = ['Website', 'Facebook', 'Instagram', 'Direct'];
+const MODERATOR_PAGE_SIZE = 10;
+
+const getVisiblePageNumbers = (currentPage, totalPages, maxVisible = 5) => {
+  if (totalPages <= maxVisible) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const half = Math.floor(maxVisible / 2);
+  let start = Math.max(1, currentPage - half);
+  const end = Math.min(totalPages, start + maxVisible - 1);
+  start = Math.max(1, end - maxVisible + 1);
+
+  return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+};
 
 export const ModeratorPanel = () => {
   const { orders, stats, inventory, updateOrderStatus } = useOrders();
@@ -53,6 +67,7 @@ export const ModeratorPanel = () => {
   const [savingStatusId, setSavingStatusId] = useState(null);
   // Track which order's status dropdown is open on mobile
   const [openStatusDropdownId, setOpenStatusDropdownId] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const handleOpenEditModal = (order) => {
     setSelectedOrder(order);
@@ -120,6 +135,23 @@ export const ModeratorPanel = () => {
 
     return matchesSearch && matchesStatus && matchesProduct && matchesSource && matchesDate;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / MODERATOR_PAGE_SIZE));
+  const paginatedOrders = useMemo(() => {
+    const startIndex = (currentPage - 1) * MODERATOR_PAGE_SIZE;
+    return filteredOrders.slice(startIndex, startIndex + MODERATOR_PAGE_SIZE);
+  }, [filteredOrders, currentPage]);
+  const visiblePages = useMemo(() => getVisiblePageNumbers(currentPage, totalPages), [currentPage, totalPages]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, productFilter, sourceFilter, dateRange.start, dateRange.end]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
 
 
@@ -347,7 +379,7 @@ export const ModeratorPanel = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredOrders.map(order => (
+              {paginatedOrders.map(order => (
                 <OrderRow 
                   key={order.id} 
                   order={order} 
@@ -368,7 +400,7 @@ export const ModeratorPanel = () => {
           {filteredOrders.length === 0 && (
             <div className="mod-mobile-empty">No orders found matching your filters.</div>
           )}
-          {filteredOrders.map(order => {
+          {paginatedOrders.map(order => {
             const isSaving = savingStatusId === order.id;
             return (
               <div key={order.id} className="mod-mobile-card" onClick={() => handleRowClick(order)}>
@@ -446,6 +478,42 @@ export const ModeratorPanel = () => {
             );
           })}
         </div>
+
+        {filteredOrders.length > 0 && (
+          <div className="mod-pagination-footer">
+            <div className="mod-pagination-info">
+              Showing {(currentPage - 1) * MODERATOR_PAGE_SIZE + 1}-
+              {Math.min(currentPage * MODERATOR_PAGE_SIZE, filteredOrders.length)} of {filteredOrders.length} orders
+            </div>
+            <div className="mod-pagination-actions">
+              <button
+                className="mod-page-btn"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+              >
+                Previous
+              </button>
+              <div className="mod-page-numbers">
+                {visiblePages.map((pageNumber) => (
+                  <button
+                    key={pageNumber}
+                    className={`mod-page-btn mod-page-num ${currentPage === pageNumber ? 'active' : ''}`}
+                    onClick={() => setCurrentPage(pageNumber)}
+                  >
+                    {pageNumber}
+                  </button>
+                ))}
+              </div>
+              <button
+                className="mod-page-btn"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </Card>
 
       <OrderEditModal 

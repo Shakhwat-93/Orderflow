@@ -6,6 +6,7 @@ import {
   Info, CheckSquare, Square, Edit3, Star, Zap, Globe, Table2, FileSpreadsheet,
   AlertTriangle, Eye, EyeOff
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import api from '../lib/api';
 import { useOrders } from '../context/OrderContext';
 import CurrencyIcon from './CurrencyIcon';
@@ -30,6 +31,7 @@ const SHIPPING_ZONES = [
   { value: 'Outside Dhaka', charge: 150 }
 ];
 const getDeliveryChargeForZone = (zone) => SHIPPING_ZONES.find((item) => item.value === zone)?.charge || 150;
+const SPREADSHEET_EXTENSIONS = new Set(['xlsx', 'xls', 'xlsm', 'xlsb', 'xlsv']);
 
 // ─── CSV Parser ──────────────────────────────────────────────────────
 // Columns: NAME | ADDRESS | Phone | Toyboxcode | source | QTY(TOY) | ORG QTY | MMB BAG | OTHER | toy box amount | ORG Amount | MMB Amount | OTHER Amount | DELIVERY CHARGE | Total
@@ -48,6 +50,19 @@ const normalizeBDPhone = (raw) => {
   // Auto-prepend 01 for 9-digit BD numbers (e.g., 712345678)
   if (s.length === 9 && /^[6-9]/.test(s)) s = '01' + s;
   return s;
+};
+
+const resolveShippingZone = (rawAddress = '', explicitZone = '') => {
+  const normalizedZone = String(explicitZone || '').toLowerCase();
+  if (normalizedZone.includes('inside')) return 'Inside Dhaka';
+  if (normalizedZone.includes('outside')) return 'Outside Dhaka';
+
+  const normalizedAddress = String(rawAddress || '').toLowerCase();
+  if (normalizedAddress.includes('inside') || normalizedAddress.includes('dhaka')) {
+    return 'Inside Dhaka';
+  }
+
+  return 'Outside Dhaka';
 };
 
 const parseCSV = (text) => {
@@ -83,6 +98,12 @@ const parseCSV = (text) => {
   const iOthAmt  = col(['other (amount)', 'other amount', 'oth amount']);
   const iDel     = col(['delivery charge', 'delivery', 'del charge']);
   const iTotal   = col(['total']);
+  const iProduct = col(['product name', 'product', 'item']);
+  const iSize    = col(['size', 'variant', 'color']);
+  const iQtyGeneric = col(['quantity', 'qty']);
+  const iNotes   = col(['notes', 'note', 'comment']);
+  const iZone    = col(['shipping zone', 'zone']);
+  const iAmountGeneric = col(['total amount', 'order amount', 'amount', 'price']);
 
   const errors = [];
   const rows = [];
@@ -96,11 +117,7 @@ const parseCSV = (text) => {
     if (!name) continue; // skip empty rows
 
     const rawAddr = get(iAddr);
-    // Detect shipping zone from address column keyword
-    let zone = 'Outside Dhaka';
-    if (rawAddr.toLowerCase().includes('inside') || rawAddr.toLowerCase().includes('dhaka')) {
-      zone = 'Inside Dhaka';
-    }
+    const zone = resolveShippingZone(rawAddr, get(iZone));
     // Strip zone prefix from address text
     const address = rawAddr
       .replace(/inside\s*dhaka[:\s-]*/gi, '')
@@ -110,6 +127,7 @@ const parseCSV = (text) => {
     let phone = normalizeBDPhone(get(iPhone));
     const toyboxCode = get(iCode);
     const source = get(iSrc) || 'Website';
+    const explicitNotes = get(iNotes);
 
     const toyQty = Math.max(0, Math.round(getNum(iToyQty)));
     const orgQty = Math.max(0, Math.round(getNum(iOrgQty)));
@@ -123,47 +141,67 @@ const parseCSV = (text) => {
     const deliveryCharge = getNum(iDel);
     const totalAmt = getNum(iTotal);
 
-    // Build product list from quantities
+    // Build product list from either generic single-product columns or legacy quantity columns
     const products = [];
-    if (toyQty > 0) {
+    const genericProductName = get(iProduct);
+
+    if (genericProductName) {
+      const matchedProduct = findBestProductMatch(genericProductName, DEFAULT_PRODUCT_CATALOG);
+      const resolvedProductName = matchedProduct?.name || genericProductName.trim();
+      const genericQty = Math.max(1, Math.round(getNum(iQtyGeneric)) || 1);
+      const genericAmount = getNum(iAmountGeneric) || totalAmt;
+      const genericUnitPrice = genericQty > 0
+        ? Math.round(genericAmount / genericQty) || matchedProduct?.unit_price || 0
+        : matchedProduct?.unit_price || 0;
+
       products.push({
-        name: 'TOY BOX',
-        quantity: toyQty,
-        size: toyboxCode || '',
-        price: toyQty > 0 ? Math.round(toyAmt / toyQty) || PRODUCT_PRICES['TOY BOX'] : PRODUCT_PRICES['TOY BOX'],
-        isToyBox: true,
-        toyBoxNumber: null
+        ...createProductLine(DEFAULT_PRODUCT_CATALOG, matchedProduct?.name || 'TOY BOX'),
+        name: resolvedProductName,
+        quantity: genericQty,
+        size: get(iSize) || '',
+        price: genericUnitPrice
       });
-    }
-    if (orgQty > 0) {
-      products.push({
-        name: 'ORGANIZER',
-        quantity: orgQty,
-        size: '',
-        price: orgQty > 0 ? Math.round(orgAmt / orgQty) || PRODUCT_PRICES['ORGANIZER'] : PRODUCT_PRICES['ORGANIZER'],
-        isToyBox: false,
-        toyBoxNumber: null
-      });
-    }
-    if (mmbQty > 0) {
-      products.push({
-        name: 'MMB',
-        quantity: mmbQty,
-        size: '',
-        price: mmbQty > 0 ? Math.round(mmbAmt / mmbQty) || PRODUCT_PRICES['MMB'] : PRODUCT_PRICES['MMB'],
-        isToyBox: false,
-        toyBoxNumber: null
-      });
-    }
-    if (othQty > 0) {
-      products.push({
-        name: 'BAGPACK', // fallback for 'OTHER' — user can change
-        quantity: othQty,
-        size: '',
-        price: othQty > 0 ? Math.round(othAmt / othQty) || 0 : 0,
-        isToyBox: false,
-        toyBoxNumber: null
-      });
+    } else {
+      if (toyQty > 0) {
+        products.push({
+          name: 'TOY BOX',
+          quantity: toyQty,
+          size: toyboxCode || '',
+          price: toyQty > 0 ? Math.round(toyAmt / toyQty) || PRODUCT_PRICES['TOY BOX'] : PRODUCT_PRICES['TOY BOX'],
+          isToyBox: true,
+          toyBoxNumber: null
+        });
+      }
+      if (orgQty > 0) {
+        products.push({
+          name: 'ORGANIZER',
+          quantity: orgQty,
+          size: '',
+          price: orgQty > 0 ? Math.round(orgAmt / orgQty) || PRODUCT_PRICES['ORGANIZER'] : PRODUCT_PRICES['ORGANIZER'],
+          isToyBox: false,
+          toyBoxNumber: null
+        });
+      }
+      if (mmbQty > 0) {
+        products.push({
+          name: 'MMB',
+          quantity: mmbQty,
+          size: '',
+          price: mmbQty > 0 ? Math.round(mmbAmt / mmbQty) || PRODUCT_PRICES['MMB'] : PRODUCT_PRICES['MMB'],
+          isToyBox: false,
+          toyBoxNumber: null
+        });
+      }
+      if (othQty > 0) {
+        products.push({
+          name: 'BAGPACK', // fallback for 'OTHER' — user can change
+          quantity: othQty,
+          size: '',
+          price: othQty > 0 ? Math.round(othAmt / othQty) || 0 : 0,
+          isToyBox: false,
+          toyBoxNumber: null
+        });
+      }
     }
     // Fallback if no product qty detected
     if (products.length === 0) {
@@ -179,7 +217,7 @@ const parseCSV = (text) => {
       delivery_charge: deliveryCharge > 0 ? deliveryCharge : getDeliveryChargeForZone(zone),
       source: SOURCES.includes(source) ? source : 'Website',
       products,
-      notes: toyboxCode && !products[0].size ? `Toybox Code: ${toyboxCode}` : '',
+      notes: explicitNotes || (toyboxCode && !products[0].size ? `Toybox Code: ${toyboxCode}` : ''),
       isExpanded: false,
       _csv_total: totalAmt, // store CSV total for comparison
       _csv_delivery: deliveryCharge,
@@ -763,7 +801,13 @@ const OrderRowEditor = React.memo(({
 });
 
 // ─── Main Component ───────────────────────────────────────────────────
-const BulkOrderCreator = ({ isOpen, onClose }) => {
+const BulkOrderCreator = ({
+  isOpen,
+  onClose,
+  defaultOrderStatus = 'New',
+  panelTitle = 'Bulk Order Creator',
+  panelSubtitle = 'Create multiple orders simultaneously with AI-powered autofill'
+}) => {
   const { addOrder, inventory, toyBoxes } = useOrders();
   const productCatalog = React.useMemo(() => buildProductCatalog(inventory), [inventory]);
   const productOptions = React.useMemo(() => productCatalog.map((item) => item.name), [productCatalog]);
@@ -798,6 +842,50 @@ const BulkOrderCreator = ({ isOpen, onClose }) => {
   useEffect(() => {
     if (!isOpen) reset();
   }, [isOpen, reset]);
+
+  const importVerb = defaultOrderStatus === 'Confirmed' ? 'Import' : 'Create';
+  const successVerb = defaultOrderStatus === 'Confirmed' ? 'Imported' : 'Created';
+
+  const processImportedText = useCallback((text) => {
+    const { rows: parsed, errors } = parseCSV(text);
+    if (parsed.length === 0) {
+      setCsvErrors(['No valid rows found. Check your file format.']);
+      setCsvPreviewRows(null);
+    } else {
+      setCsvPreviewRows(parsed);
+      setCsvErrors(errors);
+    }
+  }, []);
+
+  const parseImportedFile = useCallback(async (file) => {
+    const extension = file.name.split('.').pop()?.toLowerCase() || '';
+
+    try {
+      let text = '';
+
+      if (SPREADSHEET_EXTENSIONS.has(extension)) {
+        const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+        const firstSheetName = workbook.SheetNames?.[0];
+
+        if (!firstSheetName) {
+          throw new Error('The spreadsheet does not contain any sheets.');
+        }
+
+        text = XLSX.utils.sheet_to_csv(workbook.Sheets[firstSheetName], {
+          FS: '\t',
+          blankrows: false
+        });
+      } else {
+        text = await file.text();
+      }
+
+      processImportedText(text);
+    } catch (error) {
+      console.error('Failed to import file:', error);
+      setCsvPreviewRows(null);
+      setCsvErrors([error?.message || 'Unable to read this file.']);
+    }
+  }, [processImportedText]);
 
   // ── Row Manipulation ────────────────────────────────────────────────
   const updateRow = useCallback((rowId, updates) => {
@@ -993,7 +1081,7 @@ const BulkOrderCreator = ({ isOpen, onClose }) => {
             delivery_charge: Number(row.delivery_charge) || 0,
             payable_total: calcRowTotal(row)
           },
-          status: 'New'
+          status: defaultOrderStatus
         };
         await addOrder(payload);
         results.succeeded.push({ id: row.id, customer_name: row.customer_name });
@@ -1010,37 +1098,18 @@ const BulkOrderCreator = ({ isOpen, onClose }) => {
     if (results.succeeded.length > 0 && results.failed.length === 0) {
       setActiveTab('results');
     }
-  }, [rows, validateAll, addOrder]);
+  }, [rows, validateAll, addOrder, defaultOrderStatus]);
 
   // ── CSV Import ─────────────────────────────────────────────────────────
-  const handleCSVFile = useCallback((e) => {
+  const handleCSVFile = useCallback(async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const text = evt.target.result;
-      const { rows: parsed, errors } = parseCSV(text);
-      if (parsed.length === 0) {
-        setCsvErrors(['No valid rows found. Check your file format.']);
-        setCsvPreviewRows(null);
-      } else {
-        setCsvPreviewRows(parsed);
-        setCsvErrors(errors);
-      }
-    };
-    reader.readAsText(file, 'UTF-8');
-  }, []);
+    await parseImportedFile(file);
+  }, [parseImportedFile]);
 
   const handleCSVPasteText = useCallback((text) => {
-    const { rows: parsed, errors } = parseCSV(text);
-    if (parsed.length === 0) {
-      setCsvErrors(['No valid rows found. Check your file format.']);
-      setCsvPreviewRows(null);
-    } else {
-      setCsvPreviewRows(parsed);
-      setCsvErrors(errors);
-    }
-  }, []);
+    processImportedText(text);
+  }, [processImportedText]);
 
   const handleCSVConfirm = useCallback((previewRows) => {
     // Only import valid rows (no errors)
@@ -1092,8 +1161,8 @@ const BulkOrderCreator = ({ isOpen, onClose }) => {
               <ClipboardList size={22} />
             </div>
             <div>
-              <h2 className="boc-title">Bulk Order Creator</h2>
-              <p className="boc-subtitle">Create multiple orders simultaneously with AI-powered autofill</p>
+              <h2 className="boc-title">{panelTitle}</h2>
+              <p className="boc-subtitle">{panelSubtitle}</p>
             </div>
           </div>
           <div className="boc-header-right">
@@ -1131,7 +1200,7 @@ const BulkOrderCreator = ({ isOpen, onClose }) => {
             <span className="boc-tab-badge">{stats.total}</span>
           </button>
           <button className={`boc-tab ${activeTab === 'csv' ? 'boc-tab--active' : ''}`} onClick={() => setActiveTab('csv')}>
-            <FileSpreadsheet size={14} /> CSV Import
+            <FileSpreadsheet size={14} /> File Import
             {csvPreviewRows && <span className="boc-tab-badge" style={{ background: 'rgba(34,197,94,0.12)', color: '#22c55e' }}>{csvPreviewRows.length}</span>}
           </button>
           {submitResults && (
@@ -1140,11 +1209,11 @@ const BulkOrderCreator = ({ isOpen, onClose }) => {
               <span className="boc-tab-badge boc-badge-success">{submitResults.succeeded.length}</span>
             </button>
           )}
-          {/* Hidden file input for CSV */}
+          {/* Hidden file input for imports */}
           <input
             ref={csvFileRef}
             type="file"
-            accept=".csv,.tsv,.txt"
+            accept=".csv,.tsv,.txt,.xlsx,.xls,.xlsm,.xlsb,.xlsv"
             style={{ display: 'none' }}
             onChange={handleCSVFile}
           />
@@ -1160,20 +1229,18 @@ const BulkOrderCreator = ({ isOpen, onClose }) => {
                   onClick={() => csvFileRef.current?.click()}
                   onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add('csv-dropzone--hover'); }}
                   onDragLeave={e => e.currentTarget.classList.remove('csv-dropzone--hover')}
-                  onDrop={e => {
+                  onDrop={async (e) => {
                     e.preventDefault();
                     e.currentTarget.classList.remove('csv-dropzone--hover');
                     const file = e.dataTransfer.files[0];
                     if (file) {
-                      const reader = new FileReader();
-                      reader.onload = evt => handleCSVPasteText(evt.target.result);
-                      reader.readAsText(file, 'UTF-8');
+                      await parseImportedFile(file);
                     }
                   }}
                 >
                   <FileSpreadsheet size={32} className="csv-dropzone-icon" />
-                  <div className="csv-dropzone-title">Drop your CSV/Excel file here</div>
-                  <div className="csv-dropzone-sub">or click to browse — supports <strong>.csv</strong>, <strong>.tsv</strong>, <strong>.txt</strong></div>
+                  <div className="csv-dropzone-title">Drop your CSV or spreadsheet here</div>
+                  <div className="csv-dropzone-sub">or click to browse - supports <strong>.csv</strong>, <strong>.xlsx</strong>, <strong>.xls</strong>, <strong>.xlsv</strong>, <strong>.tsv</strong>, <strong>.txt</strong></div>
                   <button type="button" className="boc-ai-import-btn" style={{ marginTop: 12 }}>
                     <Upload size={15} /> Choose File
                   </button>
@@ -1206,7 +1273,7 @@ const BulkOrderCreator = ({ isOpen, onClose }) => {
                   <p className="csv-format-note">
                     Columns marked <span className="csv-col-req-label">red dot</span> are required.
                     Zone (Inside/Outside Dhaka) is auto-detected from the ADDRESS column text.
-                    Copy directly from your Excel sheet — tab-separated format is supported.
+                    You can upload CSV/XLSX/XLS/XLSV files or paste rows directly from Excel.
                   </p>
                 </div>
 
@@ -1422,7 +1489,7 @@ const BulkOrderCreator = ({ isOpen, onClose }) => {
               {submitResults.succeeded.map((r, i) => (
                 <div key={i} className="boc-result-item boc-result-item--success">
                   <CheckCircle2 size={16} />
-                  <span>{r.customer_name || 'Order'} — Created successfully</span>
+                  <span>{r.customer_name || 'Order'} — '+ successVerb +' successfully</span>
                 </div>
               ))}
               {submitResults.failed.map((r, i) => (
@@ -1450,3 +1517,7 @@ const BulkOrderCreator = ({ isOpen, onClose }) => {
 };
 
 export default BulkOrderCreator;
+
+
+
+

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
@@ -7,10 +7,11 @@ import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
 import { OrderEditModal } from '../components/OrderEditModal';
 import { OrderDetailsModal } from '../components/OrderDetailsModal';
-import { Search, Loader2, CheckCircle, PackageSearch, Zap, AlertTriangle, Package, ArrowRight, Edit2, Sparkles } from 'lucide-react';
+import { Search, Loader2, CheckCircle, PackageSearch, Zap, AlertTriangle, Package, ArrowRight, Edit2, Sparkles, Download, FileSpreadsheet } from 'lucide-react';
 import { PremiumSearch } from '../components/PremiumSearch';
 import { usePersistentState } from '../utils/persistentState';
 import { getToyBoxStockKey } from '../utils/productCatalog';
+import * as XLSX from 'xlsx';
 import './FactoryPanel.css';
 
 const containerVariants = {
@@ -26,19 +27,68 @@ const itemVariants = {
   hidden: { opacity: 0, y: 10 },
   visible: { opacity: 1, y: 0 }
 };
+const FACTORY_PAGE_SIZE = 10;
+
+const getVisiblePageNumbers = (currentPage, totalPages, maxVisible = 5) => {
+  if (totalPages <= maxVisible) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const half = Math.floor(maxVisible / 2);
+  let start = Math.max(1, currentPage - half);
+  const end = Math.min(totalPages, start + maxVisible - 1);
+  start = Math.max(1, end - maxVisible + 1);
+
+  return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+};
+
+const formatExportDate = (value) => {
+  if (!value) return '';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  return date.toLocaleString('en-BD', {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+};
+
+const formatProductSummary = (order) => {
+  const items = Array.isArray(order?.ordered_items) ? order.ordered_items : [];
+
+  if (items.length === 0) {
+    const fallbackQty = Number(order?.quantity) || 1;
+    return `${order?.product_name || ''} x${fallbackQty}`.trim();
+  }
+
+  return items
+    .map((item) => {
+      const name = item?.name || order?.product_name || 'Item';
+      const quantity = Number(item?.quantity) || 1;
+      const size = item?.size ? ` (${item.size})` : '';
+      return `${name}${size} x${quantity}`;
+    })
+    .join(', ');
+};
 
 export const FactoryPanel = () => {
   const { orders, toyBoxes, autoDistributeOrders, updateOrderStatus } = useOrders();
   const { updatePresenceContext } = useAuth();
 
   useEffect(() => {
-    updatePresenceContext('Checking Production');
+    updatePresenceContext('Reviewing Confirmed Orders');
   }, [updatePresenceContext]);
   
   const [searchTerm, setSearchTerm] = usePersistentState('panel:factory:search', '');
   const [isDistributing, setIsDistributing] = useState(false);
   const [distributeResult, setDistributeResult] = useState(null);
   const [activeTab, setActiveTab] = usePersistentState('panel:factory:tab', 'confirmed'); // 'confirmed' | 'queued'
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
@@ -70,6 +120,22 @@ export const FactoryPanel = () => {
   );
 
   const displayOrders = activeTab === 'confirmed' ? confirmedOrders : queuedOrders;
+  const totalPages = Math.max(1, Math.ceil(displayOrders.length / FACTORY_PAGE_SIZE));
+  const paginatedOrders = useMemo(() => {
+    const startIndex = (currentPage - 1) * FACTORY_PAGE_SIZE;
+    return displayOrders.slice(startIndex, startIndex + FACTORY_PAGE_SIZE);
+  }, [displayOrders, currentPage]);
+  const visiblePages = useMemo(() => getVisiblePageNumbers(currentPage, totalPages), [currentPage, totalPages]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchTerm]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   // Stock availability check helper
   const getStockStatus = (order) => {
@@ -119,6 +185,40 @@ export const FactoryPanel = () => {
     await updateOrderStatus(orderId, 'Confirmed');
   };
 
+  const handleBulkExport = () => {
+    if (displayOrders.length === 0) return;
+
+    const exportRows = displayOrders.map((order, index) => ({
+      serial: index + 1,
+      order_id: order.id || '',
+      status: order.status || '',
+      customer_name: order.customer_name || '',
+      phone: order.phone || '',
+      address: order.address || '',
+      shipping_zone: order.shipping_zone || '',
+      product_name: order.product_name || '',
+      product_details: formatProductSummary(order),
+      total_quantity: Number(order.quantity) || (Array.isArray(order.ordered_items)
+        ? order.ordered_items.reduce((sum, item) => sum + (Number(item?.quantity) || 1), 0)
+        : 0),
+      amount: Number(order.amount) || 0,
+      delivery_charge: Number(order.delivery_charge) || 0,
+      source: order.source || '',
+      payment_status: order.payment_status || '',
+      notes: order.notes || '',
+      created_at: formatExportDate(order.created_at),
+      updated_at: formatExportDate(order.updated_at)
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, activeTab === 'confirmed' ? 'Confirmed Orders' : 'Queued Orders');
+
+    const dateLabel = new Date().toISOString().split('T')[0];
+    const tabLabel = activeTab === 'confirmed' ? 'confirmed' : 'queue';
+    XLSX.writeFile(workbook, `confirmed-panel-${tabLabel}-${dateLabel}.xlsx`);
+  };
+
   return (
     <motion.div 
       className="factory-panel"
@@ -128,10 +228,20 @@ export const FactoryPanel = () => {
     >
       <header className="page-header">
         <div>
-          <h1 className="premium-title">Factory Panel</h1>
-          <p className="page-subtitle">Production distribution & inventory verification hub.</p>
+          <h1 className="premium-title">Confirmed Panel</h1>
+          <p className="page-subtitle">Confirmed order review, distribution and inventory verification hub.</p>
         </div>
         <div className="factory-header-actions">
+          <Button
+            variant="ghost"
+            onClick={handleBulkExport}
+            disabled={displayOrders.length === 0}
+            className="factory-export-btn"
+          >
+            <FileSpreadsheet size={18} />
+            <span>Bulk Export ({displayOrders.length})</span>
+            <Download size={16} />
+          </Button>
           <Button 
             variant="primary" 
             onClick={handleAutoDistribute} 
@@ -252,7 +362,7 @@ export const FactoryPanel = () => {
             </thead>
             <tbody>
               <AnimatePresence mode="popLayout">
-                {displayOrders.map(order => {
+                {paginatedOrders.map(order => {
                   const stock = getStockStatus(order);
                   const isToyBox = (order.product_name || '').toUpperCase().includes('TOY BOX');
                   
@@ -359,6 +469,42 @@ export const FactoryPanel = () => {
             </tbody>
           </table>
         </div>
+
+        {displayOrders.length > 0 && (
+          <div className="factory-pagination-footer">
+            <div className="factory-pagination-info">
+              Showing {(currentPage - 1) * FACTORY_PAGE_SIZE + 1}-
+              {Math.min(currentPage * FACTORY_PAGE_SIZE, displayOrders.length)} of {displayOrders.length} records
+            </div>
+            <div className="factory-pagination-actions">
+              <button
+                className="factory-page-btn"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+              >
+                Previous
+              </button>
+              <div className="factory-page-numbers">
+                {visiblePages.map((pageNumber) => (
+                  <button
+                    key={pageNumber}
+                    className={`factory-page-btn factory-page-num ${currentPage === pageNumber ? 'active' : ''}`}
+                    onClick={() => setCurrentPage(pageNumber)}
+                  >
+                    {pageNumber}
+                  </button>
+                ))}
+              </div>
+              <button
+                className="factory-page-btn"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </Card>
 
       <OrderEditModal 

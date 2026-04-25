@@ -960,6 +960,11 @@
   box-shadow: 0 2px 8px rgba(79, 70, 229, 0.3);
 }
 
+.elite-page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* Empty State */
 .elite-empty-card {
   text-align: center;

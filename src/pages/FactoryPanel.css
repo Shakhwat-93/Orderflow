@@ -83,6 +83,20 @@
   margin: 0;
 }
 
+.factory-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.factory-export-btn {
+  border-radius: var(--fp-radius-sm);
+  border: 1px solid var(--fp-btn-border);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
+
 /* ── Auto Distribute Button ── */
 .auto-distribute-btn {
   display: inline-flex;
@@ -500,11 +514,69 @@
   margin: 0;
 }
 
-.empty-state-content p {
-  font-size: 0.9rem;
-  max-width: 320px;
-  margin: 0;
-  line-height: 1.5;
+
+.factory-pagination-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 24px 20px;
+  border-top: 1px solid var(--fp-border);
+  flex-wrap: wrap;
+}
+
+.factory-pagination-info {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--fp-text-sub);
+}
+
+.factory-pagination-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.factory-page-numbers {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.factory-page-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--fp-btn-border);
+  background: var(--fp-btn-bg);
+  color: var(--fp-text-sub);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.factory-page-btn:hover:not(:disabled) {
+  border-color: var(--fp-text-muted);
+  color: var(--fp-text);
+}
+
+.factory-page-btn.active {
+  background: var(--fp-accent);
+  border-color: var(--fp-accent);
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.2);
+}
+
+.factory-page-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 /* ── Mobile Optimization ────────────────────────────────────────────── */
@@ -518,13 +590,23 @@
     flex-direction: column;
     align-items: flex-start;
   }
+
+  .factory-header-actions {
+    width: 100%;
+  }
+
+  .factory-header-actions .btn {
+    width: 100%;
+  }
   
   .factory-stats-row {
     grid-template-columns: 1fr;
   }
   
-  .factory-action-grid {
-    flex-direction: column;
-    align-items: flex-end;
+  
+
+  .factory-pagination-footer {
+    padding: 16px;
   }
 }
+

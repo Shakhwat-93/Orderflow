@@ -37,7 +37,7 @@ export const MobileBottomNav = () => {
     { path: '/moderator',       label: 'Moderator',  icon: ShieldCheck,     roles: ['Admin', 'Moderator'] },
     { path: '/courier',         label: 'Courier',    icon: Truck,           roles: ['Admin', 'Courier Team'] },
     { path: '/steadfast',       label: 'Steadfast',  icon: Truck,           roles: ['Admin', 'Courier Team', 'Moderator'] },
-    { path: '/factory',         label: 'Factory',    icon: Factory,         roles: ['Admin', 'Factory Team'] },
+    { path: '/factory',         label: 'Confirmed',  icon: Factory,         roles: ['Admin', 'Factory Team'] },
     { path: '/inventory',       label: 'Inventory',  icon: Package,         roles: ['Admin', 'Moderator'] },
     { path: '/digital-marketer',label: 'Marketing',  icon: Megaphone,       roles: ['Admin', 'Digital Marketer'] },
     { path: '/tasks',           label: 'Tasks',      icon: ClipboardList,   roles: null },

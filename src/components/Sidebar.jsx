@@ -31,7 +31,7 @@ const menuItems = [
   { path: '/', label: 'Overview', icon: LayoutDashboard, group: 'Main Console' },
   { path: '/orders', label: 'Orders', icon: ShoppingCart, group: 'Main Console' },
   { path: '/inventory', label: 'Inventory', icon: Package, roles: ['Admin', 'Moderator'], group: 'Main Console' },
-  { path: '/factory', label: 'Factory', icon: Factory, roles: ['Admin', 'Factory Team'], group: 'Logistics' },
+  { path: '/factory', label: 'Confirmed', icon: Factory, roles: ['Admin', 'Factory Team'], group: 'Logistics' },
   { path: '/courier', label: 'Courier', icon: Truck, roles: ['Admin', 'Courier Team'], group: 'Logistics' },
   { path: '/steadfast', label: 'Steadfast Hub', icon: Truck, roles: ['Admin', 'Courier Team', 'Moderator'], group: 'Logistics' },
   { path: '/moderator', label: 'Moderator', icon: ShieldCheck, roles: ['Admin', 'Moderator'], group: 'Intelligence' },

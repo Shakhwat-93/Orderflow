@@ -21,7 +21,7 @@ export const CommandPalette = () => {
     { id: 'dash', name: 'Dashboard', icon: <LayoutDashboard size={18} />, category: 'Navigation', action: () => navigate('/') },
     { id: 'orders', name: 'Orders Board', icon: <ShoppingBag size={18} />, category: 'Navigation', action: () => navigate('/orders') },
     { id: 'call', name: 'Call Team Panel', icon: <Users size={18} />, category: 'Navigation', action: () => navigate('/call-team') },
-    { id: 'factory', name: 'Factory Panel', icon: <Factory size={18} />, category: 'Navigation', action: () => navigate('/factory') },
+    { id: 'factory', name: 'Confirmed Panel', icon: <Factory size={18} />, category: 'Navigation', action: () => navigate('/factory') },
     { id: 'courier', name: 'Courier Panel', icon: <Truck size={18} />, category: 'Navigation', action: () => navigate('/courier') },
     { id: 'inventory', name: 'Inventory Management', icon: <Package size={18} />, category: 'Navigation', action: () => navigate('/inventory') },
     { id: 'reports', name: 'Reports & Analytics', icon: <BarChart3 size={18} />, category: 'Navigation', action: () => navigate('/reports') },

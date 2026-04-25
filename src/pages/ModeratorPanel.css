@@ -250,6 +250,70 @@
   font-weight: 500;
 }
 
+.mod-pagination-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--glass-border);
+  background: var(--bg-surface);
+  flex-wrap: wrap;
+}
+
+.mod-pagination-info {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.mod-pagination-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mod-page-numbers {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mod-page-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--glass-border);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mod-page-btn:hover:not(:disabled) {
+  border-color: var(--accent-stroke);
+  color: var(--text-primary);
+}
+
+.mod-page-btn.active {
+  background: var(--accent, #6366f1);
+  border-color: var(--accent, #6366f1);
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.22);
+}
+
+.mod-page-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 /* ── Scrollable Status & Product Strips ── */
 .scrollable-strip-wrapper {
   background: var(--bg-surface);
