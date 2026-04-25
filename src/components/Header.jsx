@@ -21,7 +21,9 @@ export const Header = ({ onMenuToggle }) => {
     markAsRead,
     markAllAsRead,
     clearAllNotifications,
-    closeStartupUnreadModal
+    closeStartupUnreadModal,
+    notificationPermission,
+    enablePushNotifications
   } = useNotifications();
   const navigate = useNavigate();
   const location = useLocation();
@@ -342,6 +344,17 @@ export const Header = ({ onMenuToggle }) => {
               <div className="panel-header-standard">
                 <h3>Notifications</h3>
                 <div className="header-actions-group">
+                  {notificationPermission !== 'granted' && notificationPermission !== 'unsupported' && (
+                    <button
+                      className="enable-alerts-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        enablePushNotifications();
+                      }}
+                    >
+                      Enable Alerts
+                    </button>
+                  )}
                   <button className="see-all-btn" onClick={() => setIsNotifOpen(false)}>See All</button>
                   <button className="clear-all-btn-icon" onClick={(e) => { e.stopPropagation(); clearAllNotifications(); }}>Clear</button>
                 </div>

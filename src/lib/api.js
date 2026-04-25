@@ -2084,6 +2084,73 @@ ${rawText}`;
     if (error) throw error;
   },
 
+  getNotificationUrl(notifData = {}) {
+    const explicitUrl = String(notifData?.data?.url || notifData?.url || '').trim();
+    if (explicitUrl) return explicitUrl;
+
+    if (String(notifData?.type || '').startsWith('TASK_')) {
+      return '/tasks';
+    }
+
+    return '/orders';
+  },
+
+  async resolveNotificationPushRecipients(notifData = {}) {
+    const explicitTargets = [
+      notifData?.target_user_id,
+      notifData?.data?.targetUserId
+    ]
+      .filter(Boolean)
+      .map((value) => String(value).trim())
+      .filter(Boolean);
+
+    if (explicitTargets.length > 0) {
+      return Array.from(new Set(explicitTargets));
+    }
+
+    const { data, error } = await supabase
+      .from('user_roles')
+      .select('user_id')
+      .eq('role_id', 'Admin');
+
+    if (error) throw error;
+
+    return Array.from(new Set((data || []).map((row) => String(row.user_id || '').trim()).filter(Boolean)));
+  },
+
+  async triggerPushNotifications(notificationRecord, notifData = {}) {
+    const recipients = await this.resolveNotificationPushRecipients(notifData);
+    if (!recipients.length) return;
+
+    const body = {
+      notification_id: notificationRecord?.id || null,
+      title: notifData?.title || notificationRecord?.title || 'New Notification',
+      message: notifData?.message || notificationRecord?.message || '',
+      url: this.getNotificationUrl(notifData)
+    };
+
+    const results = await Promise.allSettled(
+      recipients.map((userId) =>
+        supabase.functions.invoke('send-push', {
+          body: {
+            ...body,
+            user_id: userId
+          }
+        })
+      )
+    );
+
+    const failed = results.find((result) => result.status === 'fulfilled' && result.value?.error);
+    if (failed?.value?.error) {
+      throw failed.value.error;
+    }
+
+    const rejected = results.find((result) => result.status === 'rejected');
+    if (rejected) {
+      throw rejected.reason;
+    }
+  },
+
   /**
    * Internal helper to create a notification
    */
@@ -2107,6 +2174,12 @@ ${rawText}`;
         });
     } catch (broadcastError) {
       console.error('Real-time broadcast failed:', broadcastError);
+    }
+
+    try {
+      await this.triggerPushNotifications(data, notifData);
+    } catch (pushError) {
+      console.error('Push notification dispatch failed:', pushError);
     }
 
     return data;

@@ -29,6 +29,11 @@ export const NotificationProvider = ({ children }) => {
   const [startupUnreadNotifications, setStartupUnreadNotifications] = useState([]);
   const [isStartupUnreadModalOpen, setIsStartupUnreadModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState(
+    typeof window !== 'undefined' && 'Notification' in window
+      ? Notification.permission
+      : 'unsupported'
+  );
   const { user, isAdmin } = useAuth();
   const userId = user?.id ?? null;
   const hasShownInitialUnreadToastsRef = useRef(false);
@@ -73,16 +78,25 @@ export const NotificationProvider = ({ children }) => {
     }
   }, [userId]);
 
-  const requestNotificationPermission = useCallback(async () => {
-    if (!('Notification' in window)) return;
-    if (Notification.permission === 'default') {
-      const permission = await Notification.requestPermission();
-      if (permission === 'granted' && userId) {
-        subscribeUserToPush();
-      }
-    } else if (Notification.permission === 'granted' && userId) {
-      subscribeUserToPush();
+  const requestNotificationPermission = useCallback(async (promptUser = false) => {
+    if (!('Notification' in window)) {
+      setNotificationPermission('unsupported');
+      return 'unsupported';
     }
+
+    let permission = Notification.permission;
+    setNotificationPermission(permission);
+
+    if (permission === 'default' && promptUser) {
+      permission = await Notification.requestPermission();
+      setNotificationPermission(permission);
+    }
+
+    if (permission === 'granted' && userId) {
+      await subscribeUserToPush();
+    }
+
+    return permission;
   }, [subscribeUserToPush, userId]);
 
   const showBrowserNotification = useCallback((notif) => {
@@ -155,8 +169,9 @@ export const NotificationProvider = ({ children }) => {
     try {
       let data = await api.getNotifications(50); // Fetch more for better filtering
 
-      // Request/Verify permission and push subscription on first fetch
-      requestNotificationPermission();
+      // Sync granted permission/subscription silently.
+      // Prompting is exposed via explicit user action for mobile reliability.
+      requestNotificationPermission(false);
 
       // Filter by target_user_id if present (either direct column or in data JSON)
       data = data.filter(n => {
@@ -365,6 +380,8 @@ export const NotificationProvider = ({ children }) => {
       clearAllNotifications,
       clearNotifications,
       closeStartupUnreadModal,
+      notificationPermission,
+      enablePushNotifications: () => requestNotificationPermission(true),
       refresh: fetchNotifications
     }}>
       {children}
