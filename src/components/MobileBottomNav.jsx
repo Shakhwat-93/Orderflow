@@ -15,7 +15,8 @@ import {
   Download
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { usePwaInstall } from '../context/PwaInstallContext';
 import './MobileBottomNav.css';
 
 /**
@@ -27,8 +28,7 @@ export const MobileBottomNav = () => {
   const { hasAnyRole } = useAuth();
   const location = useLocation();
   const [isMoreOpen, setIsMoreOpen] = useState(false);
-  const [installPromptEvent, setInstallPromptEvent] = useState(null);
-  const [isInstalled, setIsInstalled] = useState(false);
+  const { canInstall, isInstalled, promptInstall } = usePwaInstall();
 
   const allItems = [
     { path: '/',                label: 'Overview',   icon: LayoutDashboard, roles: null },
@@ -50,56 +50,13 @@ export const MobileBottomNav = () => {
     !item.roles || hasAnyRole(item.roles)
   );
 
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return undefined;
-    }
-
-    const standaloneMedia = window.matchMedia?.('(display-mode: standalone)');
-    const updateInstalledState = () => {
-      const standalone = standaloneMedia?.matches || window.navigator.standalone === true;
-      setIsInstalled(Boolean(standalone));
-    };
-
-    const handleBeforeInstallPrompt = (event) => {
-      event.preventDefault();
-      setInstallPromptEvent(event);
-      updateInstalledState();
-    };
-
-    const handleAppInstalled = () => {
-      setIsInstalled(true);
-      setInstallPromptEvent(null);
-      setIsMoreOpen(false);
-    };
-
-    updateInstalledState();
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    window.addEventListener('appinstalled', handleAppInstalled);
-    standaloneMedia?.addEventListener?.('change', updateInstalledState);
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      window.removeEventListener('appinstalled', handleAppInstalled);
-      standaloneMedia?.removeEventListener?.('change', updateInstalledState);
-    };
-  }, []);
-
-  const canInstallPwa = Boolean(installPromptEvent) && !isInstalled;
-
   const handleInstallClick = async () => {
-    if (!installPromptEvent) {
+    if (!canInstall) {
       return;
     }
 
-    try {
-      await installPromptEvent.prompt();
-      await installPromptEvent.userChoice;
-    } finally {
-      setInstallPromptEvent(null);
-      setIsMoreOpen(false);
-    }
+    await promptInstall();
+    setIsMoreOpen(false);
   };
 
   // Show first 4 items in bar, rest in "More" sheet
@@ -177,10 +134,10 @@ export const MobileBottomNav = () => {
               })}
               <button
                 type="button"
-                className={`mob-more-item mob-more-install ${canInstallPwa ? 'install-ready' : ''} ${isInstalled ? 'is-installed' : ''}`}
+                className={`mob-more-item mob-more-install ${canInstall ? 'install-ready' : ''} ${isInstalled ? 'is-installed' : ''}`}
                 onClick={handleInstallClick}
-                disabled={!canInstallPwa}
-                title={isInstalled ? 'App installed' : canInstallPwa ? 'Install app' : 'Install not available yet'}
+                disabled={!canInstall}
+                title={isInstalled ? 'App installed' : canInstall ? 'Install app' : 'Install not available yet'}
               >
                 <div className="mob-more-icon-box mob-more-icon-box-install">
                   <Download size={20} strokeWidth={2.2} />
