@@ -6,6 +6,17 @@ const PwaInstallContext = createContext(null);
 
 const DISMISS_KEY = 'pwa_install_toast_dismissed';
 
+const detectIos = () => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  const userAgent = window.navigator.userAgent || '';
+  const isClassicIos = /iPad|iPhone|iPod/.test(userAgent);
+  const isModernIpad = window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1;
+  return isClassicIos || isModernIpad;
+};
+
 export const PwaInstallProvider = ({ children }) => {
   const [installPromptEvent, setInstallPromptEvent] = useState(null);
   const [isInstalled, setIsInstalled] = useState(false);
@@ -60,6 +71,9 @@ export const PwaInstallProvider = ({ children }) => {
     };
   }, [storage]);
 
+  const isIosDevice = detectIos();
+  const canManualInstall = !isNativeApp() && isIosDevice && !isInstalled;
+
   const dismissInstallToast = useCallback(() => {
     setIsToastVisible(false);
     storage.setItem(DISMISS_KEY, '1');
@@ -86,12 +100,14 @@ export const PwaInstallProvider = ({ children }) => {
   }, [installPromptEvent]);
 
   const value = useMemo(() => ({
-    canInstall: !isNativeApp() && Boolean(installPromptEvent) && !isInstalled,
+    canInstall: (!isNativeApp() && Boolean(installPromptEvent) && !isInstalled) || canManualInstall,
+    canManualInstall,
     isInstalled,
     isToastVisible: !isNativeApp() && Boolean(installPromptEvent) && !isInstalled && isToastVisible,
+    installMethod: canManualInstall ? 'manual-ios' : ((!isNativeApp() && Boolean(installPromptEvent) && !isInstalled) ? 'prompt' : 'unavailable'),
     promptInstall,
     dismissInstallToast,
-  }), [dismissInstallToast, installPromptEvent, isInstalled, isToastVisible, promptInstall]);
+  }), [canManualInstall, dismissInstallToast, installPromptEvent, isInstalled, isToastVisible, promptInstall]);
 
   return (
     <PwaInstallContext.Provider value={value}>
