@@ -5,9 +5,10 @@ import { useAuth } from '../context/AuthContext';
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
+import { Modal } from '../components/Modal';
 import { OrderEditModal } from '../components/OrderEditModal';
 import { OrderDetailsModal } from '../components/OrderDetailsModal';
-import { Search, Loader2, CheckCircle, PackageSearch, Zap, AlertTriangle, Package, ArrowRight, Edit2, Sparkles, Download, FileSpreadsheet } from 'lucide-react';
+import { Loader2, CheckCircle, PackageSearch, Zap, AlertTriangle, Package, Edit2, Download, FileSpreadsheet, CalendarDays } from 'lucide-react';
 import { PremiumSearch } from '../components/PremiumSearch';
 import { usePersistentState } from '../utils/persistentState';
 import { getToyBoxStockKey } from '../utils/productCatalog';
@@ -58,6 +59,71 @@ const formatExportDate = (value) => {
   });
 };
 
+const DATE_PRESETS = [
+  { id: 'all', label: 'All Time' },
+  { id: 'today', label: 'Today' },
+  { id: 'yesterday', label: 'Yesterday' },
+  { id: 'thisMonth', label: 'This Month' }
+];
+
+const getRangeBoundary = (value, boundary) => {
+  if (!value) return null;
+
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) return null;
+
+  if (boundary === 'start') {
+    return new Date(year, month - 1, day, 0, 0, 0, 0);
+  }
+
+  return new Date(year, month - 1, day, 23, 59, 59, 999);
+};
+
+const matchesDatePreset = (value, preset) => {
+  if (!value || preset === 'all') return true;
+
+  const orderDate = new Date(value);
+  if (Number.isNaN(orderDate.getTime())) return false;
+
+  const now = new Date();
+
+  if (preset === 'today') {
+    return now.getTime() - orderDate.getTime() <= 24 * 60 * 60 * 1000;
+  }
+
+  if (preset === 'yesterday') {
+    const yesterdayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+    const yesterdayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return orderDate >= yesterdayStart && orderDate < yesterdayEnd;
+  }
+
+  if (preset === 'thisMonth') {
+    return (
+      orderDate.getFullYear() === now.getFullYear() &&
+      orderDate.getMonth() === now.getMonth()
+    );
+  }
+
+  return true;
+};
+
+const matchesCustomDateRange = (value, startDate, endDate) => {
+  if (!value) return false;
+
+  const orderDate = new Date(value);
+  if (Number.isNaN(orderDate.getTime())) return false;
+
+  if (startDate && orderDate < startDate) {
+    return false;
+  }
+
+  if (endDate && orderDate > endDate) {
+    return false;
+  }
+
+  return true;
+};
+
 const formatProductSummary = (order) => {
   const items = Array.isArray(order?.ordered_items) ? order.ordered_items : [];
 
@@ -88,11 +154,18 @@ export const FactoryPanel = () => {
   const [isDistributing, setIsDistributing] = useState(false);
   const [distributeResult, setDistributeResult] = useState(null);
   const [activeTab, setActiveTab] = usePersistentState('panel:factory:tab', 'confirmed'); // 'confirmed' | 'queued'
+  const [datePreset, setDatePreset] = usePersistentState('panel:factory:date-preset', 'all');
+  const [dateFrom, setDateFrom] = usePersistentState('panel:factory:date-from', '');
+  const [dateTo, setDateTo] = usePersistentState('panel:factory:date-to', '');
   const [currentPage, setCurrentPage] = useState(1);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [exportDatePreset, setExportDatePreset] = useState('all');
+  const [exportDateFrom, setExportDateFrom] = useState('');
+  const [exportDateTo, setExportDateTo] = useState('');
 
   const handleOpenEditModal = (order) => {
     setSelectedOrder(order);
@@ -105,21 +178,46 @@ export const FactoryPanel = () => {
   };
 
   // Confirmed = incoming, Factory Queue = waiting for stock
+  const normalizedSearchTerm = searchTerm.toLowerCase();
+  const rangeStartDate = useMemo(() => getRangeBoundary(dateFrom, 'start'), [dateFrom]);
+  const rangeEndDate = useMemo(() => getRangeBoundary(dateTo, 'end'), [dateTo]);
+  const hasCustomRange = Boolean(dateFrom || dateTo);
+
+  const matchesActiveDateFilter = (value) => {
+    if (hasCustomRange) {
+      return matchesCustomDateRange(value, rangeStartDate, rangeEndDate);
+    }
+
+    return matchesDatePreset(value, datePreset);
+  };
+
+  const matchesPanelFilters = (order) => (
+    (
+      order.id.toLowerCase().includes(normalizedSearchTerm) ||
+      (order.product_name || '').toLowerCase().includes(normalizedSearchTerm) ||
+      (order.customer_name || '').toLowerCase().includes(normalizedSearchTerm)
+    ) &&
+    matchesActiveDateFilter(order.created_at)
+  );
+
+  const matchesSearchFilter = (order) => (
+    order.id.toLowerCase().includes(normalizedSearchTerm) ||
+    (order.product_name || '').toLowerCase().includes(normalizedSearchTerm) ||
+    (order.customer_name || '').toLowerCase().includes(normalizedSearchTerm)
+  );
+
   const confirmedOrders = orders.filter(
-    o => o.status === 'Confirmed' &&
-    (o.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
-     (o.product_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-     (o.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase()))
+    (order) => order.status === 'Confirmed' && matchesPanelFilters(order)
   );
 
   const queuedOrders = orders.filter(
-    o => o.status === 'Factory Queue' &&
-    (o.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
-     (o.product_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-     (o.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase()))
+    (order) => order.status === 'Factory Queue' && matchesPanelFilters(order)
   );
 
   const displayOrders = activeTab === 'confirmed' ? confirmedOrders : queuedOrders;
+  const exportRangeStartDate = useMemo(() => getRangeBoundary(exportDateFrom, 'start'), [exportDateFrom]);
+  const exportRangeEndDate = useMemo(() => getRangeBoundary(exportDateTo, 'end'), [exportDateTo]);
+  const exportHasCustomRange = Boolean(exportDateFrom || exportDateTo);
   const totalPages = Math.max(1, Math.ceil(displayOrders.length / FACTORY_PAGE_SIZE));
   const paginatedOrders = useMemo(() => {
     const startIndex = (currentPage - 1) * FACTORY_PAGE_SIZE;
@@ -129,7 +227,7 @@ export const FactoryPanel = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, searchTerm]);
+  }, [activeTab, searchTerm, datePreset, dateFrom, dateTo]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -185,10 +283,91 @@ export const FactoryPanel = () => {
     await updateOrderStatus(orderId, 'Confirmed');
   };
 
-  const handleBulkExport = () => {
-    if (displayOrders.length === 0) return;
+  const getExportOrders = (preset, from, to) => {
+    const startDate = getRangeBoundary(from, 'start');
+    const endDate = getRangeBoundary(to, 'end');
+    const hasRange = Boolean(from || to);
+    const targetStatus = activeTab === 'confirmed' ? 'Confirmed' : 'Factory Queue';
 
-    const exportRows = displayOrders.map((order, index) => ({
+    return orders.filter((order) => {
+      if (order.status !== targetStatus) {
+        return false;
+      }
+
+      if (!matchesSearchFilter(order)) {
+        return false;
+      }
+
+      if (hasRange) {
+        return matchesCustomDateRange(order.created_at, startDate, endDate);
+      }
+
+      return matchesDatePreset(order.created_at, preset);
+    });
+  };
+
+  const exportPreviewOrders = useMemo(
+    () => getExportOrders(exportDatePreset, exportDateFrom, exportDateTo),
+    [orders, activeTab, normalizedSearchTerm, exportDatePreset, exportDateFrom, exportDateTo]
+  );
+
+  const handlePresetChange = (presetId) => {
+    setDatePreset(presetId);
+    setDateFrom('');
+    setDateTo('');
+  };
+
+  const handleDateRangeChange = (field, value) => {
+    setDatePreset('all');
+
+    if (field === 'from') {
+      setDateFrom(value);
+      return;
+    }
+
+    setDateTo(value);
+  };
+
+  const handleClearDateRange = () => {
+    setDateFrom('');
+    setDateTo('');
+    setDatePreset('all');
+  };
+
+  const handleOpenExportModal = () => {
+    setExportDatePreset(datePreset);
+    setExportDateFrom(dateFrom);
+    setExportDateTo(dateTo);
+    setIsExportModalOpen(true);
+  };
+
+  const handleExportPresetChange = (presetId) => {
+    setExportDatePreset(presetId);
+    setExportDateFrom('');
+    setExportDateTo('');
+  };
+
+  const handleExportDateRangeChange = (field, value) => {
+    setExportDatePreset('all');
+
+    if (field === 'from') {
+      setExportDateFrom(value);
+      return;
+    }
+
+    setExportDateTo(value);
+  };
+
+  const handleClearExportDateRange = () => {
+    setExportDatePreset('all');
+    setExportDateFrom('');
+    setExportDateTo('');
+  };
+
+  const handleBulkExport = () => {
+    if (exportPreviewOrders.length === 0) return;
+
+    const exportRows = exportPreviewOrders.map((order, index) => ({
       serial: index + 1,
       order_id: order.id || '',
       status: order.status || '',
@@ -216,7 +395,11 @@ export const FactoryPanel = () => {
 
     const dateLabel = new Date().toISOString().split('T')[0];
     const tabLabel = activeTab === 'confirmed' ? 'confirmed' : 'queue';
-    XLSX.writeFile(workbook, `confirmed-panel-${tabLabel}-${dateLabel}.xlsx`);
+    const rangeLabel = exportHasCustomRange
+      ? `range-${exportDateFrom || 'start'}-to-${exportDateTo || 'today'}`
+      : (exportDatePreset === 'all' ? 'all-time' : exportDatePreset.toLowerCase());
+    XLSX.writeFile(workbook, `confirmed-panel-${tabLabel}-${rangeLabel}-${dateLabel}.xlsx`);
+    setIsExportModalOpen(false);
   };
 
   return (
@@ -234,7 +417,7 @@ export const FactoryPanel = () => {
         <div className="factory-header-actions">
           <Button
             variant="ghost"
-            onClick={handleBulkExport}
+            onClick={handleOpenExportModal}
             disabled={displayOrders.length === 0}
             className="factory-export-btn"
           >
@@ -344,7 +527,58 @@ export const FactoryPanel = () => {
               }
             }}
           />
+          <div className="factory-date-preset-bar">
+            <div className="factory-date-preset-label">
+              <CalendarDays size={15} />
+              <span>Premium Filter</span>
+            </div>
+            <div className="factory-date-preset-tabs">
+              {DATE_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  className={`factory-date-chip ${!hasCustomRange && datePreset === preset.id ? 'active' : ''}`}
+                  onClick={() => handlePresetChange(preset.id)}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="factory-range-filter">
+            <div className="factory-range-input-group">
+              <label className="factory-range-label" htmlFor="factory-date-from">From</label>
+              <input
+                id="factory-date-from"
+                type="date"
+                className="factory-range-input"
+                value={dateFrom}
+                onChange={(event) => handleDateRangeChange('from', event.target.value)}
+              />
+            </div>
+            <div className="factory-range-input-group">
+              <label className="factory-range-label" htmlFor="factory-date-to">To</label>
+              <input
+                id="factory-date-to"
+                type="date"
+                className="factory-range-input"
+                value={dateTo}
+                onChange={(event) => handleDateRangeChange('to', event.target.value)}
+              />
+            </div>
+            <button
+              type="button"
+              className="factory-range-clear-btn"
+              onClick={handleClearDateRange}
+              disabled={!hasCustomRange && datePreset === 'all'}
+            >
+              Reset
+            </button>
+          </div>
           <div className="filter-actions-group">
+            <span className="order-count-badge order-count-badge--scope">
+              {hasCustomRange ? 'Custom Range' : DATE_PRESETS.find((preset) => preset.id === datePreset)?.label}
+            </span>
             <span className="order-count-badge">{displayOrders.length} records found</span>
           </div>
         </div>
@@ -512,6 +746,91 @@ export const FactoryPanel = () => {
         onClose={() => setIsEditModalOpen(false)} 
         order={selectedOrder} 
       />
+
+      <Modal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        title="Bulk Export Filters"
+        subtitle="Choose a preset or custom date range, then download the exact matched orders."
+      >
+        <div className="factory-export-modal">
+          <div className="factory-export-modal-section">
+            <div className="factory-date-preset-label">
+              <CalendarDays size={15} />
+              <span>Date Filter</span>
+            </div>
+            <div className="factory-date-preset-tabs">
+              {DATE_PRESETS.map((preset) => (
+                <button
+                  key={`export-${preset.id}`}
+                  type="button"
+                  className={`factory-date-chip ${!exportHasCustomRange && exportDatePreset === preset.id ? 'active' : ''}`}
+                  onClick={() => handleExportPresetChange(preset.id)}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="factory-export-modal-section">
+            <div className="factory-range-filter factory-range-filter--modal">
+              <div className="factory-range-input-group">
+                <label className="factory-range-label" htmlFor="factory-export-date-from">From</label>
+                <input
+                  id="factory-export-date-from"
+                  type="date"
+                  className="factory-range-input"
+                  value={exportDateFrom}
+                  onChange={(event) => handleExportDateRangeChange('from', event.target.value)}
+                />
+              </div>
+              <div className="factory-range-input-group">
+                <label className="factory-range-label" htmlFor="factory-export-date-to">To</label>
+                <input
+                  id="factory-export-date-to"
+                  type="date"
+                  className="factory-range-input"
+                  value={exportDateTo}
+                  onChange={(event) => handleExportDateRangeChange('to', event.target.value)}
+                />
+              </div>
+              <button
+                type="button"
+                className="factory-range-clear-btn"
+                onClick={handleClearExportDateRange}
+                disabled={!exportHasCustomRange && exportDatePreset === 'all'}
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+
+          <div className="factory-export-summary">
+            <span className="order-count-badge order-count-badge--scope">
+              {activeTab === 'confirmed' ? 'Confirmed Tab' : 'Queue Tab'}
+            </span>
+            <span className="order-count-badge">
+              {exportHasCustomRange ? 'Custom Range' : DATE_PRESETS.find((preset) => preset.id === exportDatePreset)?.label}
+            </span>
+            <span className="order-count-badge">{exportPreviewOrders.length} ready to export</span>
+          </div>
+
+          <div className="factory-export-actions">
+            <Button variant="ghost" onClick={() => setIsExportModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleBulkExport}
+              disabled={exportPreviewOrders.length === 0}
+            >
+              <FileSpreadsheet size={16} />
+              <span>Download Export</span>
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       <OrderDetailsModal 
         isOpen={isDetailsModalOpen} 

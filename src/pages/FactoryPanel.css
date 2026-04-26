@@ -276,6 +276,168 @@
   flex-wrap: wrap;
 }
 
+.factory-date-preset-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.factory-date-preset-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--fp-text-sub);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.factory-date-preset-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.factory-range-filter {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.factory-range-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 138px;
+}
+
+.factory-range-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--fp-text-sub);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.factory-range-input {
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid var(--fp-btn-border);
+  background: var(--fp-input-bg);
+  color: var(--fp-text);
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.factory-range-input:focus {
+  border-color: var(--fp-accent);
+  box-shadow: 0 0 0 4px var(--fp-accent-bg);
+}
+
+.factory-range-clear-btn {
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--fp-btn-border);
+  background: var(--fp-btn-bg);
+  color: var(--fp-text-sub);
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.factory-range-clear-btn:hover:not(:disabled) {
+  border-color: var(--fp-accent-bdr);
+  color: var(--fp-text);
+  background: var(--fp-card-hover);
+}
+
+.factory-range-clear-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.factory-export-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.factory-export-modal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid var(--fp-border);
+  background: var(--fp-card-hover);
+}
+
+.factory-range-filter--modal {
+  align-items: flex-end;
+}
+
+.factory-export-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.factory-export-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.factory-date-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--fp-btn-border);
+  background: var(--fp-btn-bg);
+  color: var(--fp-text-sub);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.factory-date-chip:hover {
+  border-color: var(--fp-accent-bdr);
+  color: var(--fp-text);
+  background: var(--fp-card-hover);
+}
+
+.factory-date-chip.active {
+  background: var(--fp-accent);
+  border-color: var(--fp-accent);
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(99, 102, 241, 0.22);
+}
+
+.filter-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
 .order-count-badge {
   font-size: 0.78rem;
   font-weight: 700;
@@ -284,6 +446,12 @@
   padding: 5px 12px;
   border-radius: 99px;
   border: 1px solid var(--fp-border);
+}
+
+.order-count-badge--scope {
+  background: var(--fp-accent-bg);
+  color: var(--fp-accent);
+  border-color: var(--fp-accent-bdr);
 }
 
 .factory-table-wrapper {
@@ -589,6 +757,32 @@
     padding: 20px;
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .table-search-bar {
+    padding: 16px;
+    align-items: flex-start;
+  }
+
+  .factory-date-preset-bar,
+  .factory-range-filter,
+  .filter-actions-group {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .factory-range-input-group {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .factory-range-input,
+  .factory-range-clear-btn {
+    width: 100%;
+  }
+
+  .factory-export-actions > .btn {
+    width: 100%;
   }
 
   .factory-header-actions {
