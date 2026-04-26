@@ -208,6 +208,14 @@ body {
   overflow-x: hidden;
 }
 
+body.native-app {
+  overscroll-behavior-y: contain;
+}
+
+body.keyboard-open .mobile-bottom-nav {
+  transform: translateY(calc(100% + 24px));
+}
+
 /* ================================================================
    APP LAYOUT
    ================================================================ */

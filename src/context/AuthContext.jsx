@@ -187,6 +187,31 @@ export const AuthProvider = ({ children }) => {
     };
   }, [clearSessionState, fetchProfile]);
 
+  useEffect(() => {
+    const handleAppResume = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const resumedUser = session?.user ?? null;
+        const resumedUserId = resumedUser?.id ?? null;
+
+        currentUserIdRef.current = resumedUserId;
+        setUser(resumedUser);
+
+        if (resumedUserId) {
+          await fetchProfile(resumedUserId);
+          return;
+        }
+
+        clearSessionState();
+      } catch (error) {
+        console.error('Auth resume sync failed:', error);
+      }
+    };
+
+    window.addEventListener('app:resume', handleAppResume);
+    return () => window.removeEventListener('app:resume', handleAppResume);
+  }, [clearSessionState, fetchProfile]);
+
   const signIn = async (email, password) => {
     const { data, error } = await supabase.auth.signInWithPassword({
       email,

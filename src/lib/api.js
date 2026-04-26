@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { supabase } from './supabase';
+import { extractInvoiceItems, extractOrder } from '../services/aiProxy';
 
 /**
  * SECURE API SERVICE LAYER
@@ -10,6 +11,7 @@ import { supabase } from './supabase';
 
 export const api = {
   orderModernColumnsState: null,
+  courierRatioCacheTableState: null,
   // Use a getter/setter or just handle it in the methods to persist the column state
   getToyBoxProductNameColumnState() {
     if (this._toyBoxProductNameColumnState !== undefined) return this._toyBoxProductNameColumnState;
@@ -70,8 +72,293 @@ export const api = {
     );
   },
 
+  isMissingFunctionError(error, functionName = '') {
+    const message = [
+      error?.message,
+      error?.details,
+      error?.hint
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    if (!message) return false;
+
+    const normalizedFunction = String(functionName || '').toLowerCase();
+    return (
+      String(error?.code || '').toUpperCase() === 'PGRST202' ||
+      (message.includes('function') && message.includes('does not exist') && (!normalizedFunction || message.includes(normalizedFunction))) ||
+      (message.includes('could not find the function') && (!normalizedFunction || message.includes(normalizedFunction)))
+    );
+  },
+
   normalizeIpAddress(value = '') {
     return String(value || '').trim().toLowerCase();
+  },
+
+  normalizePhone(value = '') {
+    return String(value || '')
+      .replace(/\D/g, '')
+      .replace(/^88/, '')
+      .trim();
+  },
+
+  toFiniteNumber(...values) {
+    for (const value of values) {
+      const numeric = Number(value);
+      if (Number.isFinite(numeric)) return numeric;
+    }
+    return null;
+  },
+
+  normalizeCourierRatioValue(value, total = 0, successCount = 0) {
+    const direct = this.toFiniteNumber(value);
+    if (direct != null) {
+      return Math.max(0, Math.min(100, Number(direct.toFixed(2))));
+    }
+
+    if (Number(total) > 0) {
+      return Math.max(0, Math.min(100, Number((((Number(successCount) || 0) / Number(total)) * 100).toFixed(2))));
+    }
+
+    return 0;
+  },
+
+  inferCourierRiskLevel(total = 0, ratio = 0, explicitRisk = '') {
+    const normalizedExplicit = String(explicitRisk || '').trim().toLowerCase();
+    if (normalizedExplicit) return normalizedExplicit;
+    if (Number(total) <= 0) return 'new';
+    if (Number(ratio) >= 70) return 'high';
+    if (Number(ratio) >= 40) return 'medium';
+    return 'low';
+  },
+
+  normalizeCourierRatioPayload(result = {}, phone = '') {
+    const normalizedPhone = this.normalizePhone(phone || result?.phone);
+    const primaryPayload =
+      (result?.stats?.data && typeof result.stats.data === 'object' && !Array.isArray(result.stats.data) && result.stats.data) ||
+      (result?.stats && typeof result.stats === 'object' && !Array.isArray(result.stats) && result.stats) ||
+      (result?.data && typeof result.data === 'object' && !Array.isArray(result.data) && result.data) ||
+      (typeof result === 'object' && !Array.isArray(result) ? result : {});
+
+    const total = Math.max(0, Math.round(this.toFiniteNumber(
+      primaryPayload.total,
+      primaryPayload.total_parcel,
+      primaryPayload.total_parcels,
+      primaryPayload.total_orders,
+      primaryPayload.total_count,
+      result?.total
+    ) || 0));
+
+    const successCount = Math.max(0, Math.round(this.toFiniteNumber(
+      primaryPayload.success_count,
+      primaryPayload.success_parcel,
+      primaryPayload.success_parcels,
+      primaryPayload.delivered_count,
+      primaryPayload.completed_count,
+      result?.success_count
+    ) || 0));
+
+    const cancelled = Math.max(0, Math.round(this.toFiniteNumber(
+      primaryPayload.cancelled,
+      primaryPayload.cancelled_count,
+      primaryPayload.cancel_count,
+      primaryPayload.cancel_parcel,
+      primaryPayload.cancelled_parcel,
+      result?.cancelled
+    ) || 0));
+
+    const ratio = this.normalizeCourierRatioValue(
+      this.toFiniteNumber(
+        primaryPayload.ratio,
+        primaryPayload.success_ratio,
+        primaryPayload.delivery_ratio,
+        result?.ratio
+      ),
+      total,
+      successCount
+    );
+
+    const couriersSource =
+      primaryPayload.couriers ||
+      primaryPayload.courier_stats ||
+      primaryPayload.courier_breakdown ||
+      primaryPayload.breakdown ||
+      result?.couriers ||
+      {};
+
+    const couriers = (couriersSource && typeof couriersSource === 'object' && !Array.isArray(couriersSource))
+      ? couriersSource
+      : {};
+
+    const riskLevel = this.inferCourierRiskLevel(
+      total,
+      ratio,
+      primaryPayload.riskLevel || primaryPayload.risk_level || result?.riskLevel || result?.risk_level
+    );
+
+    return {
+      phone: normalizedPhone,
+      total,
+      success_count: successCount,
+      cancelled,
+      ratio,
+      riskLevel,
+      couriers,
+      raw: result
+    };
+  },
+
+  hydrateCourierRatioCacheRecord(record = {}) {
+    return {
+      loading: record.fetch_status === 'pending',
+      fetched: record.fetch_status === 'completed' || record.fetch_status === 'failed',
+      error: record.fetch_status === 'failed',
+      total: Number(record.total || 0),
+      success_count: Number(record.success_count || 0),
+      cancelled: Number(record.cancelled || 0),
+      ratio: Number(record.ratio || 0),
+      riskLevel: record.risk_level || 'new',
+      couriers: (record.couriers && typeof record.couriers === 'object' && !Array.isArray(record.couriers)) ? record.couriers : {},
+      raw: record.raw || null,
+      fetchedAt: record.fetched_at || null,
+      updatedAt: record.updated_at || null,
+      phone: record.phone || '',
+      source: record.source || 'steadfast'
+    };
+  },
+
+  async getCourierRatioCache(phone) {
+    const normalizedPhone = this.normalizePhone(phone);
+    if (!normalizedPhone || this.courierRatioCacheTableState === false) return null;
+
+    const { data, error } = await supabase
+      .from('courier_ratio_cache')
+      .select('*')
+      .eq('phone', normalizedPhone)
+      .limit(1);
+
+    if (error) {
+      if (this.isMissingTableError(error, 'courier_ratio_cache')) {
+        this.courierRatioCacheTableState = false;
+        return null;
+      }
+      throw error;
+    }
+
+    this.courierRatioCacheTableState = true;
+    const row = Array.isArray(data) ? data[0] : data;
+    return row ? this.hydrateCourierRatioCacheRecord(row) : null;
+  },
+
+  async getCourierRatioCacheBatch(phones = []) {
+    const normalizedPhones = [...new Set((phones || []).map((phone) => this.normalizePhone(phone)).filter(Boolean))];
+    if (normalizedPhones.length === 0 || this.courierRatioCacheTableState === false) return {};
+
+    const { data, error } = await supabase
+      .from('courier_ratio_cache')
+      .select('*')
+      .in('phone', normalizedPhones);
+
+    if (error) {
+      if (this.isMissingTableError(error, 'courier_ratio_cache')) {
+        this.courierRatioCacheTableState = false;
+        return {};
+      }
+      throw error;
+    }
+
+    this.courierRatioCacheTableState = true;
+    return Object.fromEntries((data || []).map((row) => [row.phone, this.hydrateCourierRatioCacheRecord(row)]));
+  },
+
+  async claimCourierRatioLookup(phone) {
+    const normalizedPhone = this.normalizePhone(phone);
+    if (!normalizedPhone) return false;
+    if (this.courierRatioCacheTableState === false) return true;
+
+    const { data, error } = await supabase.rpc('claim_courier_ratio_lookup', {
+      phone_input: normalizedPhone
+    });
+
+    if (error) {
+      if (
+        this.isMissingTableError(error, 'courier_ratio_cache') ||
+        this.isMissingFunctionError(error, 'claim_courier_ratio_lookup')
+      ) {
+        this.courierRatioCacheTableState = false;
+        return true;
+      }
+      throw error;
+    }
+
+    this.courierRatioCacheTableState = true;
+    return Boolean(data);
+  },
+
+  async waitForCourierRatioCache(phone, attempts = 4, delayMs = 900) {
+    const normalizedPhone = this.normalizePhone(phone);
+    if (!normalizedPhone) return null;
+
+    for (let index = 0; index < attempts; index += 1) {
+      const cached = await this.getCourierRatioCache(normalizedPhone);
+      if (!cached) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        continue;
+      }
+      if (cached.fetched || !cached.loading) {
+        return cached;
+      }
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+
+    return this.getCourierRatioCache(normalizedPhone);
+  },
+
+  async saveCourierRatioCache(phone, result, fetchStatus = 'completed') {
+    const normalizedPayload = this.normalizeCourierRatioPayload(result, phone);
+    if (!normalizedPayload.phone || this.courierRatioCacheTableState === false) return null;
+
+    const isCompleted = fetchStatus === 'completed';
+    const nowIso = new Date().toISOString();
+    const payload = {
+      phone: normalizedPayload.phone,
+      total: normalizedPayload.total,
+      success_count: normalizedPayload.success_count,
+      cancelled: normalizedPayload.cancelled,
+      ratio: normalizedPayload.ratio,
+      risk_level: normalizedPayload.riskLevel,
+      couriers: normalizedPayload.couriers || {},
+      raw: normalizedPayload.raw || result || null,
+      fetch_status: fetchStatus,
+      source: 'steadfast',
+      fetched_at: isCompleted ? nowIso : null,
+      updated_at: nowIso
+    };
+
+    const { data, error } = await supabase
+      .from('courier_ratio_cache')
+      .upsert(payload, { onConflict: 'phone' })
+      .select('*')
+      .maybeSingle();
+
+    if (error) {
+      if (this.isMissingTableError(error, 'courier_ratio_cache')) {
+        this.courierRatioCacheTableState = false;
+        return null;
+      }
+      throw error;
+    }
+
+    this.courierRatioCacheTableState = true;
+    return data ? this.hydrateCourierRatioCacheRecord(data) : this.hydrateCourierRatioCacheRecord(payload);
+  },
+
+  async markCourierRatioCacheFailed(phone, errorMessage = 'Courier ratio check failed') {
+    return this.saveCourierRatioCache(phone, {
+      success: false,
+      error: String(errorMessage || 'Courier ratio check failed')
+    }, 'failed');
   },
 
   shouldUseAuthSignupFallback(error) {
@@ -286,165 +573,11 @@ export const api = {
   },
 
   async extractInvoiceItemsWithGroq(invoiceText) {
-    const apiKey = import.meta.env.VITE_GROQ_API_KEY;
-    if (!apiKey || !invoiceText?.trim()) return null;
-
-    const prompt = `You are an invoice line parser. Extract purchasable product lines and quantity from raw invoice text.\nReturn STRICT JSON only (no markdown), in this exact shape:\n{"items":[{"product":"string","quantity":number,"sourceLine":"string"}]}\nRules:\n- quantity must be integer >= 1\n- ignore totals, VAT, discount, customer/phone/address/date/invoice number lines\n- if quantity is missing, use 1\n- keep product concise but faithful\nRaw invoice:\n${invoiceText}`;
-
-    try {
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
-          temperature: 0.1,
-          messages: [
-            {
-              role: 'system',
-              content: 'Return strict JSON only. No prose. No markdown.'
-            },
-            {
-              role: 'user',
-              content: prompt
-            }
-          ]
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`Groq API error: ${response.status}`);
-      }
-
-      const payload = await response.json();
-      const content = payload?.choices?.[0]?.message?.content;
-      if (!content) return null;
-
-      const cleaned = content
-        .replace(/^```json\s*/i, '')
-        .replace(/^```\s*/i, '')
-        .replace(/```\s*$/i, '')
-        .trim();
-
-      const parsed = JSON.parse(cleaned);
-      const items = Array.isArray(parsed?.items) ? parsed.items : [];
-
-      const normalized = items
-        .map((i) => ({
-          product: String(i?.product || '').trim(),
-          quantity: Math.max(1, parseInt(i?.quantity, 10) || 1),
-          sourceLine: String(i?.sourceLine || i?.product || '').trim()
-        }))
-        .filter((i) => i.product);
-
-      return normalized.length ? normalized : null;
-    } catch (error) {
-      console.error('Groq extraction failed. Falling back to local parser:', error);
-      return null;
-    }
+    return extractInvoiceItems(invoiceText);
   },
 
   async extractOrderWithAI(rawText) {
-    const apiKey = import.meta.env.VITE_GROQ_API_KEY;
-    if (!apiKey || !rawText?.trim()) return null;
-
-    const prompt = `You are an expert order extractor for a premium Order Management System.
-From the raw input below (which could be WhatsApp text or Spreadsheet rows), extract customer details and products.
-
-### SYSTEM CONFIGURATION (Reference only):
-- PRODUCTS: [TOY BOX, ORGANIZER, Travel bag, TOY BOX + ORG, Gym bag, VLOGGER FOR FREE, MMB, Quran, WAIST BAG, BAGPACK, Moshari]
-- STATUSES: [New, Pending Call, Confirmed, Factory Queue, Courier Ready, Shipped, Delivered, Cancelled, Returned]
-
-### EXTRACTION RULES:
-1. CUSTOMER INFO:
-   - Identify Name, Phone, and Address. 
-   - For Spreadsheet rows (tab-separated):
-     - Name is often a short name after a date.
-     - Address is the longest string (e.g., "Flat C6 Mohanogor...").
-     - Phone is the 10-11 digit number.
-2. PRODUCT LOGIC:
-   - Map products to the SYSTEM CONFIGURATION names.
-   - TOY BOX SERIALS: If text mentions "tb: 09. 17" or "#15, #22", these are specific box numbers.
-   - MULTI-SERIAL SPLIT: If a single line mentions multiple serials (e.g., "tb: 09. 17") with a quantity (e.g., 2), return them as SEPARATE product objects in the array, each with quantity 1 and its specific serial number in the name: "TOY BOX #09", "TOY BOX #17".
-3. SHIPPING ZONE:
-   - Default to "Outside Dhaka".
-   - Set "Inside Dhaka" ONLY if address clearly mentions: Uttara, Dhanmondi, Gulshan, Banani, Mirpur, Badda, Mohammadpur, Khilgaon, Bashundhara, Rampura, or "Dhaka City". 
-4. FINANCIALS:
-   - "extracted_subtotal": Extract the price if clearly mentioned (e.g. 1200, 2400). Exclude delivery charge.
-5. FORMAT:
-   - Return STRICT JSON only. No markdown. No prose.
-
-### DESIRED SHAPE:
-{
-  "customer_name": "string",
-  "phone": "string",
-  "address": "string",
-  "products": [
-    { "name": "string", "quantity": number, "size": "string" }
-  ],
-  "shipping_zone": "Inside Dhaka" | "Outside Dhaka",
-  "extracted_subtotal": number | null,
-  "notes": "string"
-}
-
-### RAW INPUT:
-${rawText}`;
-
-    try {
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
-          temperature: 0.1,
-          messages: [
-            {
-              role: 'system',
-              content: 'Return strict JSON only. No prose. No markdown.'
-            },
-            {
-              role: 'user',
-              content: prompt
-            }
-          ]
-        })
-      });
-
-      if (!response.ok) throw new Error(`Groq API error: ${response.status}`);
-
-      const payload = await response.json();
-      const content = payload?.choices?.[0]?.message?.content;
-      if (!content) return null;
-
-      const cleaned = content
-        .replace(/^```json\s*/i, '')
-        .replace(/^```\s*/i, '')
-        .replace(/```\s*$/i, '')
-        .trim();
-
-      const parsed = JSON.parse(cleaned);
-      return {
-        customer_name: String(parsed?.customer_name || '').trim(),
-        phone: String(parsed?.phone || '').trim().replace(/[^0-9+]/g, ''),
-        address: String(parsed?.address || '').trim(),
-        shipping_zone: parsed?.shipping_zone === 'Inside Dhaka' ? 'Inside Dhaka' : 'Outside Dhaka',
-        extracted_subtotal: parsed?.extracted_subtotal ? parseFloat(parsed.extracted_subtotal) : null,
-        products: Array.isArray(parsed?.products) ? parsed.products.map(p => ({
-          name: String(p?.name || '').trim(),
-          quantity: Math.max(1, parseInt(p?.quantity, 10) || 1),
-          size: String(p?.size || '').trim()
-        })) : [],
-        notes: String(parsed?.notes || '').trim()
-      };
-    } catch (error) {
-      console.error('Groq order extraction failed:', error);
-      return null;
-    }
+    return extractOrder(rawText);
   },
 
   matchInventoryProduct(productName, inventory = []) {
@@ -1282,7 +1415,8 @@ ${rawText}`;
     const hasPermission = userRoles.some(r => ['Admin', 'Call Team', 'Moderator'].includes(r));
     if (!hasPermission) throw new Error('Unauthorized: You do not have permission to add order notes.');
 
-    const entry = this.formatOrderNoteEntry(noteText, actionLabel, userName);
+    const cleanNote = String(noteText || '').trim();
+    const entry = this.formatOrderNoteEntry(cleanNote, actionLabel, userName);
     if (!entry) return null;
 
     let currentNotes = existingNotes;
@@ -1312,7 +1446,7 @@ ${rawText}`;
       action_type: 'UPDATE',
       changed_by_user_id: userId,
       changed_by_user_name: userName,
-      action_description: `${userName} added a note for ${String(actionLabel || 'update').toLowerCase()} on order #${orderId}`
+      action_description: `${userName} added a note for ${String(actionLabel || 'update').toLowerCase()} on order #${orderId}: ${cleanNote}`
     });
 
     return data;
@@ -1358,9 +1492,13 @@ ${rawText}`;
       action_type: 'UPDATE', // Use UPDATE as it's allowed by DB constraints while providing a specific description
       changed_by_user_id: userId,
       changed_by_user_name: userName,
-      action_description: `${userName} logged a call attempt: ${status} (Attempt #${newAttempts})`,
+      action_description: `${userName} logged a call attempt: ${status} (Attempt #${newAttempts})${String(noteText || '').trim() ? ` - Note: ${String(noteText || '').trim()}` : ''}`,
       new_status: 'Pending Call' // Keep the current logical status
     });
+
+    if (String(noteText || '').trim()) {
+      return this.appendOrderNote(orderId, noteText, userId, userName, userRoles, status, data?.notes || '');
+    }
 
     return data;
   },
@@ -1751,10 +1889,6 @@ ${rawText}`;
       throw error;
     }
     if (data?.error) throw new Error(data.error);
-
-    if (String(noteText || '').trim()) {
-      return this.appendOrderNote(orderId, noteText, userId, userName, userRoles, status, data?.notes || '');
-    }
 
     return data;
   },

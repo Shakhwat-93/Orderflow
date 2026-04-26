@@ -1,8 +1,9 @@
-import { useState, useLayoutEffect, useRef } from 'react';
+import { useState, useLayoutEffect, useRef, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { MobileBottomNav } from './MobileBottomNav';
+import { getSessionStorage } from '../platform/storage';
 import './DashboardLayout.css';
 
 
@@ -11,16 +12,17 @@ export const DashboardLayout = () => {
   const location = useLocation();
   const scrollRef = useRef(null);
   const scrollKey = `route_scroll:${location.pathname}${location.search}`;
+  const storage = getSessionStorage();
 
   useLayoutEffect(() => {
     const node = scrollRef.current;
     if (!node) return;
 
-    const saved = sessionStorage.getItem(scrollKey);
+    const saved = storage.getItem(scrollKey);
     node.scrollTop = saved ? Number(saved) || 0 : 0;
 
     const handleScroll = () => {
-      sessionStorage.setItem(scrollKey, String(node.scrollTop));
+      storage.setItem(scrollKey, String(node.scrollTop));
     };
 
     node.addEventListener('scroll', handleScroll, { passive: true });
@@ -28,7 +30,19 @@ export const DashboardLayout = () => {
       handleScroll();
       node.removeEventListener('scroll', handleScroll);
     };
-  }, [scrollKey]);
+  }, [scrollKey, storage]);
+
+  useEffect(() => {
+    const handleBackButton = (event) => {
+      if (isSidebarOpen) {
+        event.preventDefault();
+        setIsSidebarOpen(false);
+      }
+    };
+
+    window.addEventListener('app:backbutton', handleBackButton);
+    return () => window.removeEventListener('app:backbutton', handleBackButton);
+  }, [isSidebarOpen]);
 
   return (
     <div className="app-container">

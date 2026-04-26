@@ -177,6 +177,17 @@ export const OrderProvider = ({ children }) => {
     };
   }, [initializeData, userId]);
 
+  useEffect(() => {
+    if (!userId) return undefined;
+
+    const handleResume = () => {
+      initializeData();
+    };
+
+    window.addEventListener('app:resume', handleResume);
+    return () => window.removeEventListener('app:resume', handleResume);
+  }, [initializeData, userId]);
+
   // Fraud & Automation Detection Effect
   useEffect(() => {
     if (orders.length > 0) {

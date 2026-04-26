@@ -96,7 +96,7 @@ export const CallTeamPanel = () => {
   const [currentPage, setCurrentPage] = useState(1);
   
   // Globabl Ratio Cache & Auto-fetch
-  const { ratios, checkPhone } = useCourierRatio();
+  const { checkPhone, getRatio } = useCourierRatio();
 
   useEffect(() => {
     if (!selectedOrder?.id) return;
@@ -203,10 +203,13 @@ export const CallTeamPanel = () => {
     const unchecked = [...new Set(
       filteredOrders
         .map(o => o.phone)
-        .filter(p => p && !ratios[p]?.fetched && !ratios[p]?.loading)
+        .filter((phone) => {
+          const currentRatio = getRatio(phone);
+          return phone && !currentRatio?.fetched && !currentRatio?.loading;
+        })
     )];
     unchecked.forEach(p => checkPhone(p));
-  }, [filteredOrders, checkPhone, ratios]);
+  }, [filteredOrders, checkPhone, getRatio]);
 
   // Metrics Calculations
   const pendingCount = orders.filter(o => ACTIVE_CALL_STATUSES.includes(o.status)).length;
@@ -422,7 +425,7 @@ export const CallTeamPanel = () => {
             else { slaClass = 'overdue'; slaIcon = <ShieldAlert size={12}/>; slaText = `! OVERDUE`; }
 
             // Trust Ratio extraction
-            const rt = ratios[order.phone] || {};
+            const rt = getRatio(order.phone) || {};
             const successRatio = rt.ratio !== undefined ? rt.ratio : (order.phone ? '...' : '0');
             const showTrust = rt.fetched && rt.total > 0;
             const trustClass = successRatio > 70 ? 'high' : successRatio > 40 ? 'neutral' : 'low';

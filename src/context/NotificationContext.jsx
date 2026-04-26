@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef } f
 import { supabase } from '../lib/supabase';
 import api from '../lib/api';
 import { useAuth } from './AuthContext';
+import { isNativeApp } from '../platform/runtime';
 
 const NotificationContext = createContext(null);
 
@@ -30,7 +31,9 @@ export const NotificationProvider = ({ children }) => {
   const [isStartupUnreadModalOpen, setIsStartupUnreadModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState(
-    typeof window !== 'undefined' && 'Notification' in window
+    isNativeApp()
+      ? 'native'
+      : typeof window !== 'undefined' && 'Notification' in window
       ? Notification.permission
       : 'unsupported'
   );
@@ -51,7 +54,7 @@ export const NotificationProvider = ({ children }) => {
   }, []);
 
   const subscribeUserToPush = useCallback(async () => {
-    if (!('serviceWorker' in navigator)) return;
+    if (isNativeApp() || !('serviceWorker' in navigator)) return;
     
     try {
       const registration = await navigator.serviceWorker.ready;
@@ -79,6 +82,11 @@ export const NotificationProvider = ({ children }) => {
   }, [userId]);
 
   const requestNotificationPermission = useCallback(async (promptUser = false) => {
+    if (isNativeApp()) {
+      setNotificationPermission('native');
+      return 'native';
+    }
+
     if (!('Notification' in window)) {
       setNotificationPermission('unsupported');
       return 'unsupported';
@@ -100,6 +108,7 @@ export const NotificationProvider = ({ children }) => {
   }, [subscribeUserToPush, userId]);
 
   const showBrowserNotification = useCallback((notif) => {
+    if (isNativeApp()) return;
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
     if (document.visibilityState === 'visible') return; // Don't annoy if they are looking at the app
 
@@ -320,6 +329,17 @@ export const NotificationProvider = ({ children }) => {
       supabase.removeChannel(externalOrderChannel);
     };
   }, [addToast, buildExternalOrderNotification, fetchNotifications, userId]);
+
+  useEffect(() => {
+    if (!userId) return undefined;
+
+    const handleResume = () => {
+      fetchNotifications();
+    };
+
+    window.addEventListener('app:resume', handleResume);
+    return () => window.removeEventListener('app:resume', handleResume);
+  }, [fetchNotifications, userId]);
 
   const markAsRead = async (id) => {
     try {

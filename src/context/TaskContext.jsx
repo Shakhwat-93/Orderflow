@@ -40,6 +40,17 @@ export const TaskProvider = ({ children }) => {
     fetchTasks();
   }, [fetchTasks]);
 
+  useEffect(() => {
+    if (!userId) return undefined;
+
+    const handleResume = () => {
+      fetchTasks();
+    };
+
+    window.addEventListener('app:resume', handleResume);
+    return () => window.removeEventListener('app:resume', handleResume);
+  }, [fetchTasks, userId]);
+
   // ── Real-time subscriptions ──
   useEffect(() => {
     if (!userId) return;

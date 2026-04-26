@@ -1,4 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { isNativeApp } from '../platform/runtime';
+import { getSessionStorage } from '../platform/storage';
 
 const PwaInstallContext = createContext(null);
 
@@ -8,9 +10,10 @@ export const PwaInstallProvider = ({ children }) => {
   const [installPromptEvent, setInstallPromptEvent] = useState(null);
   const [isInstalled, setIsInstalled] = useState(false);
   const [isToastVisible, setIsToastVisible] = useState(false);
+  const storage = getSessionStorage();
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
+    if (typeof window === 'undefined' || isNativeApp()) {
       return undefined;
     }
 
@@ -23,7 +26,7 @@ export const PwaInstallProvider = ({ children }) => {
       if (standalone) {
         setInstallPromptEvent(null);
         setIsToastVisible(false);
-        sessionStorage.removeItem(DISMISS_KEY);
+        storage.removeItem(DISMISS_KEY);
       }
     };
 
@@ -32,7 +35,7 @@ export const PwaInstallProvider = ({ children }) => {
       setInstallPromptEvent(event);
       updateInstalledState();
 
-      if (!sessionStorage.getItem(DISMISS_KEY)) {
+      if (!storage.getItem(DISMISS_KEY)) {
         setIsToastVisible(true);
       }
     };
@@ -41,7 +44,7 @@ export const PwaInstallProvider = ({ children }) => {
       setIsInstalled(true);
       setInstallPromptEvent(null);
       setIsToastVisible(false);
-      sessionStorage.removeItem(DISMISS_KEY);
+      storage.removeItem(DISMISS_KEY);
     };
 
     updateInstalledState();
@@ -55,12 +58,12 @@ export const PwaInstallProvider = ({ children }) => {
       window.removeEventListener('appinstalled', handleAppInstalled);
       standaloneMedia?.removeEventListener?.('change', updateInstalledState);
     };
-  }, []);
+  }, [storage]);
 
   const dismissInstallToast = useCallback(() => {
     setIsToastVisible(false);
-    sessionStorage.setItem(DISMISS_KEY, '1');
-  }, []);
+    storage.setItem(DISMISS_KEY, '1');
+  }, [storage]);
 
   const promptInstall = useCallback(async () => {
     if (!installPromptEvent) {
@@ -83,9 +86,9 @@ export const PwaInstallProvider = ({ children }) => {
   }, [installPromptEvent]);
 
   const value = useMemo(() => ({
-    canInstall: Boolean(installPromptEvent) && !isInstalled,
+    canInstall: !isNativeApp() && Boolean(installPromptEvent) && !isInstalled,
     isInstalled,
-    isToastVisible: Boolean(installPromptEvent) && !isInstalled && isToastVisible,
+    isToastVisible: !isNativeApp() && Boolean(installPromptEvent) && !isInstalled && isToastVisible,
     promptInstall,
     dismissInstallToast,
   }), [dismissInstallToast, installPromptEvent, isInstalled, isToastVisible, promptInstall]);

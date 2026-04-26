@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import CurrencyIcon from './CurrencyIcon';
 import api from '../lib/api';
+import { useCourierRatio } from '../context/CourierRatioContext';
 import './OrderDetailsModal.css';
 
 export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
@@ -21,6 +22,7 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
   const [isSavingNote, setIsSavingNote] = useState(false);
   const copyTimeoutRef = useRef(null);
   const { user, profile, userRoles } = useAuth();
+  const { checkPhone, getRatio } = useCourierRatio();
 
   useEffect(() => {
     if (isOpen && order?.id) {
@@ -59,6 +61,12 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
     setSavedNotesOverride(null);
   }, [order?.id, order?.notes, isOpen]);
 
+  useEffect(() => {
+    if (isOpen && order?.phone) {
+      checkPhone(order.phone);
+    }
+  }, [isOpen, order?.phone, checkPhone]);
+
   useEffect(() => () => {
     if (copyTimeoutRef.current) {
       window.clearTimeout(copyTimeoutRef.current);
@@ -94,6 +102,33 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
       : '';
 
   const visibleNotes = savedNotesOverride ?? order.notes ?? '';
+  const courierRatioData = getRatio(order?.phone);
+  const courierBreakdownRows = courierRatioData?.couriers && typeof courierRatioData.couriers === 'object'
+    ? Object.entries(courierRatioData.couriers)
+        .map(([key, value]) => {
+          const source = value && typeof value === 'object' ? value : {};
+          const total = Number(source.total_parcel ?? source.total ?? 0) || 0;
+          const success = Number(source.success_parcel ?? source.success_count ?? source.success ?? 0) || 0;
+          const cancelled = Number(source.cancelled_parcel ?? source.cancelled_count ?? source.cancelled ?? 0) || 0;
+          const ratio = Number(source.success_ratio ?? source.ratio ?? 0) || 0;
+
+          return {
+            key,
+            name: source.name || key,
+            logo: source.logo || '',
+            total,
+            success,
+            cancelled,
+            ratio: Math.max(0, Math.min(100, ratio))
+          };
+        })
+        .filter((row) => row.name)
+        .sort((a, b) => {
+          if (b.ratio !== a.ratio) return b.ratio - a.ratio;
+          if (b.success !== a.success) return b.success - a.success;
+          return b.total - a.total;
+        })
+    : [];
 
   const orderDateTime = order.created_at
     ? new Date(order.created_at).toLocaleString('en-GB', {
@@ -370,6 +405,119 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
                 )}
               </div>
             </div>
+          </div>
+
+          <div className="details-section-card glass-card full-width">
+            <div className="section-title">
+              <div className="section-title-main">
+                <Truck size={18} className="text-accent" />
+                <span>Courier Ratio Intelligence</span>
+              </div>
+              {courierRatioData?.fetchedAt && (
+                <span className="courier-ratio-updated">
+                  Synced {new Date(courierRatioData.fetchedAt).toLocaleString('en-GB', {
+                    day: '2-digit',
+                    month: 'short',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true
+                  })}
+                </span>
+              )}
+            </div>
+
+            {!order.phone ? (
+              <div className="courier-ratio-empty">No customer phone found for courier ratio lookup.</div>
+            ) : courierRatioData?.loading ? (
+              <div className="courier-ratio-empty">Checking courier ratio for this number...</div>
+            ) : courierRatioData?.error ? (
+              <div className="courier-ratio-empty">Courier ratio data is not available right now.</div>
+            ) : courierRatioData?.fetched ? (
+              <div className="courier-ratio-stack">
+                <div className="courier-ratio-metrics">
+                  <div className="courier-ratio-metric">
+                    <span className="courier-ratio-label">Success Ratio</span>
+                    <strong>{Number(courierRatioData.ratio || 0).toFixed(0)}%</strong>
+                  </div>
+                  <div className="courier-ratio-metric">
+                    <span className="courier-ratio-label">Total Parcels</span>
+                    <strong>{Number(courierRatioData.total || 0)}</strong>
+                  </div>
+                  <div className="courier-ratio-metric">
+                    <span className="courier-ratio-label">Successful</span>
+                    <strong>{Number(courierRatioData.success_count || 0)}</strong>
+                  </div>
+                  <div className="courier-ratio-metric">
+                    <span className="courier-ratio-label">Cancelled</span>
+                    <strong>{Number(courierRatioData.cancelled || 0)}</strong>
+                  </div>
+                  <div className="courier-ratio-metric">
+                    <span className="courier-ratio-label">Risk Level</span>
+                    <strong className={`courier-risk-tag ${courierRatioData.riskLevel || 'new'}`}>
+                      {String(courierRatioData.riskLevel || 'new').replace(/_/g, ' ')}
+                    </strong>
+                  </div>
+                </div>
+
+                {courierBreakdownRows.length > 0 && (
+                  <div className="courier-breakdown-table-wrap">
+                    <div className="courier-breakdown-table-head">
+                      <span>Logo</span>
+                      <span>Courier</span>
+                      <span>Total</span>
+                      <span>Success</span>
+                      <span>Cancelled</span>
+                      <span>Success Ratio</span>
+                    </div>
+
+                    <div className="courier-breakdown-table-body">
+                      {courierBreakdownRows.map((row) => (
+                        <div key={row.key} className="courier-breakdown-row">
+                          <div className="courier-logo-cell">
+                            {row.logo ? (
+                              <img
+                                src={row.logo}
+                                alt={`${row.name} logo`}
+                                className="courier-logo-image"
+                                loading="lazy"
+                                onError={(event) => {
+                                  event.currentTarget.style.display = 'none';
+                                  const fallback = event.currentTarget.parentElement?.querySelector('.courier-logo-fallback');
+                                  if (fallback) fallback.removeAttribute('hidden');
+                                }}
+                              />
+                            ) : null}
+                            <span
+                              className="courier-logo-fallback"
+                              hidden={Boolean(row.logo)}
+                            >
+                              {String(row.name || '?').slice(0, 2).toUpperCase()}
+                            </span>
+                          </div>
+
+                          <div className="courier-name-cell">{row.name}</div>
+                          <div className="courier-stat-cell">{row.total}</div>
+                          <div className="courier-stat-cell success">{row.success}</div>
+                          <div className="courier-stat-cell cancelled">{row.cancelled}</div>
+
+                          <div className="courier-ratio-cell">
+                            <span>{row.ratio.toFixed(1)}%</span>
+                            <div className="courier-ratio-bar">
+                              <div
+                                className="courier-ratio-bar-fill"
+                                style={{ width: `${row.ratio}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="courier-ratio-empty">Courier ratio check has not completed yet.</div>
+            )}
           </div>
 
           {/* Delivery & Logistics */}

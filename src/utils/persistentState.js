@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
+import { getSessionStorage } from '../platform/storage';
 
 function resolveInitialValue(initialValue) {
   return typeof initialValue === 'function' ? initialValue() : initialValue;
 }
 
 export function usePersistentState(key, initialValue, options = {}) {
-  const storage = options.storage ?? (typeof window !== 'undefined' ? window.sessionStorage : null);
+  const storage = options.storage ?? getSessionStorage();
   const serialize = options.serialize ?? JSON.stringify;
   const deserialize = options.deserialize ?? JSON.parse;
 

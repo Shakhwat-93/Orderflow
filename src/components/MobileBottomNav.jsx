@@ -15,8 +15,9 @@ import {
   Download
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { usePwaInstall } from '../context/PwaInstallContext';
+import { isNativeApp } from '../platform/runtime';
 import './MobileBottomNav.css';
 
 /**
@@ -29,6 +30,7 @@ export const MobileBottomNav = () => {
   const location = useLocation();
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const { canInstall, isInstalled, promptInstall } = usePwaInstall();
+  const showInstallAction = !isNativeApp();
 
   const allItems = [
     { path: '/',                label: 'Overview',   icon: LayoutDashboard, roles: null },
@@ -66,6 +68,18 @@ export const MobileBottomNav = () => {
 
   const isActive = (path) => location.pathname === path;
   const isOverflowActive = overflowItems.some(item => isActive(item.path));
+
+  useEffect(() => {
+    const handleBackButton = (event) => {
+      if (isMoreOpen) {
+        event.preventDefault();
+        setIsMoreOpen(false);
+      }
+    };
+
+    window.addEventListener('app:backbutton', handleBackButton);
+    return () => window.removeEventListener('app:backbutton', handleBackButton);
+  }, [isMoreOpen]);
 
   return (
     <>
@@ -114,7 +128,7 @@ export const MobileBottomNav = () => {
           <div className="mob-more-sheet">
             <div className="mob-more-handle" />
             <p className="mob-more-title">More Sections</p>
-            <div className="mob-more-grid has-install">
+            <div className={`mob-more-grid ${showInstallAction ? 'has-install' : ''}`}>
               {overflowItems.map((item) => {
                 const Icon = item.icon;
                 const active = isActive(item.path);
@@ -132,18 +146,20 @@ export const MobileBottomNav = () => {
                   </Link>
                 );
               })}
-              <button
-                type="button"
-                className={`mob-more-item mob-more-install ${canInstall ? 'install-ready' : ''} ${isInstalled ? 'is-installed' : ''}`}
-                onClick={handleInstallClick}
-                disabled={!canInstall}
-                title={isInstalled ? 'App installed' : canInstall ? 'Install app' : 'Install not available yet'}
-              >
-                <div className="mob-more-icon-box mob-more-icon-box-install">
-                  <Download size={20} strokeWidth={2.2} />
-                </div>
-                <span>{isInstalled ? 'Installed' : 'Install App'}</span>
-              </button>
+              {showInstallAction ? (
+                <button
+                  type="button"
+                  className={`mob-more-item mob-more-install ${canInstall ? 'install-ready' : ''} ${isInstalled ? 'is-installed' : ''}`}
+                  onClick={handleInstallClick}
+                  disabled={!canInstall}
+                  title={isInstalled ? 'App installed' : canInstall ? 'Install app' : 'Install not available yet'}
+                >
+                  <div className="mob-more-icon-box mob-more-icon-box-install">
+                    <Download size={20} strokeWidth={2.2} />
+                  </div>
+                  <span>{isInstalled ? 'Installed' : 'Install App'}</span>
+                </button>
+              ) : null}
             </div>
           </div>
         </>
