@@ -173,6 +173,46 @@ export const Header = ({ onMenuToggle }) => {
     }
   };
 
+  const getNotifTone = (notif) => {
+    const type = String(notif?.type || '').toUpperCase();
+    const nextStatus = String(notif?.data?.newStatus || '').toLowerCase();
+
+    if (type === 'STATUS_CHANGE') {
+      if (nextStatus.includes('confirm')) return 'success';
+      if (nextStatus.includes('cancel')) return 'danger';
+      if (nextStatus.includes('pending')) return 'warning';
+      if (nextStatus.includes('courier')) return 'info';
+      return 'primary';
+    }
+
+    if (type === 'ORDER_CREATED') return 'primary';
+    if (type === 'ORDER_UPDATED') return 'info';
+    if (type === 'ORDER_DELETED') return 'danger';
+    if (type === 'LOW_STOCK') return 'warning';
+    if (type.startsWith('TASK_')) return 'success';
+    return 'primary';
+  };
+
+  const getNotifBadgeLabel = (notif) => {
+    const type = String(notif?.type || '').toUpperCase();
+    const nextStatus = String(notif?.data?.newStatus || '').trim();
+
+    if (type === 'STATUS_CHANGE' && nextStatus) {
+      return nextStatus;
+    }
+
+    switch (type) {
+      case 'ORDER_CREATED': return 'New Order';
+      case 'ORDER_UPDATED': return 'Updated';
+      case 'ORDER_DELETED': return 'Deleted';
+      case 'LOW_STOCK': return 'Low Stock';
+      case 'TASK_ASSIGNED': return 'Assigned';
+      case 'TASK_UPDATED': return 'Task Update';
+      case 'TASK_DEADLINE': return 'Deadline';
+      default: return '';
+    }
+  };
+
   const handleNotifClick = (notif) => {
     markAsRead(notif.id);
     if (notif.type.startsWith('TASK_')) {
@@ -378,10 +418,10 @@ export const Header = ({ onMenuToggle }) => {
                   filteredNotifs.map(notif => (
                     <div
                       key={notif.id}
-                      className={`notif-item-standard ${notif.is_read ? '' : 'unread'}`}
+                      className={`notif-item-standard notif-tone-${getNotifTone(notif)} ${notif.is_read ? '' : 'unread'}`}
                       onClick={() => handleNotifClick(notif)}
                     >
-                      <div className={`notif-circular-icon ${notif.type.toLowerCase().split('_')[0]}`}>
+                      <div className={`notif-circular-icon notif-tone-${getNotifTone(notif)} ${notif.type.toLowerCase().split('_')[0]}`}>
                         {getNotifIcon(notif.type)}
                       </div>
 
@@ -393,6 +433,13 @@ export const Header = ({ onMenuToggle }) => {
                           </div>
                           <span className="notif-time-standard">{formatTime(notif.created_at)}</span>
                         </div>
+                        {getNotifBadgeLabel(notif) && (
+                          <div className="notif-meta-row">
+                            <span className={`notif-type-badge notif-tone-${getNotifTone(notif)}`}>
+                              {getNotifBadgeLabel(notif)}
+                            </span>
+                          </div>
+                        )}
                         <p className="notif-message-standard">{notif.message}</p>
                         {notif.actor_name && (
                           <div className="notif-actor-standard">By {notif.actor_name}</div>
