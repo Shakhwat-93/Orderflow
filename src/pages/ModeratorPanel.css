@@ -529,6 +529,7 @@
   .mod-mobile-status.status-confirmed     { background:#d1fae5;color:#059669;border-color:#a7f3d0; }
   .mod-mobile-status.status-new           { background:#e0e7ff;color:#4338ca;border-color:#c7d2fe; }
   .mod-mobile-status.status-pending-call  { background:#fef3c7;color:#d97706;border-color:#fde68a; }
+  .mod-mobile-status.status-fake-order    { background:#7f1d1d;color:#fee2e2;border-color:#991b1b; }
   .mod-mobile-status.status-cancelled     { background:#fee2e2;color:#dc2626;border-color:#fca5a5; }
   .mod-mobile-status.status-shipped,
   .mod-mobile-status.status-courier-ready { background:#e0f2fe;color:#0284c7;border-color:#bae6fd; }
@@ -537,6 +538,7 @@
   [data-theme='dark'] .mod-mobile-status.status-confirmed    { background:rgba(5,150,105,0.15);border-color:rgba(5,150,105,0.3); }
   [data-theme='dark'] .mod-mobile-status.status-new          { background:rgba(67,56,202,0.15);border-color:rgba(67,56,202,0.3); }
   [data-theme='dark'] .mod-mobile-status.status-pending-call { background:rgba(217,119,6,0.15);border-color:rgba(217,119,6,0.3); }
+  [data-theme='dark'] .mod-mobile-status.status-fake-order   { background:rgba(127,29,29,0.28);color:#fecaca;border-color:rgba(153,27,27,0.42); }
   [data-theme='dark'] .mod-mobile-status.status-cancelled    { background:rgba(220,38,38,0.15);border-color:rgba(220,38,38,0.3); }
 
   .mod-mobile-card-footer {
@@ -626,6 +628,7 @@
 .dot-new { background: #6366f1; box-shadow: 0 0 8px rgba(99, 102, 241, 0.4); }
 .dot-pending-call { background: #f59e0b; box-shadow: 0 0 8px rgba(245, 158, 11, 0.4); }
 .dot-confirmed { background: #10b981; box-shadow: 0 0 8px rgba(16, 185, 129, 0.4); }
+.dot-fake-order { background: #7f1d1d; box-shadow: 0 0 8px rgba(127, 29, 29, 0.45); }
 .dot-factory-queue { background: #8b5cf6; box-shadow: 0 0 8px rgba(139, 92, 246, 0.4); }
 .dot-courier-ready { background: #0ea5e9; box-shadow: 0 0 8px rgba(14, 165, 233, 0.4); }
 .dot-courier-submitted { background: #0284c7; box-shadow: 0 0 8px rgba(2, 132, 199, 0.4); }

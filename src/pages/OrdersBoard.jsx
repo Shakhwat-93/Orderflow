@@ -28,6 +28,7 @@ const ORDER_STATUSES = [
   'Courier Submitted',
   'Factory Processing',
   'Completed',
+  'Fake Order',
   'Cancelled'
 ];
 
@@ -323,6 +324,7 @@ export const OrdersBoard = () => {
       case 'New': return 'new';
       case 'Pending Call': return 'pending-call';
       case 'Confirmed': return 'confirmed';
+      case 'Fake Order': return 'fake-order';
       case 'Cancelled': return 'cancelled';
       case 'Courier Submitted': return 'courier';
       case 'Factory Processing': return 'factory';

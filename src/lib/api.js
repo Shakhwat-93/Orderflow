@@ -1301,18 +1301,6 @@ export const api = {
       action_description: `${userName} updated the details for order #${orderId}`
     });
 
-    try {
-      await this.createNotification({
-        type: 'ORDER_UPDATED',
-        title: 'Order Details Modified',
-        message: changeMsg,
-        data: { orderId, changes },
-        actor_name: userName
-      });
-    } catch (notificationError) {
-      console.error('Order update notification failed:', notificationError);
-    }
-
     return data;
   },
 
@@ -1370,18 +1358,6 @@ export const api = {
       changed_by_user_name: userName,
       action_description: `${userName} changed the status of order #${orderId} to ${newStatus}`
     });
-
-    try {
-      await this.createNotification({
-        type: 'STATUS_CHANGE',
-        title: 'Order Status Updated',
-        message: `Order #${orderId} changed from "${oldData?.status || 'N/A'}" to "${newStatus}".`,
-        data: { orderId, oldStatus: oldData?.status, newStatus },
-        actor_name: userName
-      });
-    } catch (notificationError) {
-      console.error('Status change notification failed:', notificationError);
-    }
 
     if (String(noteText || '').trim()) {
       return this.appendOrderNote(orderId, noteText, userId, userName, userRoles, newStatus, data?.notes || '');

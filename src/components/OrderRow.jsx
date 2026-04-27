@@ -39,6 +39,7 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
       case 'New': return 'new';
       case 'Pending Call': return 'pending-call';
       case 'Confirmed': return 'confirmed';
+      case 'Fake Order': return 'fake-order';
       case 'Cancelled': return 'cancelled';
       case 'Courier Submitted': return 'courier';
       case 'Factory Processing': return 'factory';
@@ -49,7 +50,7 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
 
   const ORDER_STATUSES = [
     'New', 'Pending Call', 'Confirmed', 'Courier Submitted', 
-    'Factory Processing', 'Completed', 'Cancelled'
+    'Factory Processing', 'Completed', 'Fake Order', 'Cancelled'
   ];
 
   const orderTimestamp = order.created_at
@@ -161,7 +162,7 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
       <td className="status-cell" onClick={(e) => e.stopPropagation()}>
         <div className="status-dropdown-container" ref={statusBtnRef}>
           <button 
-            className={`saas-badge ${getStatusBadgeVariant(order.status) === 'confirmed' || getStatusBadgeVariant(order.status) === 'delivered' ? 'saas-badge-success' : getStatusBadgeVariant(order.status) === 'cancelled' || getStatusBadgeVariant(order.status) === 'returned' ? 'saas-badge-danger' : 'saas-badge-warning'} clickable`}
+            className={`saas-badge ${getStatusBadgeVariant(order.status) === 'confirmed' || getStatusBadgeVariant(order.status) === 'completed' ? 'saas-badge-success' : getStatusBadgeVariant(order.status) === 'cancelled' || getStatusBadgeVariant(order.status) === 'fake-order' ? 'saas-badge-danger' : 'saas-badge-warning'} clickable`}
             onClick={toggleStatusMenu}
           >
             <span className="dot"></span>

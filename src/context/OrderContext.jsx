@@ -143,10 +143,6 @@ export const OrderProvider = ({ children }) => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
         if (payload.eventType === 'INSERT') {
           setOrders((prev) => [payload.new, ...prev]);
-          try {
-            const audio = new Audio('/ordersound.mp3');
-            audio.play().catch(e => console.warn('Audio blocked:', e));
-          } catch (err) { console.error('Audio error:', err); }
         } else if (payload.eventType === 'UPDATE') {
           setOrders((prev) => prev.map(order => order.id === payload.new.id ? payload.new : order));
         } else if (payload.eventType === 'DELETE') {
@@ -390,19 +386,6 @@ export const OrderProvider = ({ children }) => {
     const order = orders.find(o => o.id === orderId);
 
     try {
-      // Notify before deletion to ensure we have data
-      try {
-        await api.createNotification({
-          type: 'ORDER_DELETED',
-          title: 'Order Deleted',
-          message: `Order #${orderId} (${order?.customer_name || 'N/A'}) was permanently removed.`,
-          data: { orderId, customer: order?.customer_name },
-          actor_name: currentUserName
-        });
-      } catch (notificationError) {
-        console.error('Order deletion notification failed:', notificationError);
-      }
-
       const { error } = await supabase
         .from('orders')
         .delete()

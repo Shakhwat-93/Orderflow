@@ -40,18 +40,49 @@ export const NotificationProvider = ({ children }) => {
   const { user, isAdmin } = useAuth();
   const userId = user?.id ?? null;
   const hasShownInitialUnreadToastsRef = useRef(false);
+  const soundQueueRef = useRef(Promise.resolve());
+
+  const playAudioSequence = useCallback(async (audioUrl, repeatCount, volume) => {
+    for (let index = 0; index < repeatCount; index += 1) {
+      try {
+        await new Promise((resolve) => {
+          const audio = new Audio(audioUrl);
+          let settled = false;
+
+          const finish = () => {
+            if (settled) return;
+            settled = true;
+            resolve();
+          };
+
+          audio.volume = volume;
+          audio.onended = finish;
+          audio.onerror = finish;
+
+          const playback = audio.play();
+          if (playback?.catch) {
+            playback.catch((error) => {
+              console.log('Audio play blocked:', error);
+              finish();
+            });
+          }
+
+          setTimeout(finish, 4000);
+        });
+      } catch (error) {
+        console.log('Audio sequence interrupted:', error);
+        break;
+      }
+    }
+  }, []);
 
   const playNotificationSound = useCallback((type) => {
-    try {
-      const audioUrl = type === 'ORDER_CREATED' 
-        ? '/ordersound.mp3' 
-        : 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3';
-        
-      const audio = new Audio(audioUrl);
-      audio.volume = type === 'ORDER_CREATED' ? 1.0 : 0.5;
-      audio.play().catch(e => console.log('Audio play blocked:', e));
-    } catch (e) { }
-  }, []);
+    if (type !== 'ORDER_CREATED') return;
+
+    soundQueueRef.current = soundQueueRef.current
+      .catch(() => undefined)
+      .then(() => playAudioSequence('/ordersound.mp3', 5, 1.0));
+  }, [playAudioSequence]);
 
   const subscribeUserToPush = useCallback(async () => {
     if (isNativeApp() || !('serviceWorker' in navigator)) return;
