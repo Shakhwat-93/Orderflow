@@ -75,6 +75,36 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
 
   if (!order) return null;
 
+  const parseEmbeddedDeliveryCharge = (value) => {
+    const text = String(value || '');
+    const matches = [...text.matchAll(/(\d{2,5})/g)];
+    if (matches.length === 0) return null;
+
+    const parsed = Number(matches[matches.length - 1][1]);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  };
+
+  const getCleanShippingZone = () => {
+    const text = String(order.shipping_zone || '').trim();
+    return text.replace(/\s*\([^)]*\d[^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim() || 'Delivery Zone';
+  };
+
+  const getStoredDeliveryCharge = () => {
+    const embeddedCharge = parseEmbeddedDeliveryCharge(order.shipping_zone);
+    if (embeddedCharge !== null) return embeddedCharge;
+
+    const directCharge = Number(order.delivery_charge);
+    if (Number.isFinite(directCharge) && directCharge > 0) return directCharge;
+
+    const summaryCharge = Number(order.pricing_summary?.delivery_charge);
+    if (Number.isFinite(summaryCharge) && summaryCharge > 0) return summaryCharge;
+
+    return null;
+  };
+
+  const deliveryCharge = getStoredDeliveryCharge();
+  const shippingZoneLabel = getCleanShippingZone();
+
   const getStatusVariant = (status) => {
     const s = String(status || '').toLowerCase();
     if (['confirmed', 'completed', 'delivered'].includes(s)) return 'success';
@@ -266,11 +296,13 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
               {Number(order.amount || 0).toLocaleString()}
             </div>
             <div className="shipping-info">
-              {order.shipping_zone} 
-              <span className="fee">
-                (<CurrencyIcon size={12} className="currency-icon-elite" />
-                {order.shipping_zone === 'Inside Dhaka' ? '80' : '150'})
-              </span>
+              {shippingZoneLabel}
+              {deliveryCharge !== null && (
+                <span className="fee">
+                  (<CurrencyIcon size={12} className="currency-icon-elite" />
+                  {deliveryCharge.toLocaleString()})
+                </span>
+              )}
             </div>
           </div>
         </div>

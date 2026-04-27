@@ -8,6 +8,17 @@
   animation: slideUpFloat 0.4s var(--ease-out);
 }
 
+.orders-floating-bulk-actions {
+  top: 86px;
+  right: 32px;
+  bottom: auto;
+  left: auto;
+  transform: none;
+  z-index: 1400;
+  max-width: min(760px, calc(100vw - 330px));
+  animation: slideDownFloat 0.28s ease both;
+}
+
 .bulk-action-bar {
   background: var(--bg-card); /* Fallback */
   background: rgba(15, 23, 42, 0.9);
@@ -20,6 +31,33 @@
   align-items: center;
   gap: 24px;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.orders-floating-bulk-actions .bulk-action-bar {
+  border-radius: 16px;
+  padding: 10px 14px;
+  gap: 14px;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.22), 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.orders-floating-bulk-actions .bulk-info {
+  padding-right: 14px;
+}
+
+.orders-floating-bulk-actions .bulk-actions-group {
+  gap: 6px;
+}
+
+.orders-floating-bulk-actions .bulk-btn.delete {
+  background: rgba(239, 68, 68, 0.16) !important;
+  border-color: rgba(239, 68, 68, 0.28) !important;
+  color: #fecaca !important;
+}
+
+.orders-floating-bulk-actions .bulk-btn.delete:hover {
+  background: #ef4444 !important;
+  border-color: #ef4444 !important;
+  color: #ffffff !important;
 }
 
 .bulk-info {
@@ -105,6 +143,40 @@
 @keyframes slideUpFloat {
   from { opacity: 0; transform: translate(-50%, 40px); }
   to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@keyframes slideDownFloat {
+  from { opacity: 0; transform: translateY(-12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 767px) {
+  .orders-floating-bulk-actions {
+    top: auto;
+    right: 14px;
+    bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+    left: 14px;
+    max-width: none;
+  }
+
+  .orders-floating-bulk-actions .bulk-action-bar {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .orders-floating-bulk-actions .bulk-info {
+    border-right: 0;
+    padding-right: 0;
+  }
+
+  .orders-floating-bulk-actions .bulk-actions-group {
+    width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
 }
 
 /* Premium Checkbox Styling */

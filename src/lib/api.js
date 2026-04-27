@@ -1317,6 +1317,8 @@ export const api = {
     const permissions = {
       'Confirmed': ['Admin', 'Call Team'],
       'Cancelled': ['Admin', 'Call Team'],
+      'Courier Ready': ['Admin', 'Factory Team'],
+      'Factory Queue': ['Admin', 'Factory Team'],
       'Processing': ['Admin', 'Factory Team'],
       'Completed': ['Admin', 'Factory Team'],
       'Shipped': ['Admin', 'Courier Team']

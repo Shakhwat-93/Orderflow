@@ -22,6 +22,41 @@ const DELIVERY_ZONES = {
 
 const getDeliveryChargeForZone = (zone) => DELIVERY_ZONES[zone] ?? 150;
 
+const parseEmbeddedDeliveryCharge = (value) => {
+  const text = String(value || '');
+  const matches = [...text.matchAll(/(\d{2,5})/g)];
+  if (matches.length === 0) return null;
+
+  const parsed = Number(matches[matches.length - 1][1]);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
+const normalizeShippingZone = (zone) => {
+  const text = String(zone || '').trim();
+  const lower = text.toLowerCase();
+
+  if (DELIVERY_ZONES[text]) return text;
+  if (lower.includes('inside') || text.includes('ভিতরে')) return 'Inside Dhaka';
+  if (lower.includes('outside') || text.includes('বাইরে')) return 'Outside Dhaka';
+
+  return 'Outside Dhaka';
+};
+
+const getStoredDeliveryCharge = (order) => {
+  if (!order) return null;
+
+  const embeddedCharge = parseEmbeddedDeliveryCharge(order.shipping_zone);
+  if (embeddedCharge !== null) return embeddedCharge;
+
+  const directCharge = Number(order.delivery_charge);
+  if (Number.isFinite(directCharge) && directCharge > 0) return directCharge;
+
+  const summaryCharge = Number(order.pricing_summary?.delivery_charge);
+  if (Number.isFinite(summaryCharge) && summaryCharge > 0) return summaryCharge;
+
+  return null;
+};
+
 export const OrderEditModal = ({ isOpen, onClose, order = null }) => {
   const { addOrder, editOrder, inventory, toyBoxes } = useOrders();
   const { onlineUsers, user, updatePresenceContext } = useAuth();
@@ -69,6 +104,10 @@ export const OrderEditModal = ({ isOpen, onClose, order = null }) => {
           }];
         }
 
+        const storedDeliveryCharge = getStoredDeliveryCharge(order);
+        const resolvedShippingZone = normalizeShippingZone(order.shipping_zone || 'Inside Dhaka');
+        const resolvedDeliveryCharge = storedDeliveryCharge ?? getDeliveryChargeForZone(resolvedShippingZone);
+
         setFormData({
           customer_name: order.customer_name || '',
           phone: order.phone || '',
@@ -76,22 +115,13 @@ export const OrderEditModal = ({ isOpen, onClose, order = null }) => {
           source: order.source || 'Website',
           notes: order.notes || '',
           amount: String(order.amount || '0'),
-          shipping_zone: order.shipping_zone || 'Inside Dhaka',
-          delivery_charge: Number(
-            order.delivery_charge ??
-            order.pricing_summary?.delivery_charge ??
-            getDeliveryChargeForZone(order.shipping_zone || 'Inside Dhaka')
-          ) || 0,
+          shipping_zone: resolvedShippingZone,
+          delivery_charge: resolvedDeliveryCharge,
           status: order.status || 'New',
           products: items.length > 0 ? items : [createProductLine(inventory, 'TOY BOX')]
         });
         setIsManualAmount(true);
-        const shippingCharge = Number(
-          order.delivery_charge ??
-          order.pricing_summary?.delivery_charge ??
-          getDeliveryChargeForZone(order.shipping_zone || 'Inside Dhaka')
-        ) || 0;
-        setManualSubtotal(Math.max(0, parseFloat(order.amount || '0') - shippingCharge));
+        setManualSubtotal(Math.max(0, parseFloat(order.amount || '0') - resolvedDeliveryCharge));
       } else {
         setFormData({
           ...initialFormData,
@@ -143,6 +173,31 @@ export const OrderEditModal = ({ isOpen, onClose, order = null }) => {
       return prev.amount === nextAmount ? prev : { ...prev, amount: nextAmount };
     });
   }, [formData.products, formData.delivery_charge, isManualAmount, manualSubtotal]);
+
+  const getLineItemsSubtotal = () => formData.products.reduce(
+    (acc, p) => acc + (parseFloat(p.price || 0) * (p.quantity || 1)),
+    0
+  );
+
+  const handleDeliveryChargeChange = (value) => {
+    const nextDeliveryCharge = Math.max(0, parseFloat(value) || 0);
+
+    setIsManualAmount(true);
+    setManualSubtotal((prevSubtotal) => {
+      if (isManualAmount) return prevSubtotal;
+      return getLineItemsSubtotal();
+    });
+    setFormData(prev => ({ ...prev, delivery_charge: nextDeliveryCharge }));
+  };
+
+  const handleTotalAmountChange = (value) => {
+    const nextAmount = Math.max(0, parseFloat(value) || 0);
+    const deliveryCharge = Number(formData.delivery_charge) || 0;
+
+    setIsManualAmount(true);
+    setManualSubtotal(Math.max(0, nextAmount - deliveryCharge));
+    setFormData(prev => ({ ...prev, amount: String(nextAmount) }));
+  };
 
   const handleAIExtract = async () => {
     if (!aiText.trim()) return;
@@ -228,6 +283,12 @@ export const OrderEditModal = ({ isOpen, onClose, order = null }) => {
     }
     setIsSubmitting(true);
     try {
+      const payableTotal = parseFloat(formData.amount) || 0;
+      const deliveryCharge = Number(formData.delivery_charge) || 0;
+      const productSubtotal = isManualAmount
+        ? Math.max(0, payableTotal - deliveryCharge)
+        : getLineItemsSubtotal();
+
       const payload = {
         customer_name: formData.customer_name,
         phone: formData.phone,
@@ -239,15 +300,15 @@ export const OrderEditModal = ({ isOpen, onClose, order = null }) => {
         quantity: formData.products.reduce((acc, p) => acc + (p.quantity || 1), 0),
         source: formData.source,
         notes: formData.notes,
-        amount: parseFloat(formData.amount) || 0,
+        amount: payableTotal,
         shipping_zone: formData.shipping_zone,
-        delivery_charge: Number(formData.delivery_charge) || 0,
+        delivery_charge: deliveryCharge,
         ordered_items: formData.products,
         order_lines_payload: formData.products,
         pricing_summary: {
-          subtotal: formData.products.reduce((acc, item) => acc + ((Number(item.price) || 0) * (item.quantity || 1)), 0),
-          delivery_charge: Number(formData.delivery_charge) || 0,
-          payable_total: parseFloat(formData.amount) || 0
+          subtotal: productSubtotal,
+          delivery_charge: deliveryCharge,
+          payable_total: payableTotal
         },
         status: formData.status
       };
@@ -268,10 +329,17 @@ export const OrderEditModal = ({ isOpen, onClose, order = null }) => {
 
   const isEdit = Boolean(order && order.id);
   const handleShippingZoneChange = (zone) => {
-    setIsManualAmount(false);
+    if (!isEdit) {
+      setIsManualAmount(false);
+    }
+
     setFormData((prev) => {
       const currentDefault = getDeliveryChargeForZone(prev.shipping_zone);
-      const shouldSyncCharge = Number(prev.delivery_charge) === currentDefault || prev.delivery_charge === '' || prev.delivery_charge == null;
+      const shouldSyncCharge = !isEdit && (
+        Number(prev.delivery_charge) === currentDefault ||
+        prev.delivery_charge === '' ||
+        prev.delivery_charge == null
+      );
       return {
         ...prev,
         shipping_zone: zone,
@@ -353,19 +421,25 @@ export const OrderEditModal = ({ isOpen, onClose, order = null }) => {
               </div>
               <div className="shipping-zone-cards">
                 {[ 
-                  { value: 'Inside Dhaka', price: '৳80' },
-                  { value: 'Outside Dhaka', price: '৳150' }
-                ].map(zone => (
-                  <button
-                    key={zone.value}
-                    type="button"
-                    className={`zone-card ${formData.shipping_zone === zone.value ? 'selected' : ''}`}
-                    onClick={() => handleShippingZoneChange(zone.value)}
-                  >
-                    <span className="zone-card-name">{zone.value}</span>
-                    <span className="zone-card-price">{zone.price}</span>
-                  </button>
-                ))}
+                  { value: 'Inside Dhaka' },
+                  { value: 'Outside Dhaka' }
+                ].map(zone => {
+                  const zoneCharge = formData.shipping_zone === zone.value
+                    ? Number(formData.delivery_charge) || getDeliveryChargeForZone(zone.value)
+                    : getDeliveryChargeForZone(zone.value);
+
+                  return (
+                    <button
+                      key={zone.value}
+                      type="button"
+                      className={`zone-card ${formData.shipping_zone === zone.value ? 'selected' : ''}`}
+                      onClick={() => handleShippingZoneChange(zone.value)}
+                    >
+                      <span className="zone-card-name">{zone.value}</span>
+                      <span className="zone-card-price">৳{zoneCharge.toLocaleString()}</span>
+                    </button>
+                  );
+                })}
               </div>
               <div className="pm-input-group">
                 <label className="pm-label">Delivery Charge</label>
@@ -374,10 +448,17 @@ export const OrderEditModal = ({ isOpen, onClose, order = null }) => {
                   className="pm-input"
                   min="0"
                   value={formData.delivery_charge}
-                  onChange={e => {
-                    setIsManualAmount(false);
-                    setFormData({ ...formData, delivery_charge: Math.max(0, parseFloat(e.target.value) || 0) });
-                  }}
+                  onChange={e => handleDeliveryChargeChange(e.target.value)}
+                />
+              </div>
+              <div className="pm-input-group">
+                <label className="pm-label">Total Amount</label>
+                <input
+                  type="number"
+                  className="pm-input"
+                  min="0"
+                  value={formData.amount}
+                  onChange={e => handleTotalAmountChange(e.target.value)}
                 />
               </div>
             </div>

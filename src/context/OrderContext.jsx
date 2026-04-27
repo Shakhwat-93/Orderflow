@@ -479,10 +479,6 @@ export const OrderProvider = ({ children }) => {
     let queued = 0;
     const stockDeductions = {};
 
-    // Fetch courier config once
-    const courierConfig = await api.getSystemConfig('courier_steadfast');
-    const autoDispatch = courierConfig?.is_enabled && courierConfig?.auto_dispatch;
-
     for (const order of confirmedOrders) {
       const items = order.ordered_items || [];
       const hasToyBox = items.length > 0 && items.some(item => {
@@ -551,15 +547,6 @@ export const OrderProvider = ({ children }) => {
       
       if (isMatched) {
         distributed++;
-        // Trigger Auto Dispatch to Courier if enabled and matched
-        if (autoDispatch) {
-          try {
-            await api.dispatchToCourier(order.id);
-          } catch (dispatchErr) {
-            console.error(`Auto-dispatch failed for ${order.id}:`, dispatchErr);
-            // We don't throw here to avoid stopping the whole loop
-          }
-        }
       } else {
         queued++;
       }

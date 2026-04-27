@@ -1,4 +1,5 @@
-import { Link, useLocation } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   ShoppingCart, 
@@ -29,7 +30,19 @@ import './Sidebar.css';
 
 const menuItems = [
   { path: '/', label: 'Overview', icon: LayoutDashboard, group: 'Main Console' },
-  { path: '/orders', label: 'Orders', icon: ShoppingCart, group: 'Main Console' },
+  {
+    path: '/orders',
+    label: 'Orders',
+    icon: ShoppingCart,
+    group: 'Main Console',
+    children: [
+      { path: '/orders?status=All', label: 'All Orders', status: 'All', tone: 'all' },
+      { path: '/orders?status=Pending%20Call', label: 'Pending Call', status: 'Pending Call', tone: 'pending' },
+      { path: '/orders?status=Confirmed', label: 'Confirmed', status: 'Confirmed', tone: 'confirmed' },
+      { path: '/orders?status=Cancelled', label: 'Cancelled', status: 'Cancelled', tone: 'cancelled' },
+      { path: '/orders?status=Fake%20Order', label: 'Fake Order', status: 'Fake Order', tone: 'fake' }
+    ]
+  },
   { path: '/inventory', label: 'Inventory', icon: Package, roles: ['Admin', 'Moderator'], group: 'Main Console' },
   { path: '/factory', label: 'Confirmed', icon: Factory, roles: ['Admin', 'Factory Team'], group: 'Logistics' },
   { path: '/courier', label: 'Courier', icon: Truck, roles: ['Admin', 'Courier Team'], group: 'Logistics' },
@@ -48,11 +61,14 @@ const GROUP_ORDER = ['Main Console', 'Logistics', 'Intelligence', 'System'];
 export const Sidebar = ({ isOpen, onClose }) => {
 
   const location = useLocation();
+  const navigate = useNavigate();
   const { hasAnyRole, signOut, profile, user, userRoles } = useAuth();
   const { appName } = useBranding();
   const { theme, toggleTheme } = useTheme();
+  const [openMenus, setOpenMenus] = useState(() => ({ orders: location.pathname === '/orders' }));
   const primaryRole = userRoles?.[0] || 'Team Member';
   const displayName = profile?.name || user?.user_metadata?.full_name || user?.email || 'User';
+  const currentStatus = new URLSearchParams(location.search).get('status') || '';
 
   const filteredItems = menuItems.filter(item => 
     !item.roles || hasAnyRole(item.roles)
@@ -106,17 +122,54 @@ export const Sidebar = ({ isOpen, onClose }) => {
             {items.map((item) => {
               const Icon = item.icon;
               const isActive = location.pathname === item.path;
+              const hasChildren = Array.isArray(item.children) && item.children.length > 0;
+              const isMenuOpen = hasChildren && openMenus[item.label.toLowerCase()];
               return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={`nav-item ${isActive ? 'active' : ''}`}
-                  onClick={onClose}
-                >
-                  <Icon className="nav-icon" size={18} />
-                  <span className="nav-label">{item.label}</span>
-                  {isActive && <ChevronRight className="nav-active-chevron" size={16} />}
-                </Link>
+                <div key={item.path} className={`nav-item-shell ${hasChildren ? 'has-submenu' : ''}`}>
+                  <Link
+                    to={item.path}
+                    className={`nav-item ${isActive ? 'active' : ''}`}
+                    onClick={(event) => {
+                      if (hasChildren) {
+                        event.preventDefault();
+                        setOpenMenus(prev => ({
+                          ...prev,
+                          [item.label.toLowerCase()]: true
+                        }));
+                        navigate(item.path);
+                      } else {
+                        onClose?.();
+                      }
+                    }}
+                  >
+                    <Icon className="nav-icon" size={18} />
+                    <span className="nav-label">{item.label}</span>
+                    {hasChildren ? (
+                      <ChevronDown className={`nav-submenu-chevron ${isMenuOpen ? 'open' : ''}`} size={15} />
+                    ) : (
+                      isActive && <ChevronRight className="nav-active-chevron" size={16} />
+                    )}
+                  </Link>
+
+                  {hasChildren && isMenuOpen && (
+                    <div className="nav-submenu">
+                      {item.children.map((child) => {
+                        const isChildActive = isActive && currentStatus === child.status;
+                        return (
+                          <Link
+                            key={child.status}
+                            to={child.path}
+                            className={`nav-subitem ${isChildActive ? 'active' : ''} tone-${child.tone}`}
+                            onClick={onClose}
+                          >
+                            <span className="nav-subitem-dot" />
+                            <span>{child.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               );
             })}
 

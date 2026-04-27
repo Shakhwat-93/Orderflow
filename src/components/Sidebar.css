@@ -236,6 +236,16 @@
   overflow: hidden;
 }
 
+.nav-item-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nav-item-shell.has-submenu {
+  border-radius: 16px;
+}
+
 .nav-item:hover:not(.active) {
   background: var(--sb-bg-hover);
   color: var(--sb-text-pri);
@@ -281,6 +291,96 @@
 .nav-active-chevron {
   opacity: 0.5;
   color: var(--sb-text-sec);
+}
+
+.nav-submenu-chevron {
+  color: var(--sb-text-mute);
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.nav-submenu-chevron.open {
+  transform: rotate(180deg);
+  color: var(--sb-text-pri);
+}
+
+.nav-submenu {
+  margin: 0 0 2px 34px;
+  padding: 8px 0 8px 12px;
+  border-left: 1px solid rgba(var(--sb-nav-glow-rgb), 0.22);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  animation: navSubmenuReveal 0.18s ease both;
+}
+
+.nav-subitem {
+  min-height: 34px;
+  border-radius: 10px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  text-decoration: none;
+  color: var(--sb-text-sec);
+  font-size: 0.78rem;
+  font-weight: 650;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
+}
+
+.nav-subitem:hover {
+  background: var(--sb-bg-hover);
+  color: var(--sb-text-pri);
+  transform: translateX(2px);
+}
+
+.nav-subitem.active {
+  background: rgba(var(--sb-nav-glow-rgb), 0.12);
+  color: var(--sb-text-pri);
+}
+
+.nav-subitem-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--sb-text-mute);
+  box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.1);
+  flex-shrink: 0;
+}
+
+.nav-subitem.tone-pending .nav-subitem-dot {
+  background: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12);
+}
+
+.nav-subitem.tone-all .nav-subitem-dot {
+  background: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.nav-subitem.tone-confirmed .nav-subitem-dot {
+  background: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
+}
+
+.nav-subitem.tone-cancelled .nav-subitem-dot {
+  background: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+}
+
+.nav-subitem.tone-fake .nav-subitem-dot {
+  background: #7f1d1d;
+  box-shadow: 0 0 0 3px rgba(127, 29, 29, 0.16);
+}
+
+@keyframes navSubmenuReveal {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Footer & Profile */

@@ -72,6 +72,18 @@ export const OrdersBoard = () => {
   } = useOrders();
   const inventoryProductCheckpoints = useMemo(() => getProductCheckpoints(inventory), [inventory]);
 
+  useEffect(() => {
+    const queryParams = new URLSearchParams(location.search);
+    const statusFromRoute = queryParams.get('status');
+    const normalizedStatus = statusFromRoute === 'All'
+      ? 'All'
+      : ORDER_STATUSES.includes(statusFromRoute) ? statusFromRoute : null;
+
+    if (normalizedStatus && filters.status !== normalizedStatus) {
+      setFilters(prev => ({ ...prev, status: normalizedStatus }));
+    }
+  }, [location.search, filters.status, setFilters]);
+
   const [distributing, setDistributing] = useState(false);
   const [deepLinkOrder, setDeepLinkOrder] = useState(null);
   const [productBreakdown, setProductBreakdown] = useState([]);
@@ -928,7 +940,7 @@ export const OrdersBoard = () => {
 
       {/* ── Bulk Action Bar ── */}
       {selectedOrderIds.length > 0 && (
-        <div className="bulk-action-bar-container">
+        <div className="bulk-action-bar-container orders-floating-bulk-actions">
           <div className="bulk-action-bar liquid-glass">
             <div className="bulk-info">
               <div className="selection-count">{selectedOrderIds.length}</div>

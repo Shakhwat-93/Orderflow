@@ -8,7 +8,7 @@ import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
 import { OrderEditModal } from '../components/OrderEditModal';
 import { OrderDetailsModal } from '../components/OrderDetailsModal';
-import { Loader2, CheckCircle, PackageSearch, Zap, AlertTriangle, Package, Edit2, Download, FileSpreadsheet, CalendarDays } from 'lucide-react';
+import { Loader2, CheckCircle, PackageSearch, Zap, AlertTriangle, Package, Edit2, Download, FileSpreadsheet, CalendarDays, Truck, History } from 'lucide-react';
 import { PremiumSearch } from '../components/PremiumSearch';
 import { usePersistentState } from '../utils/persistentState';
 import { getToyBoxStockKey } from '../utils/productCatalog';
@@ -66,6 +66,13 @@ const DATE_PRESETS = [
   { id: 'thisMonth', label: 'This Month' }
 ];
 
+const EXPORT_PRESETS = [
+  { id: 'sinceLast', label: 'Since Last Export' },
+  ...DATE_PRESETS
+];
+
+const EXPORT_HISTORY_KEY = 'factory:confirmed-export-history';
+
 const getRangeBoundary = (value, boundary) => {
   if (!value) return null;
 
@@ -77,6 +84,36 @@ const getRangeBoundary = (value, boundary) => {
   }
 
   return new Date(year, month - 1, day, 23, 59, 59, 999);
+};
+
+const parseDateTimeRangeBoundary = (value, boundary) => {
+  if (!value) return null;
+
+  if (value.length === 10) {
+    return getRangeBoundary(value, boundary);
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+};
+
+const toDateTimeLocalValue = (value = new Date()) => {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const offsetMs = date.getTimezoneOffset() * 60 * 1000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+};
+
+const formatExportWindow = (from, to, fallback = 'All Time') => {
+  const start = from ? formatExportDate(from) : '';
+  const end = to ? formatExportDate(to) : '';
+
+  if (start && end) return `${start} - ${end}`;
+  if (start) return `From ${start}`;
+  if (end) return `Until ${end}`;
+  return fallback;
 };
 
 const matchesDatePreset = (value, preset) => {
@@ -142,9 +179,132 @@ const formatProductSummary = (order) => {
     .join(', ');
 };
 
+const getOrderQuantity = (order) => {
+  if (Number(order?.quantity) > 0) return Number(order.quantity);
+
+  const items = getOrderItems(order);
+  if (items.length === 0) return 1;
+
+  return items.reduce((sum, item) => sum + (Number(item?.quantity) || 1), 0);
+};
+
+const getOrderItems = (order) => {
+  if (Array.isArray(order?.order_lines_payload) && order.order_lines_payload.length > 0) {
+    return order.order_lines_payload;
+  }
+
+  if (Array.isArray(order?.ordered_items) && order.ordered_items.length > 0) {
+    return order.ordered_items.filter((item) => item && typeof item === 'object');
+  }
+
+  return [];
+};
+
+const parseEmbeddedDeliveryCharge = (value) => {
+  const text = String(value || '');
+  const matches = [...text.matchAll(/(\d{2,5})/g)];
+  if (matches.length === 0) return null;
+
+  const parsed = Number(matches[matches.length - 1][1]);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
+const getDeliveryCharge = (order) => {
+  const embeddedCharge = parseEmbeddedDeliveryCharge(order?.shipping_zone);
+  if (embeddedCharge !== null) return embeddedCharge;
+
+  const directCharge = Number(order?.delivery_charge);
+  if (directCharge > 0) return directCharge;
+
+  const summaryCharge = Number(order?.pricing_summary?.delivery_charge);
+  if (summaryCharge > 0) return summaryCharge;
+
+  return order?.shipping_zone === 'Inside Dhaka' ? 80 : 150;
+};
+
+const getProductPrice = (order) => {
+  const items = getOrderItems(order);
+  const firstPricedItem = items.find((item) => {
+    const unitPrice = Number(item?.unit_price ?? item?.price);
+    const lineTotal = Number(item?.line_total);
+    return unitPrice > 0 || lineTotal > 0;
+  });
+
+  if (firstPricedItem) {
+    const unitPrice = Number(firstPricedItem.unit_price ?? firstPricedItem.price);
+    if (unitPrice > 0) return unitPrice;
+
+    const quantity = Number(firstPricedItem.quantity) || 1;
+    const lineTotal = Number(firstPricedItem.line_total);
+    if (lineTotal > 0) return Math.round((lineTotal / quantity) * 100) / 100;
+  }
+
+  const pricingSubtotal = Number(order?.pricing_summary?.subtotal);
+  const quantity = getOrderQuantity(order);
+  if (pricingSubtotal > 0) return Math.round((pricingSubtotal / Math.max(1, quantity)) * 100) / 100;
+
+  const total = Number(order?.amount) || 0;
+  const deliveryCharge = getDeliveryCharge(order);
+  return Math.round((Math.max(0, total - deliveryCharge) / Math.max(1, quantity)) * 100) / 100;
+};
+
+const getTotalAmount = (order) => {
+  const total = Number(order?.amount);
+  if (total > 0) return total;
+
+  return getProductPrice(order) + getDeliveryCharge(order);
+};
+
+const getProductText = (order) => {
+  const itemText = Array.isArray(order?.ordered_items)
+    ? order.ordered_items.map((item) => [
+        item?.name,
+        item?.product_name,
+        item?.color,
+        item?.variant,
+        item?.size
+      ].filter(Boolean).join(' ')).join(' ')
+    : '';
+
+  return [
+    order?.product_name,
+    order?.size,
+    itemText,
+    formatProductSummary(order)
+  ].filter(Boolean).join(' ');
+};
+
+const getOrderShortForm = (order) => {
+  const idPrefix = String(order?.id || '').match(/^#?([A-Z]{2,12})[-_]/i)?.[1];
+  if (idPrefix && idPrefix.toUpperCase() !== 'ORD') {
+    return idPrefix.toUpperCase();
+  }
+
+  const productText = getProductText(order).toLowerCase();
+  if (productText.includes('toy box') || productText.includes('toybox')) return 'TB';
+  if (productText.includes('sunglass') || productText.includes('sunglasses')) return 'Sunglass';
+  if (productText.includes('travel bag') || productText.includes('canvas') || productText.includes('bag')) return 'STB';
+
+  return order?.product_name || '';
+};
+
+const getColorCode = (order) => {
+  const productText = getProductText(order).toLowerCase();
+  const knownColors = [
+    'black', 'beige', 'silver', 'golden', 'gold', 'blue', 'red',
+    'green', 'white', 'brown', 'gray', 'grey', 'pink', 'purple'
+  ];
+
+  const matches = knownColors.filter((color) => (
+    new RegExp(`\\b${color}\\b`, 'i').test(productText)
+  ));
+
+  return [...new Set(matches.map((color) => (color === 'gold' ? 'golden' : color)))].join(', ');
+};
+
 export const FactoryPanel = () => {
   const { orders, toyBoxes, autoDistributeOrders, updateOrderStatus } = useOrders();
-  const { updatePresenceContext } = useAuth();
+  const { updatePresenceContext, profile, user } = useAuth();
 
   useEffect(() => {
     updatePresenceContext('Reviewing Confirmed Orders');
@@ -163,9 +323,27 @@ export const FactoryPanel = () => {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [exportDatePreset, setExportDatePreset] = useState('all');
+  const [exportDatePreset, setExportDatePreset] = useState('sinceLast');
   const [exportDateFrom, setExportDateFrom] = useState('');
   const [exportDateTo, setExportDateTo] = useState('');
+  const [exportHistory, setExportHistory] = useState(() => {
+    try {
+      const raw = localStorage.getItem(EXPORT_HISTORY_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [lastExportedBatch, setLastExportedBatch] = useState(null);
+  const [isMovingExportBatch, setIsMovingExportBatch] = useState(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(EXPORT_HISTORY_KEY, JSON.stringify(exportHistory.slice(0, 20)));
+    } catch {
+      // Export history is a convenience layer; exporting should not depend on storage.
+    }
+  }, [exportHistory]);
 
   const handleOpenEditModal = (order) => {
     setSelectedOrder(order);
@@ -215,9 +393,11 @@ export const FactoryPanel = () => {
   );
 
   const displayOrders = activeTab === 'confirmed' ? confirmedOrders : queuedOrders;
-  const exportRangeStartDate = useMemo(() => getRangeBoundary(exportDateFrom, 'start'), [exportDateFrom]);
-  const exportRangeEndDate = useMemo(() => getRangeBoundary(exportDateTo, 'end'), [exportDateTo]);
-  const exportHasCustomRange = Boolean(exportDateFrom || exportDateTo);
+  const latestExportHistory = exportHistory[0] || null;
+  const latestConfirmedExportHistory = exportHistory.find((item) => item.tab === 'confirmed') || null;
+  const exportRangeStartDate = useMemo(() => parseDateTimeRangeBoundary(exportDateFrom, 'start'), [exportDateFrom]);
+  const exportRangeEndDate = useMemo(() => parseDateTimeRangeBoundary(exportDateTo, 'end'), [exportDateTo]);
+  const exportHasCustomRange = exportDatePreset !== 'sinceLast' && Boolean(exportDateFrom || exportDateTo);
   const totalPages = Math.max(1, Math.ceil(displayOrders.length / FACTORY_PAGE_SIZE));
   const paginatedOrders = useMemo(() => {
     const startIndex = (currentPage - 1) * FACTORY_PAGE_SIZE;
@@ -284,10 +464,16 @@ export const FactoryPanel = () => {
   };
 
   const getExportOrders = (preset, from, to) => {
-    const startDate = getRangeBoundary(from, 'start');
-    const endDate = getRangeBoundary(to, 'end');
-    const hasRange = Boolean(from || to);
+    const startDate = parseDateTimeRangeBoundary(from, 'start');
+    const endDate = parseDateTimeRangeBoundary(to, 'end');
+    const hasRange = preset !== 'sinceLast' && Boolean(from || to);
     const targetStatus = activeTab === 'confirmed' ? 'Confirmed' : 'Factory Queue';
+    const sinceLastStart = preset === 'sinceLast' && activeTab === 'confirmed' && latestConfirmedExportHistory?.exported_until
+      ? new Date(latestConfirmedExportHistory.exported_until)
+      : null;
+    const sinceLastEnd = preset === 'sinceLast'
+      ? (endDate || new Date())
+      : null;
 
     return orders.filter((order) => {
       if (order.status !== targetStatus) {
@@ -296,6 +482,10 @@ export const FactoryPanel = () => {
 
       if (!matchesSearchFilter(order)) {
         return false;
+      }
+
+      if (preset === 'sinceLast') {
+        return matchesCustomDateRange(order.created_at, sinceLastStart, sinceLastEnd);
       }
 
       if (hasRange) {
@@ -308,7 +498,7 @@ export const FactoryPanel = () => {
 
   const exportPreviewOrders = useMemo(
     () => getExportOrders(exportDatePreset, exportDateFrom, exportDateTo),
-    [orders, activeTab, normalizedSearchTerm, exportDatePreset, exportDateFrom, exportDateTo]
+    [orders, activeTab, normalizedSearchTerm, exportDatePreset, exportDateFrom, exportDateTo, latestConfirmedExportHistory?.exported_until]
   );
 
   const handlePresetChange = (presetId) => {
@@ -335,20 +525,24 @@ export const FactoryPanel = () => {
   };
 
   const handleOpenExportModal = () => {
-    setExportDatePreset(datePreset);
-    setExportDateFrom(dateFrom);
-    setExportDateTo(dateTo);
+    const defaultPreset = activeTab === 'confirmed' ? 'sinceLast' : datePreset;
+    setExportDatePreset(defaultPreset);
+    setExportDateFrom('');
+    setExportDateTo(defaultPreset === 'sinceLast' ? toDateTimeLocalValue(new Date()) : '');
+    setLastExportedBatch(null);
     setIsExportModalOpen(true);
   };
 
   const handleExportPresetChange = (presetId) => {
     setExportDatePreset(presetId);
     setExportDateFrom('');
-    setExportDateTo('');
+    setExportDateTo(presetId === 'sinceLast' ? toDateTimeLocalValue(new Date()) : '');
   };
 
   const handleExportDateRangeChange = (field, value) => {
-    setExportDatePreset('all');
+    if (!(exportDatePreset === 'sinceLast' && field === 'to')) {
+      setExportDatePreset('all');
+    }
 
     if (field === 'from') {
       setExportDateFrom(value);
@@ -359,35 +553,46 @@ export const FactoryPanel = () => {
   };
 
   const handleClearExportDateRange = () => {
-    setExportDatePreset('all');
+    setExportDatePreset(activeTab === 'confirmed' ? 'sinceLast' : 'all');
     setExportDateFrom('');
-    setExportDateTo('');
+    setExportDateTo(activeTab === 'confirmed' ? toDateTimeLocalValue(new Date()) : '');
   };
 
   const handleBulkExport = () => {
     if (exportPreviewOrders.length === 0) return;
+    const exportedAt = new Date().toISOString();
+    const exportedBy = profile?.name || user?.user_metadata?.full_name || user?.email || 'Unknown User';
+    const sortedExportOrders = [...exportPreviewOrders].sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
+    const lastOrder = sortedExportOrders[sortedExportOrders.length - 1] || null;
+    const explicitEnd = exportRangeEndDate && !Number.isNaN(exportRangeEndDate.getTime())
+      ? exportRangeEndDate.toISOString()
+      : exportedAt;
+    const explicitStart = exportDatePreset === 'sinceLast'
+      ? latestConfirmedExportHistory?.exported_until || null
+      : (exportRangeStartDate && !Number.isNaN(exportRangeStartDate.getTime()) ? exportRangeStartDate.toISOString() : null);
 
-    const exportRows = exportPreviewOrders.map((order, index) => ({
-      serial: index + 1,
-      order_id: order.id || '',
-      status: order.status || '',
-      customer_name: order.customer_name || '',
-      phone: order.phone || '',
-      address: order.address || '',
-      shipping_zone: order.shipping_zone || '',
-      product_name: order.product_name || '',
-      product_details: formatProductSummary(order),
-      total_quantity: Number(order.quantity) || (Array.isArray(order.ordered_items)
-        ? order.ordered_items.reduce((sum, item) => sum + (Number(item?.quantity) || 1), 0)
-        : 0),
-      amount: Number(order.amount) || 0,
-      delivery_charge: Number(order.delivery_charge) || 0,
-      source: order.source || '',
-      payment_status: order.payment_status || '',
-      notes: order.notes || '',
-      created_at: formatExportDate(order.created_at),
-      updated_at: formatExportDate(order.updated_at)
-    }));
+    const exportRows = sortedExportOrders.map((order) => {
+      const deliveryCharge = getDeliveryCharge(order);
+      const productPrice = getProductPrice(order);
+      const totalAmount = getTotalAmount(order);
+
+      return {
+        DATE: formatExportDate(order.created_at),
+        NOTE: order.notes || '',
+        NAME: order.customer_name || '',
+        ADDRESS: order.address || '',
+        'INSIDE/OUTSIDE DHAKA': order.shipping_zone || '',
+        PHONE: order.phone || '',
+        'ORDER ID': order.id || '',
+        'ORDER SHORT': getOrderShortForm(order),
+        'COLOR CODE': getColorCode(order),
+        SOURCE: order.source || '',
+        QUANTITY: getOrderQuantity(order),
+        'PRODUCT PRICE': productPrice,
+        'DELIVERY CHARGE': deliveryCharge,
+        'TOTAL AMOUNT': totalAmount
+      };
+    });
 
     const worksheet = XLSX.utils.json_to_sheet(exportRows);
     const workbook = XLSX.utils.book_new();
@@ -396,11 +601,83 @@ export const FactoryPanel = () => {
     const dateLabel = new Date().toISOString().split('T')[0];
     const tabLabel = activeTab === 'confirmed' ? 'confirmed' : 'queue';
     const rangeLabel = exportHasCustomRange
-      ? `range-${exportDateFrom || 'start'}-to-${exportDateTo || 'today'}`
-      : (exportDatePreset === 'all' ? 'all-time' : exportDatePreset.toLowerCase());
+      ? `range-${(exportDateFrom || 'start').replace(':', '')}-to-${(exportDateTo || 'now').replace(':', '')}`
+      : (exportDatePreset === 'sinceLast' ? 'since-last-export' : (exportDatePreset === 'all' ? 'all-time' : exportDatePreset.toLowerCase()));
     XLSX.writeFile(workbook, `confirmed-panel-${tabLabel}-${rangeLabel}-${dateLabel}.xlsx`);
-    setIsExportModalOpen(false);
+
+    const batch = {
+      id: `export-${Date.now()}`,
+      tab: activeTab,
+      exported_at: exportedAt,
+      exported_by: exportedBy,
+      exported_from: explicitStart,
+      exported_until: explicitEnd,
+      preset: exportDatePreset,
+      order_count: sortedExportOrders.length,
+      order_ids: sortedExportOrders.map((order) => order.id),
+      last_order_id: lastOrder?.id || null,
+      last_order_created_at: lastOrder?.created_at || null,
+      moved_to_courier_at: null,
+      moved_to_courier_by: null
+    };
+
+    setLastExportedBatch(batch);
+    setExportHistory((prev) => [batch, ...prev].slice(0, 20));
   };
+
+  const handleMoveExportedToCourier = async () => {
+    if (!lastExportedBatch?.order_ids?.length || activeTab !== 'confirmed') return;
+
+    const targetOrders = orders.filter((order) =>
+      lastExportedBatch.order_ids.includes(order.id) &&
+      order.status === 'Confirmed'
+    );
+
+    if (targetOrders.length === 0) {
+      alert('No confirmed orders from this export batch are left to move.');
+      return;
+    }
+
+    const confirmed = window.confirm(`Move ${targetOrders.length} exported orders to Courier Panel?`);
+    if (!confirmed) return;
+
+    setIsMovingExportBatch(true);
+    const movedBy = profile?.name || user?.user_metadata?.full_name || user?.email || 'Unknown User';
+    const movedAt = new Date().toISOString();
+
+    try {
+      for (const order of targetOrders) {
+        // Sequential updates keep load low on the live order system.
+        await updateOrderStatus(order.id, 'Courier Ready');
+      }
+
+      const updatedBatch = {
+        ...lastExportedBatch,
+        moved_to_courier_at: movedAt,
+        moved_to_courier_by: movedBy,
+        moved_count: targetOrders.length
+      };
+
+      setLastExportedBatch(updatedBatch);
+      setExportHistory((prev) => prev.map((item) => (
+        item.id === updatedBatch.id ? updatedBatch : item
+      )));
+    } catch (error) {
+      console.error('Moving exported orders failed:', error);
+      alert(`Move failed: ${error.message}`);
+    } finally {
+      setIsMovingExportBatch(false);
+    }
+  };
+
+  const exportScopeLabel = exportHasCustomRange
+    ? 'Custom Date & Time'
+    : EXPORT_PRESETS.find((preset) => preset.id === exportDatePreset)?.label;
+  const exportWindowLabel = exportHasCustomRange
+    ? formatExportWindow(exportRangeStartDate, exportRangeEndDate, 'Custom Date & Time')
+    : exportDatePreset === 'sinceLast'
+      ? formatExportWindow(latestConfirmedExportHistory?.exported_until, exportRangeEndDate || new Date(), latestConfirmedExportHistory ? 'Since Last Export' : 'New export window')
+      : exportScopeLabel;
 
   return (
     <motion.div 
@@ -427,7 +704,7 @@ export const FactoryPanel = () => {
           </Button>
           <Button 
             variant="primary" 
-            onClick={handleAutoDistribute} 
+            onClick={handleAutoDistribute}
             disabled={isDistributing || confirmedOrders.length === 0}
             className="auto-distribute-btn"
           >
@@ -750,17 +1027,32 @@ export const FactoryPanel = () => {
       <Modal
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
-        title="Bulk Export Filters"
-        subtitle="Choose a preset or custom date range, then download the exact matched orders."
+        title="Bulk Export Control"
+        subtitle="Export an exact time window, then move the exported confirmed orders into Courier Panel."
       >
         <div className="factory-export-modal">
+          {latestExportHistory && (
+            <div className="factory-export-last-card">
+              <div className="factory-export-last-icon">
+                <History size={17} />
+              </div>
+              <div className="factory-export-last-copy">
+                <span>Last export by {latestExportHistory.exported_by}</span>
+                <strong>{latestExportHistory.order_count} orders until {formatExportDate(latestExportHistory.exported_until)}</strong>
+                {latestExportHistory.last_order_id && (
+                  <small>Last order: #{latestExportHistory.last_order_id} ({formatExportDate(latestExportHistory.last_order_created_at)})</small>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="factory-export-modal-section">
             <div className="factory-date-preset-label">
               <CalendarDays size={15} />
               <span>Date Filter</span>
             </div>
             <div className="factory-date-preset-tabs">
-              {DATE_PRESETS.map((preset) => (
+              {(activeTab === 'confirmed' ? EXPORT_PRESETS : DATE_PRESETS).map((preset) => (
                 <button
                   key={`export-${preset.id}`}
                   type="button"
@@ -776,20 +1068,21 @@ export const FactoryPanel = () => {
           <div className="factory-export-modal-section">
             <div className="factory-range-filter factory-range-filter--modal">
               <div className="factory-range-input-group">
-                <label className="factory-range-label" htmlFor="factory-export-date-from">From</label>
+                <label className="factory-range-label" htmlFor="factory-export-date-from">From Date & Time</label>
                 <input
                   id="factory-export-date-from"
-                  type="date"
+                  type="datetime-local"
                   className="factory-range-input"
                   value={exportDateFrom}
                   onChange={(event) => handleExportDateRangeChange('from', event.target.value)}
+                  disabled={exportDatePreset === 'sinceLast'}
                 />
               </div>
               <div className="factory-range-input-group">
-                <label className="factory-range-label" htmlFor="factory-export-date-to">To</label>
+                <label className="factory-range-label" htmlFor="factory-export-date-to">To Date & Time</label>
                 <input
                   id="factory-export-date-to"
-                  type="date"
+                  type="datetime-local"
                   className="factory-range-input"
                   value={exportDateTo}
                   onChange={(event) => handleExportDateRangeChange('to', event.target.value)}
@@ -811,10 +1104,47 @@ export const FactoryPanel = () => {
               {activeTab === 'confirmed' ? 'Confirmed Tab' : 'Queue Tab'}
             </span>
             <span className="order-count-badge">
-              {exportHasCustomRange ? 'Custom Range' : DATE_PRESETS.find((preset) => preset.id === exportDatePreset)?.label}
+              {exportScopeLabel}
             </span>
+            <span className="order-count-badge order-count-badge--window">{exportWindowLabel}</span>
             <span className="order-count-badge">{exportPreviewOrders.length} ready to export</span>
           </div>
+
+          {lastExportedBatch && (
+            <div className={`factory-export-post-card ${lastExportedBatch.moved_to_courier_at ? 'done' : ''}`}>
+              <div>
+                <strong>Export downloaded</strong>
+                <span>
+                  {lastExportedBatch.order_count} orders exported by {lastExportedBatch.exported_by}.
+                  {lastExportedBatch.moved_to_courier_at
+                    ? ` Moved to Courier by ${lastExportedBatch.moved_to_courier_by}.`
+                    : ' Move this batch to Courier Panel to prevent duplicate export.'}
+                </span>
+              </div>
+              {activeTab === 'confirmed' && !lastExportedBatch.moved_to_courier_at && (
+                <Button
+                  variant="primary"
+                  onClick={handleMoveExportedToCourier}
+                  disabled={isMovingExportBatch}
+                >
+                  {isMovingExportBatch ? <Loader2 size={16} className="spin" /> : <Truck size={16} />}
+                  <span>Move Exported to Courier</span>
+                </Button>
+              )}
+            </div>
+          )}
+
+          {exportHistory.length > 0 && (
+            <div className="factory-export-history-list">
+              {exportHistory.slice(0, 4).map((item) => (
+                <div className="factory-export-history-item" key={item.id}>
+                  <span>{formatExportDate(item.exported_at)}</span>
+                  <strong>{item.order_count} orders</strong>
+                  <small>{item.exported_by} - until {formatExportDate(item.exported_until)}</small>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="factory-export-actions">
             <Button variant="ghost" onClick={() => setIsExportModalOpen(false)}>
