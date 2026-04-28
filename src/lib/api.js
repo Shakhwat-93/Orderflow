@@ -381,6 +381,25 @@ export const api = {
     );
   },
 
+  shouldBlockAdminSignupFallback(error) {
+    const message = [
+      error?.message,
+      error?.name,
+      error?.context?.message
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    return (
+      message.includes('failed to send a request to the edge function') ||
+      message.includes('failed to fetch') ||
+      message.includes('cors') ||
+      message.includes('not found') ||
+      message.includes('requested function was not found')
+    );
+  },
+
   createIsolatedSignupClient() {
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -1861,11 +1880,25 @@ export const api = {
     console.log("DEBUG: adminCreateUser Response", { data, error });
 
     if (error) {
-      if (this.shouldUseAuthSignupFallback(error)) {
-        return this.adminCreateUserViaSignup(userData);
+      if (this.shouldBlockAdminSignupFallback(error)) {
+        throw new Error('Admin user creation service is unavailable. Deploy or fix the admin-auth-actions Edge Function before creating users, otherwise Supabase will create unconfirmed email accounts.');
       }
       throw error;
     }
+    if (data?.error) throw new Error(data.error);
+
+    return data;
+  },
+
+  async adminConfirmUser(userId) {
+    const { data, error } = await supabase.functions.invoke('admin-auth-actions', {
+      body: {
+        action: 'confirm-user',
+        userId
+      }
+    });
+
+    if (error) throw error;
     if (data?.error) throw new Error(data.error);
 
     return data;

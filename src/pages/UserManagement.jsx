@@ -62,6 +62,7 @@ export const UserManagement = () => {
   });
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const [confirmingUserId, setConfirmingUserId] = useState(null);
 
   const [addFormData, setAddFormData] = useState({
     name: '',
@@ -202,6 +203,29 @@ export const UserManagement = () => {
       confirmPassword: ''
     });
     setIsResetModalOpen(true);
+  };
+
+  const handleConfirmEmail = async (user) => {
+    if (!user?.id) return;
+
+    setConfirmingUserId(user.id);
+    try {
+      await api.adminConfirmUser(user.id);
+
+      const adminName = currentProfile?.name || currentUser?.email || 'Admin';
+      await api.logActivity({
+        action_type: 'USER_EMAIL_CONFIRM',
+        changed_by_user_id: currentUser?.id,
+        changed_by_user_name: adminName,
+        action_description: `${adminName} manually confirmed login email for ${user.name || user.email}`
+      });
+
+      alert(`Email confirmed for ${user.name || user.email}. The user can now login.`);
+    } catch (error) {
+      alert("Error confirming email: " + error.message);
+    } finally {
+      setConfirmingUserId(null);
+    }
   };
 
   const handleResetPassword = async (e) => {
@@ -357,6 +381,9 @@ export const UserManagement = () => {
                     </Button>
                     <div className="popover-menu-elite">
                       <button onClick={() => handleEditUser(user)}><Edit2 size={14} /> Edit Profile</button>
+                      <button onClick={() => handleConfirmEmail(user)} disabled={confirmingUserId === user.id}>
+                        <ShieldCheck size={14} /> {confirmingUserId === user.id ? 'Confirming...' : 'Confirm Email'}
+                      </button>
                       <button onClick={() => handleResetPasswordClick(user)}><Shield size={14} /> Reset Pass</button>
                       <button className="del" onClick={() => handleDeleteUser(user)}><Trash2 size={14} /> Remove</button>
                     </div>

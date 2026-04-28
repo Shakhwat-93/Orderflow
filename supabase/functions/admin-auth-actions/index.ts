@@ -49,6 +49,25 @@ serve(async (req) => {
       if (error) throw error
       result = { success: true, message: 'Password reset successfully' }
 
+    } else if (action === 'confirm-user') {
+      if (!userId) throw new Error('Missing userId')
+
+      const { data: existingUser } = await supabaseAdmin.auth.admin.getUserById(userId)
+
+      const { data, error } = await supabaseAdmin.auth.admin.updateUserById(
+        userId,
+        {
+          email_confirm: true,
+          user_metadata: {
+            ...(existingUser?.user?.user_metadata || {}),
+            email_confirmed_by_admin: caller.id,
+            email_confirmed_at: new Date().toISOString()
+          }
+        }
+      )
+      if (error) throw error
+      result = { success: true, user: data.user, message: 'User email confirmed successfully' }
+
     } else if (action === 'create-user') {
       // Logic similar to existing create-user-admin if needed
       const { name, email, password: userPass, role } = userData
@@ -56,27 +75,46 @@ serve(async (req) => {
       const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email,
         password: userPass,
-        email_confirm: true
+        email_confirm: true,
+        user_metadata: {
+          name,
+          created_by_admin: caller.id
+        }
       })
       if (authError) throw authError
 
+      const { data: confirmedUser, error: confirmError } = await supabaseAdmin.auth.admin.updateUserById(
+        authUser.user.id,
+        {
+          email_confirm: true,
+          user_metadata: {
+            ...(authUser.user.user_metadata || {}),
+            name,
+            created_by_admin: caller.id,
+            email_confirmed_by_admin: caller.id,
+            email_confirmed_at: new Date().toISOString()
+          }
+        }
+      )
+      if (confirmError) throw confirmError
+
       // Create profile
-      const { error: profileError } = await supabaseAdmin.from('users').insert({
+      const { error: profileError } = await supabaseAdmin.from('users').upsert({
         id: authUser.user.id,
         name,
         email,
         status: 'active'
-      })
+      }, { onConflict: 'id' })
       if (profileError) throw profileError
 
       // Assign role
-      const { error: roleError } = await supabaseAdmin.from('user_roles').insert({
+      const { error: roleError } = await supabaseAdmin.from('user_roles').upsert({
         user_id: authUser.user.id,
         role_id: role || 'Call Team'
-      })
+      }, { onConflict: 'user_id,role_id' })
       if (roleError) throw roleError
 
-      result = { success: true, user: authUser.user }
+      result = { success: true, user: confirmedUser.user || authUser.user }
     } else {
       throw new Error(`Unknown action: ${action}`)
     }
