@@ -672,11 +672,13 @@
 .elite-status-pill.pending { background: #e0e7ff; color: #4338ca; }
 .elite-status-pill.active { background: #ccfbf1; color: #0f766e; }
 .elite-status-pill.urgent { background: #fee2e2; color: #b91c1c; }
+.elite-status-pill.fake { background: #7f1d1d; color: #fee2e2; }
 .elite-status-pill.neutral { background: var(--bg-elevated); color: var(--text-secondary); }
 
 .dark-mode .elite-status-pill.pending { background: rgba(67, 56, 202, 0.2); }
 .dark-mode .elite-status-pill.active { background: rgba(15, 118, 110, 0.2); }
 .dark-mode .elite-status-pill.urgent { background: rgba(185, 28, 28, 0.2); }
+.dark-mode .elite-status-pill.fake { background: rgba(127, 29, 29, 0.72); color: #fecaca; }
 
 .elite-call-pill {
   padding: 5px 10px;
@@ -827,6 +829,17 @@
   border-color: #dc2626;
 }
 
+.elite-quick-chip.fake {
+  color: #7f1d1d;
+  background: rgba(127, 29, 29, 0.10);
+  border-color: rgba(127, 29, 29, 0.26);
+}
+
+.elite-quick-chip.fake:hover {
+  background: #7f1d1d;
+  border-color: #7f1d1d;
+}
+
 .elite-act-btn {
   width: 36px;
   height: 36px;
@@ -910,6 +923,12 @@
 
 .dark-mode .elite-quick-chip.cancel {
   background: rgba(220, 38, 38, 0.14);
+}
+
+.dark-mode .elite-quick-chip.fake {
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.26);
+  border-color: rgba(153, 27, 27, 0.46);
 }
 
 /* ── Elite Pagination Footer ── */

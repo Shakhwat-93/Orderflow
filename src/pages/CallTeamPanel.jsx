@@ -50,6 +50,11 @@ const ACTION_NOTE_CONFIG = {
     actionLabel: 'Cancelled',
     placeholder: 'Example: Customer cancelled. Ordered by mistake.'
   },
+  fake: {
+    title: 'Mark Fake Order',
+    actionLabel: 'Fake Order',
+    placeholder: 'Example: Fake customer details or abusive repeat order. IP will be blocked permanently.'
+  },
   busy: {
     title: 'Mark Busy',
     actionLabel: 'Busy',
@@ -261,6 +266,9 @@ export const CallTeamPanel = () => {
         case 'cancel':
           await updateOrderStatus(pendingNoteAction.orderId, 'Cancelled', actionNote);
           break;
+        case 'fake':
+          await updateOrderStatus(pendingNoteAction.orderId, 'Fake Order', actionNote);
+          break;
         case 'busy':
           await handleLogAttempt(pendingNoteAction.orderId, 'Busy', actionNote);
           break;
@@ -446,6 +454,7 @@ export const CallTeamPanel = () => {
             if (order.status === 'New') statusPill = 'pending';
             if (order.status === 'Pending Call') statusPill = 'active';
             if (order.status === 'Confirmed') statusPill = 'confirmed';
+            if (order.status === 'Fake Order') statusPill = 'fake';
             if (order.status === 'Cancelled') statusPill = 'urgent';
 
             return (
@@ -533,6 +542,14 @@ export const CallTeamPanel = () => {
                             </button>
                           );
                         })}
+                        <button
+                          className="elite-quick-chip fake"
+                          title="Mark Fake Order"
+                          onClick={(e) => openActionNoteModal(e, order, 'fake')}
+                        >
+                          <ShieldAlert size={12} />
+                          <span>Fake</span>
+                        </button>
                         <button
                           className="elite-quick-chip cancel"
                           title="Cancel Order"
@@ -624,6 +641,9 @@ export const CallTeamPanel = () => {
                         })}
                         <button className="elite-quick-chip cancel" onClick={(e) => openActionNoteModal(e, order, 'cancel')}>
                           <XCircle size={13} /><span>Cancel</span>
+                        </button>
+                        <button className="elite-quick-chip fake" onClick={(e) => openActionNoteModal(e, order, 'fake')}>
+                          <ShieldAlert size={13} /><span>Fake</span>
                         </button>
                       </div>
                     </div>

@@ -1336,6 +1336,7 @@ export const api = {
     const permissions = {
       'Confirmed': ['Admin', 'Call Team'],
       'Cancelled': ['Admin', 'Call Team'],
+      'Fake Order': ['Admin', 'Call Team'],
       'Courier Ready': ['Admin', 'Factory Team'],
       'Factory Queue': ['Admin', 'Factory Team'],
       'Processing': ['Admin', 'Factory Team'],
@@ -1351,12 +1352,16 @@ export const api = {
     }
 
     // Get old status first for logging
-    const { data: oldData } = await supabase.from('orders').select('status, first_call_time').eq('id', orderId).single();
+    const { data: oldData } = await supabase
+      .from('orders')
+      .select('status, first_call_time, ip_address, customer_name, phone')
+      .eq('id', orderId)
+      .single();
 
     const updatePayload = { status: newStatus };
     
     // Auto-set first_call_time if a call team or admin confirms/cancels an untouched order
-    if (!oldData?.first_call_time && ['Confirmed', 'Cancelled'].includes(newStatus)) {
+    if (!oldData?.first_call_time && ['Confirmed', 'Cancelled', 'Fake Order'].includes(newStatus)) {
        updatePayload.first_call_time = new Date().toISOString();
     }
 
@@ -1380,11 +1385,36 @@ export const api = {
       action_description: `${userName} changed the status of order #${orderId} to ${newStatus}`
     });
 
+    let resultData = data;
+
     if (String(noteText || '').trim()) {
-      return this.appendOrderNote(orderId, noteText, userId, userName, userRoles, newStatus, data?.notes || '');
+      resultData = await this.appendOrderNote(orderId, noteText, userId, userName, userRoles, newStatus, data?.notes || '');
     }
 
-    return data;
+    if (newStatus === 'Fake Order') {
+      const ipAddress = this.normalizeIpAddress(data?.ip_address || oldData?.ip_address);
+      if (ipAddress) {
+        await this.blockIpAddressForFakeOrder({
+          ipAddress,
+          orderId,
+          customerName: data?.customer_name || oldData?.customer_name || 'Unknown customer',
+          phone: data?.phone || oldData?.phone || '',
+          noteText,
+          userId,
+          userName
+        });
+      } else {
+        await this.logActivity({
+          order_id: orderId,
+          action_type: 'UPDATE',
+          changed_by_user_id: userId,
+          changed_by_user_name: userName,
+          action_description: `${userName} marked order #${orderId} as Fake Order, but no IP address was stored on the order to block.`
+        });
+      }
+    }
+
+    return resultData;
   },
 
   formatOrderNoteEntry(noteText, actionLabel, userName, timestamp = new Date().toISOString()) {
@@ -2856,6 +2886,46 @@ export const api = {
     }
 
     return data;
+  },
+
+  async blockIpAddressForFakeOrder({ ipAddress, orderId, customerName, phone, noteText, userId, userName }) {
+    const normalizedIp = this.normalizeIpAddress(ipAddress);
+    if (!normalizedIp) throw new Error('IP address is required.');
+
+    const cleanNote = String(noteText || '').trim();
+    const reason = [
+      `Auto-blocked from Fake Order #${orderId}`,
+      customerName ? `Customer: ${customerName}` : '',
+      phone ? `Phone: ${phone}` : '',
+      cleanNote ? `Note: ${cleanNote}` : ''
+    ].filter(Boolean).join(' | ');
+
+    const { data, error } = await supabase.functions.invoke('fraud-actions', {
+      body: {
+        action: 'block-ip',
+        ipAddress: normalizedIp,
+        reason,
+        orderId
+      }
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data?.success) {
+      throw new Error(data?.error || 'Failed to block fake order IP address.');
+    }
+
+    await this.logActivity({
+      order_id: orderId,
+      action_type: 'UPDATE',
+      changed_by_user_id: userId,
+      changed_by_user_name: userName,
+      action_description: `${userName} marked order #${orderId} as Fake Order and blocked IP ${normalizedIp}.`
+    });
+
+    return data.block;
   },
 
   async unblockIpAddress(ipAddress) {
