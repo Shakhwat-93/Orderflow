@@ -112,6 +112,47 @@ export const OrdersBoard = () => {
     const start = (page - 1) * pageSize;
     return filteredOrders.slice(start, start + pageSize);
   }, [filteredOrders, page, pageSize]);
+  const duplicateWarnings = useMemo(() => {
+    const normalizePhone = (phone) => String(phone || '').replace(/\D/g, '').replace(/^88/, '');
+    const normalizeName = (name) => String(name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    const normalizeIp = (ip) => String(ip || '').trim().toLowerCase();
+    const buildMap = (normalizer, minLength = 1) => {
+      const map = new Map();
+      (Array.isArray(orders) ? orders : []).forEach((order) => {
+        const key = normalizer(order);
+        if (!key || key.length < minLength) return;
+        if (!map.has(key)) map.set(key, []);
+        map.get(key).push(order);
+      });
+      return map;
+    };
+
+    const phoneMap = buildMap((order) => normalizePhone(order.phone), 6);
+    const nameMap = buildMap((order) => normalizeName(order.customer_name), 3);
+    const ipMap = buildMap((order) => normalizeIp(order.ip_address), 3);
+    const warnings = {};
+
+    (Array.isArray(orders) ? orders : []).forEach((order) => {
+      const matches = [];
+      const phoneMatches = phoneMap.get(normalizePhone(order.phone)) || [];
+      const nameMatches = nameMap.get(normalizeName(order.customer_name)) || [];
+      const ipMatches = ipMap.get(normalizeIp(order.ip_address)) || [];
+
+      if (phoneMatches.length > 1) matches.push({ label: 'Phone', count: phoneMatches.length });
+      if (nameMatches.length > 1) matches.push({ label: 'Name', count: nameMatches.length });
+      if (ipMatches.length > 1) matches.push({ label: 'IP', count: ipMatches.length });
+
+      if (matches.length > 0) {
+        warnings[order.id] = {
+          matches,
+          label: matches.map(match => match.label).join(' + '),
+          title: `Duplicate detected by ${matches.map(match => `${match.label} (${match.count})`).join(', ')}`
+        };
+      }
+    });
+
+    return warnings;
+  }, [orders]);
   const { isOrderUnread, markOrderRead, unreadCount } = useRouteOrderReadState('orders-board', filteredOrders);
 
   useEffect(() => {
@@ -823,6 +864,7 @@ export const OrdersBoard = () => {
                     fraudFlag={fraudFlags[order.id]}
                     automationFlag={automationFlags[order.id]}
                     isUnread={isOrderUnread(order)}
+                    duplicateWarning={duplicateWarnings[order.id]}
                   />
                 ))}
               </AnimatePresence>
@@ -853,6 +895,9 @@ export const OrdersBoard = () => {
                     {isOrderUnread(order) && <span className="route-unread-chip">New</span>}
                   </div>
                   <div className="card-flags">
+                    {duplicateWarnings[order.id] && (
+                      <AlertTriangle size={14} className="flag-icon duplicate" />
+                    )}
                     {fraudFlags[order.id] && (
                       <AlertTriangle size={14} className="flag-icon fraud" />
                     )}
@@ -920,6 +965,12 @@ export const OrdersBoard = () => {
                     <span className="detail-subvalue">{order.shipping_zone || 'Outside Dhaka'}</span>
                   </div>
                 </div>
+                {duplicateWarnings[order.id] && (
+                  <div className="mobile-duplicate-warning" title={duplicateWarnings[order.id].title}>
+                    <AlertTriangle size={13} />
+                    <span>Duplicate: {duplicateWarnings[order.id].label}</span>
+                  </div>
+                )}
               </div>
 
               <div className="card-footer-elite">

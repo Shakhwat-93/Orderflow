@@ -519,6 +519,8 @@ export const FactoryPanel = () => {
   const [lastExportedBatch, setLastExportedBatch] = useState(null);
   const [isMovingExportBatch, setIsMovingExportBatch] = useState(false);
   const [isExportingBatch, setIsExportingBatch] = useState(false);
+  const [selectedConfirmedIds, setSelectedConfirmedIds] = useState([]);
+  const [isMovingSelectedConfirmed, setIsMovingSelectedConfirmed] = useState(false);
 
   useEffect(() => {
     try {
@@ -599,6 +601,78 @@ export const FactoryPanel = () => {
       setCurrentPage(totalPages);
     }
   }, [currentPage, totalPages]);
+
+  useEffect(() => {
+    setSelectedConfirmedIds((prev) => {
+      const next = prev.filter((id) => confirmedOrders.some((order) => order.id === id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [confirmedOrders]);
+
+  useEffect(() => {
+    if (activeTab !== 'confirmed') {
+      setSelectedConfirmedIds([]);
+    }
+  }, [activeTab]);
+
+  const selectedConfirmedOrders = useMemo(
+    () => confirmedOrders.filter((order) => selectedConfirmedIds.includes(order.id)),
+    [confirmedOrders, selectedConfirmedIds]
+  );
+
+  const paginatedConfirmedIds = useMemo(
+    () => paginatedOrders
+      .filter((order) => order.status === 'Confirmed')
+      .map((order) => order.id),
+    [paginatedOrders]
+  );
+
+  const isCurrentPageSelected = paginatedConfirmedIds.length > 0 &&
+    paginatedConfirmedIds.every((id) => selectedConfirmedIds.includes(id));
+
+  const handleSelectConfirmedOrder = (orderId) => {
+    setSelectedConfirmedIds((prev) => (
+      prev.includes(orderId)
+        ? prev.filter((id) => id !== orderId)
+        : [...prev, orderId]
+    ));
+  };
+
+  const handleSelectConfirmedPage = () => {
+    if (isCurrentPageSelected) {
+      setSelectedConfirmedIds((prev) => prev.filter((id) => !paginatedConfirmedIds.includes(id)));
+      return;
+    }
+
+    setSelectedConfirmedIds((prev) => Array.from(new Set([...prev, ...paginatedConfirmedIds])));
+  };
+
+  const handleMoveSelectedToBulkExported = async () => {
+    if (selectedConfirmedOrders.length === 0) return;
+
+    const confirmed = window.confirm(`Move ${selectedConfirmedOrders.length} selected confirmed orders to Bulk Exported?`);
+    if (!confirmed) return;
+
+    setIsMovingSelectedConfirmed(true);
+    try {
+      for (const order of selectedConfirmedOrders) {
+        await updateOrderStatus(order.id, 'Bulk Exported');
+      }
+      setSelectedConfirmedIds([]);
+      setDistributeResult({
+        distributed: selectedConfirmedOrders.length,
+        queued: 0,
+        total: selectedConfirmedOrders.length,
+        sourceStatus: 'Manual move to Bulk Exported'
+      });
+      setTimeout(() => setDistributeResult(null), 6000);
+    } catch (error) {
+      console.error('Selected confirmed move failed:', error);
+      alert(`Move failed: ${error.message}`);
+    } finally {
+      setIsMovingSelectedConfirmed(false);
+    }
+  };
 
   // Stock availability check helper
   const getStockStatus = (order) => {
@@ -1047,12 +1121,48 @@ export const FactoryPanel = () => {
             </span>
             <span className="order-count-badge">{displayOrders.length} records found</span>
           </div>
+          {activeTab === 'confirmed' && selectedConfirmedIds.length > 0 && (
+            <div className="factory-selection-toolbar">
+              <div className="factory-selection-copy">
+                <strong>{selectedConfirmedIds.length}</strong>
+                <span>confirmed orders selected</span>
+              </div>
+              <button
+                type="button"
+                className="factory-selection-clear"
+                onClick={() => setSelectedConfirmedIds([])}
+                disabled={isMovingSelectedConfirmed}
+              >
+                Clear
+              </button>
+              <Button
+                variant="primary"
+                onClick={handleMoveSelectedToBulkExported}
+                disabled={isMovingSelectedConfirmed || selectedConfirmedOrders.length === 0}
+              >
+                {isMovingSelectedConfirmed ? <Loader2 size={16} className="spin" /> : <Truck size={16} />}
+                <span>{isMovingSelectedConfirmed ? 'Moving...' : 'Move to Bulk Exported'}</span>
+              </Button>
+            </div>
+          )}
         </div>
         
         <div className="factory-table-wrapper">
           <table className="factory-management-table">
             <thead>
               <tr>
+                {activeTab === 'confirmed' && (
+                  <th className="factory-select-col">
+                    <input
+                      type="checkbox"
+                      className="factory-checkbox"
+                      checked={isCurrentPageSelected}
+                      onChange={handleSelectConfirmedPage}
+                      disabled={paginatedConfirmedIds.length === 0 || isMovingSelectedConfirmed}
+                      aria-label="Select visible confirmed orders"
+                    />
+                  </th>
+                )}
                 <th>Reference</th>
                 <th>Recipient</th>
                 <th>Focus Products</th>
@@ -1076,6 +1186,18 @@ export const FactoryPanel = () => {
                       className={`factory-order-row cursor-pointer ${isOrderUnread(order) ? 'route-unread-row' : ''}`}
                       onClick={() => handleRowClick(order)}
                     >
+                      {activeTab === 'confirmed' && (
+                        <td className="factory-select-cell" onClick={(event) => event.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            className="factory-checkbox"
+                            checked={selectedConfirmedIds.includes(order.id)}
+                            onChange={() => handleSelectConfirmedOrder(order.id)}
+                            disabled={isMovingSelectedConfirmed || order.status !== 'Confirmed'}
+                            aria-label={`Select order ${order.id}`}
+                          />
+                        </td>
+                      )}
                       <td className="order-id-cell">
                         <div className="route-read-card-header">
                           {isOrderUnread(order) && <span className="route-unread-dot" aria-label="Unread order" />}
@@ -1146,7 +1268,7 @@ export const FactoryPanel = () => {
               </AnimatePresence>
               {displayOrders.length === 0 && (
                 <tr>
-                  <td colSpan="5" className="empty-state-cell">
+                  <td colSpan={activeTab === 'confirmed' ? 6 : 5} className="empty-state-cell">
                     <motion.div 
                       className="empty-state-content"
                       initial={{ opacity: 0, scale: 0.9 }}

@@ -26,6 +26,36 @@
   color: var(--text-primary);
 }
 
+.duplicate-order-warning {
+  width: fit-content;
+  max-width: 150px;
+  margin-top: 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(185, 28, 28, 0.22);
+  background: rgba(254, 226, 226, 0.88);
+  color: #991b1b;
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0 8px 18px rgba(185, 28, 28, 0.08);
+}
+
+.duplicate-order-warning span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-theme='dark'] .duplicate-order-warning {
+  border-color: rgba(248, 113, 113, 0.28);
+  background: rgba(127, 29, 29, 0.26);
+  color: #fecaca;
+}
+
 .saas-text {
   font-size: 13px;
   color: var(--text-secondary);

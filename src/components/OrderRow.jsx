@@ -5,7 +5,7 @@ import { FileText, Clock, AlertTriangle, Phone, Copy, MessageCircle, Edit2 } fro
 import CurrencyIcon from './CurrencyIcon';
 import './OrderRow.css';
 
-export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected, onSelect, fraudFlag, automationFlag, isUnread = false }) => {
+export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected, onSelect, fraudFlag, automationFlag, isUnread = false, duplicateWarning = null }) => {
   const [copied, setCopied] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
@@ -100,6 +100,12 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
           <span className="saas-id">#{String(order.id).replace('ORD-', '')}</span>
           {isUnread && <span className="route-unread-chip">New</span>}
         </div>
+        {duplicateWarning && (
+          <div className="duplicate-order-warning" title={duplicateWarning.title}>
+            <AlertTriangle size={12} />
+            <span>Duplicate: {duplicateWarning.label}</span>
+          </div>
+        )}
       </td>
 
       <td className="date-cell">
