@@ -1337,6 +1337,8 @@ export const api = {
       'Confirmed': ['Admin', 'Call Team'],
       'Cancelled': ['Admin', 'Call Team'],
       'Fake Order': ['Admin', 'Call Team'],
+      'Final Call Pending': ['Admin', 'Call Team', 'Moderator'],
+      'Bulk Exported': ['Admin', 'Factory Team', 'Courier Team'],
       'Courier Ready': ['Admin', 'Factory Team'],
       'Factory Queue': ['Admin', 'Factory Team'],
       'Processing': ['Admin', 'Factory Team'],
@@ -1495,9 +1497,23 @@ export const api = {
 
     const newAttempts = (oldData?.call_attempts || 0) + 1;
     const newFirstCallTime = oldData?.first_call_time || new Date().toISOString();
-    const nextStatus = oldData?.status === 'Cancelled' || oldData?.status === 'Confirmed'
+    const failedCallStatuses = ['busy', 'not pick', 'on hold', 'hold'];
+    const isFailedCallStatus = failedCallStatuses.some((value) =>
+      String(status || '').toLowerCase().includes(value)
+    );
+    const resolvedStatuses = [
+      'Confirmed',
+      'Cancelled',
+      'Fake Order',
+      'Bulk Exported',
+      'Courier Ready',
+      'Courier Submitted',
+      'Factory Processing',
+      'Completed'
+    ];
+    const nextStatus = resolvedStatuses.includes(oldData?.status)
       ? oldData.status
-      : 'Pending Call';
+      : (isFailedCallStatus && newAttempts >= 4 ? 'Final Call Pending' : 'Pending Call');
 
     const { data, error } = await supabase
       .from('orders')
@@ -1519,8 +1535,8 @@ export const api = {
       action_type: 'UPDATE', // Use UPDATE as it's allowed by DB constraints while providing a specific description
       changed_by_user_id: userId,
       changed_by_user_name: userName,
-      action_description: `${userName} logged a call attempt: ${status} (Attempt #${newAttempts})${String(noteText || '').trim() ? ` - Note: ${String(noteText || '').trim()}` : ''}`,
-      new_status: 'Pending Call' // Keep the current logical status
+      action_description: `${userName} logged a call attempt: ${status} (Attempt #${newAttempts})${nextStatus === 'Final Call Pending' ? ' and moved the order to Final Call Pending' : ''}${String(noteText || '').trim() ? ` - Note: ${String(noteText || '').trim()}` : ''}`,
+      new_status: nextStatus
     });
 
     if (String(noteText || '').trim()) {
@@ -1829,7 +1845,7 @@ export const api = {
     const completed = orders.filter(o => o.status === 'Completed').length;
     const confirmedCount = orders.filter(o => o.status === 'Confirmed').length;
     const cancelledCount = orders.filter(o => o.status === 'Cancelled').length;
-    const pending = orders.filter(o => o.status === 'New' || o.status === 'Pending Call').length;
+    const pending = orders.filter(o => o.status === 'New' || o.status === 'Pending Call' || o.status === 'Final Call Pending').length;
     const processing = orders.filter(o => ['Processing', 'Factory Processing'].includes(o.status)).length;
 
     // Revenue & AOV

@@ -671,12 +671,14 @@
 
 .elite-status-pill.pending { background: #e0e7ff; color: #4338ca; }
 .elite-status-pill.active { background: #ccfbf1; color: #0f766e; }
+.elite-status-pill.final { background: #fef2f2; color: #991b1b; border: 1px solid rgba(153, 27, 27, 0.18); }
 .elite-status-pill.urgent { background: #fee2e2; color: #b91c1c; }
 .elite-status-pill.fake { background: #7f1d1d; color: #fee2e2; }
 .elite-status-pill.neutral { background: var(--bg-elevated); color: var(--text-secondary); }
 
 .dark-mode .elite-status-pill.pending { background: rgba(67, 56, 202, 0.2); }
 .dark-mode .elite-status-pill.active { background: rgba(15, 118, 110, 0.2); }
+.dark-mode .elite-status-pill.final { background: rgba(153, 27, 27, 0.24); color: #fecaca; border-color: rgba(248, 113, 113, 0.28); }
 .dark-mode .elite-status-pill.urgent { background: rgba(185, 28, 28, 0.2); }
 .dark-mode .elite-status-pill.fake { background: rgba(127, 29, 29, 0.72); color: #fecaca; }
 

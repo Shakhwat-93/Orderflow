@@ -95,6 +95,47 @@
   color: var(--cp-accent);
 }
 
+.courier-panel .factory-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.courier-panel .auto-distribute-btn {
+  min-height: 42px;
+  border-radius: 12px;
+  font-weight: 800;
+}
+
+.courier-panel .distribute-result-toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(16, 185, 129, 0.24);
+  background: rgba(16, 185, 129, 0.10);
+  color: #047857;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.courier-panel .distribute-result-toast.error {
+  border-color: rgba(239, 68, 68, 0.24);
+  background: rgba(239, 68, 68, 0.10);
+  color: #b91c1c;
+}
+
+[data-theme='dark'] .courier-panel .distribute-result-toast {
+  color: #86efac;
+}
+
+[data-theme='dark'] .courier-panel .distribute-result-toast.error {
+  color: #fecaca;
+}
+
 /* ── Summary Grid ────────────────────────────────────────────────────────── */
 .courier-summary-grid {
   display: grid;
@@ -135,6 +176,43 @@
 .courier-summary-icon.total    { background: rgba(99, 102, 241, 0.1); color: #6366f1; }
 .courier-summary-icon.assigned { background: rgba(16, 185, 129, 0.1); color: #10b981; }
 .courier-summary-icon.pending  { background: rgba(249, 115, 22, 0.1); color: #f97316; }
+
+.courier-tabs-container {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid var(--cp-border);
+  border-radius: 16px;
+  background: var(--cp-card);
+  box-shadow: var(--cp-shadow);
+}
+
+.courier-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 12px;
+  padding: 10px 16px;
+  background: transparent;
+  color: var(--cp-text-sub);
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.courier-tab.active {
+  background: var(--cp-accent);
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(99, 102, 241, 0.22);
+}
+
+.courier-tab:not(.active):hover {
+  background: var(--cp-btn-bg);
+  color: var(--cp-text);
+}
 
 .courier-summary-label {
   font-size: 0.72rem;

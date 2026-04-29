@@ -17,10 +17,11 @@ import { PremiumSearch } from '../components/PremiumSearch';
 import CurrencyIcon from '../components/CurrencyIcon';
 import { deserializeDateRange, usePersistentState } from '../utils/persistentState';
 import { getProductCheckpoints } from '../utils/productCatalog';
+import { useRouteOrderReadState } from '../hooks/useRouteOrderReadState';
 import './ModeratorPanel.css';
 
 const ORDER_STATUSES = [
-  'New', 'Pending Call', 'Confirmed', 'Factory Queue', 'Courier Ready',
+  'New', 'Pending Call', 'Final Call Pending', 'Confirmed', 'Bulk Exported', 'Factory Queue', 'Courier Ready',
   'Courier Submitted', 'Factory Processing', 'Completed', 'Fake Order', 'Cancelled'
 ];
 
@@ -75,6 +76,7 @@ export const ModeratorPanel = () => {
   };
 
   const handleRowClick = (order) => {
+    markOrderRead(order);
     setSelectedOrder(order);
     setIsDetailsModalOpen(true);
   };
@@ -135,6 +137,7 @@ export const ModeratorPanel = () => {
 
     return matchesSearch && matchesStatus && matchesProduct && matchesSource && matchesDate;
   });
+  const { isOrderUnread, markOrderRead, unreadCount } = useRouteOrderReadState('moderator-panel', filteredOrders);
 
   const totalPages = Math.max(1, Math.ceil(filteredOrders.length / MODERATOR_PAGE_SIZE));
   const paginatedOrders = useMemo(() => {
@@ -355,6 +358,11 @@ export const ModeratorPanel = () => {
         </div>
         
         <DateRangePicker value={dateRange} onChange={setDateRange} />
+        {unreadCount > 0 && (
+          <span className="route-unread-count-pill" title="Orders not opened in Moderator route">
+            {unreadCount} unread
+          </span>
+        )}
         <span className="order-count-badge" style={{ padding: '0 12px', fontWeight: 700, color: 'var(--text-secondary)' }}>
           {filteredOrders.length} orders
         </span>
@@ -386,6 +394,7 @@ export const ModeratorPanel = () => {
                   onStatusChange={updateOrderStatus} 
                   onEdit={handleOpenEditModal} 
                   onDetails={handleRowClick}
+                  isUnread={isOrderUnread(order)}
                 />
               ))}
               {filteredOrders.length === 0 && (
@@ -403,11 +412,15 @@ export const ModeratorPanel = () => {
           {paginatedOrders.map(order => {
             const isSaving = savingStatusId === order.id;
             return (
-              <div key={order.id} className="mod-mobile-card" onClick={() => handleRowClick(order)}>
+              <div key={order.id} className={`mod-mobile-card ${isOrderUnread(order) ? 'route-unread-card' : ''}`} onClick={() => handleRowClick(order)}>
                 {/* ── Row 1: Order ID + Status pill ── */}
                 <div className="mod-mobile-card-row">
                   <div>
-                    <div className="mod-mobile-id">#{order.id.replace('ORD-', '')}</div>
+                    <div className="route-read-card-header">
+                      {isOrderUnread(order) && <span className="route-unread-dot" aria-label="Unread order" />}
+                      <div className="mod-mobile-id">#{order.id.replace('ORD-', '')}</div>
+                      {isOrderUnread(order) && <span className="route-unread-chip">New</span>}
+                    </div>
                     <div className="mod-mobile-datetime">{formatDateTime(order.created_at)}</div>
                   </div>
                   <span className={`mod-mobile-status status-${(order.status || '').toLowerCase().replace(/\s+/g, '-')}`}>

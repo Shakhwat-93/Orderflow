@@ -9,8 +9,9 @@ import { Input } from '../components/Input';
 import { Modal } from '../components/Modal';
 import { OrderEditModal } from '../components/OrderEditModal';
 import { OrderDetailsModal } from '../components/OrderDetailsModal';
-import { Search, Truck, CheckCircle, Package, ClipboardCheck, Edit2, Clock, Trash2 } from 'lucide-react';
+import { Search, Truck, CheckCircle, Package, ClipboardCheck, Edit2, Clock, Loader2, AlertTriangle } from 'lucide-react';
 import { usePersistentState } from '../utils/persistentState';
+import { useRouteOrderReadState } from '../hooks/useRouteOrderReadState';
 import './CourierPanel.css';
 
 const containerVariants = {
@@ -28,16 +29,19 @@ const itemVariants = {
 };
 
 export const CourierPanel = () => {
-  const { orders, updateOrderStatus, editOrder, dispatchToCourier } = useOrders();
+  const { orders, updateOrderStatus, editOrder, dispatchToCourier, autoDistributeOrders } = useOrders();
   const { updatePresenceContext } = useAuth();
 
   useEffect(() => {
-    updatePresenceContext('Dispatching Orders');
+    updatePresenceContext('Managing Bulk Exported Orders');
   }, [updatePresenceContext]);
 
   const [searchTerm, setSearchTerm] = usePersistentState('panel:courier:search', '');
+  const [activeTab, setActiveTab] = usePersistentState('panel:courier:tab', 'bulk');
   const [steadfastPending, setSteadfastPending] = useState({});
   const [steadfastSubmitted, setSteadfastSubmitted] = useState({});
+  const [isDistributing, setIsDistributing] = useState(false);
+  const [distributeResult, setDistributeResult] = useState(null);
 
   // Modal State for Tracking ID
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -54,20 +58,46 @@ export const CourierPanel = () => {
   };
 
   const handleRowClick = (order) => {
+    markOrderRead(order);
     setSelectedOrder(order);
     setIsDetailsModalOpen(true);
   };
 
-  // Show only Courier Ready orders (factory-approved, stock verified)
-  const courierQueue = orders.filter(
-    o => o.status === 'Courier Ready' &&
-      ((o.id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (o.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (o.phone || '').includes(searchTerm))
+  const matchesSearch = (order) => (
+    (order.id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (order.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (order.phone || '').includes(searchTerm)
   );
 
-  const withTrackingCount = courierQueue.filter(o => Boolean(o.tracking_id)).length;
-  const pendingTrackingCount = courierQueue.length - withTrackingCount;
+  const bulkExportedAll = orders.filter((order) => order.status === 'Bulk Exported');
+  const courierReadyAll = orders.filter((order) => order.status === 'Courier Ready');
+  const bulkExportedQueue = bulkExportedAll.filter(matchesSearch);
+  const courierReadyQueue = courierReadyAll.filter(matchesSearch);
+  const courierQueue = activeTab === 'bulk' ? bulkExportedQueue : courierReadyQueue;
+  const { isOrderUnread, markOrderRead, unreadCount } = useRouteOrderReadState(`courier-panel:${activeTab}`, courierQueue);
+
+  const withTrackingCount = courierReadyAll.filter(o => Boolean(o.tracking_id)).length;
+  const pendingTrackingCount = courierReadyAll.length - withTrackingCount;
+
+  const handleAutoDistribute = async () => {
+    if (bulkExportedAll.length === 0) return;
+    const confirmed = window.confirm(`Distribute ${bulkExportedAll.length} bulk exported orders to courier workflow?`);
+    if (!confirmed) return;
+
+    setIsDistributing(true);
+    setDistributeResult(null);
+    try {
+      const result = await autoDistributeOrders('Bulk Exported');
+      setDistributeResult(result);
+      setActiveTab('ready');
+      setTimeout(() => setDistributeResult(null), 8000);
+    } catch (error) {
+      console.error('Bulk exported distribution failed:', error);
+      setDistributeResult({ error: error.message });
+    } finally {
+      setIsDistributing(false);
+    }
+  };
 
   const handleOpenTrackingModal = (order) => {
     setActiveOrderId(order.id);
@@ -120,14 +150,45 @@ export const CourierPanel = () => {
     >
       <header className="page-header">
         <div>
-          <h1 className="premium-title">Courier Panel</h1>
-          <p className="page-subtitle">Assign tracking IDs and dispatch stock-verified orders.</p>
+          <h1 className="premium-title">Bulk Exported</h1>
+          <p className="page-subtitle">Review exported confirmed batches, then distribute eligible orders to courier dispatch.</p>
         </div>
-        <div className="active-dispatch-stat">
-          <Truck size={20} />
-          <span>{courierQueue.length} Ready for Dispatch</span>
+        <div className="factory-header-actions">
+          <Button
+            variant="primary"
+            onClick={handleAutoDistribute}
+            disabled={isDistributing || bulkExportedAll.length === 0}
+            className="auto-distribute-btn"
+          >
+            {isDistributing ? <Loader2 size={18} className="spin" /> : <Zap size={18} />}
+            <span>Auto Distribute ({bulkExportedAll.length})</span>
+          </Button>
+          <div className="active-dispatch-stat">
+            <Truck size={20} />
+            <span>{courierReadyAll.length} Ready</span>
+          </div>
         </div>
       </header>
+
+      <AnimatePresence>
+        {distributeResult && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className={`distribute-result-toast ${distributeResult.error ? 'error' : 'success'}`}
+          >
+            {distributeResult.error ? <AlertTriangle size={18} /> : <CheckCircle size={18} />}
+            <span>
+              {distributeResult.error ? `Error: ${distributeResult.error}` : (
+                <>
+                  Distribution complete: <strong>{distributeResult.distributed}</strong> ready, <strong>{distributeResult.queued}</strong> queued.
+                </>
+              )}
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="courier-summary-grid">
         <motion.div variants={itemVariants}>
@@ -135,8 +196,8 @@ export const CourierPanel = () => {
             <div className="courier-summary-card-inner">
               <div className="courier-summary-icon total"><Package size={22} /></div>
               <div>
-                <p className="courier-summary-label">Ready Queue</p>
-                <p className="courier-summary-value">{courierQueue.length}</p>
+                <p className="courier-summary-label">Bulk Exported</p>
+                <p className="courier-summary-value">{bulkExportedAll.length}</p>
               </div>
             </div>
           </Card>
@@ -147,8 +208,8 @@ export const CourierPanel = () => {
             <div className="courier-summary-card-inner">
               <div className="courier-summary-icon assigned"><ClipboardCheck size={22} /></div>
               <div>
-                <p className="courier-summary-label">Assigned</p>
-                <p className="courier-summary-value">{withTrackingCount}</p>
+                <p className="courier-summary-label">Courier Ready</p>
+                <p className="courier-summary-value">{courierReadyAll.length}</p>
               </div>
             </div>
           </Card>
@@ -167,6 +228,23 @@ export const CourierPanel = () => {
         </motion.div>
       </div>
 
+      <div className="courier-tabs-container">
+        <button
+          type="button"
+          className={`courier-tab ${activeTab === 'bulk' ? 'active' : ''}`}
+          onClick={() => setActiveTab('bulk')}
+        >
+          <Package size={15} /> Bulk Exported ({bulkExportedAll.length})
+        </button>
+        <button
+          type="button"
+          className={`courier-tab ${activeTab === 'ready' ? 'active' : ''}`}
+          onClick={() => setActiveTab('ready')}
+        >
+          <Truck size={15} /> Courier Ready ({courierReadyAll.length})
+        </button>
+      </div>
+
       <Card className="table-card" noPadding>
         <div className="table-search-bar">
           <div className="elite-search-wrapper">
@@ -183,6 +261,11 @@ export const CourierPanel = () => {
             <Truck size={14} />
             <span>Target verified inventory</span>
           </div>
+          {unreadCount > 0 && (
+            <span className="route-unread-count-pill" title="Orders not opened in Courier route">
+              {unreadCount} unread
+            </span>
+          )}
         </div>
 
         <div className="courier-table-wrapper desktop-only">
@@ -200,9 +283,11 @@ export const CourierPanel = () => {
             <tbody>
               <AnimatePresence mode="popLayout">
                 {courierQueue.map(order => {
+                  const isBulkExported = order.status === 'Bulk Exported';
                   const isSteadfastSending = Boolean(steadfastPending[order.id]);
                   const isSteadfastSubmitted = Boolean(steadfastSubmitted[order.id]);
                   const isSteadfastLocked =
+                    isBulkExported ||
                     isSteadfastSending ||
                     isSteadfastSubmitted ||
                     order.status === 'Courier Submitted' ||
@@ -216,11 +301,15 @@ export const CourierPanel = () => {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      className="courier-order-row cursor-pointer" 
+                      className={`courier-order-row cursor-pointer ${isOrderUnread(order) ? 'route-unread-row' : ''}`}
                       onClick={() => handleRowClick(order)}
                     >
                       <td className="order-id-cell">
-                        <span className="saas-id">#{(order.id || '').replace('ORD-', '')}</span>
+                        <div className="route-read-card-header">
+                          {isOrderUnread(order) && <span className="route-unread-dot" aria-label="Unread order" />}
+                          <span className="saas-id">#{(order.id || '').replace('ORD-', '')}</span>
+                          {isOrderUnread(order) && <span className="route-unread-chip">New</span>}
+                        </div>
                       </td>
                       <td>
                         <div className="courier-customer-stack">
@@ -244,7 +333,9 @@ export const CourierPanel = () => {
                         )}
                       </td>
                       <td>
-                        <Badge variant="courier-ready" className="courier-status-pill">Ready</Badge>
+                        <Badge variant={isBulkExported ? 'bulk-exported' : 'courier-ready'} className="courier-status-pill">
+                          {isBulkExported ? 'Bulk Exported' : 'Ready'}
+                        </Badge>
                       </td>
                       <td className="courier-actions-cell">
                         <div className="dispatch-action-grid">
@@ -255,30 +346,34 @@ export const CourierPanel = () => {
                           >
                             <Edit2 size={14} /> <span>Edit</span>
                           </button>
-                          <button
-                            className="courier-action-btn tracking"
-                            onClick={(e) => { e.stopPropagation(); handleOpenTrackingModal(order); }}
-                            title="Assign Tracking"
-                          >
-                            <Truck size={14} /> <span>Track</span>
-                          </button>
-                          <button
-                            className={`courier-action-btn steadfast ${isSteadfastSending ? 'is-loading' : ''} ${isSteadfastSubmitted ? 'is-submitted' : ''}`}
-                            onClick={(e) => handleSteadfastDispatch(e, order)}
-                            disabled={isSteadfastLocked}
-                            title="Direct API Dispatch"
-                          >
-                            {isSteadfastSending ? <Clock size={14} className="spin" /> : <Zap size={14} />}
-                            <span>{isSteadfastSending ? '...' : isSteadfastSubmitted ? 'Sent' : 'S-Fast'}</span>
-                          </button>
-                          <button
-                            className="courier-action-btn submit"
-                            onClick={(e) => { e.stopPropagation(); handleSubmitToCourier(order.id); }}
-                            disabled={!order.tracking_id || isSteadfastSending}
-                            title="Mark as Dispatched"
-                          >
-                            <CheckCircle size={14} /> <span>Submit</span>
-                          </button>
+                          {!isBulkExported && (
+                            <>
+                              <button
+                                className="courier-action-btn tracking"
+                                onClick={(e) => { e.stopPropagation(); handleOpenTrackingModal(order); }}
+                                title="Assign Tracking"
+                              >
+                                <Truck size={14} /> <span>Track</span>
+                              </button>
+                              <button
+                                className={`courier-action-btn steadfast ${isSteadfastSending ? 'is-loading' : ''} ${isSteadfastSubmitted ? 'is-submitted' : ''}`}
+                                onClick={(e) => handleSteadfastDispatch(e, order)}
+                                disabled={isSteadfastLocked}
+                                title="Direct API Dispatch"
+                              >
+                                {isSteadfastSending ? <Clock size={14} className="spin" /> : <Zap size={14} />}
+                                <span>{isSteadfastSending ? '...' : isSteadfastSubmitted ? 'Sent' : 'S-Fast'}</span>
+                              </button>
+                              <button
+                                className="courier-action-btn submit"
+                                onClick={(e) => { e.stopPropagation(); handleSubmitToCourier(order.id); }}
+                                disabled={!order.tracking_id || isSteadfastSending}
+                                title="Mark as Dispatched"
+                              >
+                                <CheckCircle size={14} /> <span>Submit</span>
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </motion.tr>
@@ -290,7 +385,7 @@ export const CourierPanel = () => {
                   <td colSpan="6" className="empty-state-cell">
                     <div className="empty-state-content">
                       <Truck size={40} style={{ opacity: 0.2, marginBottom: '12px' }} />
-                      <p>No verified orders ready for dispatch.</p>
+                      <p>{activeTab === 'bulk' ? 'No bulk exported orders waiting for distribution.' : 'No verified orders ready for dispatch.'}</p>
                     </div>
                   </td>
                 </tr>
@@ -301,59 +396,73 @@ export const CourierPanel = () => {
 
         <div className="courier-mobile-list mobile-only">
           <AnimatePresence>
-            {courierQueue.map(order => (
-              <motion.div
-                key={order.id}
-                layout
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 10 }}
-                className="courier-mobile-card"
-                onClick={() => handleRowClick(order)}
-              >
-                <div className="card-header-elite">
-                  <span className="order-id">#{order.id.replace('ORD-', '')}</span>
-                  <Badge variant="courier-ready">Ready</Badge>
-                </div>
+            {courierQueue.map(order => {
+              const isBulkExported = order.status === 'Bulk Exported';
 
-                <div className="customer-primary-box">
-                  <h3 className="customer-name-large">{order.customer_name}</h3>
-                  <div className="phone-row">{order.phone}</div>
-                </div>
-
-                <div className="details-grid-elite">
-                  <div className="detail-box-elite">
-                    <span className="detail-label">Product</span>
-                    <span className="detail-value product">{order.product_name}</span>
-                    {order.size && <span className="detail-subvalue">Size {order.size}</span>}
+              return (
+                <motion.div
+                  key={order.id}
+                  layout
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 10 }}
+                  className={`courier-mobile-card ${isOrderUnread(order) ? 'route-unread-card' : ''}`}
+                  onClick={() => handleRowClick(order)}
+                >
+                  <div className="card-header-elite">
+                    <div className="route-read-card-header">
+                      {isOrderUnread(order) && <span className="route-unread-dot" aria-label="Unread order" />}
+                      <span className="order-id">#{order.id.replace('ORD-', '')}</span>
+                      {isOrderUnread(order) && <span className="route-unread-chip">New</span>}
+                    </div>
+                    <Badge variant={isBulkExported ? 'bulk-exported' : 'courier-ready'}>
+                      {isBulkExported ? 'Bulk Exported' : 'Ready'}
+                    </Badge>
                   </div>
-                  <div className="detail-box-elite">
-                    <span className="detail-label">Tracking</span>
-                    <span className="detail-value">{order.tracking_id || 'Awaiting'}</span>
-                  </div>
-                </div>
 
-                <div className="courier-mobile-actions" onClick={(e) => e.stopPropagation()}>
-                  <button className="courier-action-btn edit" onClick={() => handleOpenEditModal(order)}>
-                    <Edit2 size={16} /> <span>Edit</span>
-                  </button>
-                  <button className="courier-action-btn tracking" onClick={() => handleOpenTrackingModal(order)}>
-                    <Truck size={16} /> <span>Track</span>
-                  </button>
-                  <button 
-                    className="courier-action-btn submit" 
-                    onClick={() => handleSubmitToCourier(order.id)}
-                    disabled={!order.tracking_id}
-                  >
-                    <CheckCircle size={16} /> <span>Submit</span>
-                  </button>
-                </div>
-              </motion.div>
-            ))}
+                  <div className="customer-primary-box">
+                    <h3 className="customer-name-large">{order.customer_name}</h3>
+                    <div className="phone-row">{order.phone}</div>
+                  </div>
+
+                  <div className="details-grid-elite">
+                    <div className="detail-box-elite">
+                      <span className="detail-label">Product</span>
+                      <span className="detail-value product">{order.product_name}</span>
+                      {order.size && <span className="detail-subvalue">Size {order.size}</span>}
+                    </div>
+                    <div className="detail-box-elite">
+                      <span className="detail-label">Tracking</span>
+                      <span className="detail-value">{isBulkExported ? 'Awaiting distribution' : (order.tracking_id || 'Awaiting')}</span>
+                    </div>
+                  </div>
+
+                  <div className="courier-mobile-actions" onClick={(e) => e.stopPropagation()}>
+                    <button className="courier-action-btn edit" onClick={() => handleOpenEditModal(order)}>
+                      <Edit2 size={16} /> <span>Edit</span>
+                    </button>
+                    {!isBulkExported && (
+                      <>
+                        <button className="courier-action-btn tracking" onClick={() => handleOpenTrackingModal(order)}>
+                          <Truck size={16} /> <span>Track</span>
+                        </button>
+                        <button
+                          className="courier-action-btn submit"
+                          onClick={() => handleSubmitToCourier(order.id)}
+                          disabled={!order.tracking_id}
+                        >
+                          <CheckCircle size={16} /> <span>Submit</span>
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </motion.div>
+              );
+            })}
           </AnimatePresence>
           {courierQueue.length === 0 && (
             <div className="empty-state-cell">
-              <p>No verified orders ready for dispatch.</p>
+              <p>{activeTab === 'bulk' ? 'No bulk exported orders waiting for distribution.' : 'No verified orders ready for dispatch.'}</p>
             </div>
           )}
         </div>

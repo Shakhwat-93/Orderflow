@@ -20,11 +20,14 @@ import './OrdersBoard.css';
 import '../components/BulkActions.css';
 import api from '../lib/api';
 import { getProductCheckpoints } from '../utils/productCatalog';
+import { useRouteOrderReadState } from '../hooks/useRouteOrderReadState';
 
 const ORDER_STATUSES = [
   'New',
   'Pending Call',
+  'Final Call Pending',
   'Confirmed',
+  'Bulk Exported',
   'Courier Submitted',
   'Factory Processing',
   'Completed',
@@ -71,6 +74,7 @@ export const OrdersBoard = () => {
     pageSize, filters, updateOrderStatus, autoDistributeOrders, toyBoxes, inventory
   } = useOrders();
   const inventoryProductCheckpoints = useMemo(() => getProductCheckpoints(inventory), [inventory]);
+  const { isOrderUnread, markOrderRead, unreadCount } = useRouteOrderReadState('orders-board', orders);
 
   useEffect(() => {
     const queryParams = new URLSearchParams(location.search);
@@ -107,6 +111,7 @@ export const OrdersBoard = () => {
     if (viewOrderId) {
       const existing = orders.find(o => o.id === viewOrderId);
       if (existing) {
+        markOrderRead(existing);
         setSelectedOrderId(viewOrderId);
         setIsDetailsModalOpen(true);
         queryParams.delete('viewOrder');
@@ -114,6 +119,7 @@ export const OrdersBoard = () => {
       } else {
         api.getOrderById(viewOrderId).then(order => {
           setDeepLinkOrder(order);
+          markOrderRead(order);
           setSelectedOrderId(viewOrderId);
           setIsDetailsModalOpen(true);
           queryParams.delete('viewOrder');
@@ -121,7 +127,7 @@ export const OrdersBoard = () => {
         }).catch(err => console.error('Deep link fetch error:', err));
       }
     }
-  }, [location.search, orders, navigate]);
+  }, [location.search, orders, navigate, markOrderRead]);
 
   const handleSelectOrder = (id) => {
     setSelectedOrderIds(prev => 
@@ -321,8 +327,8 @@ export const OrdersBoard = () => {
     if (!window.confirm("Start automatic distribution? This will confirm orders strictly based on inventory availability.")) return;
     setDistributing(true);
     try {
-      const result = await autoDistributeOrders();
-      alert(`Distribution complete! Confirmed: ${result.confirmed}, Skipped: ${result.skipped}`);
+      const result = await autoDistributeOrders('Confirmed');
+      alert(`Distribution complete! Courier ready: ${result.distributed}, queued: ${result.queued}`);
     } catch (error) {
       console.error('Distribution failed:', error);
       alert('Distribution engine encountered an error.');
@@ -335,7 +341,9 @@ export const OrdersBoard = () => {
     switch (status) {
       case 'New': return 'new';
       case 'Pending Call': return 'pending-call';
+      case 'Final Call Pending': return 'final-call-pending';
       case 'Confirmed': return 'confirmed';
+      case 'Bulk Exported': return 'bulk-exported';
       case 'Fake Order': return 'fake-order';
       case 'Cancelled': return 'cancelled';
       case 'Courier Submitted': return 'courier';
@@ -419,6 +427,7 @@ export const OrdersBoard = () => {
   };
 
   const handleRowClick = (order) => {
+    markOrderRead(order);
     setSelectedOrderId(order.id);
     setIsDetailsModalOpen(true);
   };
@@ -671,8 +680,7 @@ export const OrdersBoard = () => {
           }
           onSuggestionClick={(item) => {
             if (item.type === 'order') {
-              setSelectedOrder(item.original);
-              setIsDetailsModalOpen(true);
+              handleRowClick(item.original);
             }
           }}
         />
@@ -694,6 +702,11 @@ export const OrdersBoard = () => {
           value={filters.dateRange}
           onChange={(range) => handleFilterChange('dateRange', range)}
         />
+        {unreadCount > 0 && (
+          <span className="route-unread-count-pill" title="Orders not opened in this route">
+            {unreadCount} unread
+          </span>
+        )}
       </div>
 
       {/* ── Product Checkpoints (Horizontal Scroll) ── */}
@@ -764,6 +777,7 @@ export const OrdersBoard = () => {
                     onSelect={handleSelectOrder}
                     fraudFlag={fraudFlags[order.id]}
                     automationFlag={automationFlags[order.id]}
+                    isUnread={isOrderUnread(order)}
                   />
                 ))}
               </AnimatePresence>
@@ -783,12 +797,16 @@ export const OrdersBoard = () => {
           {Array.isArray(orders) && orders.map(order => (
             <div
               key={order.id}
-              className="order-mobile-card elite-card"
+              className={`order-mobile-card elite-card ${isOrderUnread(order) ? 'route-unread-card' : ''}`}
               onClick={() => handleRowClick(order)}
             >
               <div className="card-header-elite">
                 <div className="id-group">
-                  <span className="order-id">#{order.id.replace('ORD-', '')}</span>
+                  <div className="route-read-card-header">
+                    {isOrderUnread(order) && <span className="route-unread-dot" aria-label="Unread order" />}
+                    <span className="order-id">#{order.id.replace('ORD-', '')}</span>
+                    {isOrderUnread(order) && <span className="route-unread-chip">New</span>}
+                  </div>
                   <div className="card-flags">
                     {fraudFlags[order.id] && (
                       <AlertTriangle size={14} className="flag-icon fraud" />

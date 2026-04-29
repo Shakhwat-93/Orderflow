@@ -450,17 +450,17 @@ export const OrderProvider = ({ children }) => {
   };
 
   /**
-   * Auto Distribute: checks stock for Confirmed orders and moves stock-matched ones to Courier Ready.
+   * Auto Distribute: checks stock for source orders and moves stock-matched ones to Courier Ready.
    * Non-toybox orders pass through directly. Unmatched orders go to Factory Queue.
    */
-  const autoDistributeOrders = async () => {
-    // Fetch all Confirmed orders directly from DB (not just the paginated ones in state)
-    const { data: confirmedOrders, error: fetchErr } = await supabase
+  const autoDistributeOrders = async (sourceStatus = 'Bulk Exported') => {
+    // Fetch source orders directly from DB (not just the paginated ones in state)
+    const { data: sourceOrders, error: fetchErr } = await supabase
       .from('orders')
       .select('*')
-      .eq('status', 'Confirmed');
+      .eq('status', sourceStatus);
     if (fetchErr) throw fetchErr;
-    if (!confirmedOrders?.length) return { distributed: 0, queued: 0, total: 0 };
+    if (!sourceOrders?.length) return { distributed: 0, queued: 0, total: 0, sourceStatus };
 
     // Get current toy box stock through the API compatibility layer
     const boxes = await api.getToyBoxInventory();
@@ -479,7 +479,7 @@ export const OrderProvider = ({ children }) => {
     let queued = 0;
     const stockDeductions = {};
 
-    for (const order of confirmedOrders) {
+    for (const order of sourceOrders) {
       const items = order.ordered_items || [];
       const hasToyBox = items.length > 0 && items.some(item => {
         if (typeof item === 'object') {
@@ -568,7 +568,7 @@ export const OrderProvider = ({ children }) => {
     fetchOrders();
     fetchToyBoxes();
 
-    return { distributed, queued, total: confirmedOrders.length };
+    return { distributed, queued, total: sourceOrders.length, sourceStatus };
   };
 
   const fetchOrderLogs = async (orderId) => {

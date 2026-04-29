@@ -108,6 +108,7 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
   const getStatusVariant = (status) => {
     const s = String(status || '').toLowerCase();
     if (['confirmed', 'completed', 'delivered'].includes(s)) return 'success';
+    if (s === 'bulk exported') return 'courier';
     if (['cancelled', 'returned', 'failed'].includes(s)) return 'danger';
     if (['pending', 'new', 'hold', 'pending call'].includes(s)) return 'warning';
     return 'neutral';

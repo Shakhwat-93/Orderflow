@@ -42,7 +42,7 @@ export const MobileBottomNav = () => {
     { path: '/orders',          label: 'Orders',     icon: ShoppingCart,    roles: null },
     { path: '/call-team',       label: 'Calls',      icon: Headphones,      roles: ['Admin', 'Call Team'] },
     { path: '/moderator',       label: 'Moderator',  icon: ShieldCheck,     roles: ['Admin', 'Moderator'] },
-    { path: '/courier',         label: 'Courier',    icon: Truck,           roles: ['Admin', 'Courier Team'] },
+    { path: '/courier',         label: 'Bulk Export',icon: Truck,           roles: ['Admin', 'Courier Team', 'Factory Team'] },
     { path: '/steadfast',       label: 'Steadfast',  icon: Truck,           roles: ['Admin', 'Courier Team', 'Moderator'] },
     { path: '/factory',         label: 'Confirmed',  icon: Factory,         roles: ['Admin', 'Factory Team'] },
     { path: '/inventory',       label: 'Inventory',  icon: Package,         roles: ['Admin', 'Moderator'] },

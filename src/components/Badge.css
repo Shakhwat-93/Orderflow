@@ -69,10 +69,28 @@
   border-color: rgba(245, 158, 11, 0.2);
 }
 
+.badge-final-call-pending {
+  background: rgba(153, 27, 27, 0.08);
+  color: #991b1b;
+  border-color: rgba(153, 27, 27, 0.2);
+}
+
 .badge-courier {
   background: rgba(139, 92, 246, 0.08);
   color: #7c3aed;
   border-color: rgba(139, 92, 246, 0.2);
+}
+
+.badge-bulk-exported {
+  background: rgba(59, 130, 246, 0.10);
+  color: #2563eb;
+  border-color: rgba(59, 130, 246, 0.24);
+}
+
+.badge-courier-ready {
+  background: rgba(14, 165, 233, 0.10);
+  color: #0284c7;
+  border-color: rgba(14, 165, 233, 0.24);
 }
 
 [data-theme='dark'] .badge-default {
@@ -112,8 +130,26 @@
   border-color: rgba(245, 158, 11, 0.2);
 }
 
+[data-theme='dark'] .badge-final-call-pending {
+  background: rgba(153, 27, 27, 0.20);
+  color: #fecaca;
+  border-color: rgba(248, 113, 113, 0.28);
+}
+
 [data-theme='dark'] .badge-courier {
   background: rgba(139, 92, 246, 0.08);
   color: #8b5cf6;
   border-color: rgba(139, 92, 246, 0.2);
+}
+
+[data-theme='dark'] .badge-bulk-exported {
+  background: rgba(59, 130, 246, 0.16);
+  color: #93c5fd;
+  border-color: rgba(147, 197, 253, 0.28);
+}
+
+[data-theme='dark'] .badge-courier-ready {
+  background: rgba(14, 165, 233, 0.16);
+  color: #7dd3fc;
+  border-color: rgba(125, 211, 252, 0.28);
 }

@@ -15,10 +15,11 @@ import { deserializeDateRange, usePersistentState } from '../utils/persistentSta
 import { getProductOptions } from '../utils/productCatalog';
 import CurrencyIcon from '../components/CurrencyIcon';
 import { Modal } from '../components/Modal';
+import { useRouteOrderReadState } from '../hooks/useRouteOrderReadState';
 import './CallTeamPanel.css';
 
-const STATUS_OPTIONS = ['ACTIVE', 'NEW', 'PENDING'];
-const ACTIVE_CALL_STATUSES = ['New', 'Pending Call'];
+const STATUS_OPTIONS = ['ACTIVE', 'NEW', 'PENDING', 'FINAL'];
+const ACTIVE_CALL_STATUSES = ['New', 'Pending Call', 'Final Call Pending'];
 const CALL_TASKS_PER_PAGE = 10;
 
 const getVisiblePageNumbers = (currentPage, totalPages, maxVisible = 5) => {
@@ -127,6 +128,7 @@ export const CallTeamPanel = () => {
   };
 
   const handleRowClick = (order) => {
+    markOrderRead(order);
     setSelectedOrder(order);
     setIsDetailsModalOpen(true);
   };
@@ -171,6 +173,7 @@ export const CallTeamPanel = () => {
         'ALL ORDERS': ACTIVE_CALL_STATUSES,
         'NEW': ['New'],
         'PENDING': ['Pending Call'],
+        'FINAL': ['Final Call Pending'],
         'CONFIRMED': ACTIVE_CALL_STATUSES,
         'CANCELLED': ACTIVE_CALL_STATUSES
       };
@@ -189,6 +192,7 @@ export const CallTeamPanel = () => {
       return matchesSearch && matchesStatus && matchesProduct && matchesDate;
     });
   }, [orders, searchTerm, statusFilter, productFilter, dateRange]);
+  const { isOrderUnread, markOrderRead, unreadCount } = useRouteOrderReadState('call-team-panel', filteredOrders);
 
   const totalPages = Math.max(1, Math.ceil(filteredOrders.length / CALL_TASKS_PER_PAGE));
   const paginatedOrders = useMemo(() => {
@@ -404,6 +408,11 @@ export const CallTeamPanel = () => {
               ))}
             </select>
           </div>
+          {unreadCount > 0 && (
+            <span className="route-unread-count-pill" title="Orders not opened in Call Team route">
+              {unreadCount} unread
+            </span>
+          )}
           <button className="elite-icon-btn">
             <Settings2 size={16} />
           </button>
@@ -437,7 +446,7 @@ export const CallTeamPanel = () => {
             const successRatio = rt.ratio !== undefined ? rt.ratio : (order.phone ? '...' : '0');
             const showTrust = rt.fetched && rt.total > 0;
             const trustClass = successRatio > 70 ? 'high' : successRatio > 40 ? 'neutral' : 'low';
-            const isActionable = order.status === 'New' || order.status === 'Pending Call';
+            const isActionable = order.status === 'New' || order.status === 'Pending Call' || order.status === 'Final Call Pending';
             const latestNotePreview = getLatestNotePreview(order.notes);
             const orderCreatedLabel = order.created_at
               ? new Date(order.created_at).toLocaleString('en-GB', {
@@ -453,15 +462,20 @@ export const CallTeamPanel = () => {
             let statusPill = 'neutral';
             if (order.status === 'New') statusPill = 'pending';
             if (order.status === 'Pending Call') statusPill = 'active';
+            if (order.status === 'Final Call Pending') statusPill = 'final';
             if (order.status === 'Confirmed') statusPill = 'confirmed';
             if (order.status === 'Fake Order') statusPill = 'fake';
             if (order.status === 'Cancelled') statusPill = 'urgent';
 
             return (
-              <div key={order.id} className="elite-list-card" onClick={() => handleRowClick(order)}>
+              <div key={order.id} className={`elite-list-card ${isOrderUnread(order) ? 'route-unread-card' : ''}`} onClick={() => handleRowClick(order)}>
                 
                 <div className="elite-col-order">
-                  <span className="elite-order-code">#{order.id.replace('ORD-', '')}</span>
+                  <div className="route-read-card-header">
+                    {isOrderUnread(order) && <span className="route-unread-dot" aria-label="Unread order" />}
+                    <span className="elite-order-code">#{order.id.replace('ORD-', '')}</span>
+                    {isOrderUnread(order) && <span className="route-unread-chip">New</span>}
+                  </div>
                   <span className="elite-order-time">{orderCreatedLabel}</span>
                 </div>
 
@@ -604,6 +618,7 @@ export const CallTeamPanel = () => {
                   <div className="mob-card-meta">
                     <span className="mob-order-meta">
                       #{order.id.replace('ORD-', '')} • {orderCreatedLabel}
+                      {isOrderUnread(order) ? ' • Unread' : ''}
                     </span>
                     <span className={`elite-col-sla ${slaClass} mob-sla`}>
                       {slaIcon} {order.status === 'Confirmed' ? 'COMPLETED' : slaText}

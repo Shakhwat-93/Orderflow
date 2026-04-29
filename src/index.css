@@ -216,6 +216,108 @@ body.keyboard-open .mobile-bottom-nav {
   transform: translateY(calc(100% + 24px));
 }
 
+/* Route-scoped order read state */
+.route-unread-row {
+  position: relative;
+  background: var(--bg-surface) !important;
+  box-shadow: inset 3px 0 0 #4f46e5, inset 0 0 0 9999px rgba(79, 70, 229, 0.018);
+}
+
+[data-theme='dark'] .route-unread-row {
+  background: rgba(255, 255, 255, 0.018) !important;
+  box-shadow: inset 3px 0 0 #818cf8, inset 0 0 0 9999px rgba(129, 140, 248, 0.026);
+}
+
+.route-unread-row:hover {
+  background: var(--bg-surface) !important;
+  box-shadow: inset 3px 0 0 #4338ca, inset 0 0 0 9999px rgba(79, 70, 229, 0.032);
+}
+
+[data-theme='dark'] .route-unread-row:hover {
+  background: rgba(255, 255, 255, 0.026) !important;
+  box-shadow: inset 3px 0 0 #a5b4fc, inset 0 0 0 9999px rgba(129, 140, 248, 0.04);
+}
+
+.route-unread-card {
+  position: relative;
+  border-color: rgba(79, 70, 229, 0.20) !important;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08), inset 3px 0 0 #4f46e5 !important;
+}
+
+[data-theme='dark'] .route-unread-card {
+  border-color: rgba(129, 140, 248, 0.28) !important;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22), inset 3px 0 0 #818cf8 !important;
+}
+
+.route-read-id-wrap,
+.route-read-card-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.route-unread-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.11);
+}
+
+tr.route-unread-row .route-unread-chip {
+  display: none;
+}
+
+.route-unread-chip,
+.route-unread-count-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(79, 70, 229, 0.20);
+  background: rgba(79, 70, 229, 0.10);
+  color: #4338ca;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.route-unread-chip {
+  padding: 4px 7px;
+}
+
+.route-unread-count-pill {
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 10px;
+}
+
+.route-unread-count-pill::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 12px currentColor;
+}
+
+[data-theme='dark'] .route-unread-chip,
+[data-theme='dark'] .route-unread-count-pill {
+  border-color: rgba(129, 140, 248, 0.34);
+  background: rgba(129, 140, 248, 0.16);
+  color: #c7d2fe;
+}
+
+[data-theme='dark'] .route-unread-dot {
+  background: #a5b4fc;
+  box-shadow: 0 0 0 4px rgba(129, 140, 248, 0.14), 0 0 16px rgba(129, 140, 248, 0.38);
+}
+
 /* ================================================================
    APP LAYOUT
    ================================================================ */

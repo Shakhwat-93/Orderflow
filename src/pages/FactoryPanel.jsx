@@ -12,6 +12,7 @@ import { Loader2, CheckCircle, PackageSearch, Zap, AlertTriangle, Package, Edit2
 import { PremiumSearch } from '../components/PremiumSearch';
 import { usePersistentState } from '../utils/persistentState';
 import { getToyBoxStockKey } from '../utils/productCatalog';
+import { useRouteOrderReadState } from '../hooks/useRouteOrderReadState';
 import * as XLSX from 'xlsx';
 import './FactoryPanel.css';
 
@@ -210,16 +211,16 @@ const parseEmbeddedDeliveryCharge = (value) => {
 };
 
 const getDeliveryCharge = (order) => {
-  const embeddedCharge = parseEmbeddedDeliveryCharge(order?.shipping_zone);
-  if (embeddedCharge !== null) return embeddedCharge;
-
   const directCharge = Number(order?.delivery_charge);
   if (directCharge > 0) return directCharge;
 
   const summaryCharge = Number(order?.pricing_summary?.delivery_charge);
   if (summaryCharge > 0) return summaryCharge;
 
-  return order?.shipping_zone === 'Inside Dhaka' ? 80 : 150;
+  const embeddedCharge = parseEmbeddedDeliveryCharge(order?.shipping_zone);
+  if (embeddedCharge !== null) return embeddedCharge;
+
+  return order?.shipping_zone === 'Inside Dhaka' ? 60 : 130;
 };
 
 const getProductPrice = (order) => {
@@ -292,7 +293,7 @@ const getColorCode = (order) => {
   const productText = getProductText(order).toLowerCase();
   const knownColors = [
     'black', 'beige', 'silver', 'golden', 'gold', 'blue', 'red',
-    'green', 'white', 'brown', 'gray', 'grey', 'pink', 'purple'
+    'green', 'white', 'brown', 'gray', 'grey', 'pink', 'purple', 'cream'
   ];
 
   const matches = knownColors.filter((color) => (
@@ -300,6 +301,187 @@ const getColorCode = (order) => {
   ));
 
   return [...new Set(matches.map((color) => (color === 'gold' ? 'golden' : color)))].join(', ');
+};
+
+const EXPORT_COLUMNS = [
+  'DATE',
+  'NOTE',
+  'NAME',
+  'ADDRESS',
+  'inside and outside',
+  'Phone',
+  'code',
+  'CODE',
+  'Source',
+  'QTY(TOY)',
+  'QTY(MPB)',
+  'ORG QTY',
+  'MMB',
+  'STB BAG',
+  'OTHER',
+  'toy box am',
+  'MPB AM',
+  'ORG AM',
+  'MMB AM',
+  'BAG',
+  'OTHER (AM)',
+  'DELIVERY CHARGE',
+  'Total amount'
+];
+
+const EXPORT_QTY_COLUMNS = {
+  toy: 'QTY(TOY)',
+  mpb: 'QTY(MPB)',
+  org: 'ORG QTY',
+  mmb: 'MMB',
+  stb: 'STB BAG',
+  other: 'OTHER'
+};
+
+const EXPORT_AMOUNT_COLUMNS = {
+  toy: 'toy box am',
+  mpb: 'MPB AM',
+  org: 'ORG AM',
+  mmb: 'MMB AM',
+  stb: 'BAG',
+  other: 'OTHER (AM)'
+};
+
+const formatSheetDate = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const day = date.getDate();
+  const month = date.getMonth() + 1;
+  const year = String(date.getFullYear()).slice(-2);
+  return `${day}/${month}/${year}`;
+};
+
+const formatExportPhone = (value = '') => {
+  const digits = String(value || '').replace(/\D/g, '');
+  return digits.replace(/^88/, '').replace(/^0/, '');
+};
+
+const formatExportZone = (value = '') => {
+  const text = String(value || '').replace(/\(?৳?\d{2,5}\)?/g, '').replace(/\s+/g, ' ').trim();
+  const normalized = text.toLowerCase();
+  if (!normalized) return '';
+  if (normalized.includes('inside') || normalized === 'dhaka') return 'Dhaka';
+  if (normalized.includes('outside')) return 'Outside Dhaka';
+  return text;
+};
+
+const formatExportSource = (value = '') => {
+  const source = String(value || '').trim();
+  if (!source) return '';
+  if (source.toLowerCase() === 'website') return 'NEW WEB';
+  return source.toUpperCase();
+};
+
+const getItemText = (item, order) => [
+  item?.name,
+  item?.product_name,
+  item?.product,
+  item?.title,
+  item?.variant,
+  item?.color,
+  item?.size,
+  order?.product_name,
+  order?.size
+].filter(Boolean).join(' ');
+
+const getExportCategory = (text = '') => {
+  const normalized = String(text || '').toLowerCase();
+  if (normalized.includes('toy box') || normalized.includes('toybox')) return 'toy';
+  if (normalized.includes('mpb') || normalized.includes('multipurpose') || normalized.includes('multi purpose')) return 'mpb';
+  if (normalized.includes('org') || normalized.includes('organizer') || normalized.includes('organiser')) return 'org';
+  if (normalized.includes('mmb') || normalized.includes('mini')) return 'mmb';
+  if (normalized.includes('stb') || normalized.includes('travel bag') || normalized.includes('canvas') || /\bbag\b/.test(normalized)) return 'stb';
+  return 'other';
+};
+
+const getExportCode = (order) => {
+  const category = getExportCategory(getProductText(order));
+  if (category === 'toy') return 'Toy Box';
+  if (category === 'mpb') return 'MPB';
+  if (category === 'org') return 'ORG';
+  if (category === 'mmb') return 'MMB';
+  if (category === 'stb') return 'Travel bag';
+  return order?.product_name || 'OTHER';
+};
+
+const toTitleCase = (value = '') => String(value || '')
+  .split(/[\s,]+/)
+  .filter(Boolean)
+  .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+  .join(' ');
+
+const getExportVariantCode = (order) => {
+  const shortCode = getOrderShortForm(order);
+  const colors = toTitleCase(getColorCode(order));
+  return [shortCode, colors].filter(Boolean).join(' ').trim();
+};
+
+const getItemQuantity = (item) => Math.max(1, Number(item?.quantity ?? item?.qty) || 1);
+
+const getItemAmount = (item) => {
+  const quantity = getItemQuantity(item);
+  const lineTotal = Number(item?.line_total ?? item?.total ?? item?.amount);
+  if (lineTotal > 0) return lineTotal;
+
+  const unitPrice = Number(item?.unit_price ?? item?.price);
+  if (unitPrice > 0) return unitPrice * quantity;
+
+  return 0;
+};
+
+const buildConfirmedExportRow = (order) => {
+  const row = Object.fromEntries(EXPORT_COLUMNS.map((column) => [column, '']));
+  const deliveryCharge = getDeliveryCharge(order);
+  const totalAmount = getTotalAmount(order);
+  const productAmount = Math.max(0, totalAmount - deliveryCharge);
+  const items = getOrderItems(order);
+
+  row.DATE = formatSheetDate(order.created_at);
+  row.NOTE = order.notes || '';
+  row.NAME = order.customer_name || '';
+  row.ADDRESS = order.address || '';
+  row['inside and outside'] = formatExportZone(order.shipping_zone);
+  row.Phone = formatExportPhone(order.phone);
+  row.code = getExportCode(order);
+  row.CODE = getExportVariantCode(order);
+  row.Source = formatExportSource(order.source);
+  row['DELIVERY CHARGE'] = deliveryCharge || '';
+  row['Total amount'] = totalAmount || '';
+
+  if (items.length === 0) {
+    const category = getExportCategory(getProductText(order));
+    row[EXPORT_QTY_COLUMNS[category]] = getOrderQuantity(order);
+    row[EXPORT_AMOUNT_COLUMNS[category]] = productAmount || '';
+    return row;
+  }
+
+  let allocatedAmount = 0;
+  items.forEach((item) => {
+    const category = getExportCategory(getItemText(item, order));
+    const qtyColumn = EXPORT_QTY_COLUMNS[category];
+    const amountColumn = EXPORT_AMOUNT_COLUMNS[category];
+    const quantity = getItemQuantity(item);
+    const amount = getItemAmount(item);
+
+    row[qtyColumn] = (Number(row[qtyColumn]) || 0) + quantity;
+    if (amount > 0) {
+      row[amountColumn] = (Number(row[amountColumn]) || 0) + amount;
+      allocatedAmount += amount;
+    }
+  });
+
+  if (allocatedAmount === 0) {
+    const category = getExportCategory(getProductText(order));
+    row[EXPORT_AMOUNT_COLUMNS[category]] = productAmount || '';
+  }
+
+  return row;
 };
 
 export const FactoryPanel = () => {
@@ -336,6 +518,7 @@ export const FactoryPanel = () => {
   });
   const [lastExportedBatch, setLastExportedBatch] = useState(null);
   const [isMovingExportBatch, setIsMovingExportBatch] = useState(false);
+  const [isExportingBatch, setIsExportingBatch] = useState(false);
 
   useEffect(() => {
     try {
@@ -351,6 +534,7 @@ export const FactoryPanel = () => {
   };
 
   const handleRowClick = (order) => {
+    markOrderRead(order);
     setSelectedOrder(order);
     setIsDetailsModalOpen(true);
   };
@@ -393,6 +577,7 @@ export const FactoryPanel = () => {
   );
 
   const displayOrders = activeTab === 'confirmed' ? confirmedOrders : queuedOrders;
+  const { isOrderUnread, markOrderRead, unreadCount } = useRouteOrderReadState(`confirmed-panel:${activeTab}`, displayOrders);
   const latestExportHistory = exportHistory[0] || null;
   const latestConfirmedExportHistory = exportHistory.find((item) => item.tab === 'confirmed') || null;
   const exportRangeStartDate = useMemo(() => parseDateTimeRangeBoundary(exportDateFrom, 'start'), [exportDateFrom]);
@@ -558,8 +743,9 @@ export const FactoryPanel = () => {
     setExportDateTo(activeTab === 'confirmed' ? toDateTimeLocalValue(new Date()) : '');
   };
 
-  const handleBulkExport = () => {
+  const handleBulkExport = async () => {
     if (exportPreviewOrders.length === 0) return;
+    setIsExportingBatch(true);
     const exportedAt = new Date().toISOString();
     const exportedBy = profile?.name || user?.user_metadata?.full_name || user?.email || 'Unknown User';
     const sortedExportOrders = [...exportPreviewOrders].sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
@@ -571,30 +757,9 @@ export const FactoryPanel = () => {
       ? latestConfirmedExportHistory?.exported_until || null
       : (exportRangeStartDate && !Number.isNaN(exportRangeStartDate.getTime()) ? exportRangeStartDate.toISOString() : null);
 
-    const exportRows = sortedExportOrders.map((order) => {
-      const deliveryCharge = getDeliveryCharge(order);
-      const productPrice = getProductPrice(order);
-      const totalAmount = getTotalAmount(order);
+    const exportRows = sortedExportOrders.map(buildConfirmedExportRow);
 
-      return {
-        DATE: formatExportDate(order.created_at),
-        NOTE: order.notes || '',
-        NAME: order.customer_name || '',
-        ADDRESS: order.address || '',
-        'INSIDE/OUTSIDE DHAKA': order.shipping_zone || '',
-        PHONE: order.phone || '',
-        'ORDER ID': order.id || '',
-        'ORDER SHORT': getOrderShortForm(order),
-        'COLOR CODE': getColorCode(order),
-        SOURCE: order.source || '',
-        QUANTITY: getOrderQuantity(order),
-        'PRODUCT PRICE': productPrice,
-        'DELIVERY CHARGE': deliveryCharge,
-        'TOTAL AMOUNT': totalAmount
-      };
-    });
-
-    const worksheet = XLSX.utils.json_to_sheet(exportRows);
+    const worksheet = XLSX.utils.json_to_sheet(exportRows, { header: EXPORT_COLUMNS });
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, activeTab === 'confirmed' ? 'Confirmed Orders' : 'Queued Orders');
 
@@ -621,8 +786,36 @@ export const FactoryPanel = () => {
       moved_to_courier_by: null
     };
 
-    setLastExportedBatch(batch);
-    setExportHistory((prev) => [batch, ...prev].slice(0, 20));
+    try {
+      let updatedBatch = batch;
+
+      if (activeTab === 'confirmed') {
+        const movedAt = new Date().toISOString();
+        for (const order of sortedExportOrders) {
+          if (order.status === 'Confirmed') {
+            // Sequential updates keep load low while live orders continue coming in.
+            await updateOrderStatus(order.id, 'Bulk Exported');
+          }
+        }
+
+        updatedBatch = {
+          ...batch,
+          moved_to_courier_at: movedAt,
+          moved_to_courier_by: exportedBy,
+          moved_count: sortedExportOrders.length
+        };
+      }
+
+      setLastExportedBatch(updatedBatch);
+      setExportHistory((prev) => [updatedBatch, ...prev].slice(0, 20));
+    } catch (error) {
+      console.error('Export batch move failed:', error);
+      setLastExportedBatch(batch);
+      setExportHistory((prev) => [batch, ...prev].slice(0, 20));
+      alert(`Export downloaded, but moving orders to Bulk Exported failed: ${error.message}`);
+    } finally {
+      setIsExportingBatch(false);
+    }
   };
 
   const handleMoveExportedToCourier = async () => {
@@ -638,7 +831,7 @@ export const FactoryPanel = () => {
       return;
     }
 
-    const confirmed = window.confirm(`Move ${targetOrders.length} exported orders to Courier Panel?`);
+    const confirmed = window.confirm(`Move ${targetOrders.length} exported orders to Bulk Exported?`);
     if (!confirmed) return;
 
     setIsMovingExportBatch(true);
@@ -648,7 +841,7 @@ export const FactoryPanel = () => {
     try {
       for (const order of targetOrders) {
         // Sequential updates keep load low on the live order system.
-        await updateOrderStatus(order.id, 'Courier Ready');
+        await updateOrderStatus(order.id, 'Bulk Exported');
       }
 
       const updatedBatch = {
@@ -695,21 +888,12 @@ export const FactoryPanel = () => {
           <Button
             variant="ghost"
             onClick={handleOpenExportModal}
-            disabled={displayOrders.length === 0}
+            disabled={displayOrders.length === 0 || isExportingBatch}
             className="factory-export-btn"
           >
             <FileSpreadsheet size={18} />
             <span>Bulk Export ({displayOrders.length})</span>
             <Download size={16} />
-          </Button>
-          <Button 
-            variant="primary" 
-            onClick={handleAutoDistribute}
-            disabled={isDistributing || confirmedOrders.length === 0}
-            className="auto-distribute-btn"
-          >
-            {isDistributing ? <Loader2 size={18} className="spin" /> : <Zap size={18} />}
-            <span>Auto Distribute ({confirmedOrders.length})</span>
           </Button>
         </div>
       </header>
@@ -760,8 +944,8 @@ export const FactoryPanel = () => {
           <Card className="factory-stat-card">
             <div className="stat-icon-box green"><CheckCircle size={22} /></div>
             <div className="stat-info">
-              <span className="label">Courier Ready</span>
-              <span className="value">{orders.filter(o => o.status === 'Courier Ready').length}</span>
+              <span className="label">Bulk Exported</span>
+              <span className="value">{orders.filter(o => o.status === 'Bulk Exported').length}</span>
             </div>
           </Card>
         </motion.div>
@@ -853,6 +1037,11 @@ export const FactoryPanel = () => {
             </button>
           </div>
           <div className="filter-actions-group">
+            {unreadCount > 0 && (
+              <span className="route-unread-count-pill" title="Orders not opened in this Confirmed panel tab">
+                {unreadCount} unread
+              </span>
+            )}
             <span className="order-count-badge order-count-badge--scope">
               {hasCustomRange ? 'Custom Range' : DATE_PRESETS.find((preset) => preset.id === datePreset)?.label}
             </span>
@@ -884,11 +1073,15 @@ export const FactoryPanel = () => {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      className="factory-order-row cursor-pointer" 
+                      className={`factory-order-row cursor-pointer ${isOrderUnread(order) ? 'route-unread-row' : ''}`}
                       onClick={() => handleRowClick(order)}
                     >
                       <td className="order-id-cell">
-                        <span className="saas-id">#{(order.id || '').replace('ORD-', '')}</span>
+                        <div className="route-read-card-header">
+                          {isOrderUnread(order) && <span className="route-unread-dot" aria-label="Unread order" />}
+                          <span className="saas-id">#{(order.id || '').replace('ORD-', '')}</span>
+                          {isOrderUnread(order) && <span className="route-unread-chip">New</span>}
+                        </div>
                       </td>
                       <td>
                         <div className="factory-customer-stack">
@@ -937,11 +1130,6 @@ export const FactoryPanel = () => {
                           <button className="factory-action-btn edit" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(order); }} title="Adjust Order">
                             <Edit2 size={14} /> <span>Edit</span>
                           </button>
-                          {order.status === 'Confirmed' && stock.matched && (
-                            <button className="factory-action-btn send" onClick={(e) => { e.stopPropagation(); handleManualSend(order.id); }} title="Dispatch to Courier">
-                              <CheckCircle size={14} /> <span>Approve</span>
-                            </button>
-                          )}
                           {order.status === 'Factory Queue' && (
                             <button className="factory-action-btn retry" onClick={(e) => { e.stopPropagation(); handleRetryDistribute(order.id); }} title="Recheck Inventory">
                                <Zap size={14} /> <span>Recheck</span>
@@ -1028,7 +1216,7 @@ export const FactoryPanel = () => {
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
         title="Bulk Export Control"
-        subtitle="Export an exact time window, then move the exported confirmed orders into Courier Panel."
+        subtitle="Export an exact time window. Confirmed orders automatically move into Bulk Exported after download."
       >
         <div className="factory-export-modal">
           {latestExportHistory && (
@@ -1117,8 +1305,8 @@ export const FactoryPanel = () => {
                 <span>
                   {lastExportedBatch.order_count} orders exported by {lastExportedBatch.exported_by}.
                   {lastExportedBatch.moved_to_courier_at
-                    ? ` Moved to Courier by ${lastExportedBatch.moved_to_courier_by}.`
-                    : ' Move this batch to Courier Panel to prevent duplicate export.'}
+                    ? ` Moved to Bulk Exported by ${lastExportedBatch.moved_to_courier_by}.`
+                    : ' Move this batch to Bulk Exported to prevent duplicate export.'}
                 </span>
               </div>
               {activeTab === 'confirmed' && !lastExportedBatch.moved_to_courier_at && (
@@ -1128,7 +1316,7 @@ export const FactoryPanel = () => {
                   disabled={isMovingExportBatch}
                 >
                   {isMovingExportBatch ? <Loader2 size={16} className="spin" /> : <Truck size={16} />}
-                  <span>Move Exported to Courier</span>
+                  <span>Move Exported to Bulk Exported</span>
                 </Button>
               )}
             </div>
@@ -1153,10 +1341,10 @@ export const FactoryPanel = () => {
             <Button
               variant="primary"
               onClick={handleBulkExport}
-              disabled={exportPreviewOrders.length === 0}
+              disabled={exportPreviewOrders.length === 0 || isExportingBatch}
             >
-              <FileSpreadsheet size={16} />
-              <span>Download Export</span>
+              {isExportingBatch ? <Loader2 size={16} className="spin" /> : <FileSpreadsheet size={16} />}
+              <span>{isExportingBatch ? 'Exporting...' : 'Download Export'}</span>
             </Button>
           </div>
         </div>

@@ -352,6 +352,11 @@
   box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12);
 }
 
+.nav-subitem.tone-final .nav-subitem-dot {
+  background: #991b1b;
+  box-shadow: 0 0 0 3px rgba(153, 27, 27, 0.14);
+}
+
 .nav-subitem.tone-all .nav-subitem-dot {
   background: #6366f1;
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);

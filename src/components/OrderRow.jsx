@@ -5,7 +5,7 @@ import { FileText, Clock, AlertTriangle, Phone, Copy, MessageCircle, Edit2 } fro
 import CurrencyIcon from './CurrencyIcon';
 import './OrderRow.css';
 
-export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected, onSelect, fraudFlag, automationFlag }) => {
+export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected, onSelect, fraudFlag, automationFlag, isUnread = false }) => {
   const [copied, setCopied] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
@@ -38,7 +38,9 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
     switch (status) {
       case 'New': return 'new';
       case 'Pending Call': return 'pending-call';
+      case 'Final Call Pending': return 'final-call-pending';
       case 'Confirmed': return 'confirmed';
+      case 'Bulk Exported': return 'bulk-exported';
       case 'Fake Order': return 'fake-order';
       case 'Cancelled': return 'cancelled';
       case 'Courier Submitted': return 'courier';
@@ -49,7 +51,7 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
   };
 
   const ORDER_STATUSES = [
-    'New', 'Pending Call', 'Confirmed', 'Courier Submitted', 
+    'New', 'Pending Call', 'Final Call Pending', 'Confirmed', 'Bulk Exported', 'Courier Submitted',
     'Factory Processing', 'Completed', 'Fake Order', 'Cancelled'
   ];
 
@@ -76,7 +78,7 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
 
   return (
     <motion.tr 
-      className={`order-row clickable-row ${isSelected ? 'row-selected' : ''}`} 
+      className={`order-row clickable-row ${isSelected ? 'row-selected' : ''} ${isUnread ? 'route-unread-row' : 'route-read-row'}`}
       onClick={() => onDetails(order)}
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
@@ -93,7 +95,11 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
       </td>
 
       <td className="id-cell">
-        <span className="saas-id">#{String(order.id).replace('ORD-', '')}</span>
+        <div className="route-read-id-wrap">
+          {isUnread && <span className="route-unread-dot" aria-label="Unread order" />}
+          <span className="saas-id">#{String(order.id).replace('ORD-', '')}</span>
+          {isUnread && <span className="route-unread-chip">New</span>}
+        </div>
       </td>
 
       <td className="date-cell">

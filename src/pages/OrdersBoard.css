@@ -256,6 +256,7 @@
   .order-mobile-card .badge { border-radius: 999px; padding: 6px 12px; font-size: 0.68rem; letter-spacing: 0.04em; box-shadow: inset 0 1px 0 rgba(255,255,255,0.14); }
   .order-mobile-card .badge-new { background: rgba(59, 130, 246, 0.14); color: #2563eb; border-color: rgba(59, 130, 246, 0.28); }
   .order-mobile-card .badge-pending-call { background: rgba(245, 158, 11, 0.14); color: #d97706; border-color: rgba(245, 158, 11, 0.3); }
+  .order-mobile-card .badge-final-call-pending { background: rgba(153, 27, 27, 0.12); color: #991b1b; border-color: rgba(153, 27, 27, 0.26); }
   .order-mobile-card .badge-confirmed,
   .order-mobile-card .badge-completed { background: rgba(16, 185, 129, 0.14); color: #059669; border-color: rgba(16, 185, 129, 0.3); }
   .order-mobile-card .badge-fake-order { background: rgba(127, 29, 29, 0.14); color: #7f1d1d; border-color: rgba(127, 29, 29, 0.28); }
@@ -264,6 +265,7 @@
   .order-mobile-card .badge-factory { background: rgba(14, 165, 233, 0.14); color: #0284c7; border-color: rgba(14, 165, 233, 0.3); }
   [data-theme='dark'] .order-mobile-card .badge-new { background: rgba(59, 130, 246, 0.2); color: #93c5fd; border-color: rgba(96, 165, 250, 0.32); }
   [data-theme='dark'] .order-mobile-card .badge-pending-call { background: rgba(245, 158, 11, 0.18); color: #fbbf24; border-color: rgba(251, 191, 36, 0.32); }
+  [data-theme='dark'] .order-mobile-card .badge-final-call-pending { background: rgba(153, 27, 27, 0.24); color: #fecaca; border-color: rgba(248, 113, 113, 0.32); }
   [data-theme='dark'] .order-mobile-card .badge-confirmed,
   [data-theme='dark'] .order-mobile-card .badge-completed { background: rgba(16, 185, 129, 0.18); color: #6ee7b7; border-color: rgba(52, 211, 153, 0.32); }
   [data-theme='dark'] .order-mobile-card .badge-fake-order { background: rgba(127, 29, 29, 0.28); color: #fecaca; border-color: rgba(153, 27, 27, 0.42); }

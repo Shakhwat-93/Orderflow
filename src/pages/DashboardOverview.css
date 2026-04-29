@@ -207,10 +207,11 @@
 /* ── Metric Card Base ─────────────────────────────────────────────────────── */
 .metric-card {
   border-radius: var(--db-radius) !important;
-  padding: 22px 20px !important;
+  padding: 20px 20px 18px !important;
   display: flex !important;
   flex-direction: column !important;
-  gap: 14px !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
   position: relative;
   overflow: hidden;
   cursor: default;
@@ -238,10 +239,13 @@
 /* Card inner layout */
 .metric-top-row {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  align-items: flex-start;
+  justify-content: flex-start;
+  flex-direction: column;
+  gap: 12px;
   position: relative;
   z-index: 2;
+  min-width: 0;
 }
 
 .metric-bottom-row {
@@ -263,19 +267,26 @@
 }
 
 .metric-value {
-  font-size: 1.85rem !important;
+  width: 100%;
+  min-width: 0;
+  font-size: clamp(1.55rem, 1.7vw, 1.85rem) !important;
   font-weight: 900 !important;
   color: #fff !important;
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: flex-start;
+  gap: 5px;
   line-height: 1;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .currency-icon-elite {
   color: rgba(255,255,255,0.88) !important;
   flex-shrink: 0;
+  width: 0.82em;
+  height: 0.82em;
 }
 
 .metric-label {

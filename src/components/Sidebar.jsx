@@ -38,6 +38,7 @@ const menuItems = [
     children: [
       { path: '/orders?status=All', label: 'All Orders', status: 'All', tone: 'all' },
       { path: '/orders?status=Pending%20Call', label: 'Pending Call', status: 'Pending Call', tone: 'pending' },
+      { path: '/orders?status=Final%20Call%20Pending', label: 'Final Call', status: 'Final Call Pending', tone: 'final' },
       { path: '/orders?status=Confirmed', label: 'Confirmed', status: 'Confirmed', tone: 'confirmed' },
       { path: '/orders?status=Cancelled', label: 'Cancelled', status: 'Cancelled', tone: 'cancelled' },
       { path: '/orders?status=Fake%20Order', label: 'Fake Order', status: 'Fake Order', tone: 'fake' }
@@ -45,7 +46,7 @@ const menuItems = [
   },
   { path: '/inventory', label: 'Inventory', icon: Package, roles: ['Admin', 'Moderator'], group: 'Main Console' },
   { path: '/factory', label: 'Confirmed', icon: Factory, roles: ['Admin', 'Factory Team'], group: 'Logistics' },
-  { path: '/courier', label: 'Courier', icon: Truck, roles: ['Admin', 'Courier Team'], group: 'Logistics' },
+  { path: '/courier', label: 'Bulk Exported', icon: Truck, roles: ['Admin', 'Courier Team', 'Factory Team'], group: 'Logistics' },
   { path: '/steadfast', label: 'Steadfast Hub', icon: Truck, roles: ['Admin', 'Courier Team', 'Moderator'], group: 'Logistics' },
   { path: '/moderator', label: 'Moderator', icon: ShieldCheck, roles: ['Admin', 'Moderator'], group: 'Intelligence' },
   { path: '/call-team', label: 'Call Team', icon: Headphones, roles: ['Admin', 'Call Team'], group: 'Intelligence' },

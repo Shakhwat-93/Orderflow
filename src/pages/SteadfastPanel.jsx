@@ -9,6 +9,7 @@ import { Search, Truck, RotateCcw, ExternalLink, Calendar, User, Phone, MapPin, 
 import { OrderDetailsModal } from '../components/OrderDetailsModal';
 import { PackingSlip } from '../components/PackingSlip';
 import { usePersistentState } from '../utils/persistentState';
+import { useRouteOrderReadState } from '../hooks/useRouteOrderReadState';
 import './SteadfastPanel.css';
 
 const containerVariants = {
@@ -62,6 +63,7 @@ export const SteadfastPanel = () => {
   }, []);
 
   const handleRowClick = (order) => {
+    markOrderRead(order);
     setSelectedOrder(order);
     setIsDetailsModalOpen(true);
   };
@@ -104,6 +106,7 @@ export const SteadfastPanel = () => {
 
     return matchesSearch;
   }).sort((a, b) => new Date(b.dispatched_at || b.updated_at || b.created_at) - new Date(a.dispatched_at || a.updated_at || a.created_at));
+  const { isOrderUnread, markOrderRead, unreadCount } = useRouteOrderReadState('steadfast-panel', steadfastOrders);
 
   const handleSyncStatus = async (orderId, trackingCode) => {
     if (!orderId && !trackingCode) return;
@@ -220,6 +223,11 @@ export const SteadfastPanel = () => {
             <button className={`filter-pill ${dateFilter === 'yesterday' ? 'active' : ''}`} onClick={() => setDateFilter('yesterday')}>Yesterday</button>
             <button className={`filter-pill ${dateFilter === 'all' ? 'active' : ''}`} onClick={() => setDateFilter('all')}>All Hub</button>
           </div>
+          {unreadCount > 0 && (
+            <span className="route-unread-count-pill" title="Orders not opened in Steadfast route">
+              {unreadCount} unread
+            </span>
+          )}
         </div>
 
         <div className="courier-table-wrapper">
@@ -245,7 +253,7 @@ export const SteadfastPanel = () => {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className={`tracking-row cursor-pointer ${selectedIds.has(order.id) ? 'row-selected' : ''}`} 
+                    className={`tracking-row cursor-pointer ${selectedIds.has(order.id) ? 'row-selected' : ''} ${isOrderUnread(order) ? 'route-unread-row' : ''}`}
                     onClick={() => handleRowClick(order)}
                   >
                     <td className="checkbox-col">
@@ -271,7 +279,11 @@ export const SteadfastPanel = () => {
                     <td>
                       <div className="customer-details-cell">
                         <div style={{ marginBottom: '8px' }}>
-                          <span className="id-badge">#{order.id}</span>
+                          <span className="route-read-card-header">
+                            {isOrderUnread(order) && <span className="route-unread-dot" aria-label="Unread order" />}
+                            <span className="id-badge">#{order.id}</span>
+                            {isOrderUnread(order) && <span className="route-unread-chip">New</span>}
+                          </span>
                           <span className="courier-pill">S-FAST</span>
                         </div>
                         <div className="customer-info-stack">

@@ -10,7 +10,7 @@ import './OrderHistoryTimeline.css';
 import './OrderEditModal.css';
 
 const ORDER_STATUSES = [
-  'New', 'Pending Call', 'Confirmed', 'Factory Queue', 'Courier Ready',
+  'New', 'Pending Call', 'Final Call Pending', 'Confirmed', 'Bulk Exported', 'Factory Queue', 'Courier Ready',
   'Courier Submitted', 'Factory Processing', 'Completed', 'Fake Order', 'Cancelled'
 ];
 

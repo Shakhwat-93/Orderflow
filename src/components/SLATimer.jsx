@@ -7,7 +7,7 @@ export const SLATimer = ({ createdAt, firstCallTime, status }) => {
 
   useEffect(() => {
     // Only tick if not resolved
-    if (!firstCallTime && ['New', 'Pending Call'].includes(status)) {
+    if (!firstCallTime && ['New', 'Pending Call', 'Final Call Pending'].includes(status)) {
       const interval = setInterval(() => setNow(new Date()), 30000); // 30s precision
       return () => clearInterval(interval);
     }
@@ -15,7 +15,7 @@ export const SLATimer = ({ createdAt, firstCallTime, status }) => {
 
   const startTime = new Date(createdAt);
   const endTime = firstCallTime ? new Date(firstCallTime) : now;
-  const isResolved = !!firstCallTime || !['New', 'Pending Call'].includes(status);
+  const isResolved = !!firstCallTime || !['New', 'Pending Call', 'Final Call Pending'].includes(status);
   
   const diffMs = Math.abs(endTime - startTime);
   const diffMins = Math.floor(diffMs / 60000);
