@@ -69,12 +69,50 @@ export const OrdersBoard = () => {
   }, [updatePresenceContext, location.search, navigate]);
 
   const { 
-    orders, loading, totalCount, page, setPage, setFilters, 
+    orders, loading, page, setPage, setFilters, 
     fetchOrderLogs, fetchStats, stats, addOrder, deleteOrder, fraudFlags, automationFlags,
     pageSize, filters, updateOrderStatus, autoDistributeOrders, toyBoxes, inventory
   } = useOrders();
   const inventoryProductCheckpoints = useMemo(() => getProductCheckpoints(inventory), [inventory]);
-  const { isOrderUnread, markOrderRead, unreadCount } = useRouteOrderReadState('orders-board', orders);
+
+  const filteredOrders = useMemo(() => {
+    const search = String(filters.searchTerm || '').trim().toLowerCase();
+    const productName = String(filters.productName || '').trim().toLowerCase();
+    const dateStart = filters.dateRange?.start ? new Date(filters.dateRange.start).getTime() : null;
+    const dateEnd = filters.dateRange?.end ? new Date(filters.dateRange.end).getTime() : null;
+
+    return (Array.isArray(orders) ? orders : []).filter((order) => {
+      if (filters.status && filters.status !== 'All' && order.status !== filters.status) return false;
+      if (filters.source && filters.source !== 'All' && order.source !== filters.source) return false;
+      if (productName && !String(order.product_name || '').toLowerCase().includes(productName)) return false;
+
+      if (dateStart || dateEnd) {
+        const orderTime = order.created_at ? new Date(order.created_at).getTime() : 0;
+        if (dateStart && orderTime < dateStart) return false;
+        if (dateEnd && orderTime > dateEnd) return false;
+      }
+
+      if (search) {
+        const searchable = [
+          order.id,
+          order.customer_name,
+          order.phone,
+          order.product_name,
+          order.address
+        ].filter(Boolean).join(' ').toLowerCase();
+        if (!searchable.includes(search)) return false;
+      }
+
+      return true;
+    });
+  }, [filters, orders]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / pageSize));
+  const pagedOrders = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredOrders.slice(start, start + pageSize);
+  }, [filteredOrders, page, pageSize]);
+  const { isOrderUnread, markOrderRead, unreadCount } = useRouteOrderReadState('orders-board', filteredOrders);
 
   useEffect(() => {
     const queryParams = new URLSearchParams(location.search);
@@ -136,11 +174,18 @@ export const OrdersBoard = () => {
   };
 
   const handleSelectAll = () => {
-    if (selectedOrderIds.length === orders.length) {
-      setSelectedOrderIds([]);
+    const pageIds = pagedOrders.map(o => o.id);
+    const isPageSelected = pageIds.length > 0 && pageIds.every(id => selectedOrderIds.includes(id));
+
+    if (isPageSelected) {
+      setSelectedOrderIds(prev => prev.filter(id => !pageIds.includes(id)));
     } else {
-      setSelectedOrderIds(orders.map(o => o.id));
+      setSelectedOrderIds(prev => Array.from(new Set([...prev, ...pageIds])));
     }
+  };
+
+  const handleClearSelection = () => {
+      setSelectedOrderIds([]);
   };
 
   const handleBulkStatusChange = async (status) => {
@@ -451,8 +496,6 @@ export const OrdersBoard = () => {
   };
 
 
-  const totalPages = Math.ceil(totalCount / pageSize);
-
   useEffect(() => {
     if (totalPages > 0 && page > totalPages) {
       setPage(totalPages);
@@ -485,10 +528,11 @@ export const OrdersBoard = () => {
       }
     };
 
-    loadProductBreakdown();
+    const timer = window.setTimeout(loadProductBreakdown, 180);
 
     return () => {
       isActive = false;
+      window.clearTimeout(timer);
     };
   }, [filters.dateRange, filters.searchTerm, filters.source, filters.status]);
 
@@ -518,10 +562,11 @@ export const OrdersBoard = () => {
       }
     };
 
-    loadStatusBreakdown();
+    const timer = window.setTimeout(loadStatusBreakdown, 180);
 
     return () => {
       isActive = false;
+      window.clearTimeout(timer);
     };
   }, [filters.dateRange, filters.productName, filters.searchTerm, filters.source]);
 
@@ -544,7 +589,7 @@ export const OrdersBoard = () => {
 
   const visibleProductBreakdown = useMemo(() => {
     const fallbackBreakdown = Array.from(
-      orders.reduce((acc, order) => {
+      filteredOrders.reduce((acc, order) => {
         const productName = String(order?.product_name || 'Unknown Product').trim() || 'Unknown Product';
         acc.set(productName, (acc.get(productName) || 0) + 1);
         return acc;
@@ -573,7 +618,7 @@ export const OrdersBoard = () => {
         count: item.count
       }))
     ];
-  }, [inventoryColorMap, orders, productBreakdown]);
+  }, [filteredOrders, inventoryColorMap, productBreakdown]);
 
   const statusTabs = useMemo(() => {
     const counts = new Map(statusBreakdown.map((item) => [item.status, item.count]));
@@ -749,7 +794,7 @@ export const OrdersBoard = () => {
                   <input 
                     type="checkbox" 
                     className="premium-checkbox" 
-                    checked={orders.length > 0 && selectedOrderIds.length === orders.length}
+                    checked={pagedOrders.length > 0 && pagedOrders.every(order => selectedOrderIds.includes(order.id))}
                     onChange={handleSelectAll}
                   />
                 </th>
@@ -766,7 +811,7 @@ export const OrdersBoard = () => {
             </thead>
             <tbody className="orders-table-body">
               <AnimatePresence mode="popLayout">
-                {Array.isArray(orders) && orders.map(order => (
+                {Array.isArray(pagedOrders) && pagedOrders.map(order => (
                   <OrderRow
                     key={order.id}
                     order={order}
@@ -781,7 +826,7 @@ export const OrdersBoard = () => {
                   />
                 ))}
               </AnimatePresence>
-              {(!orders || orders.length === 0) && (
+              {(!pagedOrders || pagedOrders.length === 0) && (
                 <tr>
                   <td colSpan="10" className="empty-state-cell">
                     {loading ? 'Loading orders...' : 'No orders found matching your filters.'}
@@ -794,7 +839,7 @@ export const OrdersBoard = () => {
 
         {/* Mobile Card View (Elite Upgrade) */}
         <div className="orders-mobile-list mobile-only">
-          {Array.isArray(orders) && orders.map(order => (
+          {Array.isArray(pagedOrders) && pagedOrders.map(order => (
             <div
               key={order.id}
               className={`order-mobile-card elite-card ${isOrderUnread(order) ? 'route-unread-card' : ''}`}
@@ -912,7 +957,7 @@ export const OrdersBoard = () => {
               </div>
             </div>
           ))}
-          {(!orders || orders.length === 0) && !loading && (
+          {(!pagedOrders || pagedOrders.length === 0) && !loading && (
             <div className="mobile-empty-state">No orders found.</div>
           )}
           {loading && <div className="mobile-loading-state">Loading...</div>}
@@ -922,7 +967,7 @@ export const OrdersBoard = () => {
         {totalPages > 1 && (
           <div className="pagination-footer">
             <div className="pagination-info">
-              Showing page {page} of {totalPages} ({totalCount} total orders)
+              Showing page {page} of {totalPages} ({filteredOrders.length} matching orders)
             </div>
             <div className="pagination-actions">
               <Button
@@ -979,7 +1024,7 @@ export const OrdersBoard = () => {
                 <Trash2 size={14} /> Delete
               </Button>
             </div>
-            <button className="bulk-close" onClick={() => setSelectedOrderIds([])}>
+            <button className="bulk-close" onClick={handleClearSelection}>
               <X size={16} />
             </button>
           </div>

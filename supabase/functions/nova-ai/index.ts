@@ -4,11 +4,27 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Max-Age": "86400",
 };
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_MODEL = Deno.env.get("GROQ_MODEL") ?? "llama-3.3-70b-versatile";
-const CACHE_TTL_MS = 60_000;
+const CACHE_TTL_MS = 5_000;
+const ORDER_STATUS_NAMES = [
+  "New",
+  "Pending Call",
+  "Final Call Pending",
+  "Confirmed",
+  "Bulk Exported",
+  "Factory Queue",
+  "Courier Ready",
+  "Courier Submitted",
+  "Factory Processing",
+  "Completed",
+  "Fake Order",
+  "Cancelled",
+];
 
 let cachedContext: Record<string, unknown> | null = null;
 let cachedAt = 0;
@@ -79,6 +95,8 @@ Rules:
 - Keep answers concise, structured, and accurate.
 - Use BDT/Taka formatting when monetary values are discussed.
 - Never invent missing data.
+- Treat this as a live database snapshot, not static training data.
+- For total/status/date count questions, prefer orders.metrics.exact over recent samples.
 
 === LIVE DATABASE SNAPSHOT (${dbContext.timestamp}) ===
 
@@ -147,12 +165,56 @@ async function gatherDatabaseContext(supabaseAdmin: ReturnType<typeof createClie
     return cachedContext;
   }
 
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const yesterdayStart = new Date(todayStart);
+  yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+  const last24Hours = new Date(now - 24 * 60 * 60 * 1000);
+
+  const countOrders = async (applyFilter?: (query: any) => any) => {
+    let query = supabaseAdmin
+      .from("orders")
+      .select("id", { count: "exact", head: true });
+
+    if (applyFilter) {
+      query = applyFilter(query);
+    }
+
+    const { count, error } = await query;
+    if (error) {
+      return 0;
+    }
+
+    return count ?? 0;
+  };
+
+  const statusCountResults = await Promise.allSettled(
+    ORDER_STATUS_NAMES.map(async (status) => ({
+      status,
+      count: await countOrders((query) => query.eq("status", status)),
+    })),
+  );
+
+  const exactStatusBreakdown = statusCountResults.reduce((acc, result) => {
+    if (result.status === "fulfilled") {
+      acc[result.value.status] = result.value.count;
+    }
+    return acc;
+  }, {} as Record<string, number>);
+
+  const [totalExact, todayExact, yesterdayExact, last24HoursExact] = await Promise.all([
+    countOrders(),
+    countOrders((query) => query.gte("created_at", todayStart.toISOString())),
+    countOrders((query) => query.gte("created_at", yesterdayStart.toISOString()).lt("created_at", todayStart.toISOString())),
+    countOrders((query) => query.gte("created_at", last24Hours.toISOString())),
+  ]);
+
   const results = await Promise.allSettled([
     supabaseAdmin
       .from("orders")
-      .select("id, customer_name, phone, product_name, quantity, amount, status, source, tracking_id, created_at, shipping_zone, payment_status, ordered_items")
+      .select("id, customer_name, phone, product_name, quantity, amount, delivery_charge, status, source, tracking_id, created_at, updated_at, shipping_zone, payment_status, ordered_items, notes")
       .order("created_at", { ascending: false })
-      .limit(50),
+      .limit(120),
     supabaseAdmin
       .from("inventory")
       .select("name, sku, category, current_stock, min_stock_level, unit_price")
@@ -215,10 +277,21 @@ async function gatherDatabaseContext(supabaseAdmin: ReturnType<typeof createClie
   const context = {
     timestamp: new Date().toISOString(),
     orders: {
-      recent: orders.slice(0, 15),
-      statusBreakdown,
-      total: orders.length,
-      totalRevenue,
+      metrics: {
+        exact: {
+          last24Hours: last24HoursExact,
+          statusBreakdown: exactStatusBreakdown,
+          today: todayExact,
+          total: totalExact,
+          yesterday: yesterdayExact,
+        },
+        recentSample: {
+          sampleSize: orders.length,
+          statusBreakdown,
+          totalRevenue,
+        },
+      },
+      recent: orders.slice(0, 40),
     },
     inventory: {
       items: inventory,
@@ -298,7 +371,7 @@ ${rawText}`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response(null, { status: 204, headers: corsHeaders });
   }
 
   try {
@@ -319,7 +392,7 @@ serve(async (req) => {
       }
 
       const dbContext = await gatherDatabaseContext(supabaseAdmin, {
-        forceFresh: Boolean(body?.forceFresh),
+        forceFresh: body?.forceFresh !== false,
       });
       const chatHistory = Array.isArray(body?.chatHistory) ? body.chatHistory.slice(-10) : [];
 

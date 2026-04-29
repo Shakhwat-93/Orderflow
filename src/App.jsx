@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -128,6 +128,25 @@ const RoleRoute = ({ children, roles }) => {
 
 function App() {
   const Router = isNativeApp() ? HashRouter : BrowserRouter;
+
+  useEffect(() => {
+    const prefetchCoreRoutes = () => {
+      import('./pages/OrdersBoard');
+      import('./pages/CallTeamPanel');
+      import('./pages/ModeratorPanel');
+      import('./pages/FactoryPanel');
+      import('./pages/CourierPanel');
+      import('./pages/InventoryPage');
+    };
+
+    if ('requestIdleCallback' in window) {
+      const idleId = window.requestIdleCallback(prefetchCoreRoutes, { timeout: 2500 });
+      return () => window.cancelIdleCallback?.(idleId);
+    }
+
+    const timer = window.setTimeout(prefetchCoreRoutes, 1500);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   return (
     <AppErrorBoundary>

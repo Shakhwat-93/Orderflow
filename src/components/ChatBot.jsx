@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { MessageSquare, X, Send, Bot, User, Loader2, RefreshCw, Trash2 } from 'lucide-react';
 import { sendChatMessage, invalidateChatCache } from '../lib/chatService';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 import './ChatBot.css';
 
 import novaAiIcon from '../assets/nova-ai-logo.png';
@@ -40,6 +41,38 @@ export const ChatBot = () => {
       setTimeout(() => inputRef.current?.focus(), 300);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!user?.id) return undefined;
+
+    const liveTables = [
+      'orders',
+      'inventory',
+      'toy_box_inventory',
+      'order_activity_logs',
+      'notifications',
+      'users',
+      'user_roles',
+    ];
+
+    const channel = supabase.channel(`nova-ai-live-db-${user.id}`);
+
+    liveTables.forEach((table) => {
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table },
+        () => {
+          invalidateChatCache();
+        },
+      );
+    });
+
+    channel.subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
 
   const handleSend = async () => {
     const trimmed = input.trim();

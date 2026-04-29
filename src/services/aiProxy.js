@@ -1,18 +1,45 @@
 import { supabase } from '../lib/supabase';
 
 const AI_FUNCTION_NAME = 'nova-ai';
+const AI_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${AI_FUNCTION_NAME}`;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 let forceFreshNextRequest = false;
 
 async function invokeAiProxy(action, payload = {}) {
-  const { data, error } = await supabase.functions.invoke(AI_FUNCTION_NAME, {
-    body: {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData?.session?.access_token;
+
+  if (!accessToken) {
+    throw new Error('NovaAI needs an active login session. Please reload and login again.');
+  }
+
+  const response = await fetch(AI_FUNCTION_URL, {
+    method: 'POST',
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+      'x-client-info': 'orderflow-nova-ai',
+    },
+    body: JSON.stringify({
       action,
       ...payload,
-    },
+    }),
   });
 
-  if (error) {
-    throw new Error(error.message || 'AI proxy request failed.');
+  const responseText = await response.text();
+  let data = null;
+
+  if (responseText) {
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      data = null;
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(data?.error || responseText || `AI proxy request failed (${response.status}).`);
   }
 
   if (data?.error) {

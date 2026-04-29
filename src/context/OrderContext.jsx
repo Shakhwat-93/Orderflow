@@ -8,12 +8,15 @@ import { fulfillmentVelocity } from '../utils/fulfillmentVelocity';
 import { getToyBoxStockKey } from '../utils/productCatalog';
 
 const OrderContext = createContext(null);
+const ORDER_SNAPSHOT_SIZE = 500;
+const ORDER_PAGE_SIZE = 50;
+const DATA_REFRESH_DEBOUNCE_MS = 800;
 
 export const OrderProvider = ({ children }) => {
   const [orders, setOrders] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(100); // Increased from 10 to 100 to ensure panels don't break on client-side filtering
+  const [pageSize] = useState(ORDER_PAGE_SIZE);
   const [filters, setFilters] = useState({
     searchTerm: '',
     status: 'All',
@@ -41,6 +44,12 @@ export const OrderProvider = ({ children }) => {
   const filtersRef = useRef(filters);
   filtersRef.current = filters;
   const fetchIdRef = useRef(0); // Dedup concurrent fetches
+  const ordersRef = useRef(orders);
+  ordersRef.current = orders;
+  const statsRefreshTimerRef = useRef(null);
+  const inventoryRefreshTimerRef = useRef(null);
+  const toyBoxRefreshTimerRef = useRef(null);
+  const workflowAnalysisTimerRef = useRef(null);
 
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -58,25 +67,27 @@ export const OrderProvider = ({ children }) => {
 
   const fetchOrders = useCallback(async (overridePage) => {
     if (!userId) return;
-    const currentPage = overridePage ?? pageRef.current;
+    const currentPage = overridePage ?? 1;
     const id = ++fetchIdRef.current;
-    setLoading(true);
+    if (ordersRef.current.length === 0) {
+      setLoading(true);
+    }
     try {
-      const data = await api.getOrders(currentPage, pageSize, filtersRef.current);
-      const count = await api.getOrdersCount(filtersRef.current);
+      const { data, count } = await api.getOrdersWithCount(currentPage, ORDER_SNAPSHOT_SIZE, {});
       if (id === fetchIdRef.current) { 
         setOrders(data);
         setTotalCount(count);
-        // Cache partial orders for dashboard quick-look
+        // Cache the working snapshot so route changes never show a blank shell before Supabase responds.
         if (currentPage === 1) {
-          localStorage.setItem('of_recent_orders', JSON.stringify(data.slice(0, 10)));
+          localStorage.setItem('of_recent_orders', JSON.stringify(data.slice(0, ORDER_SNAPSHOT_SIZE)));
         }
       }
     } catch (error) {
       console.error('Error fetching orders:', error);
+      // Keep stale data visible; live operations should degrade gracefully, not blank the panels.
     }
     if (id === fetchIdRef.current) setLoading(false);
-  }, [pageSize, userId]);
+  }, [userId]);
 
   const fetchStats = useCallback(async () => {
     if (!userId) return;
@@ -112,11 +123,26 @@ export const OrderProvider = ({ children }) => {
     }
   }, [userId]);
 
+  const scheduleStatsRefresh = useCallback(() => {
+    window.clearTimeout(statsRefreshTimerRef.current);
+    statsRefreshTimerRef.current = window.setTimeout(() => fetchStats(), DATA_REFRESH_DEBOUNCE_MS);
+  }, [fetchStats]);
+
+  const scheduleInventoryRefresh = useCallback(() => {
+    window.clearTimeout(inventoryRefreshTimerRef.current);
+    inventoryRefreshTimerRef.current = window.setTimeout(() => fetchInventory(), DATA_REFRESH_DEBOUNCE_MS);
+  }, [fetchInventory]);
+
+  const scheduleToyBoxRefresh = useCallback(() => {
+    window.clearTimeout(toyBoxRefreshTimerRef.current);
+    toyBoxRefreshTimerRef.current = window.setTimeout(() => fetchToyBoxes(), DATA_REFRESH_DEBOUNCE_MS);
+  }, [fetchToyBoxes]);
+
   // Combined initialization for smoother loading
   const initializeData = useCallback(async () => {
     if (!userId) return;
     try {
-      await Promise.all([
+      await Promise.allSettled([
         fetchOrders(1),
         fetchStats(),
         fetchInventory(),
@@ -142,36 +168,48 @@ export const OrderProvider = ({ children }) => {
       .channel('public:orders')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
         if (payload.eventType === 'INSERT') {
-          setOrders((prev) => [payload.new, ...prev]);
+          setOrders((prev) => [payload.new, ...prev.filter(order => order.id !== payload.new.id)].slice(0, ORDER_SNAPSHOT_SIZE));
+          setTotalCount((prev) => prev + 1);
         } else if (payload.eventType === 'UPDATE') {
-          setOrders((prev) => prev.map(order => order.id === payload.new.id ? payload.new : order));
+          setOrders((prev) => {
+            const exists = prev.some(order => order.id === payload.new.id);
+            const next = exists
+              ? prev.map(order => order.id === payload.new.id ? payload.new : order)
+              : [payload.new, ...prev];
+            return next.slice(0, ORDER_SNAPSHOT_SIZE);
+          });
         } else if (payload.eventType === 'DELETE') {
           setOrders((prev) => prev.filter(order => order.id !== payload.old.id));
+          setTotalCount((prev) => Math.max(0, prev - 1));
         }
-        fetchStats();
+        scheduleStatsRefresh();
       })
       .subscribe();
 
     const inventorySubscription = supabase
       .channel('public:inventory')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, () => {
-        fetchInventory();
+        scheduleInventoryRefresh();
       })
       .subscribe();
 
     const toyBoxSubscription = supabase
       .channel('public:toy_box_inventory')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'toy_box_inventory' }, () => {
-        fetchToyBoxes();
+        scheduleToyBoxRefresh();
       })
       .subscribe();
 
     return () => {
+      window.clearTimeout(statsRefreshTimerRef.current);
+      window.clearTimeout(inventoryRefreshTimerRef.current);
+      window.clearTimeout(toyBoxRefreshTimerRef.current);
+      window.clearTimeout(workflowAnalysisTimerRef.current);
       supabase.removeChannel(ordersSubscription);
       supabase.removeChannel(inventorySubscription);
       supabase.removeChannel(toyBoxSubscription);
     };
-  }, [initializeData, userId]);
+  }, [initializeData, scheduleInventoryRefresh, scheduleStatsRefresh, scheduleToyBoxRefresh, userId]);
 
   useEffect(() => {
     if (!userId) return undefined;
@@ -186,14 +224,19 @@ export const OrderProvider = ({ children }) => {
 
   // Fraud & Automation Detection Effect
   useEffect(() => {
-    if (orders.length > 0) {
-      // 1. Fraud & Automation
-      const newFraudFlags = fraudDetection.scanOrders(orders);
-      const newAutomationFlags = automationRules.scanOrders(orders);
-      setFraudFlags(newFraudFlags);
-      setAutomationFlags(newAutomationFlags);
+    window.clearTimeout(workflowAnalysisTimerRef.current);
 
-      // 2. Velocity Metrics (Fetch recent logs for calculations)
+    if (orders.length === 0) {
+      setFraudFlags({});
+      setAutomationFlags({});
+      setVelocityMetrics(null);
+      return undefined;
+    }
+
+    workflowAnalysisTimerRef.current = window.setTimeout(() => {
+      setFraudFlags(fraudDetection.scanOrders(orders));
+      setAutomationFlags(automationRules.scanOrders(orders));
+
       const computeVelocity = async () => {
         try {
           const logs = await api.getRecentActivity(200); // Analyze last 200 actions
@@ -205,7 +248,9 @@ export const OrderProvider = ({ children }) => {
       };
 
       computeVelocity();
-    }
+    }, 350);
+
+    return () => window.clearTimeout(workflowAnalysisTimerRef.current);
   }, [orders]);
 
   // Re-fetch when page changes (but not on initial mount — handled above)
@@ -216,7 +261,8 @@ export const OrderProvider = ({ children }) => {
       isFirstRender.current = false;
       return;
     }
-    fetchOrders();
+    // Pagination is handled client-side from the live snapshot.
+    // Avoid replacing the shared order cache on page clicks.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
@@ -231,10 +277,7 @@ export const OrderProvider = ({ children }) => {
       setFilters(newFilters);
     }
     setPage(1);
-    // Fetch will be triggered by the page change effect,
-    // but if page is already 1 we need to fetch manually
-    setTimeout(() => fetchOrders(1), 0);
-  }, [fetchOrders]);
+  }, []);
 
   const updateOrderStatus = async (orderId, newStatus, noteText = '') => {
     const currentUserName = profile?.name || user?.user_metadata?.full_name || user?.email || 'Unknown User';
@@ -260,7 +303,7 @@ export const OrderProvider = ({ children }) => {
         }
       }
 
-      fetchStats();
+      scheduleStatsRefresh();
       return updatedOrder;
     } catch (error) {
       console.error('Update status error:', error);
@@ -285,7 +328,8 @@ export const OrderProvider = ({ children }) => {
         }
       }
 
-      fetchOrders();
+      fetchOrders(1);
+      scheduleStatsRefresh();
     } catch (error) {
       console.error('Error adding order:', error);
       throw error;
@@ -565,7 +609,7 @@ export const OrderProvider = ({ children }) => {
     }
 
     // Refresh data
-    fetchOrders();
+    fetchOrders(1);
     fetchToyBoxes();
 
     return { distributed, queued, total: sourceOrders.length, sourceStatus };

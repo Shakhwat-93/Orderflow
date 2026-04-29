@@ -987,12 +987,20 @@ export const api = {
    * Fetch orders with server-side pagination and filtering
    */
   async getOrders(page = 1, pageSize = 10, filters = {}) {
+    const { data } = await this.getOrdersWithCount(page, pageSize, filters);
+    return data;
+  },
+
+  /**
+   * Fetch orders and exact count in one network round-trip.
+   */
+  async getOrdersWithCount(page = 1, pageSize = 10, filters = {}) {
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
     let query = supabase
       .from('orders')
-      .select('*')
+      .select('*', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(from, to);
 
@@ -1014,10 +1022,10 @@ export const api = {
         .lte('created_at', filters.dateRange.end.toISOString());
     }
 
-    const { data, error } = await query;
+    const { data, error, count } = await query;
     if (error) throw error;
     this.inferOrderModernColumnsState(data);
-    return data;
+    return { data: data || [], count: count || 0 };
   },
 
   /**
