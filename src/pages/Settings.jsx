@@ -29,6 +29,7 @@ export const Settings = () => {
   const [error, setError] = useState(null);
   const [resetScope, setResetScope] = useState('all');
   const [resetDateRange, setResetDateRange] = useState({ start: null, end: null });
+  const [resetPassword, setResetPassword] = useState('');
 
   // Courier Settings State
   const [isCourierLoading, setIsCourierLoading] = useState(true);
@@ -80,6 +81,11 @@ export const Settings = () => {
   };
 
   const handleResetSystem = async () => {
+    if (resetPassword !== 'Rasel123@#') {
+      setError('Incorrect password. System reset aborted.');
+      return;
+    }
+
     setIsResetLoading(true);
     setError(null);
     try {
@@ -96,6 +102,7 @@ export const Settings = () => {
       localStorage.setItem('activity_cleared_at', new Date().toISOString());
       setResetSuccess(true);
       setShowConfirmModal(false);
+      setResetPassword('');
       setTimeout(() => setResetSuccess(false), 5000);
     } catch (err) {
       setError(err.message || 'System reset failed. Please check permissions.');
@@ -296,7 +303,11 @@ export const Settings = () => {
                   </p>
                 </div>
                 <button
-                  onClick={() => setShowConfirmModal(true)}
+                  onClick={() => {
+                    setShowConfirmModal(true);
+                    setResetPassword('');
+                    setError(null);
+                  }}
                   className="danger-btn"
                 >
                   <Trash2 size={18} />
@@ -361,9 +372,35 @@ export const Settings = () => {
               </div>
             )}
 
+            <div className="reset-password-group" style={{ marginTop: '16px', textAlign: 'left' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                Confirm with Password <span style={{color: '#ef4444'}}>*</span>
+              </label>
+              <input
+                type="password"
+                value={resetPassword}
+                onChange={(e) => {
+                  setResetPassword(e.target.value);
+                  if (error) setError(null);
+                }}
+                placeholder="Enter password to reset"
+                className="premium-input"
+                style={{ width: '100%', borderColor: error && resetPassword !== 'Rasel123@#' ? '#ef4444' : undefined }}
+              />
+              {error && (
+                <div style={{ color: '#ef4444', fontSize: '0.85rem', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <ShieldAlert size={14} /> {error}
+                </div>
+              )}
+            </div>
+
             <div className="modal-actions">
               <button
-                onClick={() => setShowConfirmModal(false)}
+                onClick={() => {
+                  setShowConfirmModal(false);
+                  setResetPassword('');
+                  setError(null);
+                }}
                 className="cancel-btn"
               >
                 No, Keep Data
