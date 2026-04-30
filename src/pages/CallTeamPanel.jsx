@@ -21,6 +21,12 @@ import './CallTeamPanel.css';
 const STATUS_OPTIONS = ['ACTIVE', 'NEW', 'PENDING', 'FINAL'];
 const ACTIVE_CALL_STATUSES = ['New', 'Pending Call', 'Final Call Pending'];
 const CALL_TASKS_PER_PAGE = 10;
+const CALL_STAGE_LABELS = {
+  ACTIVE: 'Active',
+  NEW: 'New',
+  PENDING: 'Pending',
+  FINAL: 'Final'
+};
 
 const getVisiblePageNumbers = (currentPage, totalPages, maxVisible = 5) => {
   if (totalPages <= maxVisible) {
@@ -71,6 +77,19 @@ const ACTION_NOTE_CONFIG = {
     actionLabel: 'On Hold',
     placeholder: 'Example: Customer asked for callback tomorrow morning.'
   }
+};
+
+const hasCallAttempt = (order) => (
+  Number(order?.call_attempts || 0) > 0 ||
+  Boolean(order?.first_call_time || order?.last_call_at || order?.last_call_status)
+);
+
+const getCallQueueStage = (order) => {
+  if (!order || !ACTIVE_CALL_STATUSES.includes(order.status)) return null;
+  if (order.status === 'Final Call Pending') return 'FINAL';
+  if (order.status === 'Pending Call') return 'PENDING';
+  if (order.status === 'New') return hasCallAttempt(order) ? 'PENDING' : 'NEW';
+  return null;
 };
 
 export const CallTeamPanel = () => {
@@ -159,37 +178,52 @@ export const CallTeamPanel = () => {
   };
 
   // Filter Logic
+  const matchesBaseFilters = (o) => {
+    const term = searchTerm.toLowerCase();
+    const matchesSearch = !searchTerm ||
+      (o.id || '').toLowerCase().includes(term) ||
+      (o.customer_name || '').toLowerCase().includes(term) ||
+      (o.phone || '').includes(term) ||
+      (o.product_name || '').toLowerCase().includes(term);
+
+    const matchesProduct = !productFilter || o.product_name === productFilter;
+
+    let matchesDate = true;
+    if (dateRange.start && dateRange.end) {
+      const orderDate = new Date(o.created_at);
+      matchesDate = orderDate >= new Date(dateRange.start) && orderDate <= new Date(dateRange.end);
+    }
+
+    return matchesSearch && matchesProduct && matchesDate;
+  };
+
+  const tabCounts = useMemo(() => {
+    const counts = { ACTIVE: 0, NEW: 0, PENDING: 0, FINAL: 0 };
+
+    orders.forEach((order) => {
+      if (!matchesBaseFilters(order)) return;
+      const stage = getCallQueueStage(order);
+      if (!stage) return;
+
+      counts.ACTIVE += 1;
+      counts[stage] += 1;
+    });
+
+    return counts;
+  }, [orders, searchTerm, productFilter, dateRange]);
+
   const filteredOrders = useMemo(() => {
     return orders.filter(o => {
-      const term = searchTerm.toLowerCase();
-      const matchesSearch = !searchTerm ||
-        (o.id || '').toLowerCase().includes(term) ||
-        (o.customer_name || '').toLowerCase().includes(term) ||
-        (o.phone || '').includes(term) ||
-        (o.product_name || '').toLowerCase().includes(term);
+      if (!matchesBaseFilters(o)) return false;
 
-      const statusMap = {
-        'ACTIVE': ACTIVE_CALL_STATUSES,
-        'ALL ORDERS': ACTIVE_CALL_STATUSES,
-        'NEW': ['New'],
-        'PENDING': ['Pending Call'],
-        'FINAL': ['Final Call Pending'],
-        'CONFIRMED': ACTIVE_CALL_STATUSES,
-        'CANCELLED': ACTIVE_CALL_STATUSES
-      };
+      const stage = getCallQueueStage(o);
+      if (!stage) return false;
 
-      const validStatuses = statusMap[statusFilter] || statusMap.ACTIVE;
-      const matchesStatus = validStatuses.includes(o.status);
-
-      const matchesProduct = !productFilter || o.product_name === productFilter;
-
-      let matchesDate = true;
-      if (dateRange.start && dateRange.end) {
-        const orderDate = new Date(o.created_at);
-        matchesDate = orderDate >= new Date(dateRange.start) && orderDate <= new Date(dateRange.end);
+      if (statusFilter === 'ACTIVE') {
+        return true;
       }
 
-      return matchesSearch && matchesStatus && matchesProduct && matchesDate;
+      return stage === statusFilter;
     });
   }, [orders, searchTerm, statusFilter, productFilter, dateRange]);
   const { isOrderUnread, markOrderRead, unreadCount } = useRouteOrderReadState('call-team-panel', filteredOrders);
@@ -392,8 +426,10 @@ export const CallTeamPanel = () => {
               key={tab} 
               className={`elite-pill-tab ${statusFilter === tab ? 'active' : ''}`}
               onClick={() => setStatusFilter(tab)}
+              title={`${CALL_STAGE_LABELS[tab]} call tasks`}
             >
-              {tab}
+              <span>{tab}</span>
+              <span className="elite-pill-count">{tabCounts[tab] || 0}</span>
             </button>
           ))}
         </div>

@@ -247,6 +247,9 @@
 }
 
 .elite-pill-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   padding: 8px 16px;
   border-radius: var(--radius-pill);
   font-size: 12px;
@@ -269,6 +272,26 @@
   color: var(--accent);
   box-shadow: 0 2px 8px rgba(0,0,0,0.05);
   border: 1px solid var(--glass-border);
+}
+
+.elite-pill-count {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(148, 163, 184, 0.14);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.elite-pill-tab.active .elite-pill-count {
+  background: rgba(79, 70, 229, 0.14);
+  color: var(--accent);
 }
 
 .elite-filter-right {
