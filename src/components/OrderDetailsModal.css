@@ -374,3 +374,55 @@
 /* ── Legacy grid kept for backward compat ── */
 .details-summary-grid { display: grid; grid-template-columns: 1fr 280px; gap: 12px; }
 @media (max-width: 580px) { .details-summary-grid { grid-template-columns: 1fr; } }
+
+/* -- Inline Field Edit (Phone, Address, Delivery Charge) -- */
+.odm-edit-trigger {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--border-color, #e2e8f0);
+  background: transparent; cursor: pointer; color: var(--text-secondary, #64748b);
+  opacity: 0; transition: opacity 0.15s, background 0.15s, color 0.15s;
+  flex-shrink: 0; margin-left: 6px;
+}
+.info-item:hover .odm-edit-trigger,
+.info-value-flex:hover .odm-edit-trigger { opacity: 1; }
+.odm-edit-trigger:hover { background: rgba(99,102,241,0.1); color: #6366f1; border-color: #6366f1; }
+
+.odm-inline-edit-wrap {
+  display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: 4px;
+}
+.odm-inline-input {
+  width: 100%; padding: 7px 10px; border: 1.5px solid #6366f1;
+  border-radius: 8px; font-size: 0.85rem; font-family: inherit;
+  background: var(--card-bg, #fff); color: var(--text-primary, #0f172a);
+  outline: none; box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+  transition: border-color 0.15s; box-sizing: border-box;
+}
+.odm-inline-textarea { resize: vertical; min-height: 72px; }
+.odm-inline-input:focus { border-color: #4f46e5; }
+
+.odm-field-error {
+  font-size: 0.75rem; color: #ef4444; padding: 2px 0;
+}
+
+.odm-inline-actions { display: flex; gap: 6px; }
+
+.odm-save-btn {
+  padding: 6px 14px; background: #6366f1; color: #fff;
+  border: none; border-radius: 7px; font-size: 0.8rem; font-weight: 700;
+  cursor: pointer; transition: background 0.15s;
+}
+.odm-save-btn:hover:not(:disabled) { background: #4f46e5; }
+.odm-save-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.odm-cancel-btn {
+  padding: 6px 12px; background: transparent;
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 7px; font-size: 0.8rem; font-weight: 600;
+  color: var(--text-secondary, #64748b); cursor: pointer; transition: all 0.15s;
+}
+.odm-cancel-btn:hover:not(:disabled) { border-color: #ef4444; color: #ef4444; }
+.odm-cancel-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+[data-theme='dark'] .odm-inline-input {
+  background: #162032; color: #e2e8f0; border-color: #6366f1;
+}

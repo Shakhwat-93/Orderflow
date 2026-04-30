@@ -21,6 +21,7 @@ import '../components/BulkActions.css';
 import api from '../lib/api';
 import { getProductCheckpoints } from '../utils/productCatalog';
 import { useRouteOrderReadState } from '../hooks/useRouteOrderReadState';
+import { ExportModal } from '../components/ExportModal';
 
 const ORDER_STATUSES = [
   'New',
@@ -181,6 +182,7 @@ export const OrdersBoard = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedOrderForEdit, setSelectedOrderForEdit] = useState(null);
   const [selectedOrderIds, setSelectedOrderIds] = useState([]);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   // Deep Link Observer: Handle direct order modal triggers
   useEffect(() => {
@@ -695,7 +697,7 @@ export const OrdersBoard = () => {
           </div>
 
           <div className="header-actions-enterprise">
-            <Button variant="ghost" className="export-btn-light">
+            <Button variant="ghost" className="export-btn-light" onClick={() => setIsExportModalOpen(true)}>
               <Download size={18} /> <span>Export CSV</span>
             </Button>
             
@@ -1117,6 +1119,15 @@ export const OrdersBoard = () => {
       <BulkOrderCreator
         isOpen={isBulkCreatorOpen}
         onClose={() => setIsBulkCreatorOpen(false)}
+      />
+
+      {/* Enterprise Export Modal */}
+      <ExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        allOrders={filteredOrders}
+        selectedOrderIds={selectedOrderIds}
+        currentFilters={filters}
       />
     </div>
   );

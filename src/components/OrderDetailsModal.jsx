@@ -20,40 +20,48 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
   const [noteDraft, setNoteDraft] = useState('');
   const [savedNotesOverride, setSavedNotesOverride] = useState(null);
   const [isSavingNote, setIsSavingNote] = useState(false);
+  // Inline field editing state
+  const [editingField, setEditingField] = useState(null); // 'phone' | 'address' | 'delivery_charge'
+  const [editValue, setEditValue] = useState('');
+  const [isSavingField, setIsSavingField] = useState(false);
+  const [fieldError, setFieldError] = useState('');
+  const [localOrder, setLocalOrder] = useState(null); // optimistic local update
   const copyTimeoutRef = useRef(null);
+  const editInputRef = useRef(null);
   const { user, profile, userRoles } = useAuth();
   const { checkPhone, getRatio } = useCourierRatio();
 
+  // Effective order = local override (optimistic) or prop
+  const effectiveOrder = localOrder || order;
+
+  const refreshLogs = async () => {
+    if (!order?.id) return;
+    setIsLoadingLogs(true);
+    try {
+      const logs = await api.getOrderActivity(order.id);
+      setActivityLogs(logs || []);
+    } catch (err) {
+      console.error('Failed to fetch activity logs:', err);
+    } finally {
+      setIsLoadingLogs(false);
+    }
+  };
+
   useEffect(() => {
     if (isOpen && order?.id) {
-      // --- Track Recently Viewed for Premium Search ---
+      // Track Recently Viewed for Premium Search
       const savedViewed = JSON.parse(localStorage.getItem('premium_search_viewed') || '[]');
-      const newItem = { 
-        id: order.id, 
-        label: order.customer_name || 'Unnamed Order', 
-        sub: `#${order.id.replace('ORD-', '')}`,
-        type: 'order'
-      };
-      
+      const newItem = { id: order.id, label: order.customer_name || 'Unnamed Order', sub: `#${order.id.replace('ORD-', '')}`, type: 'order' };
       const newViewed = [newItem, ...savedViewed.filter(item => item.id !== order.id)].slice(0, 10);
       localStorage.setItem('premium_search_viewed', JSON.stringify(newViewed));
-      // ------------------------------------------------
-
-      const fetchLogs = async () => {
-        setIsLoadingLogs(true);
-        try {
-          const logs = await api.getOrderActivity(order.id);
-          setActivityLogs(logs || []);
-        } catch (err) {
-          console.error('Failed to fetch activity logs:', err);
-        } finally {
-          setIsLoadingLogs(false);
-        }
-      };
-      fetchLogs();
+      setLocalOrder(null);
+      setEditingField(null);
+      setFieldError('');
+      refreshLogs();
     } else {
-        setActivityLogs([]);
+      setActivityLogs([]);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, order?.id]);
 
   useEffect(() => {
@@ -62,18 +70,137 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
   }, [order?.id, order?.notes, isOpen]);
 
   useEffect(() => {
-    if (isOpen && order?.phone) {
-      checkPhone(order.phone);
-    }
+    if (isOpen && order?.phone) checkPhone(order.phone);
   }, [isOpen, order?.phone, checkPhone]);
 
   useEffect(() => () => {
-    if (copyTimeoutRef.current) {
-      window.clearTimeout(copyTimeoutRef.current);
-    }
+    if (copyTimeoutRef.current) window.clearTimeout(copyTimeoutRef.current);
   }, []);
 
-  if (!order) return null;
+  // Focus the edit input when a field opens
+  useEffect(() => {
+    if (editingField && editInputRef.current) {
+      editInputRef.current.focus();
+      editInputRef.current.select?.();
+    }
+  }, [editingField]);
+
+  if (!effectiveOrder) return null;
+
+  // ── Inline field helpers ──────────────────────────────────────
+  const openEdit = (field) => {
+    const current = field === 'delivery_charge'
+      ? String(Number(effectiveOrder?.delivery_charge) || Number(effectiveOrder?.pricing_summary?.delivery_charge) || 0)
+      : String(effectiveOrder?.[field] || '');
+    setEditingField(field);
+    setEditValue(current);
+    setFieldError('');
+  };
+
+  const cancelEdit = () => {
+    setEditingField(null);
+    setEditValue('');
+    setFieldError('');
+  };
+
+  const saveField = async () => {
+    if (!effectiveOrder?.id || !user?.id) return;
+    const trimmed = editValue.trim();
+    if (!trimmed) { setFieldError('Value cannot be empty.'); return; }
+    if (editingField === 'delivery_charge' && isNaN(Number(trimmed))) {
+      setFieldError('Must be a valid number.'); return;
+    }
+    setIsSavingField(true);
+    setFieldError('');
+    try {
+      const payload = editingField === 'delivery_charge'
+        ? { delivery_charge: Number(trimmed) }
+        : { [editingField]: trimmed };
+
+      const userName = profile?.name || user?.email || 'Unknown User';
+      await api.updateOrder(effectiveOrder.id, payload, user.id, userName, userRoles);
+
+      // Optimistic local update so modal reflects change immediately
+      setLocalOrder(prev => ({ ...(prev || effectiveOrder), ...payload }));
+      setEditingField(null);
+      setEditValue('');
+      // Refresh activity log to show the new entry with user name
+      await refreshLogs();
+    } catch (err) {
+      console.error('[OrderDetailsModal] saveField failed:', err);
+      setFieldError(err.message || 'Save failed. Try again.');
+    } finally {
+      setIsSavingField(false);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && editingField !== 'address') saveField();
+    if (e.key === 'Escape') cancelEdit();
+  };
+
+  /** Renders an editable info row */
+  const EditableField = ({ field, label, icon: Icon, type = 'text', multiline = false }) => {
+    const isEditing = editingField === field;
+    const rawVal = field === 'delivery_charge'
+      ? (Number(effectiveOrder?.delivery_charge) || Number(effectiveOrder?.pricing_summary?.delivery_charge) || null)
+      : effectiveOrder?.[field];
+    const displayVal = rawVal !== null && rawVal !== undefined && rawVal !== '' ? rawVal : '—';
+
+    return (
+      <div className={`info-item${multiline ? ' vertical' : ''}`}>
+        <span className="info-label">{label}</span>
+        {isEditing ? (
+          <div className="odm-inline-edit-wrap">
+            {multiline ? (
+              <textarea
+                ref={editInputRef}
+                className="odm-inline-input odm-inline-textarea"
+                value={editValue}
+                onChange={e => setEditValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                rows={3}
+                disabled={isSavingField}
+              />
+            ) : (
+              <input
+                ref={editInputRef}
+                type={type}
+                className="odm-inline-input"
+                value={editValue}
+                onChange={e => setEditValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={isSavingField}
+              />
+            )}
+            {fieldError && <span className="odm-field-error">{fieldError}</span>}
+            <div className="odm-inline-actions">
+              <button className="odm-save-btn" onClick={saveField} disabled={isSavingField}>
+                {isSavingField ? 'Saving...' : '✓ Save'}
+              </button>
+              <button className="odm-cancel-btn" onClick={cancelEdit} disabled={isSavingField}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="info-value-flex">
+            {Icon && !multiline && <Icon size={13} style={{color:'var(--text-tertiary)', flexShrink:0}} />}
+            <span className={`info-value${multiline ? '' : ''}`}>
+              {field === 'delivery_charge' && rawVal !== null ? `৳${Number(rawVal).toLocaleString()}` : displayVal}
+            </span>
+            <button
+              className="odm-edit-trigger"
+              onClick={() => openEdit(field)}
+              title={`Edit ${label}`}
+            >
+              <Edit2 size={12} />
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const parseEmbeddedDeliveryCharge = (value) => {
     const text = String(value || '');
@@ -246,10 +373,10 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
   };
 
   return (
-    <Modal 
-      isOpen={isOpen} 
-      onClose={onClose} 
-      title={`Order Details: #${order.id.replace('ORD-', '')}`}
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={`Order Details: #${effectiveOrder.id.replace('ORD-', '')}`}
     >
       <div className="order-details-elite">
         {/* Header Summary Card */}
@@ -294,16 +421,19 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
             <span className="order-label">Total Amount</span>
             <div className="amount-value">
               <CurrencyIcon size={20} className="currency-icon-elite" />
-              {Number(order.amount || 0).toLocaleString()}
+              {Number(effectiveOrder.amount || 0).toLocaleString()}
             </div>
             <div className="shipping-info">
               {shippingZoneLabel}
-              {deliveryCharge !== null && (
-                <span className="fee">
-                  (<CurrencyIcon size={12} className="currency-icon-elite" />
-                  {deliveryCharge.toLocaleString()})
-                </span>
-              )}
+              {(() => {
+                const dc = Number(effectiveOrder?.delivery_charge) ||
+                  Number(effectiveOrder?.pricing_summary?.delivery_charge);
+                return dc > 0 ? (
+                  <span className="fee">
+                    (<CurrencyIcon size={12} className="currency-icon-elite" />{dc.toLocaleString()})
+                  </span>
+                ) : null;
+              })()}
             </div>
           </div>
         </div>
@@ -332,30 +462,25 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
               <div className="info-list">
                 <div className="info-item">
                   <span className="info-label">Name</span>
-                  <span className="info-value">{order.customer_name}</span>
+                  <span className="info-value">{effectiveOrder.customer_name}</span>
                 </div>
-                <div className="info-item">
-                  <span className="info-label">Phone</span>
-                  <div className="info-value-flex">
-                    <span className="info-value">{order.phone}</span>
-                    <a href={`tel:${order.phone}`} className="action-circle-btn">
-                      <Phone size={14} />
-                    </a>
-                  </div>
-                </div>
+
+                {/* ── Editable: Phone ── */}
+                <EditableField field="phone" label="Phone" icon={Phone} type="tel" />
+
                 <div className="info-item">
                   <span className="info-label">IP Address</span>
                   <span className={`info-value ip-address-value ${ipAddress ? '' : 'muted'}`}>
                     {ipAddress || 'Not captured'}
                   </span>
                 </div>
-                <div className="info-item vertical">
-                  <span className="info-label">Delivery Address</span>
-                  <div className="address-box">
-                    <MapPin size={14} className="text-tertiary" />
-                    <span>{order.address}</span>
-                  </div>
-                </div>
+
+                {/* ── Editable: Address ── */}
+                <EditableField field="address" label="Delivery Address" icon={MapPin} multiline />
+
+                {/* ── Editable: Delivery Charge ── */}
+                <EditableField field="delivery_charge" label="Delivery Charge" icon={Truck} type="number" />
+
                 <div className="info-item vertical">
                   <span className="info-label">Order Note</span>
                   <div className="order-note-editor">
@@ -367,20 +492,8 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
                       rows={4}
                     />
                     <div className="order-note-actions">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => setNoteDraft(String(visibleNotes || ''))}
-                        disabled={isSavingNote}
-                      >
-                        Reset
-                      </Button>
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={saveOrderNote}
-                        disabled={isSavingNote || noteDraft === String(visibleNotes || '')}
-                      >
+                      <Button variant="secondary" size="sm" onClick={() => setNoteDraft(String(visibleNotes || ''))} disabled={isSavingNote}>Reset</Button>
+                      <Button variant="primary" size="sm" onClick={saveOrderNote} disabled={isSavingNote || noteDraft === String(visibleNotes || '')}>
                         {isSavingNote ? 'Saving...' : 'Save Note'}
                       </Button>
                     </div>
@@ -639,8 +752,8 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
         <div className="details-footer-actions">
            <Button variant="secondary" onClick={onClose} icon={<X size={18} />}>Close Window</Button>
            {onEdit && (
-             <Button variant="primary" onClick={() => { onClose(); onEdit(order); }} icon={<Edit2 size={18} />}>
-               Edit Order Data
+             <Button variant="primary" onClick={() => { onClose(); onEdit(effectiveOrder); }} icon={<Edit2 size={18} />}>
+               Edit Full Order
              </Button>
            )}
         </div>

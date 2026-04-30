@@ -20,7 +20,8 @@ import {
   Plus,
   X,
   Sun,
-  Moon
+  Moon,
+  DatabaseBackup
 } from 'lucide-react';
 
 import { useAuth } from '../context/AuthContext';
@@ -55,6 +56,7 @@ const menuItems = [
   { path: '/reports', label: 'Analytics', icon: BarChart3, roles: ['Admin'], group: 'System' },
   { path: '/digital-marketer', label: 'Marketing', icon: Megaphone, roles: ['Admin', 'Digital Marketer'], group: 'System' },
   { path: '/tasks', label: 'Tasks', icon: ClipboardList, group: 'System' },
+  { path: '/backup', label: 'Backup', icon: DatabaseBackup, roles: ['Admin'], group: 'System' },
 ];
 
 const GROUP_ORDER = ['Main Console', 'Logistics', 'Intelligence', 'System'];

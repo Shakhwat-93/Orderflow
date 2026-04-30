@@ -15,6 +15,7 @@ import { getToyBoxStockKey } from '../utils/productCatalog';
 import { useRouteOrderReadState } from '../hooks/useRouteOrderReadState';
 import * as XLSX from 'xlsx';
 import './FactoryPanel.css';
+import { BulkExportModal } from '../components/BulkExportModal';
 
 const containerVariants = {
   hidden: { opacity: 0, y: 15 },
@@ -960,13 +961,13 @@ export const FactoryPanel = () => {
         </div>
         <div className="factory-header-actions">
           <Button
-            variant="ghost"
+            variant="primary"
             onClick={handleOpenExportModal}
-            disabled={displayOrders.length === 0 || isExportingBatch}
+            disabled={confirmedOrders.length === 0}
             className="factory-export-btn"
           >
             <FileSpreadsheet size={18} />
-            <span>Bulk Export ({displayOrders.length})</span>
+            <span>Bulk Export ({confirmedOrders.length})</span>
             <Download size={16} />
           </Button>
         </div>
@@ -1334,143 +1335,15 @@ export const FactoryPanel = () => {
         order={selectedOrder} 
       />
 
-      <Modal
+      <BulkExportModal
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
-        title="Bulk Export Control"
-        subtitle="Export an exact time window. Confirmed orders automatically move into Bulk Exported after download."
-      >
-        <div className="factory-export-modal">
-          {latestExportHistory && (
-            <div className="factory-export-last-card">
-              <div className="factory-export-last-icon">
-                <History size={17} />
-              </div>
-              <div className="factory-export-last-copy">
-                <span>Last export by {latestExportHistory.exported_by}</span>
-                <strong>{latestExportHistory.order_count} orders until {formatExportDate(latestExportHistory.exported_until)}</strong>
-                {latestExportHistory.last_order_id && (
-                  <small>Last order: #{latestExportHistory.last_order_id} ({formatExportDate(latestExportHistory.last_order_created_at)})</small>
-                )}
-              </div>
-            </div>
-          )}
+        confirmedOrders={orders.filter(o => o.status === 'Confirmed')}
+        selectedIds={selectedConfirmedIds}
+        onStatusChange={updateOrderStatus}
+        exportedBy={profile?.name || user?.user_metadata?.full_name || user?.email || 'User'}
+      />
 
-          <div className="factory-export-modal-section">
-            <div className="factory-date-preset-label">
-              <CalendarDays size={15} />
-              <span>Date Filter</span>
-            </div>
-            <div className="factory-date-preset-tabs">
-              {(activeTab === 'confirmed' ? EXPORT_PRESETS : DATE_PRESETS).map((preset) => (
-                <button
-                  key={`export-${preset.id}`}
-                  type="button"
-                  className={`factory-date-chip ${!exportHasCustomRange && exportDatePreset === preset.id ? 'active' : ''}`}
-                  onClick={() => handleExportPresetChange(preset.id)}
-                >
-                  {preset.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="factory-export-modal-section">
-            <div className="factory-range-filter factory-range-filter--modal">
-              <div className="factory-range-input-group">
-                <label className="factory-range-label" htmlFor="factory-export-date-from">From Date & Time</label>
-                <input
-                  id="factory-export-date-from"
-                  type="datetime-local"
-                  className="factory-range-input"
-                  value={exportDateFrom}
-                  onChange={(event) => handleExportDateRangeChange('from', event.target.value)}
-                  disabled={exportDatePreset === 'sinceLast'}
-                />
-              </div>
-              <div className="factory-range-input-group">
-                <label className="factory-range-label" htmlFor="factory-export-date-to">To Date & Time</label>
-                <input
-                  id="factory-export-date-to"
-                  type="datetime-local"
-                  className="factory-range-input"
-                  value={exportDateTo}
-                  onChange={(event) => handleExportDateRangeChange('to', event.target.value)}
-                />
-              </div>
-              <button
-                type="button"
-                className="factory-range-clear-btn"
-                onClick={handleClearExportDateRange}
-                disabled={!exportHasCustomRange && exportDatePreset === 'all'}
-              >
-                Reset
-              </button>
-            </div>
-          </div>
-
-          <div className="factory-export-summary">
-            <span className="order-count-badge order-count-badge--scope">
-              {activeTab === 'confirmed' ? 'Confirmed Tab' : 'Queue Tab'}
-            </span>
-            <span className="order-count-badge">
-              {exportScopeLabel}
-            </span>
-            <span className="order-count-badge order-count-badge--window">{exportWindowLabel}</span>
-            <span className="order-count-badge">{exportPreviewOrders.length} ready to export</span>
-          </div>
-
-          {lastExportedBatch && (
-            <div className={`factory-export-post-card ${lastExportedBatch.moved_to_courier_at ? 'done' : ''}`}>
-              <div>
-                <strong>Export downloaded</strong>
-                <span>
-                  {lastExportedBatch.order_count} orders exported by {lastExportedBatch.exported_by}.
-                  {lastExportedBatch.moved_to_courier_at
-                    ? ` Moved to Bulk Exported by ${lastExportedBatch.moved_to_courier_by}.`
-                    : ' Move this batch to Bulk Exported to prevent duplicate export.'}
-                </span>
-              </div>
-              {activeTab === 'confirmed' && !lastExportedBatch.moved_to_courier_at && (
-                <Button
-                  variant="primary"
-                  onClick={handleMoveExportedToCourier}
-                  disabled={isMovingExportBatch}
-                >
-                  {isMovingExportBatch ? <Loader2 size={16} className="spin" /> : <Truck size={16} />}
-                  <span>Move Exported to Bulk Exported</span>
-                </Button>
-              )}
-            </div>
-          )}
-
-          {exportHistory.length > 0 && (
-            <div className="factory-export-history-list">
-              {exportHistory.slice(0, 4).map((item) => (
-                <div className="factory-export-history-item" key={item.id}>
-                  <span>{formatExportDate(item.exported_at)}</span>
-                  <strong>{item.order_count} orders</strong>
-                  <small>{item.exported_by} - until {formatExportDate(item.exported_until)}</small>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="factory-export-actions">
-            <Button variant="ghost" onClick={() => setIsExportModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleBulkExport}
-              disabled={exportPreviewOrders.length === 0 || isExportingBatch}
-            >
-              {isExportingBatch ? <Loader2 size={16} className="spin" /> : <FileSpreadsheet size={16} />}
-              <span>{isExportingBatch ? 'Exporting...' : 'Download Export'}</span>
-            </Button>
-          </div>
-        </div>
-      </Modal>
 
       <OrderDetailsModal 
         isOpen={isDetailsModalOpen} 

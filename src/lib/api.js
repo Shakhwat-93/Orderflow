@@ -3062,7 +3062,126 @@ export const api = {
       .delete()
       .filter('subscription->>endpoint', 'eq', endpoint);
     if (error) throw error;
-  }
+  },
+
+  // -----------------------------------------------------------
+  // ENTERPRISE BACKUP SYSTEM
+  // All backup reads are isolated — no writes to production tables.
+  // -----------------------------------------------------------
+
+  /** Fetch the singleton backup settings row (id = 1). */
+  async getBackupSettings() {
+    try {
+      const { data, error } = await supabase
+        .from('backup_settings')
+        .select('*')
+        .eq('id', 1)
+        .maybeSingle();
+      if (error) {
+        if (this.isMissingTableError(error, 'backup_settings')) return null;
+        throw error;
+      }
+      return data;
+    } catch {
+      return null;
+    }
+  },
+
+  /** Update backup settings (interval, Drive config, auto backup toggle, etc.) */
+  async updateBackupSettings(updates = {}) {
+    const { data, error } = await supabase
+      .from('backup_settings')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', 1)
+      .select()
+      .maybeSingle();
+    if (error) throw error;
+    return data;
+  },
+
+  /** Get paginated backup history logs, newest first. */
+  async getBackupLogs(page = 1, limit = 10) {
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+    const { data, error, count } = await supabase
+      .from('backup_logs')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(from, to);
+    if (error) {
+      if (this.isMissingTableError(error, 'backup_logs')) return { data: [], count: 0 };
+      throw error;
+    }
+    return { data: data || [], count: count || 0 };
+  },
+
+  /** Insert a new backup_log row with status 'pending'. */
+  async createBackupLog(payload = {}) {
+    const { data, error } = await supabase
+      .from('backup_logs')
+      .insert({ status: 'pending', type: 'manual', ...payload, created_at: new Date().toISOString() })
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  /** Patch a backup_log row (mark completed/failed, set Drive link, etc.) */
+  async updateBackupLog(id, updates = {}) {
+    const { error } = await supabase
+      .from('backup_logs')
+      .update(updates)
+      .eq('id', id);
+    if (error) throw error;
+  },
+
+  /** Call the backup-data Edge Function. Returns full backup result + data. */
+  async triggerBackup({ type = 'manual', logId = null, triggeredByName = 'Admin', tables = null } = {}) {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const { data: { session } } = await supabase.auth.getSession();
+    const accessToken = session?.access_token;
+    if (!accessToken) throw new Error('Not authenticated');
+    const body = {
+      type,
+      triggered_by_name: triggeredByName,
+      ...(logId ? { log_id: logId } : {}),
+      ...(tables ? { tables } : {}),
+    };
+    const response = await fetch(`${supabaseUrl}/functions/v1/backup-data`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Backup failed (${response.status}): ${errText}`);
+    }
+    return response.json();
+  },
+
+  /** Delete old completed backup_log rows past retention period. */
+  async pruneOldBackups(retentionDays = 30) {
+    const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString();
+    const { error } = await supabase
+      .from('backup_logs')
+      .delete()
+      .lt('created_at', cutoff)
+      .eq('status', 'completed');
+    if (error) throw error;
+  },
+
+  /** Get a 1-hour signed URL for downloading a backup from Supabase Storage. */
+  async getBackupDownloadUrl(storagePath) {
+    if (!storagePath) return null;
+    const { data, error } = await supabase.storage
+      .from('backups')
+      .createSignedUrl(storagePath, 3600);
+    if (error) return null;
+    return data?.signedUrl || null;
+  },
 };
 
 export default api;

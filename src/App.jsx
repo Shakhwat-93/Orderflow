@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react';
+import { useBackupScheduler } from './hooks/useBackupScheduler';
 import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -35,6 +36,7 @@ const TaskBoard = lazy(() => import('./pages/TaskBoard').then(m => ({ default: m
 const DigitalMarketerPanel = lazy(() => import('./pages/DigitalMarketerPanel').then(m => ({ default: m.DigitalMarketerPanel })));
 const SteadfastPanel = lazy(() => import('./pages/SteadfastPanel').then(m => ({ default: m.SteadfastPanel })));
 const FraudControl = lazy(() => import('./pages/FraudControl').then(m => ({ default: m.FraudControl })));
+const BackupPanel = lazy(() => import('./pages/BackupPanel').then(m => ({ default: m.BackupPanel })));
 
 // ── Premium Skeleton Loading Screen ──
 const SkeletonScreen = () => (
@@ -126,6 +128,14 @@ const RoleRoute = ({ children, roles }) => {
   return children;
 };
 
+// Inner shell that can access AuthContext for the backup scheduler
+const AppInner = () => {
+  const { isAuthReady, profile, userRoles } = useAuth();
+  // Mount the auto-backup scheduler once — runs silently in background
+  useBackupScheduler({ isAuthReady, profile, userRoles });
+  return null;
+};
+
 function App() {
   const Router = isNativeApp() ? HashRouter : BrowserRouter;
 
@@ -180,10 +190,12 @@ function App() {
                                   <Route path="tasks" element={<TaskBoard />} />
                                   <Route path="digital-marketer" element={<RoleRoute roles={['Admin', 'Digital Marketer']}><DigitalMarketerPanel /></RoleRoute>} />
                                   <Route path="steadfast" element={<RoleRoute roles={['Admin', 'Courier Team', 'Moderator']}><SteadfastPanel /></RoleRoute>} />
+                                  <Route path="backup" element={<RoleRoute roles={['Admin']}><BackupPanel /></RoleRoute>} />
                                   <Route path="*" element={<Navigate to="/" replace />} />
                                 </Route>
                               </Routes>
                             </Suspense>
+                            <AppInner />
                             <ChatBot />
                             <CommandPalette />
                           </TaskProvider>
