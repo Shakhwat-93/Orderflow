@@ -231,21 +231,9 @@ export const OrdersBoard = () => {
       setSelectedOrderIds([]);
   };
 
-  const handleBulkStatusChange = async (status) => {
-    if (!window.confirm(`Change ${selectedOrderIds.length} orders to ${status}?`)) return;
-    for (const id of selectedOrderIds) {
-      await updateOrderStatus(id, status);
-    }
-    setSelectedOrderIds([]);
-  };
+  const handleBulkStatusChange = async (status) => {};
 
-  const handleBulkDelete = async () => {
-    if (!window.confirm(`Permanently delete ${selectedOrderIds.length} selected orders?`)) return;
-    for (const id of selectedOrderIds) {
-      await deleteOrder(id);
-    }
-    setSelectedOrderIds([]);
-  };
+  const handleBulkDelete = async () => {};
 
   const handleOpenEditModal = (order) => {
     setSelectedOrderForEdit(order);
@@ -1062,21 +1050,6 @@ export const OrdersBoard = () => {
               <div className="selection-count">{selectedOrderIds.length}</div>
               <div className="selection-text">Selected</div>
             </div>
-            <div className="bulk-actions-group">
-              <Button variant="ghost" size="sm" className="bulk-btn" onClick={() => handleBulkStatusChange('Confirmed')}>
-                <CheckCircle size={14} /> Confirm
-              </Button>
-              <Button variant="ghost" size="sm" className="bulk-btn" onClick={() => handleBulkStatusChange('Pending Call')}>
-                <Clock size={14} /> Pend Call
-              </Button>
-              <Button variant="ghost" size="sm" className="bulk-btn">
-                <Printer size={14} /> Print Labels
-              </Button>
-              <div className="bulk-divider" />
-              <Button variant="ghost" size="sm" className="bulk-btn delete" onClick={handleBulkDelete}>
-                <Trash2 size={14} /> Delete
-              </Button>
-            </div>
             <button className="bulk-close" onClick={handleClearSelection}>
               <X size={16} />
             </button>
@@ -1132,3 +1105,5 @@ export const OrdersBoard = () => {
     </div>
   );
 };
+
+
