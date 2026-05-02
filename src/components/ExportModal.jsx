@@ -215,15 +215,16 @@ export const ExportModal = ({
           // Combine product variations, sizes, and ordered items into one comprehensive column
           if (col.key === 'product_details') {
             const items = Array.isArray(order?.ordered_items) ? order.ordered_items : [];
-            value = [order?.product_name, order?.size, ...items.map(i => i?.name || '')]
+            const detailsArr = [order?.product_name, order?.size, ...items.map(i => i?.name || '')]
               .filter(Boolean)
-              .join(', ');
+              .map(s => String(s).trim());
+            value = [...new Set(detailsArr)].join(', ');
           }
 
-          // Exact delivery charge shown in modal (with fallback to 70/130 based on zone)
+          // Exact delivery charge shown in modal (with fallback to 60/130 based on zone)
           if (col.key === 'delivery_charge' && (value === undefined || value === null || value === '')) {
             const isInside = String(order?.shipping_zone || '').toLowerCase().includes('inside');
-            value = isInside ? 70 : 130;
+            value = isInside ? 60 : 130;
           }
 
           if (col.key === 'created_at') value = formatDateForXlsx(value);
