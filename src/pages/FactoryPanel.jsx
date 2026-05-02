@@ -963,7 +963,6 @@ export const FactoryPanel = () => {
           <Button
             variant="primary"
             onClick={handleOpenExportModal}
-            disabled={confirmedOrders.length === 0}
             className="factory-export-btn"
           >
             <FileSpreadsheet size={18} />
