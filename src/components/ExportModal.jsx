@@ -31,22 +31,22 @@ const STATUS_COLORS = {
 
 /** All available CSV columns with labels and field mappings */
 const ALL_COLUMNS = [
-  { key: 'id',            label: 'Order ID',        default: true },
-  { key: 'created_at',   label: 'Date & Time',      default: true },
-  { key: 'customer_name',label: 'Customer Name',    default: true },
-  { key: 'phone',        label: 'Phone',            default: true },
-  { key: 'address',      label: 'Address',          default: true },
-  { key: 'shipping_zone',label: 'Shipping Zone',    default: true },
-  { key: 'product_details', label: 'Product Details', default: true },
-  { key: 'product_name', label: 'Product Name',     default: false },
-  { key: 'size',         label: 'Size',             default: false },
-  { key: 'quantity',     label: 'Quantity',         default: true },
-  { key: 'amount',       label: 'Total Amount',     default: true },
-  { key: 'delivery_charge', label: 'Delivery Charge', default: true },
-  { key: 'status',       label: 'Status',           default: true },
-  { key: 'source',       label: 'Source',           default: false },
-  { key: 'notes',        label: 'Notes',            default: false },
-  { key: 'ip_address',   label: 'IP Address',       default: false },
+  { key: 'created_at',    label: 'DATE',                 default: true },
+  { key: 'notes',         label: 'NOTE',                 default: true },
+  { key: 'customer_name', label: 'NAME',                 default: true },
+  { key: 'address',       label: 'ADDRESS',              default: true },
+  { key: 'shipping_zone', label: 'INSIDE/OUTSIDE DHAKA', default: true },
+  { key: 'phone',         label: 'PHONE',                default: true },
+  { key: 'id',            label: 'ORDER ID',             default: true },
+  { key: 'product_name',  label: 'ORDER SHORT',          default: true },
+  { key: 'size',          label: 'COLOR CODE',           default: true },
+  { key: 'source',        label: 'SOURCE',               default: true },
+  { key: 'quantity',      label: 'QUANTITY',             default: true },
+  { key: 'product_price', label: 'PRODUCT PRICE',        default: true },
+  { key: 'delivery_charge',label: 'DELIVERY CHARGE',     default: true },
+  { key: 'amount',        label: 'TOTAL AMOUNT',         default: true },
+  { key: 'status',        label: 'STATUS',               default: false },
+  { key: 'ip_address',    label: 'IP ADDRESS',           default: false },
 ];
 
 // ── XLSX Engine ───────────────────────────────────────────────
@@ -57,9 +57,9 @@ const ALL_COLUMNS = [
 const formatDateForXlsx = (iso) => {
   if (!iso) return '';
   try {
-    return new Date(iso).toLocaleString('en-BD', {
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', hour12: true
+    return new Date(iso).toLocaleString('en-US', {
+      year: 'numeric', month: 'short', day: 'numeric',
+      hour: 'numeric', minute: '2-digit', hour12: true
     });
   } catch {
     return iso;
@@ -212,28 +212,36 @@ export const ExportModal = ({
         columns.forEach(col => {
           let value = order[col.key];
 
-          // Combine product variations, sizes, and ordered items into one comprehensive column
-          if (col.key === 'product_details') {
+          // Format COLOR CODE by combining size and ordered_items
+          if (col.key === 'size') {
             const items = Array.isArray(order?.ordered_items) ? order.ordered_items : [];
-            const detailsArr = [order?.product_name, order?.size, ...items.map(i => i?.name || '')]
+            const colors = [order?.size, ...items.map(i => i?.name || '')]
               .filter(Boolean)
               .map(s => String(s).trim());
-            value = [...new Set(detailsArr)].join(', ');
+            value = [...new Set(colors)].join(', ');
           }
 
-          // Exact delivery charge shown in modal (with fallback to 60/130 based on zone)
-          if (col.key === 'delivery_charge' && (value === undefined || value === null || value === '')) {
-            const isInside = String(order?.shipping_zone || '').toLowerCase().includes('inside');
-            value = isInside ? 60 : 130;
+          // Format DELIVERY CHARGE and calculate PRODUCT PRICE
+          if (col.key === 'delivery_charge' || col.key === 'product_price') {
+            let dc = Number(order?.delivery_charge);
+            if (isNaN(dc) || order?.delivery_charge === null || order?.delivery_charge === '') {
+              const isInside = String(order?.shipping_zone || '').toLowerCase().includes('inside');
+              dc = isInside ? 60 : 130;
+            }
+            if (col.key === 'delivery_charge') value = Number(dc).toFixed(2);
+            if (col.key === 'product_price') {
+              const totalAmt = Number(order?.amount) || 0;
+              value = Math.max(0, totalAmt - dc).toFixed(2);
+            }
           }
 
           if (col.key === 'created_at') value = formatDateForXlsx(value);
-          if (col.key === 'amount' || col.key === 'delivery_charge') {
-            value = Number(value || 0).toFixed(2);
-          }
+          if (col.key === 'amount') value = Number(value || 0).toFixed(2);
           if (col.key === 'quantity') value = Number(value || 1);
           
-          row[col.label] = value;
+          if (value !== undefined) {
+            row[col.label] = value;
+          }
         });
         return row;
       });
