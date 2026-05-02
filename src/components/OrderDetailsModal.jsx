@@ -406,7 +406,25 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
               </div>
               <div className="meta-item">
                 <Info size={14} />
-                <span>Source: {order.source || 'Direct'}</span>
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center',
+                  padding: '2px 8px', borderRadius: '999px', fontSize: '10.5px',
+                  fontWeight: 700, letterSpacing: '0.03em', whiteSpace: 'nowrap',
+                  border: '1px solid',
+                  ...(
+                    (() => {
+                      const s = String(order.source || '').toLowerCase();
+                      if (s.includes('facebook') || s === 'fb') return { background: 'rgba(24,119,242,0.1)', color: '#1877f2', borderColor: 'rgba(24,119,242,0.22)' };
+                      if (s.includes('tiktok')) return { background: 'rgba(0,0,0,0.07)', color: '#1a1a1a', borderColor: 'rgba(0,0,0,0.14)' };
+                      if (s.includes('instagram')) return { background: 'rgba(225,48,108,0.1)', color: '#e1306c', borderColor: 'rgba(225,48,108,0.22)' };
+                      if (s.includes('web')) return { background: 'rgba(99,102,241,0.1)', color: '#6366f1', borderColor: 'rgba(99,102,241,0.22)' };
+                      if (s.includes('direct')) return { background: 'rgba(16,185,129,0.1)', color: '#059669', borderColor: 'rgba(16,185,129,0.22)' };
+                      return { background: 'rgba(100,116,139,0.08)', color: '#64748b', borderColor: 'rgba(100,116,139,0.18)' };
+                    })()
+                  )
+                }}>
+                  {order.source || 'Direct'}
+                </span>
               </div>
               <div className="meta-item">
                 <span>Payment:</span>

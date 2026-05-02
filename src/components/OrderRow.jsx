@@ -1,9 +1,24 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import ReactDOM from 'react-dom';
-import { FileText, Clock, AlertTriangle, Phone, Copy, MessageCircle, Edit2 } from 'lucide-react';
+import { FileText, Clock, AlertTriangle, Phone, Copy, MessageCircle, Edit2, Globe, Facebook, Play, Users } from 'lucide-react';
 import CurrencyIcon from './CurrencyIcon';
 import './OrderRow.css';
+
+/** Returns a styled source badge element based on order source */
+const SourceBadge = ({ source }) => {
+  if (!source) return null;
+  const s = String(source).toLowerCase();
+  let label = source;
+  let cls = 'source-badge-default';
+  if (s.includes('facebook') || s === 'fb') { cls = 'source-badge-fb'; label = 'Facebook'; }
+  else if (s.includes('tiktok')) { cls = 'source-badge-tiktok'; label = 'TikTok'; }
+  else if (s.includes('instagram') || s === 'ig') { cls = 'source-badge-ig'; label = 'Instagram'; }
+  else if (s.includes('website') || s.includes('web') || s.includes('new web')) { cls = 'source-badge-web'; label = 'Website'; }
+  else if (s.includes('direct')) { cls = 'source-badge-direct'; label = 'Direct'; }
+  else if (s.includes('youtube')) { cls = 'source-badge-yt'; label = 'YouTube'; }
+  return <span className={`source-badge ${cls}`}>{label}</span>;
+};
 
 export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected, onSelect, fraudFlag, automationFlag, isUnread = false, duplicateWarning = null }) => {
   const [copied, setCopied] = useState(false);
@@ -154,6 +169,7 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
 
       <td className="product-cell">
         <span className="saas-text-dark product-name-cell" title={productName}>{productName}</span>
+        <SourceBadge source={order.source} />
       </td>
 
       <td className="amount-cell">
