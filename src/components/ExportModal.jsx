@@ -37,11 +37,12 @@ const ALL_COLUMNS = [
   { key: 'phone',        label: 'Phone',            default: true },
   { key: 'address',      label: 'Address',          default: true },
   { key: 'shipping_zone',label: 'Shipping Zone',    default: true },
-  { key: 'product_name', label: 'Product',          default: true },
+  { key: 'product_details', label: 'Product Details', default: true },
+  { key: 'product_name', label: 'Product Name',     default: false },
   { key: 'size',         label: 'Size',             default: false },
   { key: 'quantity',     label: 'Quantity',         default: true },
   { key: 'amount',       label: 'Total Amount',     default: true },
-  { key: 'delivery_charge', label: 'Delivery Charge', default: false },
+  { key: 'delivery_charge', label: 'Delivery Charge', default: true },
   { key: 'status',       label: 'Status',           default: true },
   { key: 'source',       label: 'Source',           default: false },
   { key: 'notes',        label: 'Notes',            default: false },
@@ -210,11 +211,27 @@ export const ExportModal = ({
         const row = {};
         columns.forEach(col => {
           let value = order[col.key];
+
+          // Combine product variations, sizes, and ordered items into one comprehensive column
+          if (col.key === 'product_details') {
+            const items = Array.isArray(order?.ordered_items) ? order.ordered_items : [];
+            value = [order?.product_name, order?.size, ...items.map(i => i?.name || '')]
+              .filter(Boolean)
+              .join(', ');
+          }
+
+          // Exact delivery charge shown in modal (with fallback to 70/130 based on zone)
+          if (col.key === 'delivery_charge' && (value === undefined || value === null || value === '')) {
+            const isInside = String(order?.shipping_zone || '').toLowerCase().includes('inside');
+            value = isInside ? 70 : 130;
+          }
+
           if (col.key === 'created_at') value = formatDateForXlsx(value);
           if (col.key === 'amount' || col.key === 'delivery_charge') {
             value = Number(value || 0).toFixed(2);
           }
           if (col.key === 'quantity') value = Number(value || 1);
+          
           row[col.label] = value;
         });
         return row;
