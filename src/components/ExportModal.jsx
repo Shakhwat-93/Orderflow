@@ -173,7 +173,7 @@ export const ExportModal = ({
         // dateTo: end of day
         const to = dateTo ? new Date(dateTo + 'T23:59:59').getTime() : null;
         return allOrders.filter(o => {
-          const t = o.created_at ? new Date(o.created_at).getTime() : 0;
+          const t = new Date(o.updated_at || o.created_at || 0).getTime();
           if (from && t < from) return false;
           if (to && t > to) return false;
           return true;

@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+ï»¿import { createClient } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { extractInvoiceItems, extractOrder } from '../services/aiProxy';
 
@@ -1368,7 +1368,7 @@ export const api = {
       .eq('id', orderId)
       .single();
 
-    const updatePayload = { status: newStatus };
+    const updatePayload = { status: newStatus, updated_at: new Date().toISOString() };
     
     // Auto-set first_call_time if a call team or admin confirms/cancels an untouched order
     if (!oldData?.first_call_time && ['Confirmed', 'Cancelled', 'Fake Order'].includes(newStatus)) {
@@ -3066,7 +3066,7 @@ export const api = {
 
   // -----------------------------------------------------------
   // ENTERPRISE BACKUP SYSTEM
-  // All backup reads are isolated — no writes to production tables.
+  // All backup reads are isolated ï¿½ no writes to production tables.
   // -----------------------------------------------------------
 
   /** Fetch the singleton backup settings row (id = 1). */
@@ -3185,3 +3185,4 @@ export const api = {
 };
 
 export default api;
+
