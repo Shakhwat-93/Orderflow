@@ -5,18 +5,48 @@ import { FileText, Clock, AlertTriangle, Phone, Copy, MessageCircle, Edit2, Glob
 import CurrencyIcon from './CurrencyIcon';
 import './OrderRow.css';
 
-/** Returns a styled source badge element based on order source */
-const SourceBadge = ({ source }) => {
-  if (!source) return null;
-  const s = String(source).toLowerCase();
-  let label = source;
-  let cls = 'source-badge-default';
-  if (s.includes('facebook') || s === 'fb') { cls = 'source-badge-fb'; label = 'Facebook'; }
-  else if (s.includes('tiktok')) { cls = 'source-badge-tiktok'; label = 'TikTok'; }
-  else if (s.includes('instagram') || s === 'ig') { cls = 'source-badge-ig'; label = 'Instagram'; }
-  else if (s.includes('website') || s.includes('web') || s.includes('new web')) { cls = 'source-badge-web'; label = 'Website'; }
-  else if (s.includes('direct')) { cls = 'source-badge-direct'; label = 'Direct'; }
-  else if (s.includes('youtube')) { cls = 'source-badge-yt'; label = 'YouTube'; }
+/**
+ * Returns a styled source badge.
+ * Priority: traffic_source (UTM/referrer from landing page) > source (landing identifier / admin pick)
+ * Examples of traffic_source values: 'facebook', 'tiktok', 'l.facebook.com', 'l.instagram.com'
+ * Examples of source values: 'stb-landing', 'Website', 'Facebook'
+ */
+const SourceBadge = ({ traffic_source, source }) => {
+  // Choose the most informative value: traffic_source wins if available
+  const raw = traffic_source || source;
+  if (!raw) return null;
+  const s = String(raw).toLowerCase();
+
+  let label = raw; // default label = raw value
+  let cls   = 'source-badge-default';
+
+  // Normalise common values
+  if (s.includes('facebook') || s === 'fb' || s.includes('l.facebook.com') || s.includes('m.facebook.com')) {
+    cls   = 'source-badge-fb';
+    label = 'Facebook';
+  } else if (s.includes('tiktok') || s.includes('ttclid')) {
+    cls   = 'source-badge-tiktok';
+    label = 'TikTok';
+  } else if (s.includes('instagram') || s === 'ig' || s.includes('l.instagram.com')) {
+    cls   = 'source-badge-ig';
+    label = 'Instagram';
+  } else if (s.includes('youtube') || s === 'yt') {
+    cls   = 'source-badge-yt';
+    label = 'YouTube';
+  } else if (s.includes('google') || s === 'cpc') {
+    cls   = 'source-badge-google';
+    label = 'Google';
+  } else if (s.includes('website') || s.includes('web') || s.includes('new web') || s.includes('stb-landing') || s.includes('-landing')) {
+    cls   = 'source-badge-web';
+    label = 'Website';
+  } else if (s.includes('direct')) {
+    cls   = 'source-badge-direct';
+    label = 'Direct';
+  } else if (s.includes('whatsapp')) {
+    cls   = 'source-badge-wa';
+    label = 'WhatsApp';
+  }
+
   return <span className={`source-badge ${cls}`}>{label}</span>;
 };
 
@@ -169,7 +199,7 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
 
       <td className="product-cell">
         <span className="saas-text-dark product-name-cell" title={productName}>{productName}</span>
-        <SourceBadge source={order.source} />
+        <SourceBadge traffic_source={order.traffic_source} source={order.source} />
       </td>
 
       <td className="amount-cell">
