@@ -1339,6 +1339,7 @@ export const FactoryPanel = () => {
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
         confirmedOrders={orders.filter(o => o.status === 'Confirmed')}
+        allOrders={orders}
         selectedIds={selectedConfirmedIds}
         onStatusChange={updateOrderStatus}
         exportedBy={profile?.name || user?.user_metadata?.full_name || user?.email || 'User'}

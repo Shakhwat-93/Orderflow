@@ -191,9 +191,10 @@ const buildRow = (order) => {
 export const BulkExportModal = ({
   isOpen, onClose,
   confirmedOrders = [],
+  allOrders = [],
   selectedIds = [],
   onStatusChange,
-  exportedBy = 'User'
+  exportedBy = 'System'
 }) => {
   // ── Filter state ───────────────────────────────────────────
   const [preset, setPreset]   = useState('sinceLast');
@@ -266,6 +267,31 @@ export const BulkExportModal = ({
   const canExport = exportOrders.length > 0 && (phase === 'idle' || phase === 'done' || phase === 'error');
   // Double-click guard — prevents firing handleExport twice
   const isRunningRef = useRef(false);
+
+  // ── Handle Re-download Last Export ────────────────────────
+  const handleRedownload = () => {
+    if (!lastExport || !lastExport.succeeded_ids || lastExport.succeeded_ids.length === 0) return;
+    
+    const idsToDownload = new Set(lastExport.succeeded_ids);
+    const ordersToDownload = allOrders.filter(o => idsToDownload.has(o.id));
+    
+    if (ordersToDownload.length === 0) {
+      alert('Orders not found. They might have been permanently deleted or not loaded yet.');
+      return;
+    }
+    
+    const sorted = [...ordersToDownload].sort(
+      (a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0)
+    );
+    
+    const rows = sorted.map(buildRow);
+    const ws   = XLSX.utils.json_to_sheet(rows, { header: EXPORT_COLS });
+    const wb   = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Confirmed Orders');
+    
+    const dateLabel = new Date(lastExport.exported_at).toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `redownload-bulk-export-${dateLabel}.xlsx`);
+  };
 
   // ── Handle export ──────────────────────────────────────────
   const handleExport = useCallback(async () => {
@@ -412,9 +438,34 @@ export const BulkExportModal = ({
 
           {/* Last export info */}
           {lastExport && (
-            <div className="bem-last-export-bar">
-              <History size={14} />
-              <span>Last export: <strong>{lastExport.order_count} orders</strong> by {lastExport.exported_by} · {fmtDate(lastExport.exported_at)}</span>
+            <div className="bem-last-export-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <History size={14} />
+                <span>Last export: <strong>{lastExport.order_count} orders</strong> by {lastExport.exported_by} · {fmtDate(lastExport.exported_at)}</span>
+              </div>
+              <button 
+                type="button" 
+                onClick={handleRedownload}
+                style={{
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '6px',
+                  background: 'var(--card-bg, #ffffff)',
+                  border: '1px solid var(--border-color)',
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  color: 'var(--text-color)',
+                  fontSize: '0.75rem',
+                  fontWeight: '600',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--primary-color)'; e.currentTarget.style.color = 'var(--primary-color)'; }}
+                onMouseOut={(e) => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.color = 'var(--text-color)'; }}
+              >
+                <Download size={12} /> Redownload
+              </button>
             </div>
           )}
 
