@@ -89,6 +89,12 @@ export const CourierPanel = () => {
   const bulkExportedQueue = bulkExportedAll.filter(filterOrder);
   const courierReadyQueue = courierReadyAll.filter(filterOrder);
   const courierQueue = activeTab === 'bulk' ? bulkExportedQueue : courierReadyQueue;
+  
+  const todayCount = (activeTab === 'bulk' ? bulkExportedAll : courierReadyAll).filter(o => {
+    const today = new Date().toDateString();
+    const orderDate = new Date(o.updated_at || o.created_at).toDateString();
+    return today === orderDate;
+  }).length;
   const { isOrderUnread, markOrderRead, unreadCount } = useRouteOrderReadState(`courier-panel:${activeTab}`, courierQueue);
 
   const withTrackingCount = courierReadyAll.filter(o => Boolean(o.tracking_id)).length;
@@ -307,7 +313,7 @@ export const CourierPanel = () => {
                 transition: 'all 0.2s'
               }}
             >
-              Today
+              Today ({todayCount})
             </button>
           </div>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
