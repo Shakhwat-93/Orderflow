@@ -9,7 +9,8 @@ import { Input } from '../components/Input';
 import { Modal } from '../components/Modal';
 import { OrderEditModal } from '../components/OrderEditModal';
 import { OrderDetailsModal } from '../components/OrderDetailsModal';
-import { Search, Truck, CheckCircle, Package, ClipboardCheck, Edit2, Clock, Loader2, AlertTriangle } from 'lucide-react';
+import { ExportModal } from '../components/ExportModal';
+import { Search, Truck, CheckCircle, Package, ClipboardCheck, Edit2, Clock, Loader2, AlertTriangle, Download, FileSpreadsheet } from 'lucide-react';
 import { usePersistentState } from '../utils/persistentState';
 import { useRouteOrderReadState } from '../hooks/useRouteOrderReadState';
 import './CourierPanel.css';
@@ -51,6 +52,7 @@ export const CourierPanel = () => {
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
 
   const handleOpenEditModal = (order) => {
@@ -308,6 +310,16 @@ export const CourierPanel = () => {
               Today
             </button>
           </div>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsExportModalOpen(true)}
+              style={{ padding: '6px 14px', height: '32px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <FileSpreadsheet size={14} />
+              Export
+            </Button>
+          </div>
           <div className="queue-helper-text">
             <Truck size={14} />
             <span>Target verified inventory</span>
@@ -562,6 +574,14 @@ export const CourierPanel = () => {
         onClose={() => setIsDetailsModalOpen(false)} 
         order={selectedOrder}
         onEdit={handleOpenEditModal}
+      />
+
+      <ExportModal 
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        allOrders={courierQueue}
+        selectedOrderIds={[]} // We can pass selected IDs if there's a selection feature later
+        currentFilters={{ searchTerm, dateFilter }}
       />
     </motion.div>
   );

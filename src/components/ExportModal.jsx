@@ -3,6 +3,7 @@ import {
   Download, X, FileText, Filter, CheckSquare,
   Calendar, Package, CheckCircle2, Loader2, History, ChevronDown
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import './ExportModal.css';
 
 // ── Constants ────────────────────────────────────────────────
@@ -47,25 +48,12 @@ const ALL_COLUMNS = [
   { key: 'ip_address',   label: 'IP Address',       default: false },
 ];
 
-// ── CSV Engine ───────────────────────────────────────────────
+// ── XLSX Engine ───────────────────────────────────────────────
 
 /**
- * Safely quote a single CSV field value.
- * Wraps in double-quotes and escapes internal quotes.
+ * Format a date string for XLSX export — readable format.
  */
-const csvField = (value) => {
-  if (value === null || value === undefined) return '';
-  const str = String(value);
-  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-    return `"${str.replace(/"/g, '""')}"`;
-  }
-  return str;
-};
-
-/**
- * Format a date string for CSV export — readable format.
- */
-const formatDateForCsv = (iso) => {
+const formatDateForXlsx = (iso) => {
   if (!iso) return '';
   try {
     return new Date(iso).toLocaleString('en-BD', {
@@ -78,47 +66,6 @@ const formatDateForCsv = (iso) => {
 };
 
 /**
- * Convert an array of order objects to a CSV string.
- * @param {object[]} orders - filtered orders to export
- * @param {string[]} columnKeys - keys of columns to include
- * @returns {string} full CSV string with header row
- */
-const buildCsv = (orders, columnKeys) => {
-  const columns = ALL_COLUMNS.filter(c => columnKeys.includes(c.key));
-  const header = columns.map(c => csvField(c.label)).join(',');
-
-  const rows = orders.map(order => {
-    return columns.map(col => {
-      let value = order[col.key];
-      if (col.key === 'created_at') value = formatDateForCsv(value);
-      if (col.key === 'amount' || col.key === 'delivery_charge') {
-        value = Number(value || 0).toFixed(2);
-      }
-      if (col.key === 'quantity') value = Number(value || 1);
-      return csvField(value);
-    }).join(',');
-  });
-
-  return [header, ...rows].join('\r\n');
-};
-
-/**
- * Trigger a browser file download of a CSV string.
- */
-const downloadCsv = (csvString, fileName) => {
-  const BOM = '\uFEFF'; // UTF-8 BOM for Excel compatibility
-  const blob = new Blob([BOM + csvString], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-};
-
-/**
  * Generate a timestamped file name.
  */
 const buildFileName = (mode, statusLabels) => {
@@ -126,9 +73,9 @@ const buildFileName = (mode, statusLabels) => {
   const time = new Date().toTimeString().slice(0, 5).replace(':', 'h');
   if (mode === 'status' && statusLabels.length === 1) {
     const slug = statusLabels[0].replace(/\s+/g, '_').toLowerCase();
-    return `orders_${slug}_${date}_${time}.csv`;
+    return `orders_${slug}_${date}_${time}.xlsx`;
   }
-  return `orders_export_${date}_${time}.csv`;
+  return `orders_export_${date}_${time}.xlsx`;
 };
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -253,14 +200,34 @@ export const ExportModal = ({
     setIsExporting(true);
 
     try {
-      // Small delay so the loading state renders before heavy CSV work
+      // Small delay so the loading state renders before heavy work
       await new Promise(r => setTimeout(r, 80));
 
-      const csvString = buildCsv(exportableOrders, selectedColumns);
+      const columns = ALL_COLUMNS.filter(c => selectedColumns.includes(c.key));
+      const headers = columns.map(c => c.label);
+      
+      const rows = exportableOrders.map(order => {
+        const row = {};
+        columns.forEach(col => {
+          let value = order[col.key];
+          if (col.key === 'created_at') value = formatDateForXlsx(value);
+          if (col.key === 'amount' || col.key === 'delivery_charge') {
+            value = Number(value || 0).toFixed(2);
+          }
+          if (col.key === 'quantity') value = Number(value || 1);
+          row[col.label] = value;
+        });
+        return row;
+      });
+
+      const ws = XLSX.utils.json_to_sheet(rows, { header: headers });
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Orders Export');
+
       const statusLabels = mode === 'status' ? selectedStatuses : [];
       const fileName = buildFileName(mode, statusLabels);
 
-      downloadCsv(csvString, fileName);
+      XLSX.writeFile(wb, fileName);
 
       // Save last export info to localStorage
       const info = {
@@ -326,7 +293,7 @@ export const ExportModal = ({
               </div>
               <div>
                 <h2>Export Orders</h2>
-                <p>Enterprise CSV export — choose mode, filters &amp; columns</p>
+                <p>Enterprise XLSX export — choose mode, filters &amp; columns</p>
               </div>
             </div>
             <button className="export-modal-close" onClick={onClose} aria-label="Close">
@@ -561,7 +528,7 @@ export const ExportModal = ({
           <div className="export-modal-footer">
             <div className="export-footer-left">
               {exportableOrders.length > 0
-                ? `${exportableOrders.length} orders · ${selectedColumns.length} columns · CSV`
+                ? `${exportableOrders.length} orders · ${selectedColumns.length} columns · XLSX`
                 : 'No orders to export'}
             </div>
             <div className="export-footer-actions">
@@ -589,7 +556,7 @@ export const ExportModal = ({
           <CheckCircle2 size={22} />
           <div className="export-toast-text">
             <strong>Export Complete!</strong>
-            <span>{lastExportCount} orders downloaded as CSV</span>
+            <span>{lastExportCount} orders downloaded as XLSX</span>
           </div>
         </div>
       )}
