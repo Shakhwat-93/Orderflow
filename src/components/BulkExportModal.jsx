@@ -99,82 +99,93 @@ const formatSource = (v='') => {
   return s.toLowerCase() === 'website' ? 'NEW WEB' : s.toUpperCase();
 };
 
-// ── XLSX row builder (matches existing FactoryPanel format) ──
+// ── XLSX row builder (matches EXACT user format requested) ──
 const EXPORT_COLS = [
-  'DATE','NOTE','NAME','ADDRESS','inside and outside','Phone',
-  'code','CODE','Source','QTY(TOY)','QTY(MPB)','ORG QTY','MMB',
-  'STB BAG','OTHER','toy box am','MPB AM','ORG AM','MMB AM','BAG',
-  'OTHER (AM)','DELIVERY CHARGE','Total amount'
+  'DATE', 'NOTE', 'NAME', 'ADDRESS', 'INSIDE/OUTSIDE DHAKA', 'PHONE',
+  'ORDER ID', 'ORDER SHORT', 'COLOR CODE', 'SOURCE', 'QUANTITY',
+  'PRODUCT PRICE', 'DELIVERY CHARGE', 'TOTAL AMOUNT'
 ];
 
-const getCategory = (text='') => {
-  const t = text.toLowerCase();
-  if (t.includes('toy box') || t.includes('toybox')) return 'toy';
-  if (t.includes('mpb') || t.includes('multipurpose'))  return 'mpb';
-  if (t.includes('org') || t.includes('organizer'))     return 'org';
-  if (t.includes('mmb') || t.includes('mini'))          return 'mmb';
-  if (t.includes('stb') || t.includes('travel bag') || /\bbag\b/.test(t)) return 'stb';
-  return 'other';
+const getShortNameWithColor = (text = '') => {
+  const t = String(text).toLowerCase();
+  let base = t;
+  if (t.includes('toy box') || t.includes('toybox')) base = 'toy box';
+  else if (t.includes('mpb') || t.includes('multipurpose')) base = 'mpb';
+  else if (t.includes('org') || t.includes('organizer')) base = 'org';
+  else if (t.includes('mmb') || t.includes('mini')) base = 'mmb';
+  else if (t.includes('stb') || t.includes('travel bag') || t.includes('gym bag')) {
+     if (t.includes('gym bag')) base = 'gym bag';
+     else base = 'stb';
+  }
+  else if (t.includes('sunglass')) base = 'sunglass';
+
+  const colors = [];
+  ['black', 'beige', 'blue', 'red', 'golden', 'white', 'green', 'pink', 'grey', 'gray', 'silver', 'brown'].forEach(c => {
+    if (t.includes(c)) colors.push(c);
+  });
+  
+  if (colors.length > 0 && base !== t) {
+     return `${base} ${colors.join(' ')}`;
+  }
+  return base;
 };
 
-const QTY_COL = { toy:'QTY(TOY)', mpb:'QTY(MPB)', org:'ORG QTY', mmb:'MMB', stb:'STB BAG', other:'OTHER' };
-const AMT_COL = { toy:'toy box am', mpb:'MPB AM', org:'ORG AM', mmb:'MMB AM', stb:'BAG', other:'OTHER (AM)' };
-const CODE_MAP = { toy:'Toy Box', mpb:'MPB', org:'ORG', mmb:'MMB', stb:'Travel bag', other:'OTHER' };
-
-// ── Delivery Charge Resolver ─────────────────────────────────
-// Rule: Use EXACTLY what is stored in the DB — set from landing page or
-// last edited in Order Modal. No guessing, no zone-based fallback.
-// Priority:
-//   1. order.delivery_charge        ← direct DB field (landing page / order modal)
-//   2. pricing_summary.delivery_charge ← backup (older orders)
-//   3. 0  ← never hardcode 60 / 130 / 80 / 150 as fallback
-const resolveDeliveryCharge = (order) => {
-  const direct = Number(order?.delivery_charge);
-  if (Number.isFinite(direct) && direct >= 0) return direct;
-
-  const summary = Number(order?.pricing_summary?.delivery_charge);
-  if (Number.isFinite(summary) && summary >= 0) return summary;
-
-  return 0; // unknown — blank cell is safer than a wrong number
+const formatDateForXlsx = (iso) => {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleString('en-US', {
+      year: 'numeric', month: 'short', day: 'numeric',
+      hour: 'numeric', minute: '2-digit', hour12: true
+    });
+  } catch {
+    return iso;
+  }
 };
 
 const buildRow = (order) => {
-  const row = Object.fromEntries(EXPORT_COLS.map(c => [c, '']));
-  const items = Array.isArray(order?.ordered_items) ? order.ordered_items : [];
-  // Use exact delivery charge stored on the order (from landing page / order modal)
-  // resolveDeliveryCharge() mirrors OrderEditModal's getStoredDeliveryCharge exactly
-  const deliveryCharge = resolveDeliveryCharge(order);
-  const total = Number(order?.amount) || 0;
-  const productText = [order?.product_name, order?.size, ...items.map(i => i?.name||'')].filter(Boolean).join(' ');
-  const cat = getCategory(productText);
-  const code = CODE_MAP[cat] || order?.product_name || 'OTHER';
-
-  row.DATE = fmtShort(order.created_at);
-  row.NOTE = order.notes || '';
-  row.NAME = order.customer_name || '';
-  row.ADDRESS = order.address || '';
-  row['inside and outside'] = formatZone(order.shipping_zone);
-  row.Phone = formatPhone(order.phone);
-  row.code = code;
-  row.CODE = code;
-  row.Source = formatSource(order.source);
-  row['DELIVERY CHARGE'] = deliveryCharge || '';
-  row['Total amount'] = total || '';
-
-  if (items.length === 0) {
-    row[QTY_COL[cat]] = Number(order.quantity) || 1;
-    row[AMT_COL[cat]] = Math.max(0, total - deliveryCharge) || '';
-  } else {
-    let allocated = 0;
-    items.forEach(item => {
-      const ic = getCategory([item?.name, item?.variant, item?.color].filter(Boolean).join(' ') || productText);
-      const qty = Number(item?.quantity || item?.qty) || 1;
-      const amt = Number(item?.line_total || item?.amount || 0);
-      row[QTY_COL[ic]] = (Number(row[QTY_COL[ic]])||0) + qty;
-      if (amt > 0) { row[AMT_COL[ic]] = (Number(row[AMT_COL[ic]])||0) + amt; allocated += amt; }
-    });
-    if (allocated === 0) row[AMT_COL[cat]] = Math.max(0, total - deliveryCharge) || '';
+  const row = {};
+  
+  row['DATE'] = formatDateForXlsx(order.created_at);
+  row['NOTE'] = order.notes || '';
+  row['NAME'] = order.customer_name || '';
+  row['ADDRESS'] = order.address || '';
+  
+  const lowerZone = String(order.shipping_zone || '').toLowerCase();
+  row['INSIDE/OUTSIDE DHAKA'] = lowerZone.includes('inside') ? 'Inside Dhaka' 
+                              : lowerZone.includes('outside') ? 'Outside Dhaka' 
+                              : 'Outside Dhaka';
+                              
+  row['PHONE'] = typeof formatPhone === 'function' ? formatPhone(order.phone) : (order.phone || '');
+  row['ORDER ID'] = order.id || '';
+  
+  const items = Array.isArray(order?.ordered_items) && order.ordered_items.length > 0 
+      ? order.ordered_items 
+      : [{ name: order?.product_name, variant: order?.size }];
+      
+  const shorts = items.map(i => {
+     const combinedName = `${i.name || order?.product_name || ''} ${i.variant || order?.size || ''}`;
+     return getShortNameWithColor(combinedName);
+  });
+  row['ORDER SHORT'] = [...new Set(shorts)].join(', ');
+  
+  const colors = [order?.size, ...items.map(i => i?.name || '')]
+    .filter(Boolean)
+    .map(s => String(s).trim());
+  row['COLOR CODE'] = [...new Set(colors)].join(', ');
+  
+  row['SOURCE'] = typeof formatSource === 'function' ? formatSource(order.source) : (order.source || '');
+  row['QUANTITY'] = Number(order.quantity) || 1;
+  
+  let dc = Number(order?.delivery_charge);
+  if (isNaN(dc) || order?.delivery_charge === null || order?.delivery_charge === '') {
+    dc = lowerZone.includes('inside') ? 60 : 130;
   }
+  const amt = Number(order.amount) || 0;
+  
+  row['PRODUCT PRICE'] = Math.max(0, amt - dc).toFixed(2);
+  row['DELIVERY CHARGE'] = dc;
+  row['TOTAL AMOUNT'] = amt.toFixed(2);
+  
   return row;
 };
 
@@ -437,37 +448,41 @@ export const BulkExportModal = ({
         <div className="bem-body">
 
           {/* Last export info */}
-          {lastExport && (
-            <div className="bem-last-export-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <History size={14} />
+          <div className="bem-last-export-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <History size={14} />
+              {lastExport ? (
                 <span>Last export: <strong>{lastExport.order_count} orders</strong> by {lastExport.exported_by} · {fmtDate(lastExport.exported_at)}</span>
-              </div>
-              <button 
-                type="button" 
-                onClick={handleRedownload}
-                style={{
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '6px',
-                  background: 'var(--card-bg, #ffffff)',
-                  border: '1px solid var(--border-color)',
-                  padding: '4px 10px',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  color: 'var(--text-color)',
-                  fontSize: '0.75rem',
-                  fontWeight: '600',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                  transition: 'all 0.2s'
-                }}
-                onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--primary-color)'; e.currentTarget.style.color = 'var(--primary-color)'; }}
-                onMouseOut={(e) => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.color = 'var(--text-color)'; }}
-              >
-                <Download size={12} /> Redownload
-              </button>
+              ) : (
+                <span style={{ color: 'var(--text-muted)' }}>No previous export found</span>
+              )}
             </div>
-          )}
+            <button 
+              type="button" 
+              onClick={handleRedownload}
+              disabled={!lastExport}
+              style={{
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '6px',
+                background: 'var(--card-bg, #ffffff)',
+                border: '1px solid var(--border-color)',
+                padding: '4px 10px',
+                borderRadius: '6px',
+                cursor: lastExport ? 'pointer' : 'not-allowed',
+                color: lastExport ? 'var(--text-color)' : 'var(--text-muted)',
+                opacity: lastExport ? 1 : 0.5,
+                fontSize: '0.75rem',
+                fontWeight: '600',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                transition: 'all 0.2s'
+              }}
+              onMouseOver={(e) => { if (lastExport) { e.currentTarget.style.borderColor = 'var(--primary-color)'; e.currentTarget.style.color = 'var(--primary-color)'; } }}
+              onMouseOut={(e) => { if (lastExport) { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.color = 'var(--text-color)'; } }}
+            >
+              <Download size={12} /> Redownload
+            </button>
+          </div>
 
           {/* Scope selector */}
           <div className="bem-section">
