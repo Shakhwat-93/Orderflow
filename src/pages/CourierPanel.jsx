@@ -38,6 +38,7 @@ export const CourierPanel = () => {
 
   const [searchTerm, setSearchTerm] = usePersistentState('panel:courier:search', '');
   const [activeTab, setActiveTab] = usePersistentState('panel:courier:tab', 'bulk');
+  const [dateFilter, setDateFilter] = usePersistentState('panel:courier:dateFilter', 'All');
   const [steadfastPending, setSteadfastPending] = useState({});
   const [steadfastSubmitted, setSteadfastSubmitted] = useState({});
   const [isDistributing, setIsDistributing] = useState(false);
@@ -63,16 +64,28 @@ export const CourierPanel = () => {
     setIsDetailsModalOpen(true);
   };
 
+  const matchesDate = (order) => {
+    if (dateFilter === 'All') return true;
+    if (dateFilter === 'Today') {
+      const today = new Date().toDateString();
+      const orderDate = new Date(order.updated_at || order.created_at).toDateString();
+      return today === orderDate;
+    }
+    return true;
+  };
+
   const matchesSearch = (order) => (
     (order.id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (order.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (order.phone || '').includes(searchTerm)
   );
 
+  const filterOrder = (order) => matchesSearch(order) && matchesDate(order);
+
   const bulkExportedAll = orders.filter((order) => order.status === 'Bulk Exported');
   const courierReadyAll = orders.filter((order) => order.status === 'Courier Ready');
-  const bulkExportedQueue = bulkExportedAll.filter(matchesSearch);
-  const courierReadyQueue = courierReadyAll.filter(matchesSearch);
+  const bulkExportedQueue = bulkExportedAll.filter(filterOrder);
+  const courierReadyQueue = courierReadyAll.filter(filterOrder);
   const courierQueue = activeTab === 'bulk' ? bulkExportedQueue : courierReadyQueue;
   const { isOrderUnread, markOrderRead, unreadCount } = useRouteOrderReadState(`courier-panel:${activeTab}`, courierQueue);
 
@@ -256,6 +269,44 @@ export const CourierPanel = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="elite-search-input"
             />
+          </div>
+          <div className="courier-date-filter" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <button
+              type="button"
+              className={`pill-btn ${dateFilter === 'All' ? 'active' : ''}`}
+              onClick={() => setDateFilter('All')}
+              style={{
+                padding: '4px 14px',
+                borderRadius: '20px',
+                fontSize: '0.8rem',
+                border: '1px solid var(--border-color)',
+                background: dateFilter === 'All' ? '#6366f1' : 'transparent',
+                color: dateFilter === 'All' ? '#fff' : 'inherit',
+                cursor: 'pointer',
+                fontWeight: dateFilter === 'All' ? '600' : '400',
+                transition: 'all 0.2s'
+              }}
+            >
+              All Time
+            </button>
+            <button
+              type="button"
+              className={`pill-btn ${dateFilter === 'Today' ? 'active' : ''}`}
+              onClick={() => setDateFilter('Today')}
+              style={{
+                padding: '4px 14px',
+                borderRadius: '20px',
+                fontSize: '0.8rem',
+                border: '1px solid var(--border-color)',
+                background: dateFilter === 'Today' ? '#6366f1' : 'transparent',
+                color: dateFilter === 'Today' ? '#fff' : 'inherit',
+                cursor: 'pointer',
+                fontWeight: dateFilter === 'Today' ? '600' : '400',
+                transition: 'all 0.2s'
+              }}
+            >
+              Today
+            </button>
           </div>
           <div className="queue-helper-text">
             <Truck size={14} />
