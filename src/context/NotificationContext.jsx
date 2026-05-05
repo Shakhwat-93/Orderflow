@@ -81,7 +81,7 @@ export const NotificationProvider = ({ children }) => {
 
     soundQueueRef.current = soundQueueRef.current
       .catch(() => undefined)
-      .then(() => playAudioSequence('/ordersound.mp3', 5, 1.0));
+      .then(() => playAudioSequence('/notification.mp3', 1, 1.0));
   }, [playAudioSequence]);
 
   const subscribeUserToPush = useCallback(async () => {
