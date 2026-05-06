@@ -3182,6 +3182,55 @@ export const api = {
     if (error) return null;
     return data?.signedUrl || null;
   },
+  // ──────────────────────────────────────────────
+  // PUSH NOTIFICATION SUBSCRIPTIONS
+  // ──────────────────────────────────────────────
+
+  /**
+   * Save a Web Push subscription for the current user device.
+   * Called immediately after the browser grants push permission.
+   * @param {string} userId - The authenticated user UUID
+   * @param {object} subscriptionJson - PushSubscription.toJSON() output
+   */
+  async savePushSubscription(userId, subscriptionJson) {
+    if (!userId || !subscriptionJson?.endpoint) return;
+    const ua = navigator.userAgent.toLowerCase();
+    const platform = /android/.test(ua) ? 'android' : /iphone|ipad|ipod/.test(ua) ? 'ios' : 'desktop';
+
+    // Remove old subscription for this endpoint to avoid duplicates
+    await supabase
+      .from('user_push_subscriptions')
+      .delete()
+      .eq('user_id', userId)
+      .eq('subscription->>endpoint', subscriptionJson.endpoint);
+
+    const { error } = await supabase
+      .from('user_push_subscriptions')
+      .insert({
+        user_id: userId,
+        subscription: subscriptionJson,
+        pwa_platform: platform,
+        last_synced_at: new Date().toISOString(),
+      });
+
+    if (error) {
+      console.error('savePushSubscription failed:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Remove a push subscription by its endpoint URL.
+   * Called when the user revokes push permission.
+   */
+  async deletePushSubscription(endpoint) {
+    if (!endpoint) return;
+    const { error } = await supabase
+      .from('user_push_subscriptions')
+      .delete()
+      .eq('subscription->>endpoint', endpoint);
+    if (error) console.error('deletePushSubscription failed:', error);
+  }
 };
 
 export default api;

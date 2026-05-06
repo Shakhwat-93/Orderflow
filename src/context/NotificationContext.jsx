@@ -6,7 +6,8 @@ import { isNativeApp } from '../platform/runtime';
 
 const NotificationContext = createContext(null);
 
-const VAPID_PUBLIC_KEY = 'BIjAQuz9toINRqF0hTFAn4Yv7H0aVyx3nmmiUiR58pM59sqrYKW2CncLTSe0HqNsfqkq9jbzlK5yjqvCg2nWVag';
+// VAPID public key — must match the private key stored in Supabase Edge Function secrets.
+const VAPID_PUBLIC_KEY = 'BApc-Twq0Rcna_p5RaIyHpONw79mW61ZPqx5YDbP_1OqYkV6c4ehNh12rRrwEQyrkw0HqrfxkV5MQ6USkzf4LfE';
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -86,29 +87,48 @@ export const NotificationProvider = ({ children }) => {
 
   const subscribeUserToPush = useCallback(async () => {
     if (isNativeApp() || !('serviceWorker' in navigator)) return;
-    
+
     try {
       const registration = await navigator.serviceWorker.ready;
-      
-      // Check if already subscribed
-      const existingSubscription = await registration.pushManager.getSubscription();
+
+      // Check if there is an existing subscription
+      let existingSubscription = await registration.pushManager.getSubscription();
+
       if (existingSubscription) {
-        // Sync with backend anyway to ensure it matches current user
-        await api.savePushSubscription(userId, existingSubscription.toJSON());
-        return;
+        // Detect VAPID key mismatch — if the stored subscription was created with
+        // the old VAPID key it must be unsubscribed and re-created.
+        const existingKey = existingSubscription.options?.applicationServerKey
+          ? btoa(String.fromCharCode(...new Uint8Array(existingSubscription.options.applicationServerKey)))
+              .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
+          : null;
+
+        const currentKey = VAPID_PUBLIC_KEY.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+
+        if (existingKey && existingKey !== currentKey) {
+          // Old key — unsubscribe and create a fresh subscription
+          console.log('[Push] VAPID key changed — re-subscribing...');
+          await existingSubscription.unsubscribe();
+          existingSubscription = null;
+        } else {
+          // Key matches — just sync with backend to keep DB up to date
+          await api.savePushSubscription(userId, existingSubscription.toJSON());
+          return;
+        }
       }
 
+      // Create a brand-new subscription
       const subscribeOptions = {
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
       };
 
       const subscription = await registration.pushManager.subscribe(subscribeOptions);
-      console.log('User is subscribed to Push:', subscription);
-      
+      console.log('[Push] Subscribed:', subscription.endpoint);
+
+      // Persist to Supabase so the backend can deliver pushes to this device
       await api.savePushSubscription(userId, subscription.toJSON());
     } catch (err) {
-      console.error('Failed to subscribe user to push:', err);
+      console.error('[Push] Failed to subscribe:', err);
     }
   }, [userId]);
 
@@ -371,6 +391,27 @@ export const NotificationProvider = ({ children }) => {
     window.addEventListener('app:resume', handleResume);
     return () => window.removeEventListener('app:resume', handleResume);
   }, [fetchNotifications, userId]);
+
+  // ----------------------------------------------------------------
+  // Handle push subscription auto-rotation by the browser.
+  // When the browser rotates VAPID keys, the service worker fires
+  // a PUSH_SUBSCRIPTION_CHANGED message — we re-save the new
+  // subscription to the backend so delivery continues uninterrupted.
+  // ----------------------------------------------------------------
+  useEffect(() => {
+    if (!userId || isNativeApp() || !('serviceWorker' in navigator)) return undefined;
+
+    const handleSwMessage = (event) => {
+      if (event.data?.type === 'PUSH_SUBSCRIPTION_CHANGED' && event.data.subscription) {
+        api.savePushSubscription(userId, event.data.subscription).catch((err) => {
+          console.error('[Push] Failed to re-save rotated subscription:', err);
+        });
+      }
+    };
+
+    navigator.serviceWorker.addEventListener('message', handleSwMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', handleSwMessage);
+  }, [userId]);
 
   const markAsRead = async (id) => {
     try {
