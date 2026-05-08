@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import ReactDOM from 'react-dom';
 import { FileText, Clock, AlertTriangle, Phone, Copy, MessageCircle, Edit2, Globe, Facebook, Play, Users } from 'lucide-react';
 import CurrencyIcon from './CurrencyIcon';
+import { ResponseTimer } from './ResponseTimer';
 import './OrderRow.css';
 
 /**
@@ -52,6 +53,20 @@ const SourceBadge = ({ traffic_source, source }) => {
 
 export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected, onSelect, fraudFlag, automationFlag, isUnread = false, duplicateWarning = null }) => {
   const [copied, setCopied] = useState(false);
+
+  // Derive row-level SLA class for left border highlight
+  const CALL_STATUSES = new Set(['New', 'Pending Call', 'Final Call Pending']);
+  const hasAttempt = Number(order?.call_attempts || 0) > 0 || !!(order?.first_call_time || order?.last_call_at);
+  const rowSlaClass = (() => {
+    if (!CALL_STATUSES.has(order?.status)) return '';
+    if (hasAttempt) return 'rt-row-ontime';
+    const minsElapsed = order?.created_at
+      ? (Date.now() - new Date(order.created_at)) / 60000
+      : 0;
+    if (minsElapsed > 15) return 'rt-row-critical';
+    if (minsElapsed > 10) return 'rt-row-warning';
+    return 'rt-row-ontime';
+  })();
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
   const statusBtnRef = useRef(null);
@@ -123,7 +138,7 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
 
   return (
     <motion.tr 
-      className={`order-row clickable-row ${isSelected ? 'row-selected' : ''} ${isUnread ? 'route-unread-row' : 'route-read-row'}`}
+      className={`order-row clickable-row ${isSelected ? 'row-selected' : ''} ${isUnread ? 'route-unread-row' : 'route-read-row'} ${rowSlaClass}`}
       onClick={() => onDetails(order)}
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
@@ -257,6 +272,11 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
             document.body
           )}
         </div>
+      </td>
+
+      {/* Response Timer — compact badge column */}
+      <td className="response-timer-cell" onClick={(e) => e.stopPropagation()}>
+        <ResponseTimer order={order} mode="compact" />
       </td>
 
       <td className="actions-cell">

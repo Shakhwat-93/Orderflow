@@ -837,6 +837,7 @@ export const OrdersBoard = () => {
                 <th className="shipping-col">Delivery</th>
                 <th className="items-col">Items</th>
                 <th className="status-col">Fulfilment</th>
+                <th className="response-timer-col" title="Time since order arrived vs. first call response">Response</th>
                 <th className="actions-col">Action</th>
               </tr>
             </thead>

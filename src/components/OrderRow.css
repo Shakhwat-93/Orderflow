@@ -493,3 +493,25 @@
   color: #6ee7b7;
   border-color: rgba(52, 211, 153, 0.25);
 }
+
+/* ── RESPONSE TIMER CELL (table column) ─────────────────────── */
+.response-timer-cell {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* Ensures the header column has a sensible width */
+.response-timer-col {
+  width: 100px;
+  min-width: 90px;
+  white-space: nowrap;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+}
+
+/* Mobile responsive label */
+@media (max-width: 900px) {
+  .order-row .response-timer-cell::before { content: "Response"; }
+}

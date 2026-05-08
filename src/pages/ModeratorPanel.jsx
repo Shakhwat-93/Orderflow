@@ -18,6 +18,7 @@ import CurrencyIcon from '../components/CurrencyIcon';
 import { deserializeDateRange, usePersistentState } from '../utils/persistentState';
 import { getProductCheckpoints } from '../utils/productCatalog';
 import { useRouteOrderReadState } from '../hooks/useRouteOrderReadState';
+import { ResponseTimer } from '../components/ResponseTimer';
 import './ModeratorPanel.css';
 
 const ORDER_STATUSES = [
@@ -383,6 +384,7 @@ export const ModeratorPanel = () => {
                 <th className="shipping-col">Delivery</th>
                 <th className="items-col">Items</th>
                 <th className="status-col">Fulfilment</th>
+                <th className="response-timer-col" title="Time since order arrived vs. first response">Response</th>
                 <th className="actions-col">Action</th>
               </tr>
             </thead>
@@ -440,8 +442,11 @@ export const ModeratorPanel = () => {
                   <div className="mod-mobile-amount">৳{Number(order.amount || 0).toLocaleString()}</div>
                 </div>
 
-                {/* ── Footer: Status Changer + Edit ── */}
+                {/* ── Footer: Response Timer + Status Changer + Edit ── */}
                 <div className="mod-mobile-card-footer" onClick={e => e.stopPropagation()}>
+                  {/* Response Timer badge */}
+                  <ResponseTimer order={order} mode="compact" />
+
                   {/* Status dropdown */}
                   <div className="mod-mobile-status-select-wrap">
                     {isSaving

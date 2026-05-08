@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { OrderEditModal } from '../components/OrderEditModal';
 import { OrderDetailsModal } from '../components/OrderDetailsModal';
@@ -16,6 +16,7 @@ import { getProductOptions } from '../utils/productCatalog';
 import CurrencyIcon from '../components/CurrencyIcon';
 import { Modal } from '../components/Modal';
 import { useRouteOrderReadState } from '../hooks/useRouteOrderReadState';
+import { ResponseTimer } from '../components/ResponseTimer';
 import './CallTeamPanel.css';
 
 const STATUS_OPTIONS = ['ACTIVE', 'NEW', 'PENDING', 'FINAL'];
@@ -564,8 +565,8 @@ export const CallTeamPanel = () => {
                   </div>
                 </div>
 
-                <div className={`elite-col-sla ${slaClass} sla-col`}>
-                  {slaIcon} {order.status === 'Confirmed' ? 'COMPLETED' : slaText}
+                <div className="elite-col-sla sla-col">
+                  <ResponseTimer order={order} mode="full" />
                 </div>
 
                 <div className="elite-col-actions">
@@ -656,9 +657,7 @@ export const CallTeamPanel = () => {
                       #{order.id.replace('ORD-', '')} • {orderCreatedLabel}
                       {isOrderUnread(order) ? ' • Unread' : ''}
                     </span>
-                    <span className={`elite-col-sla ${slaClass} mob-sla`}>
-                      {slaIcon} {order.status === 'Confirmed' ? 'COMPLETED' : slaText}
-                    </span>
+                    <ResponseTimer order={order} mode="compact" />
                     {order.last_call_at && (
                       <span className="elite-last-call-tag">
                         <PhoneCall size={9} /> {getTimeAgo(order.last_call_at)}

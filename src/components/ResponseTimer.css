@@ -1,0 +1,269 @@
+/* ================================================================
+   ResponseTimer.css — Elite Order Response Time Tracker Styles
+   ================================================================ */
+
+/* ── SHARED TOKEN BRIDGE ───────────────────────────────────────── */
+:root {
+  --rt-green:        #10b981;
+  --rt-green-bg:     rgba(16, 185, 129, 0.12);
+  --rt-green-border: rgba(16, 185, 129, 0.30);
+
+  --rt-yellow:        #f59e0b;
+  --rt-yellow-bg:     rgba(245, 158, 11, 0.12);
+  --rt-yellow-border: rgba(245, 158, 11, 0.30);
+
+  --rt-red:        #ef4444;
+  --rt-red-bg:     rgba(239, 68, 68, 0.12);
+  --rt-red-border: rgba(239, 68, 68, 0.30);
+}
+
+/* ================================================================
+   COMPACT BADGE  (used inside table rows / order cards)
+   ================================================================ */
+.rt-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px 3px 6px;
+  border-radius: 20px;
+  border: 1px solid transparent;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  position: relative;
+  transition: background 0.3s, border-color 0.3s, color 0.3s;
+  cursor: default;
+  user-select: none;
+  max-width: 90px;
+}
+
+.rt-icon {
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
+.rt-time {
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* Live pulse dot */
+.rt-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+  animation: rt-dot-blink 1.4s ease-in-out infinite;
+}
+
+@keyframes rt-dot-blink {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.3; transform: scale(0.7); }
+}
+
+/* ── STATE COLOURS — COMPACT ────────────────────────────────── */
+
+/* Green: responded on time OR still within 10m */
+.rt-badge.rt-green,
+.rt-badge.rt-resolved-green {
+  background:    var(--rt-green-bg);
+  border-color:  var(--rt-green-border);
+  color:         var(--rt-green);
+}
+
+/* Yellow: 10–15m elapsed without response, OR responded in 10–15m */
+.rt-badge.rt-yellow,
+.rt-badge.rt-resolved-yellow {
+  background:    var(--rt-yellow-bg);
+  border-color:  var(--rt-yellow-border);
+  color:         var(--rt-yellow);
+}
+
+/* Red: >15m without response, OR responded after 15m */
+.rt-badge.rt-red,
+.rt-badge.rt-resolved-red {
+  background:    var(--rt-red-bg);
+  border-color:  var(--rt-red-border);
+  color:         var(--rt-red);
+}
+
+/* Resolved states are slightly desaturated — response already logged */
+.rt-badge.rt-resolved-green  { opacity: 0.85; }
+.rt-badge.rt-resolved-yellow { opacity: 0.85; }
+.rt-badge.rt-resolved-red    { opacity: 0.85; }
+
+/* ── CRITICAL PULSE ANIMATION (red + live) ──────────────────── */
+.rt-badge.rt-pulse {
+  animation: rt-badge-pulse 2s ease-in-out infinite;
+}
+
+@keyframes rt-badge-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.0);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.25);
+  }
+}
+
+
+/* ================================================================
+   FULL MODE  (used inside Call Team cards / detail panels)
+   ================================================================ */
+.rt-full {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px 8px 10px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.rt-full-icon-wrap {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.3s;
+}
+
+.rt-full-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.rt-full-value {
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.rt-full-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.75;
+}
+
+.rt-full-meta {
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.55;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Live pip */
+.rt-live-pip {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: rt-dot-blink 1.4s ease-in-out infinite;
+}
+
+/* ── FULL STATE COLOURS ──────────────────────────────────────── */
+.rt-full.rt-green,
+.rt-full.rt-resolved-green {
+  background:   var(--rt-green-bg);
+  border-color: var(--rt-green-border);
+  color:        var(--rt-green);
+}
+.rt-full.rt-green .rt-full-icon-wrap,
+.rt-full.rt-resolved-green .rt-full-icon-wrap {
+  background: var(--rt-green);
+  color: #fff;
+}
+
+.rt-full.rt-yellow,
+.rt-full.rt-resolved-yellow {
+  background:   var(--rt-yellow-bg);
+  border-color: var(--rt-yellow-border);
+  color:        var(--rt-yellow);
+}
+.rt-full.rt-yellow .rt-full-icon-wrap,
+.rt-full.rt-resolved-yellow .rt-full-icon-wrap {
+  background: var(--rt-yellow);
+  color: #fff;
+}
+
+.rt-full.rt-red,
+.rt-full.rt-resolved-red {
+  background:   var(--rt-red-bg);
+  border-color: var(--rt-red-border);
+  color:        var(--rt-red);
+}
+.rt-full.rt-red .rt-full-icon-wrap,
+.rt-full.rt-resolved-red .rt-full-icon-wrap {
+  background: var(--rt-red);
+  color: #fff;
+}
+
+.rt-full.rt-pulse {
+  animation: rt-full-pulse 2s ease-in-out infinite;
+}
+
+@keyframes rt-full-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.0); }
+  50%       { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0.2); }
+}
+
+/* ── ROW HIGHLIGHT: entire order row tinted when critical ───── */
+/* Applied to the parent <tr> or card via JS class              */
+.rt-row-critical {
+  background: rgba(239, 68, 68, 0.04) !important;
+  border-left: 3px solid var(--rt-red) !important;
+}
+
+.rt-row-warning {
+  background: rgba(245, 158, 11, 0.04) !important;
+  border-left: 3px solid var(--rt-yellow) !important;
+}
+
+.rt-row-ontime {
+  /* subtle — don't distract when things are good */
+  border-left: 3px solid transparent !important;
+}
+
+
+/* ── Dark-theme adjustments ──────────────────────────────────── */
+[data-theme="dark"] .rt-badge.rt-green,
+[data-theme="dark"] .rt-badge.rt-resolved-green {
+  background:   rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+[data-theme="dark"] .rt-badge.rt-yellow,
+[data-theme="dark"] .rt-badge.rt-resolved-yellow {
+  background:   rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+[data-theme="dark"] .rt-badge.rt-red,
+[data-theme="dark"] .rt-badge.rt-resolved-red {
+  background:   rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+/* ── Responsive: hide meta line on very small cards ─────────── */
+@media (max-width: 480px) {
+  .rt-full-meta { display: none; }
+  .rt-full-value { font-size: 14px; }
+}
