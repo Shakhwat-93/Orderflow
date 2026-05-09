@@ -82,7 +82,7 @@
 }
 
 .product-name-cell {
-  max-width: 180px;
+  max-width: 130px;
 }
 
 .customer-cell-stack {
@@ -111,14 +111,14 @@
 .customer-quick-actions {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   flex-shrink: 0;
 }
 
 .customer-quick-btn {
-  width: 24px;
-  height: 24px;
-  border-radius: 7px;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -159,14 +159,15 @@
 .saas-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
+  gap: 5px;
+  padding: 3px 8px;
   border-radius: 9999px;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 600;
   border: 1px solid transparent;
   background: transparent;
   transition: all 0.2s ease;
+  white-space: nowrap;
 }
 
 .saas-badge.clickable {

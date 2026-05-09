@@ -198,26 +198,75 @@
 
 /* Table card */
 .table-card { flex: 1; background: var(--ob-card) !important; border: 1px solid var(--ob-border) !important; border-radius: 14px !important; box-shadow: var(--ob-shadow) !important; overflow: hidden !important; }
+/* ── Table wrapper: allow scroll only as last resort ── */
 .orders-table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-.management-table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
-.management-table thead tr th { padding: 13px 14px; text-align: left; font-size: 0.72rem; font-weight: 700; color: var(--ob-text-muted); text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; border-bottom: 1px solid var(--ob-border); background: var(--ob-table-head-bg); position: sticky; top: 0; z-index: 5; }
+
+/* ── Core table: auto layout so browser can squeeze cols ── */
+.management-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: auto;   /* ← was 'fixed'; auto lets browser fit content */
+}
+
+/* ── Header cells: compact ── */
+.management-table thead tr th {
+  padding: 10px 10px;
+  text-align: left;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--ob-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--ob-border);
+  background: var(--ob-table-head-bg);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+/* ── Body cells: compact padding + slightly smaller font ── */
 .management-table tbody tr { transition: background 0.15s; }
 .management-table tbody tr:hover td { background: var(--ob-card-hover) !important; }
-.management-table td { padding: 13px 14px; vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-bottom: 1px solid var(--ob-border-row); font-size: 0.875rem; color: var(--ob-text); background: var(--ob-card); }
+.management-table td {
+  padding: 10px 10px;
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: 1px solid var(--ob-border-row);
+  font-size: 0.8rem;       /* ← was 0.875rem */
+  color: var(--ob-text);
+  background: var(--ob-card);
+}
 .management-table tbody tr:last-child td { border-bottom: none; }
 
-.checkbox-col, .checkbox-cell { width: 40px; }
-.id-col,       .id-cell       { width: 88px; }
-.date-col,     .date-cell     { width: 148px; }
-.amount-col,   .amount-cell   { width: 108px; }
-.product-col,  .product-cell  { width: 170px; }
-.shipping-col, .shipping-cell { width: 118px; }
-.items-col,    .items-cell    { width: 70px; }
-.status-col,   .status-cell   { width: 136px; }
-.phone-col,    .phone-cell    { width: 150px; }
-.sla-col,      .sla-cell      { width: 170px; }
-.actions-col,  .actions-cell  { width: 80px; text-align: right; }
-.customer-col, .customer-cell { width: auto; }
+/* ── Column widths: all reduced to fit 1280-1366px screens ── */
+.checkbox-col, .checkbox-cell { width: 32px;  min-width: 32px; }
+.id-col,       .id-cell       { width: 72px;  min-width: 68px; }
+.date-col,     .date-cell     { width: 110px; min-width: 100px; }
+.customer-col, .customer-cell { min-width: 130px; max-width: 170px; }
+.product-col,  .product-cell  { width: 130px; min-width: 110px; max-width: 150px; }
+.amount-col,   .amount-cell   { width: 86px;  min-width: 80px; }
+.shipping-col, .shipping-cell { width: 90px;  min-width: 80px; }
+.items-col,    .items-cell    { width: 54px;  min-width: 50px; }
+.status-col,   .status-cell   { width: 120px; min-width: 110px; }
+.phone-col,    .phone-cell    { width: 120px; }
+.sla-col,      .sla-cell      { width: 130px; min-width: 120px; }
+.response-timer-col, .response-timer-cell { width: 88px;  min-width: 80px; }
+.actions-col,  .actions-cell  { width: 68px;  min-width: 60px; text-align: right; }
+
+/* ── Hide low-priority columns on medium screens (1100-1280px) ── */
+@media (max-width: 1280px) {
+  .items-col,    .items-cell    { display: none; }
+}
+@media (max-width: 1180px) {
+  .shipping-col, .shipping-cell { display: none; }
+}
+@media (max-width: 1060px) {
+  .date-col, .date-cell { display: none; }
+}
 
 .order-id-cell { font-weight: 700; color: var(--ob-accent); font-size: 0.8rem; }
 .customer-name { font-weight: 650; color: var(--ob-text); font-size: 0.875rem; }
