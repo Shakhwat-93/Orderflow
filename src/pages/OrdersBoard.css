@@ -51,6 +51,8 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-width: 0;
+  overflow: hidden;
   animation: motion-slide-up var(--motion-duration-page) var(--motion-ease-standard);
 }
 
@@ -197,28 +199,35 @@
 .product-breakdown-status { margin-top: -4px; font-size: 0.78rem; font-weight: 600; color: var(--ob-text-muted); }
 
 /* Table card */
-.table-card { flex: 1; background: var(--ob-card) !important; border: 1px solid var(--ob-border) !important; border-radius: 14px !important; box-shadow: var(--ob-shadow) !important; overflow: hidden !important; }
-/* ── Table wrapper: allow scroll only as last resort ── */
-.orders-table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-
-/* ── Core table: auto layout so browser can squeeze cols ── */
-.management-table {
+.table-card { flex: 1; min-width: 0; background: var(--ob-card) !important; border: 1px solid var(--ob-border) !important; border-radius: 14px !important; box-shadow: var(--ob-shadow) !important; overflow: clip !important; }
+/* ── Table wrapper ── */
+.orders-table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  /* clip any overflow — the wrapper itself may scroll but parent won't */
   width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  table-layout: auto;   /* ← was 'fixed'; auto lets browser fit content */
 }
 
-/* ── Header cells: compact ── */
+/* ── Core table: FIXED layout — mandatory for column width control ── */
+.management-table {
+  width: 100%;
+  min-width: 0;         /* do NOT set a min-width that causes overflow */
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;  /* fixed = columns respect explicit widths */
+}
+
+/* ── Header ── */
 .management-table thead tr th {
-  padding: 10px 10px;
+  padding: 9px 8px;
   text-align: left;
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   font-weight: 700;
   color: var(--ob-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   white-space: nowrap;
+  overflow: hidden;
   border-bottom: 1px solid var(--ob-border);
   background: var(--ob-table-head-bg);
   position: sticky;
@@ -226,46 +235,66 @@
   z-index: 5;
 }
 
-/* ── Body cells: compact padding + slightly smaller font ── */
+/* ── Body cells ── */
 .management-table tbody tr { transition: background 0.15s; }
 .management-table tbody tr:hover td { background: var(--ob-card-hover) !important; }
 .management-table td {
-  padding: 10px 10px;
+  padding: 9px 8px;
   vertical-align: middle;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   border-bottom: 1px solid var(--ob-border-row);
-  font-size: 0.8rem;       /* ← was 0.875rem */
+  font-size: 0.78rem;
   color: var(--ob-text);
   background: var(--ob-card);
+  max-width: 0;          /* forces ellipsis to kick in with table-layout:fixed */
 }
 .management-table tbody tr:last-child td { border-bottom: none; }
 
-/* ── Column widths: all reduced to fit 1280-1366px screens ── */
-.checkbox-col, .checkbox-cell { width: 32px;  min-width: 32px; }
-.id-col,       .id-cell       { width: 72px;  min-width: 68px; }
-.date-col,     .date-cell     { width: 110px; min-width: 100px; }
-.customer-col, .customer-cell { min-width: 130px; max-width: 170px; }
-.product-col,  .product-cell  { width: 130px; min-width: 110px; max-width: 150px; }
-.amount-col,   .amount-cell   { width: 86px;  min-width: 80px; }
-.shipping-col, .shipping-cell { width: 90px;  min-width: 80px; }
-.items-col,    .items-cell    { width: 54px;  min-width: 50px; }
-.status-col,   .status-cell   { width: 120px; min-width: 110px; }
-.phone-col,    .phone-cell    { width: 120px; }
-.sla-col,      .sla-cell      { width: 130px; min-width: 120px; }
-.response-timer-col, .response-timer-cell { width: 88px;  min-width: 80px; }
-.actions-col,  .actions-cell  { width: 68px;  min-width: 60px; text-align: right; }
+/*
+  ── Column widths  ──────────────────────────────────────────────
+  Target viewport: 1366px wide, sidebar ~220px → content ~1120px
+  We must fit ALL columns within 1100px.
 
-/* ── Hide low-priority columns on medium screens (1100-1280px) ── */
-@media (max-width: 1280px) {
-  .items-col,    .items-cell    { display: none; }
+  Sum (visible at 1366px):
+  32 + 70 + 95 + 140 + 115 + 82 + 105 + 80 + 68  = 787px  ✓
+  (Items + Delivery hidden below 1280px)
+  Full (all cols):
+  32 + 70 + 95 + 140 + 115 + 82 + 75 + 105 + 80 + 68 = 862px  ✓ (with items)
+  ────────────────────────────────────────────────────────────── */
+
+.checkbox-col, .checkbox-cell { width: 32px; }
+.id-col,       .id-cell       { width: 70px; }
+.date-col,     .date-cell     { width: 95px; }
+.customer-col, .customer-cell { width: 140px; }
+.product-col,  .product-cell  { width: 115px; }
+.amount-col,   .amount-cell   { width: 82px; }
+.shipping-col, .shipping-cell { width: 90px; }
+.items-col,    .items-cell    { width: 56px; }
+.status-col,   .status-cell   { width: 105px; }
+.response-timer-col,
+.response-timer-cell           { width: 80px; }
+.actions-col,  .actions-cell  { width: 68px; text-align: right; }
+.phone-col,    .phone-cell    { width: 100px; }
+.sla-col,      .sla-cell      { width: 100px; }
+
+/* ── Progressive hiding: shed columns to save space ── */
+@media (max-width: 1340px) {
+  /* hide Items col */
+  th.items-col, td.items-cell { display: none; }
 }
-@media (max-width: 1180px) {
-  .shipping-col, .shipping-cell { display: none; }
+@media (max-width: 1240px) {
+  /* hide Delivery col */
+  th.shipping-col, td.shipping-cell { display: none; }
 }
-@media (max-width: 1060px) {
-  .date-col, .date-cell { display: none; }
+@media (max-width: 1100px) {
+  /* hide Response Timer col */
+  th.response-timer-col, td.response-timer-cell { display: none; }
+}
+@media (max-width: 980px) {
+  /* hide Date col */
+  th.date-col, td.date-cell { display: none; }
 }
 
 .order-id-cell { font-weight: 700; color: var(--ob-accent); font-size: 0.8rem; }

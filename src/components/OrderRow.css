@@ -67,13 +67,14 @@
 }
 
 .saas-text-dark {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   display: block;
+  width: 100%;
 }
 
 .timestamp-text {
@@ -82,30 +83,40 @@
 }
 
 .product-name-cell {
-  max-width: 130px;
+  max-width: 100%;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .customer-cell-stack {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  min-width: 0;
+  gap: 3px;
+  min-width: 0;      /* critical: allows flex children to shrink */
+  overflow: hidden;
+  width: 100%;
 }
 
 .customer-quick-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 6px;
+  min-width: 0;     /* allow shrinking */
+  overflow: hidden;
 }
 
 .customer-phone-text {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
 }
 
 .customer-quick-actions {
