@@ -170,13 +170,11 @@
 .saas-badge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 3px 8px;
-  border-radius: 9999px;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px; /* Pill/rounded shape like the image */
   font-size: 11px;
   font-weight: 600;
-  border: 1px solid transparent;
-  background: transparent;
   transition: all 0.2s ease;
   white-space: nowrap;
 }
@@ -194,52 +192,99 @@
   border-radius: 50%;
 }
 
-/* Warning / Pending */
-.saas-badge-warning {
-  color: #f59e0b;
-  border-color: rgba(245, 158, 11, 0.2);
-}
-.saas-badge-warning .dot {
-  background-color: #f59e0b;
-}
-[data-theme='dark'] .saas-badge-warning {
-  background: rgba(245, 158, 11, 0.05);
-  border-color: rgba(245, 158, 11, 0.15);
-}
+/* Individual Variants */
 
-/* Success / Paid / Confirmed / Delivered */
-.saas-badge-success {
-  color: #10b981;
-  border-color: rgba(16, 185, 129, 0.2);
+/* New (Cyan) */
+.saas-badge-new {
+  color: #0284c7;
+  background: rgba(14, 165, 233, 0.12);
+  border: 1px solid rgba(14, 165, 233, 0.3);
 }
-.saas-badge-success .dot {
-  background-color: #10b981;
-}
-[data-theme='dark'] .saas-badge-success {
-  background: rgba(16, 185, 129, 0.05);
-  border-color: rgba(16, 185, 129, 0.15);
-}
+.saas-badge-new .dot { background-color: #0284c7; }
 
-/* Danger / Cancelled / Returned / Unfulfilled */
-.saas-badge-danger {
-  color: #ef4444;
-  border-color: rgba(239, 68, 68, 0.2);
+/* Pending Call (Amber) */
+.saas-badge-pending-call {
+  color: #d97706;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.3);
 }
-.saas-badge-danger .dot {
-  background-color: #ef4444;
+.saas-badge-pending-call .dot { background-color: #d97706; }
+
+/* Final Call Pending (Red/Orange) */
+.saas-badge-final-call-pending {
+  color: #b91c1c;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
 }
-[data-theme='dark'] .saas-badge-danger {
-  background: rgba(239, 68, 68, 0.05);
-  border-color: rgba(239, 68, 68, 0.15);
+.saas-badge-final-call-pending .dot { background-color: #b91c1c; }
+
+/* Confirmed (Green) */
+.saas-badge-confirmed {
+  color: #059669;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
 }
+.saas-badge-confirmed .dot { background-color: #059669; }
+
+/* Bulk Exported (Blue) */
+.saas-badge-bulk-exported {
+  color: #2563eb;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+.saas-badge-bulk-exported .dot { background-color: #2563eb; }
+
+/* Fake Order (Dark Red) */
+.saas-badge-fake-order {
+  color: #7f1d1d;
+  background: rgba(127, 29, 29, 0.12);
+  border: 1px solid rgba(127, 29, 29, 0.3);
+}
+.saas-badge-fake-order .dot { background-color: #7f1d1d; }
+
+/* Cancelled (Red/Rose) */
+.saas-badge-cancelled {
+  color: #e11d48;
+  background: rgba(244, 63, 94, 0.12);
+  border: 1px solid rgba(244, 63, 94, 0.3);
+}
+.saas-badge-cancelled .dot { background-color: #e11d48; }
+
+/* Courier Submitted (Purple) */
+.saas-badge-courier {
+  color: #7c3aed;
+  background: rgba(139, 92, 246, 0.12);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+}
+.saas-badge-courier .dot { background-color: #7c3aed; }
+
+/* Factory Processing (Indigo) */
+.saas-badge-factory {
+  color: #4338ca;
+  background: rgba(79, 70, 229, 0.12);
+  border: 1px solid rgba(79, 70, 229, 0.3);
+}
+.saas-badge-factory .dot { background-color: #4338ca; }
+
+/* Completed (Emerald) */
+.saas-badge-completed {
+  color: #047857;
+  background: rgba(5, 150, 105, 0.12);
+  border: 1px solid rgba(5, 150, 105, 0.3);
+}
+.saas-badge-completed .dot { background-color: #047857; }
 
 /* Default */
 .saas-badge-default {
   color: #64748b;
-  border-color: rgba(100, 116, 139, 0.2);
+  background: rgba(100, 116, 139, 0.12);
+  border: 1px solid rgba(100, 116, 139, 0.3);
 }
-.saas-badge-default .dot {
-  background-color: #64748b;
+.saas-badge-default .dot { background-color: #64748b; }
+
+/* Dark Theme Overrides */
+[data-theme='dark'] .saas-badge {
+  filter: brightness(1.2);
 }
 
 /* ACTIONS */

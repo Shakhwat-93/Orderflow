@@ -235,7 +235,7 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
       <td className="status-cell" onClick={(e) => e.stopPropagation()}>
         <div className="status-dropdown-container" ref={statusBtnRef}>
           <button 
-            className={`saas-badge ${getStatusBadgeVariant(order.status) === 'confirmed' || getStatusBadgeVariant(order.status) === 'completed' ? 'saas-badge-success' : getStatusBadgeVariant(order.status) === 'cancelled' || getStatusBadgeVariant(order.status) === 'fake-order' ? 'saas-badge-danger' : 'saas-badge-warning'} clickable`}
+            className={`saas-badge saas-badge-${getStatusBadgeVariant(order.status)} clickable`}
             onClick={toggleStatusMenu}
           >
             <span className="dot"></span>
