@@ -44,34 +44,9 @@ export const ChatBot = () => {
 
   useEffect(() => {
     if (!user?.id) return undefined;
-
-    const liveTables = [
-      'orders',
-      'inventory',
-      'toy_box_inventory',
-      'order_activity_logs',
-      'notifications',
-      'users',
-      'user_roles',
-    ];
-
-    const channel = supabase.channel(`nova-ai-live-db-${user.id}`);
-
-    liveTables.forEach((table) => {
-      channel.on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table },
-        () => {
-          invalidateChatCache();
-        },
-      );
-    });
-
-    channel.subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    // OPTIMIZED: Removed nova-ai realtime subscription.
+    // It was watching 7 tables and exhausting the Supabase free tier connection pool.
+    // The chatbot will now use standard API fetching / cache invalidation when opened or used.
   }, [user?.id]);
 
   const handleSend = async () => {

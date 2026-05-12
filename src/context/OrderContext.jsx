@@ -162,10 +162,10 @@ export const OrderProvider = ({ children }) => {
     }
 
     initializeData();
-
     // Realtime subscriptions
-    const ordersSubscription = supabase
-      .channel('public:orders')
+    // OPTIMIZED: Merge all 3 tables into a single channel to reduce DB connections.
+    const orderContextChannel = supabase
+      .channel('order_context_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
         if (payload.eventType === 'INSERT') {
           setOrders((prev) => [payload.new, ...prev.filter(order => order.id !== payload.new.id)].slice(0, ORDER_SNAPSHOT_SIZE));
@@ -184,17 +184,9 @@ export const OrderProvider = ({ children }) => {
         }
         scheduleStatsRefresh();
       })
-      .subscribe();
-
-    const inventorySubscription = supabase
-      .channel('public:inventory')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, () => {
         scheduleInventoryRefresh();
       })
-      .subscribe();
-
-    const toyBoxSubscription = supabase
-      .channel('public:toy_box_inventory')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'toy_box_inventory' }, () => {
         scheduleToyBoxRefresh();
       })
@@ -205,9 +197,7 @@ export const OrderProvider = ({ children }) => {
       window.clearTimeout(inventoryRefreshTimerRef.current);
       window.clearTimeout(toyBoxRefreshTimerRef.current);
       window.clearTimeout(workflowAnalysisTimerRef.current);
-      supabase.removeChannel(ordersSubscription);
-      supabase.removeChannel(inventorySubscription);
-      supabase.removeChannel(toyBoxSubscription);
+      supabase.removeChannel(orderContextChannel);
     };
   }, [initializeData, scheduleInventoryRefresh, scheduleStatsRefresh, scheduleToyBoxRefresh, userId]);
 

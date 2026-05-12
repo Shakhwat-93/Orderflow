@@ -14,28 +14,8 @@ export const TaskDetailsModal = ({ task, taskType, isOpen, onClose, onOpenOrder 
   useEffect(() => {
     if (isOpen && task?.id) {
       loadLogs();
-
-      // Subscribe to realtime logs for this specific task
-      const logsSubscription = supabase
-        .channel(`task-logs-${task.id}`)
-        .on(
-          'postgres_changes', 
-          { 
-            event: 'INSERT', 
-            schema: 'public', 
-            table: 'task_activity_logs',
-            filter: `task_id=eq.${task.id}`
-          }, 
-          (payload) => {
-            const newLog = { ...payload.new, changed_by_user_name: payload.new.user_name };
-            setLogs(prev => [newLog, ...prev]);
-          }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(logsSubscription);
-      };
+      // OPTIMIZED: Removed realtime subscription for task logs to save DB connections.
+      // Users can use the manual "Refresh" button if they need live updates.
     }
   }, [isOpen, task?.id]);
 
