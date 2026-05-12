@@ -52,34 +52,28 @@ export const TaskProvider = ({ children }) => {
   }, [fetchTasks, userId]);
 
   // ── Real-time subscriptions ──
+  // OPTIMIZED: All 3 task tables merged into ONE channel to reduce DB connections.
+  // Supabase free tier has a connection pool limit — separate channels per table
+  // quickly exhaust the pool when multiple users are online simultaneously.
   useEffect(() => {
     if (!userId) return;
 
-    const dailyChannel = supabase
-      .channel('daily_tasks_changes')
+    // Single channel, 3 postgres_changes listeners — 1 DB connection instead of 3
+    const taskChannel = supabase
+      .channel('task_all_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_tasks' }, () => {
         fetchTasks();
       })
-      .subscribe();
-
-    const completionChannel = supabase
-      .channel('task_completions_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'task_completions' }, () => {
         fetchTasks();
       })
-      .subscribe();
-
-    const assignedChannel = supabase
-      .channel('assigned_tasks_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'assigned_tasks' }, () => {
         fetchTasks();
       })
       .subscribe();
 
     return () => {
-      supabase.removeChannel(dailyChannel);
-      supabase.removeChannel(completionChannel);
-      supabase.removeChannel(assignedChannel);
+      supabase.removeChannel(taskChannel);
     };
   }, [fetchTasks, userId]);
 

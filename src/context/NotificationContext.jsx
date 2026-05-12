@@ -285,13 +285,17 @@ export const NotificationProvider = ({ children }) => {
 
     fetchNotifications();
 
-    // Listen to both DB changes (if enabled) AND custom broadcasts
+    // OPTIMIZED: Single channel with broadcast-only listening.
+    // postgres_changes fallback removed — it creates extra DB replication slots.
+    // The server broadcasts notifications via the 'new_notification' event,
+    // so we don't need to also listen to DB row-level changes.
+    // The external_order_notifications channel is also removed — OrderContext
+    // already has a realtime subscription on the orders table.
     const channel = supabase
       .channel('admin_notifications_realtime')
-      // Custom broadcast for instant feel
       .on('broadcast', { event: 'new_notification' }, (payload) => {
         const notif = payload.payload;
-        
+
         // Filter out if it's targeted to someone else
         const targetId = notif.target_user_id || notif.data?.targetUserId;
         if (targetId && targetId !== userId) return;
@@ -299,87 +303,19 @@ export const NotificationProvider = ({ children }) => {
         const clearedAt = localStorage.getItem('notifs_cleared_at');
         if (clearedAt && new Date(notif.created_at) <= new Date(clearedAt)) return;
 
-        setNotifications(prev => [notif, ...prev]);
+        setNotifications(prev => {
+          if (prev.some(n => n.id === notif.id)) return prev;
+          return [notif, ...prev];
+        });
         setUnreadCount(prev => prev + 1);
         addToast(notif);
       })
-      // Fallback to table changes if server replication works
-      .on('postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'notifications' },
-        (payload) => {
-          const notif = payload.new;
-          
-          const targetId = notif.target_user_id || notif.data?.targetUserId;
-          if (targetId && targetId !== userId) return;
-
-          const clearedAt = localStorage.getItem('notifs_cleared_at');
-          if (clearedAt && new Date(notif.created_at) <= new Date(clearedAt)) return;
-
-          // Avoid duplicate state updates if broadcast already fired
-          setNotifications(prev => {
-            if (prev.some(n => n.id === notif.id)) return prev;
-            addToast(notif);
-            return [notif, ...prev];
-          });
-          setUnreadCount(prev => prev + 1);
-        }
-      )
-      .on('postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'notifications' },
-        (payload) => {
-          setNotifications(prev => prev.map(n => n.id === payload.new.id ? payload.new : n));
-          if (payload.new.is_read !== payload.old.is_read) {
-            setUnreadCount(prev => payload.new.is_read ? Math.max(0, prev - 1) : prev + 1);
-          }
-        }
-      )
-      .on('postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'notifications' },
-        (payload) => {
-          setNotifications(prev => prev.filter(n => n.id !== payload.old.id));
-          // Recalculate unread count based on current state to be safe
-          setUnreadCount(prev => Math.max(0, prev - 1));
-        }
-      )
-      .subscribe();
-
-    const externalOrderChannel = supabase
-      .channel('external_order_notifications')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'orders' },
-        (payload) => {
-          const order = payload.new;
-
-          // In-app order creation already creates a persisted notification.
-          // This fallback only covers direct landing-page inserts.
-          if (order?.created_by) return;
-
-          const clearedAt = localStorage.getItem('notifs_cleared_at');
-          const createdAt = order?.created_at || new Date().toISOString();
-          if (clearedAt && new Date(createdAt) <= new Date(clearedAt)) return;
-
-          const notif = buildExternalOrderNotification(order);
-
-          setNotifications((prev) => {
-            const alreadyExists = prev.some((item) =>
-              item.id === notif.id ||
-              (item.type === 'ORDER_CREATED' && item.data?.orderId === order.id)
-            );
-            if (alreadyExists) return prev;
-            addToast(notif);
-            setUnreadCount((count) => count + 1);
-            return [notif, ...prev];
-          });
-        }
-      )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
-      supabase.removeChannel(externalOrderChannel);
     };
-  }, [addToast, buildExternalOrderNotification, fetchNotifications, userId]);
+  }, [addToast, fetchNotifications, userId]);
 
   useEffect(() => {
     if (!userId) return undefined;

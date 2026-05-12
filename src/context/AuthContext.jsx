@@ -313,11 +313,7 @@ export const AuthProvider = ({ children }) => {
     if (!user) return;
 
     const channel = supabase.channel('online-users', {
-      config: {
-        presence: {
-          key: user.id,
-        },
-      },
+      config: { presence: { key: user.id } },
     });
 
     channel
@@ -330,7 +326,6 @@ export const AuthProvider = ({ children }) => {
             online_at: p.online_at || null,
             context: p.profile?.context || { page: 'Active' }
           }));
-
         const uniqueUsers = Array.from(
           new Map(
             users
@@ -340,12 +335,11 @@ export const AuthProvider = ({ children }) => {
         );
         setOnlineUsers(uniqueUsers);
       })
-      .on('presence', { event: 'join', key: user.id }, () => {
-        console.log('Successfully joined presence channel');
-      })
       .subscribe();
 
+    // OPTIMIZED: Skip presence tracking when tab is hidden
     const trackPresence = async () => {
+      if (document.visibilityState === 'hidden') return;
       const currentProfile = profileRef.current;
       if (!currentProfile || channel.state !== 'joined') return;
       try {
@@ -365,9 +359,12 @@ export const AuthProvider = ({ children }) => {
       }
     };
 
-    const heartbeatInterval = setInterval(trackPresence, 30000);
+    // OPTIMIZED: 30s ? 60s heartbeat interval
+    const heartbeatInterval = setInterval(trackPresence, 60000);
 
+    // OPTIMIZED: 120s ? 300s DB persistence interval (5 minutes)
     const dbPersistenceInterval = setInterval(async () => {
+      if (document.visibilityState === 'hidden') return;
       const currentProfile = profileRef.current;
       if (user?.id && currentProfile && supportsLastActiveRef.current) {
         try {
@@ -385,7 +382,13 @@ export const AuthProvider = ({ children }) => {
           console.warn('Failed to update last_active_at:', err);
         }
       }
-    }, 120000);
+    }, 300000);
+
+    // Re-track when tab becomes visible again
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') trackPresence();
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     const timer = setTimeout(trackPresence, 1000);
 
@@ -393,28 +396,10 @@ export const AuthProvider = ({ children }) => {
       clearInterval(heartbeatInterval);
       clearInterval(dbPersistenceInterval);
       clearTimeout(timer);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       channel.unsubscribe();
     };
   }, [user]);
-
-  useEffect(() => {
-    if (!user || !profile) return;
-
-    const channel = supabase.getChannels().find((c) => c.name === 'online-users');
-    if (channel && channel.state === 'joined') {
-      channel.track({
-        online_at: new Date().toISOString(),
-        profile: {
-          id: user.id,
-          name: profile.name,
-          roles: userRoles,
-          avatar_url: profile.avatar_url,
-          email: profile.email,
-          context: presenceContext
-        }
-      });
-    }
-  }, [profile, userRoles, presenceContext, user]);
 
   const updatePresenceContext = useCallback((newContext, details = null) => {
     setPresenceContext((prev) => {
