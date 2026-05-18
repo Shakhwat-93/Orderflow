@@ -64,6 +64,12 @@ export class AppErrorBoundary extends React.Component {
           <p style={{ margin: '12px 0 0', color: '#475569', lineHeight: 1.7 }}>
             App ekta unexpected runtime crash theke recover kortese. Reload diye clean boot nile usually session abar thik moto restore hoy.
           </p>
+          <div style={{ marginTop: 20, padding: 15, background: '#fee2e2', borderRadius: 8, color: '#991b1b', fontSize: '0.85rem', overflowX: 'auto', textAlign: 'left', maxHeight: '30vh' }}>
+            <strong>Error:</strong> {this.state.error?.message || 'Unknown error'}
+            <br/><br/>
+            <strong>Stack:</strong>
+            <pre style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{this.state.error?.stack || 'No stack trace available'}</pre>
+          </div>
           <button
             type="button"
             onClick={this.handleReload}
