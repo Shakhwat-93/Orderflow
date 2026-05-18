@@ -1,6 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- ── Required for Android 13+ (API 33+) push/local notifications ── -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- ── Allows vibration for notification alerts ── -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- ── Prevents CPU sleeping so realtime events can be received ── -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- ── Required by Capacitor Local Notifications exact alarm scheduling ── -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <!-- ── Receive boot broadcast to reschedule notifications after device restart ── -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -39,3 +50,4 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 </manifest>
+

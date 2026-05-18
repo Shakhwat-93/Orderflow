@@ -3,6 +3,11 @@ import { supabase } from '../lib/supabase';
 import api from '../lib/api';
 import { useAuth } from './AuthContext';
 import { isNativeApp } from '../platform/runtime';
+import {
+  requestNativePermission,
+  checkNativePermission,
+  scheduleNativeNotification,
+} from '../platform/native/nativeNotifications';
 
 const NotificationContext = createContext(null);
 
@@ -33,7 +38,7 @@ export const NotificationProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState(
     isNativeApp()
-      ? 'native'
+      ? 'prompt'  // will be resolved on first permission check
       : typeof window !== 'undefined' && 'Notification' in window
       ? Notification.permission
       : 'unsupported'
@@ -133,11 +138,25 @@ export const NotificationProvider = ({ children }) => {
   }, [userId]);
 
   const requestNotificationPermission = useCallback(async (promptUser = false) => {
+    // ── Native APK path ──────────────────────────────────────────────────────
     if (isNativeApp()) {
-      setNotificationPermission('native');
-      return 'native';
+      try {
+        let status = await checkNativePermission();
+
+        if ((status === 'prompt' || status === 'prompt-with-rationale') && promptUser) {
+          status = await requestNativePermission();
+        }
+
+        setNotificationPermission(status === 'granted' ? 'granted' : status);
+        return status;
+      } catch (e) {
+        console.error('[Notif] Native permission check failed:', e);
+        setNotificationPermission('denied');
+        return 'denied';
+      }
     }
 
+    // ── Browser / PWA path ───────────────────────────────────────────────────
     if (!('Notification' in window)) {
       setNotificationPermission('unsupported');
       return 'unsupported';
@@ -159,7 +178,14 @@ export const NotificationProvider = ({ children }) => {
   }, [subscribeUserToPush, userId]);
 
   const showBrowserNotification = useCallback((notif) => {
-    if (isNativeApp()) return;
+    // ── Native APK path — use Capacitor LocalNotifications ─────────────────
+    if (isNativeApp()) {
+      // Fire and forget — scheduleNativeNotification handles all error logging
+      scheduleNativeNotification(notif).catch(console.error);
+      return;
+    }
+
+    // ── Browser / PWA path — use Web Notification API ───────────────────────
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
     if (document.visibilityState === 'visible') return; // Don't annoy if they are looking at the app
 
@@ -327,6 +353,38 @@ export const NotificationProvider = ({ children }) => {
     window.addEventListener('app:resume', handleResume);
     return () => window.removeEventListener('app:resume', handleResume);
   }, [fetchNotifications, userId]);
+
+  // ----------------------------------------------------------------
+  // NATIVE APP: Request notification permission on boot.
+  // Runs once when the user first logs in to the APK. The OS shows
+  // the "Allow notifications?" dialog if not already decided.
+  // ----------------------------------------------------------------
+  useEffect(() => {
+    if (!userId || !isNativeApp()) return;
+
+    const PERM_REQUESTED_KEY = 'native_notif_perm_requested';
+
+    const bootstrapNativePermission = async () => {
+      const alreadyRequested = localStorage.getItem(PERM_REQUESTED_KEY);
+
+      if (!alreadyRequested) {
+        // First launch — show the OS permission dialog
+        const status = await requestNativePermission();
+        setNotificationPermission(status);
+        localStorage.setItem(PERM_REQUESTED_KEY, '1');
+        console.log('[NativeNotif] Boot permission result:', status);
+      } else {
+        // Subsequent launches — just read current status silently
+        const { checkNativePermission: check } = await import('../platform/native/nativeNotifications');
+        const status = await check();
+        setNotificationPermission(status);
+      }
+    };
+
+    // Small delay so the app UI settles before showing the dialog
+    const t = setTimeout(bootstrapNativePermission, 1500);
+    return () => clearTimeout(t);
+  }, [userId]);
 
   // ----------------------------------------------------------------
   // Handle push subscription auto-rotation by the browser.
