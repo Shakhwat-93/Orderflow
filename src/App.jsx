@@ -120,7 +120,9 @@ const DesktopSkeletonScreen = () => (
 );
 
 
-const SkeletonScreen = () => isNativeApp() ? <NativeSkeletonScreen /> : <DesktopSkeletonScreen />;\r\n\r\nconst ProtectedRoute = ({ children }) => {
+const SkeletonScreen = () => isNativeApp() ? <NativeSkeletonScreen /> : <DesktopSkeletonScreen />;
+
+const ProtectedRoute = ({ children }) => {
   const { user, loading: authLoading, isAuthReady, isUnauthorized } = useAuth();
 
   if (!isAuthReady || authLoading) {
