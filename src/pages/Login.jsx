@@ -6,30 +6,36 @@ import { User, Lock, Loader2 } from 'lucide-react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import orderflowLogo from '../assets/orderflow-logo.png';
 import { getRoleRoute } from '../utils/authRoutes';
+import { isNativeApp } from '../platform/runtime';
 import './Login.css';
 
 // Animation Variants
 const containerVariants = {
-  hidden: { opacity: 0, y: 20, scale: 0.98 },
+  hidden: { opacity: 0, y: 30, scale: 0.95 },
   visible: { 
     opacity: 1, 
     y: 0, 
     scale: 1,
     transition: { 
-      duration: 0.5, 
-      ease: [0.16, 1, 0.3, 1],
+      type: "spring",
+      stiffness: 260,
+      damping: 20,
       staggerChildren: 0.1,
-      delayChildren: 0.2
+      delayChildren: 0.1
     } 
   }
 };
 
 const itemVariants = {
-  hidden: { opacity: 0, y: 15 },
+  hidden: { opacity: 0, y: 20 },
   visible: { 
     opacity: 1, 
     y: 0,
-    transition: { duration: 0.4, ease: "easeOut" }
+    transition: { 
+      type: "spring", 
+      stiffness: 300, 
+      damping: 24 
+    }
   }
 };
 
@@ -66,6 +72,27 @@ export const Login = () => {
   };
 
   if (loading && authLoading) {
+    if (isNativeApp()) {
+      return (
+        <div className="login-wrapper">
+          <div className="login-card skeleton-card">
+            <div className="login-header">
+              <div className="login-logo-container" style={{ background: '#e2e8f0', animation: 'sk-pulse 1.5s ease-in-out infinite' }}></div>
+              <div className="login-brand-copy">
+                <div style={{ height: 24, width: 140, background: '#e2e8f0', borderRadius: 6, marginBottom: 8, animation: 'sk-pulse 1.5s ease-in-out infinite' }} />
+                <div style={{ height: 16, width: 200, background: '#f1f5f9', borderRadius: 4, animation: 'sk-pulse 1.5s ease-in-out 0.2s infinite' }} />
+              </div>
+            </div>
+            <div className="login-form">
+              <div className="neu-input-field" style={{ height: 52, background: '#f8fafc', borderColor: '#e2e8f0', animation: 'sk-pulse 1.5s ease-in-out 0.3s infinite' }} />
+              <div className="neu-input-field" style={{ height: 52, background: '#f8fafc', borderColor: '#e2e8f0', animation: 'sk-pulse 1.5s ease-in-out 0.4s infinite' }} />
+              <div className="login-submit-btn" style={{ height: 52, background: '#e2e8f0', animation: 'sk-pulse 1.5s ease-in-out 0.5s infinite', border: 'none' }} />
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="login-resolving">
         <Motion.div 

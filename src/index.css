@@ -887,3 +887,29 @@ input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
   pointer-events: none;
   z-index: 0;
 }
+
+
+/* ================================================================
+   MOBILE NATIVE APP OVERRIDES (.native-app)
+   ================================================================ */
+
+.native-app {
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: pan-x pan-y;
+  -webkit-font-smoothing: antialiased;
+}
+
+.native-app * {
+  -webkit-touch-callout: none;
+  scrollbar-width: none; /* Hide scrollbars on native */
+}
+
+.native-app ::-webkit-scrollbar {
+  display: none;
+}
+
+.native-app input, .native-app textarea {
+  -webkit-user-select: auto; /* Allow text selection in inputs */
+}
+

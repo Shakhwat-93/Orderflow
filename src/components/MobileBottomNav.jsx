@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
+import { motion as Motion } from 'framer-motion';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -103,32 +104,35 @@ export const MobileBottomNav = () => {
           const Icon = item.icon;
           const active = isActive(item.path);
           return (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`mob-nav-item ${active ? 'active' : ''}`}
-              onClick={() => setIsMoreOpen(false)}
-            >
-              <div className="mob-nav-icon-wrap">
-                <Icon size={22} strokeWidth={active ? 2.5 : 1.8} />
-                {active && <span className="mob-nav-pip" />}
-              </div>
-              <span className="mob-nav-label">{item.label}</span>
-            </Link>
+            <Motion.div key={item.path} whileTap={{ scale: 0.88 }} transition={{ type: 'spring', stiffness: 400, damping: 17 }}>
+              <Link
+                to={item.path}
+                className={`mob-nav-item ${active ? 'active' : ''}`}
+                onClick={() => setIsMoreOpen(false)}
+              >
+                <div className="mob-nav-icon-wrap">
+                  <Icon size={22} strokeWidth={active ? 2.5 : 1.8} />
+                  {active && <Motion.span layoutId="nav-pip" className="mob-nav-pip" transition={{ type: 'spring', stiffness: 350, damping: 25 }} />}
+                </div>
+                <span className="mob-nav-label">{item.label}</span>
+              </Link>
+            </Motion.div>
           );
         })}
 
         {hasOverflow && (
-          <button
-            className={`mob-nav-item ${isOverflowActive ? 'active' : ''} ${isMoreOpen ? 'more-open' : ''}`}
-            onClick={() => setIsMoreOpen(prev => !prev)}
-          >
-            <div className="mob-nav-icon-wrap">
-              <MoreHorizontal size={22} strokeWidth={isOverflowActive ? 2.5 : 1.8} />
-              {isOverflowActive && <span className="mob-nav-pip" />}
-            </div>
-            <span className="mob-nav-label">More</span>
-          </button>
+          <Motion.div whileTap={{ scale: 0.88 }} transition={{ type: 'spring', stiffness: 400, damping: 17 }}>
+            <button
+              className={`mob-nav-item ${isOverflowActive ? 'active' : ''} ${isMoreOpen ? 'more-open' : ''}`}
+              onClick={() => setIsMoreOpen(prev => !prev)}
+            >
+              <div className="mob-nav-icon-wrap">
+                <MoreHorizontal size={22} strokeWidth={isOverflowActive ? 2.5 : 1.8} />
+                {isOverflowActive && <span className="mob-nav-pip" />}
+              </div>
+              <span className="mob-nav-label">More</span>
+            </button>
+          </Motion.div>
         )}
       </nav>
 

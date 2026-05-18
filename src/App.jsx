@@ -39,7 +39,47 @@ const FraudControl = lazy(() => import('./pages/FraudControl').then(m => ({ defa
 const BackupPanel = lazy(() => import('./pages/BackupPanel').then(m => ({ default: m.BackupPanel })));
 
 // ── Premium Skeleton Loading Screen ──
-const SkeletonScreen = () => (
+const NativeSkeletonScreen = () => (
+  <div style={{
+    display: 'flex', flexDirection: 'column', height: '100dvh', background: '#f4f6fb',
+    fontFamily: 'Inter, system-ui, sans-serif', overflow: 'hidden'
+  }}>
+    {/* Mobile Header Skeleton */}
+    <div style={{
+      height: 64, flexShrink: 0, background: '#fff', borderBottom: '1px solid rgba(15,23,42,0.05)',
+      display: 'flex', alignItems: 'center', padding: '0 20px', gap: 16
+    }}>
+      <div style={{ height: 32, width: 32, borderRadius: '50%', background: '#e2e8f0', animation: 'sk-pulse 1.5s ease-in-out infinite' }} />
+      <div style={{ height: 24, width: 120, borderRadius: 6, background: '#e2e8f0', animation: 'sk-pulse 1.5s ease-in-out 0.2s infinite' }} />
+    </div>
+    
+    {/* Mobile Content Skeleton */}
+    <div style={{ flex: 1, padding: 20, display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} style={{ height: 90, borderRadius: 16, background: '#fff', border: '1px solid rgba(15,23,42,0.04)', animation: `sk-pulse 1.5s ease-in-out ${i * 0.15}s infinite` }} />
+        ))}
+      </div>
+      <div style={{ height: 220, borderRadius: 20, background: '#fff', border: '1px solid rgba(15,23,42,0.04)', animation: 'sk-pulse 1.5s ease-in-out 0.3s infinite', marginTop: 8 }} />
+      <div style={{ height: 80, borderRadius: 16, background: '#fff', border: '1px solid rgba(15,23,42,0.04)', animation: 'sk-pulse 1.5s ease-in-out 0.4s infinite' }} />
+    </div>
+
+    {/* Mobile Bottom Nav Skeleton */}
+    <div style={{
+      height: 72, flexShrink: 0, background: '#fff', borderTop: '1px solid rgba(15,23,42,0.05)',
+      display: 'flex', alignItems: 'center', justifyContent: 'space-around', paddingBottom: 'env(safe-area-inset-bottom, 0)'
+    }}>
+      {[1, 2, 3, 4, 5].map(i => (
+        <div key={i} style={{ height: 36, width: 36, borderRadius: 12, background: '#f1f5f9', animation: `sk-pulse 1.5s ease-in-out ${i * 0.1}s infinite` }} />
+      ))}
+    </div>
+    <style>{`
+      @keyframes sk-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    `}</style>
+  </div>
+);
+
+const DesktopSkeletonScreen = () => (
   <div style={{
     display: 'flex', minHeight: '100vh', background: '#f8fafc',
     fontFamily: 'Inter, system-ui, sans-serif'
@@ -80,7 +120,7 @@ const SkeletonScreen = () => (
 );
 
 
-const ProtectedRoute = ({ children }) => {
+const SkeletonScreen = () => isNativeApp() ? <NativeSkeletonScreen /> : <DesktopSkeletonScreen />;\r\n\r\nconst ProtectedRoute = ({ children }) => {
   const { user, loading: authLoading, isAuthReady, isUnauthorized } = useAuth();
 
   if (!isAuthReady || authLoading) {
@@ -214,3 +254,4 @@ function App() {
 }
 
 export default App;
+

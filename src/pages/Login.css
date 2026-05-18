@@ -226,3 +226,35 @@
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+
+
+/* ================================================================
+   MOBILE NATIVE APP OVERRIDES
+   ================================================================ */
+
+.native-app .login-wrapper {
+  align-items: flex-end; /* Bottom sheet feel on mobile */
+  padding: 0;
+}
+
+.native-app .login-card {
+  width: 100%;
+  border-radius: 32px 32px 0 0;
+  padding: 40px 24px 32px;
+  border: none;
+  border-top: 1px solid rgba(255,255,255,0.4);
+  box-shadow: 0 -20px 40px rgba(0,0,0,0.06);
+  backdrop-filter: blur(30px);
+}
+
+.native-app .neu-input-field input {
+  font-size: 16px; /* Prevents iOS auto-zoom */
+}
+
+.native-app .login-submit-btn {
+  padding: 16px;
+  border-radius: 16px;
+  font-size: 17px;
+  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);
+}
+

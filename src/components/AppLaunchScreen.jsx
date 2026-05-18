@@ -10,7 +10,7 @@ const launchCopyVariants = {
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.42, ease: MOTION_EASE.standard, delay: 0.2 },
+    transition: { type: 'spring', stiffness: 200, damping: 20, delay: 0.2 },
   },
 };
 
@@ -20,7 +20,7 @@ const logoVariants = {
     opacity: 1,
     scale: 1,
     filter: 'blur(0px)',
-    transition: { duration: 0.52, ease: MOTION_EASE.standard, delay: 0.28 },
+    transition: { type: 'spring', stiffness: 220, damping: 24, delay: 0.28 },
   },
 };
 
