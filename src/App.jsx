@@ -161,12 +161,12 @@ function App() {
   return (
     <AppErrorBoundary>
       <RuntimeProvider>
-        <AppRuntimeShell>
-          <Router>
-            <PwaInstallProvider>
-              <ThemeProvider>
-                <AuthProvider>
-                  <BrandingProvider>
+        <BrandingProvider>
+          <AppRuntimeShell>
+            <Router>
+              <PwaInstallProvider>
+                <ThemeProvider>
+                  <AuthProvider>
                     <NotificationProvider>
                       <OrderProvider>
                         <CourierRatioProvider>
@@ -202,12 +202,12 @@ function App() {
                         </CourierRatioProvider>
                       </OrderProvider>
                     </NotificationProvider>
-                  </BrandingProvider>
-                </AuthProvider>
-              </ThemeProvider>
-            </PwaInstallProvider>
-          </Router>
-        </AppRuntimeShell>
+                  </AuthProvider>
+                </ThemeProvider>
+              </PwaInstallProvider>
+            </Router>
+          </AppRuntimeShell>
+        </BrandingProvider>
       </RuntimeProvider>
     </AppErrorBoundary>
   );
