@@ -31,6 +31,9 @@ jobs:
     - name: Build Web App
       env:
         CI: false
+        VITE_APP_PLATFORM: native
+        VITE_SUPABASE_URL: https://drbpysumezfjbudxzxzj.supabase.co
+        VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRyYnB5c3VtZXpmamJ1ZHh6eHpqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5NzE0MzQsImV4cCI6MjA4ODU0NzQzNH0.Ki7U_uXoTxZ4B9x1ExBuYOnTBZwXS9acMkx7CzlT2sA
       run: npm run build > npm_build.log 2>&1
 
     - name: Sync Capacitor
