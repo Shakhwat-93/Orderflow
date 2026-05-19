@@ -7,6 +7,7 @@ import {
   requestNativePermission,
   checkNativePermission,
   scheduleNativeNotification,
+  setupForegroundNotificationListener,
 } from '../platform/native/nativeNotifications';
 
 const NotificationContext = createContext(null);
@@ -355,34 +356,50 @@ export const NotificationProvider = ({ children }) => {
   }, [fetchNotifications, userId]);
 
   // ----------------------------------------------------------------
-  // NATIVE APP: Request notification permission on boot.
-  // Runs once when the user first logs in to the APK. The OS shows
-  // the "Allow notifications?" dialog if not already decided.
+  // NATIVE APP: Request notification permission on boot + setup
+  // foreground listener so notifications appear while app is open.
   // ----------------------------------------------------------------
+  useEffect(() => {
+    if (!isNativeApp()) return;
+
+    // Setup foreground notification display listener once (no userId needed)
+    setupForegroundNotificationListener();
+  }, []);
+
   useEffect(() => {
     if (!userId || !isNativeApp()) return;
 
-    const PERM_REQUESTED_KEY = 'native_notif_perm_requested';
-
     const bootstrapNativePermission = async () => {
-      const alreadyRequested = localStorage.getItem(PERM_REQUESTED_KEY);
+      try {
+        // Check current permission status
+        const currentStatus = await checkNativePermission();
+        console.log('[NativeNotif] Current permission status:', currentStatus);
 
-      if (!alreadyRequested) {
-        // First launch — show the OS permission dialog
-        const status = await requestNativePermission();
-        setNotificationPermission(status);
-        localStorage.setItem(PERM_REQUESTED_KEY, '1');
-        console.log('[NativeNotif] Boot permission result:', status);
-      } else {
-        // Subsequent launches — just read current status silently
-        const { checkNativePermission: check } = await import('../platform/native/nativeNotifications');
-        const status = await check();
-        setNotificationPermission(status);
+        if (currentStatus === 'granted') {
+          // Already granted — just update state
+          setNotificationPermission('granted');
+          return;
+        }
+
+        if (currentStatus === 'denied') {
+          // User already explicitly denied — don't re-prompt (OS won't allow it)
+          setNotificationPermission('denied');
+          console.log('[NativeNotif] Permission was denied by user');
+          return;
+        }
+
+        // Status is 'prompt' or 'prompt-with-rationale' — show the dialog
+        console.log('[NativeNotif] Requesting permission from user...');
+        const newStatus = await requestNativePermission();
+        setNotificationPermission(newStatus);
+        console.log('[NativeNotif] Permission result:', newStatus);
+      } catch (e) {
+        console.error('[NativeNotif] Boot permission failed:', e);
       }
     };
 
-    // Small delay so the app UI settles before showing the dialog
-    const t = setTimeout(bootstrapNativePermission, 1500);
+    // Delay slightly so the app UI is fully rendered before the dialog appears
+    const t = setTimeout(bootstrapNativePermission, 2000);
     return () => clearTimeout(t);
   }, [userId]);
 

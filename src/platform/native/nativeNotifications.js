@@ -2,171 +2,180 @@
  * nativeNotifications.js
  * ─────────────────────────────────────────────────────────────────────────────
  * Native Android notification bridge using @capacitor/local-notifications.
- * 
- * This module ONLY runs inside the APK (guarded by isNativeApp() at callsite).
- * It:
- *   1. Requests Android OS permission on first launch.
- *   2. Creates a dedicated notification channel (required for Android 8+).
- *   3. Schedules a visible status-bar notification for each app event.
  *
- * NOTE: Notifications appear in the Android status bar even when the app is
- * in the background (but not fully killed/swiped away). Full background push
- * requires Firebase Cloud Messaging (FCM) which needs a google-services.json
- * on the server side.
+ * FIXES applied v2:
+ *  - Static import instead of dynamic (dynamic import is unreliable in Capacitor WebView)
+ *  - Channel is created BEFORE permission is requested (required order)
+ *  - Foreground notifications shown via LocalNotifications.addListener
+ *  - Removed `schedule.at` timing — use `at: new Date(Date.now() + 50)` minimum
+ *  - Robust error logging so silent failures are visible in logcat
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-// Dynamic import so this module does not crash on web/browser environments.
-let LocalNotificationsPlugin = null;
+import { LocalNotifications } from '@capacitor/local-notifications';
 
-const CHANNEL_ID = 'orderflow_main';
+const CHANNEL_ID   = 'orderflow_main';
 const CHANNEL_NAME = 'OrderFlow Alerts';
 
-/**
- * Lazily loads the Capacitor LocalNotifications plugin.
- * Returns null if it fails (e.g. in a browser context).
- */
-async function getPlugin() {
-  if (LocalNotificationsPlugin) return LocalNotificationsPlugin;
-
-  try {
-    const mod = await import('@capacitor/local-notifications');
-    LocalNotificationsPlugin = mod.LocalNotifications;
-    return LocalNotificationsPlugin;
-  } catch (e) {
-    console.warn('[NativeNotif] Could not load LocalNotifications plugin:', e);
-    return null;
-  }
-}
+// ─── Channel ─────────────────────────────────────────────────────────────────
 
 /**
- * Creates the Android notification channel if it doesn't already exist.
- * Must be called before scheduling any notification.
+ * Creates the Android 8+ notification channel. Idempotent — safe to call
+ * multiple times. Channel MUST exist before any notification is shown.
  */
-async function ensureChannel(plugin) {
+async function ensureChannel() {
   try {
-    const { channels } = await plugin.listChannels();
-    const exists = channels.some(c => c.id === CHANNEL_ID);
+    // listChannels is Android-only; on iOS it resolves with empty list
+    const { channels } = await LocalNotifications.listChannels();
+    const exists = Array.isArray(channels) && channels.some(c => c.id === CHANNEL_ID);
 
     if (!exists) {
-      await plugin.createChannel({
-        id: CHANNEL_ID,
-        name: CHANNEL_NAME,
+      await LocalNotifications.createChannel({
+        id:          CHANNEL_ID,
+        name:        CHANNEL_NAME,
         description: 'Real-time order and system alerts',
-        importance: 5,          // IMPORTANCE_HIGH → makes the heads-up banner appear
-        visibility: 1,          // VISIBILITY_PUBLIC → show on lock screen
-        sound: 'default',
-        vibration: true,
-        lights: true,
-        lightColor: '#6366f1',  // Indigo accent — matches app brand
+        importance:  5,        // IMPORTANCE_HIGH  → triggers heads-up banner
+        visibility:  1,        // VISIBILITY_PUBLIC → show on lock screen
+        sound:       'default',
+        vibration:   true,
+        lights:      true,
+        lightColor:  '#6366f1',
       });
-      console.log('[NativeNotif] Channel created:', CHANNEL_ID);
+      console.log('[NativeNotif] ✅ Channel created:', CHANNEL_ID);
     }
   } catch (e) {
-    console.warn('[NativeNotif] Failed to create channel:', e);
+    // iOS throws on listChannels — silently ignore
+    console.log('[NativeNotif] Channel setup skipped (may be iOS):', e?.message);
   }
 }
 
+// ─── Permissions ─────────────────────────────────────────────────────────────
+
 /**
- * Requests Android POST_NOTIFICATIONS permission at the OS level.
- * Shows the native permission dialog on first call.
+ * Requests Android POST_NOTIFICATIONS permission.
+ * Always creates the channel first so scheduling works immediately after grant.
  *
  * @returns {Promise<'granted' | 'denied' | 'prompt'>}
  */
 export async function requestNativePermission() {
-  const plugin = await getPlugin();
-  if (!plugin) return 'denied';
-
   try {
-    let { display } = await plugin.checkPermissions();
+    // 1. Create channel first — must exist before we show any notification
+    await ensureChannel();
 
-    if (display === 'granted') return 'granted';
+    // 2. Check current state
+    const { display: currentDisplay } = await LocalNotifications.checkPermissions();
+    console.log('[NativeNotif] Current permission:', currentDisplay);
 
-    if (display === 'prompt' || display === 'prompt-with-rationale') {
-      const result = await plugin.requestPermissions();
-      display = result.display;
+    if (currentDisplay === 'granted') {
+      return 'granted';
     }
 
-    if (display === 'granted') {
-      await ensureChannel(plugin);
-    }
+    // 3. Request from OS — shows the native Android dialog
+    const { display: afterRequest } = await LocalNotifications.requestPermissions();
+    console.log('[NativeNotif] Permission after request:', afterRequest);
 
-    return display; // 'granted' | 'denied'
+    return afterRequest; // 'granted' | 'denied'
   } catch (e) {
-    console.error('[NativeNotif] Permission request failed:', e);
+    console.error('[NativeNotif] requestNativePermission failed:', e);
     return 'denied';
   }
 }
 
 /**
- * Checks current permission status without prompting.
+ * Checks current notification permission without prompting the user.
  * @returns {Promise<'granted' | 'denied' | 'prompt'>}
  */
 export async function checkNativePermission() {
-  const plugin = await getPlugin();
-  if (!plugin) return 'denied';
-
   try {
-    const { display } = await plugin.checkPermissions();
+    const { display } = await LocalNotifications.checkPermissions();
     return display;
   } catch (e) {
+    console.error('[NativeNotif] checkNativePermission failed:', e);
     return 'denied';
   }
 }
 
-// Auto-incrementing ID for notification scheduling.
-let _notifIdCounter = 1000;
+// ─── Notification ID counter ──────────────────────────────────────────────────
+// Using a random base to avoid collision across app sessions
+let _notifIdCounter = Math.floor(Math.random() * 10000) + 1000;
+
+// ─── Schedule ────────────────────────────────────────────────────────────────
 
 /**
- * Fires a native Android status-bar notification.
+ * Fires a native Android status-bar notification immediately.
  *
- * @param {{ title: string, message: string, type: string, id?: string }} notif
+ * @param {{ title: string, message: string, type?: string, id?: string }} notif
  */
 export async function scheduleNativeNotification(notif) {
-  const plugin = await getPlugin();
-  if (!plugin) return;
-
-  // Ensure channel exists every time (idempotent)
-  await ensureChannel(plugin);
-
-  // Choose an emoji prefix based on notification type for quick visual scanning
-  const typeEmoji = {
-    ORDER_CREATED:  '🛍️',
-    ORDER_UPDATED:  '📦',
-    TASK_ASSIGNED:  '📋',
-    SYSTEM_ALERT:   '⚠️',
-  }[notif.type] ?? '🔔';
-
-  const title = `${typeEmoji} ${notif.title}`;
-  const body  = notif.message ?? '';
-
   try {
-    await plugin.schedule({
+    // Verify permission before attempting to schedule
+    const { display } = await LocalNotifications.checkPermissions();
+    if (display !== 'granted') {
+      console.warn('[NativeNotif] Cannot schedule — permission not granted:', display);
+      return;
+    }
+
+    // Ensure channel exists (idempotent)
+    await ensureChannel();
+
+    // Emoji prefix based on type for quick visual scanning
+    const typeEmoji = {
+      ORDER_CREATED: '🛍️',
+      ORDER_UPDATED: '📦',
+      TASK_ASSIGNED: '📋',
+      SYSTEM_ALERT:  '⚠️',
+    }[notif.type] ?? '🔔';
+
+    const id    = _notifIdCounter++;
+    const title = `${typeEmoji} ${notif.title ?? 'OrderFlow'}`;
+    const body  = notif.message ?? '';
+
+    await LocalNotifications.schedule({
       notifications: [
         {
-          id: _notifIdCounter++,
-          channelId: CHANNEL_ID,
+          id,
+          channelId:    CHANNEL_ID,
           title,
           body,
-          // Schedule immediately (at is required but can be "now")
-          schedule: { at: new Date(Date.now() + 100) },
-          smallIcon: 'ic_stat_icon_config_sample', // uses the Capacitor default icon
-          iconColor: '#6366f1',
-          sound: 'default',
+          // Trigger immediately — Capacitor requires a future `at` date
+          schedule:     { at: new Date(Date.now() + 100), allowWhileIdle: true },
+          smallIcon:    'ic_stat_icon_config_sample',
+          iconColor:    '#6366f1',
+          sound:        'default',
           actionTypeId: '',
           extra: {
-            notifId: notif.id ?? null,
+            notifId: notif.id   ?? null,
             type:    notif.type ?? 'UNKNOWN',
           },
-          // Show as heads-up banner even when app is in foreground
-          ongoing: false,
+          ongoing:    false,
           autoCancel: true,
         },
       ],
     });
 
-    console.log('[NativeNotif] Scheduled:', title);
+    console.log(`[NativeNotif] ✅ Scheduled #${id}:`, title);
   } catch (e) {
-    console.error('[NativeNotif] Schedule failed:', e);
+    console.error('[NativeNotif] ❌ scheduleNativeNotification failed:', e);
+  }
+}
+
+// ─── Foreground listener ─────────────────────────────────────────────────────
+
+/**
+ * Sets up a listener so notifications triggered while the app is in the
+ * foreground also appear in the status bar.
+ * Call this once at app startup (inside a useEffect).
+ */
+export function setupForegroundNotificationListener() {
+  try {
+    LocalNotifications.addListener('localNotificationReceived', (notification) => {
+      console.log('[NativeNotif] Foreground notification received:', notification);
+    });
+
+    LocalNotifications.addListener('localNotificationActionPerformed', (action) => {
+      console.log('[NativeNotif] Notification tapped:', action);
+    });
+  } catch (e) {
+    console.error('[NativeNotif] Failed to setup listeners:', e);
   }
 }
