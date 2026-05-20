@@ -157,7 +157,25 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
       <td className="id-cell">
         <div className="route-read-id-wrap">
           {isUnread && <span className="route-unread-dot" aria-label="Unread order" />}
-          <span className="saas-id">#{String(order.id).replace('ORD-', '')}</span>
+          {order.first_caller_name ? (
+            <div className="first-caller-cell">
+              <span className="first-caller-avatar">
+                {order.first_caller_name.charAt(0).toUpperCase()}
+              </span>
+              <div className="first-caller-info">
+                <span className="first-caller-name">{order.first_caller_name}</span>
+                <span className="first-caller-id-sub">#{String(order.id).replace('ORD-', '').replace('STB-', '').replace('MGB-', '').slice(0, 8)}</span>
+              </div>
+            </div>
+          ) : (
+            <div className="first-caller-cell no-caller">
+              <span className="first-caller-avatar no-caller-avatar">—</span>
+              <div className="first-caller-info">
+                <span className="first-caller-name no-caller-text">Not called</span>
+                <span className="first-caller-id-sub">#{String(order.id).replace('ORD-', '').replace('STB-', '').replace('MGB-', '').slice(0, 8)}</span>
+              </div>
+            </div>
+          )}
           {isUnread && <span className="route-unread-chip">New</span>}
         </div>
         {duplicateWarning && (

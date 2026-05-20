@@ -829,7 +829,7 @@ export const OrdersBoard = () => {
                     onChange={handleSelectAll}
                   />
                 </th>
-                <th className="id-col">Order</th>
+                <th className="id-col">Caller</th>
                 <th className="date-col">Timestamp</th>
                 <th className="customer-col">Customer</th>
                 <th className="product-col">Product</th>
@@ -882,7 +882,25 @@ export const OrdersBoard = () => {
                 <div className="id-group">
                   <div className="route-read-card-header">
                     {isOrderUnread(order) && <span className="route-unread-dot" aria-label="Unread order" />}
-                    <span className="order-id">#{order.id.replace('ORD-', '')}</span>
+                    {order.first_caller_name ? (
+                      <div className="first-caller-cell">
+                        <span className="first-caller-avatar">
+                          {order.first_caller_name.charAt(0).toUpperCase()}
+                        </span>
+                        <div className="first-caller-info">
+                          <span className="first-caller-name">{order.first_caller_name}</span>
+                          <span className="first-caller-id-sub">#{String(order.id).replace('ORD-', '').replace('STB-', '').replace('MGB-', '').slice(0, 8)}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="first-caller-cell no-caller">
+                        <span className="first-caller-avatar no-caller-avatar">—</span>
+                        <div className="first-caller-info">
+                          <span className="first-caller-name no-caller-text">Not called</span>
+                          <span className="first-caller-id-sub">#{String(order.id).replace('ORD-', '').replace('STB-', '').replace('MGB-', '').slice(0, 8)}</span>
+                        </div>
+                      </div>
+                    )}
                     {isOrderUnread(order) && <span className="route-unread-chip">New</span>}
                   </div>
                   <div className="card-flags">
