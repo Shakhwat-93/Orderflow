@@ -1117,3 +1117,136 @@
   .uperf-day-head span:nth-child(6),
   .uperf-day-row span:nth-child(6) { display: none; }
 }
+
+/* ================================================================
+   UPERF — Date Filter Bar & Title Row (moved to top)
+   ================================================================ */
+
+.uperf-title-row {
+  margin-bottom: 16px;
+}
+
+/* Filter bar: full width, wraps on mobile */
+.uperf-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 18px;
+  background: var(--bg-soft, #f8fafc);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 14px;
+  margin-bottom: 20px;
+}
+
+/* Quick preset buttons */
+.uperf-presets {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.uperf-preset-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--border-color, #e2e8f0);
+  background: var(--card-bg, #fff);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary, #64748b);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.uperf-preset-btn:hover {
+  border-color: #6366f1;
+  color: #6366f1;
+}
+
+.uperf-preset-btn.active {
+  background: #6366f1;
+  border-color: #6366f1;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(99,102,241,0.3);
+}
+
+/* Custom date inputs */
+.uperf-date-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.uperf-date-input {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 8px;
+  background: var(--card-bg, #fff);
+  color: var(--text-primary, #0f172a);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.uperf-date-input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.08);
+}
+
+.uperf-date-sep {
+  font-size: 14px;
+  color: var(--text-secondary, #94a3b8);
+  font-weight: 600;
+}
+
+/* Right side: view toggle + agent select */
+.uperf-filter-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Dark mode */
+[data-theme='dark'] .uperf-filter-bar {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.08);
+}
+
+[data-theme='dark'] .uperf-preset-btn {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.1);
+  color: #94a3b8;
+}
+
+[data-theme='dark'] .uperf-date-input {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.12);
+  color: #e2e8f0;
+  color-scheme: dark;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .uperf-filter-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .uperf-filter-right {
+    margin-left: 0;
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .uperf-presets { flex-wrap: wrap; }
+}
