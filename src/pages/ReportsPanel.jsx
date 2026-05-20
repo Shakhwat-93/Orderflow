@@ -147,6 +147,124 @@ export const ReportsPanel = () => {
     fetchAdsData();
   }, [dateRange]);
 
+  // ── User Performance Analytics ──
+  const [userPerfData,    setUserPerfData]    = useState(null); // { byUser, byDay, allUsers }
+  const [userPerfLoading, setUserPerfLoading] = useState(false);
+  const [selectedUser,    setSelectedUser]    = useState('all');  // 'all' | userName
+  const [perfView,        setPerfView]        = useState('overview'); // 'overview' | 'daily'
+
+  useEffect(() => {
+    const fetchUserPerformance = async () => {
+      setUserPerfLoading(true);
+      try {
+        const startStr = dateRange.start.toISOString().split('T')[0];
+        const endStr   = dateRange.end.toISOString().split('T')[0];
+
+        // Fetch STATUS_CHANGE logs from real agents (exclude System bulk ops)
+        const { data: logs } = await supabase
+          .from('order_activity_logs')
+          .select('changed_by_user_name, new_status, timestamp, action_type, order_id')
+          .in('action_type', ['STATUS_CHANGE'])
+          .gte('timestamp', `${startStr}T00:00:00.000Z`)
+          .lte('timestamp', `${endStr}T23:59:59.999Z`)
+          .neq('changed_by_user_name', 'System')
+          .order('timestamp', { ascending: true });
+
+        if (!logs || logs.length === 0) {
+          setUserPerfData({ byUser: [], byDay: [], allUsers: [] });
+          return;
+        }
+
+        // Collect all unique users
+        const allUsers = [...new Set(logs.map(l => l.changed_by_user_name))].filter(Boolean).sort();
+
+        // ── Aggregate by user ──
+        const userMap = {};
+        for (const l of logs) {
+          const u = l.changed_by_user_name || 'Unknown';
+          if (!userMap[u]) userMap[u] = { name: u, attempted: 0, confirmed: 0, cancelled: 0, fake: 0, pending: 0, other: 0 };
+          userMap[u].attempted++;
+          const s = (l.new_status || '').toLowerCase();
+          if (s === 'confirmed')        userMap[u].confirmed++;
+          else if (s === 'cancelled')   userMap[u].cancelled++;
+          else if (s === 'fake order')  userMap[u].fake++;
+          else if (s.includes('pending')) userMap[u].pending++;
+          else                          userMap[u].other++;
+        }
+
+        const byUser = Object.values(userMap).map(u => ({
+          ...u,
+          confirmRate: u.attempted > 0 ? +((u.confirmed / u.attempted) * 100).toFixed(1) : 0,
+          cancelRate:  u.attempted > 0 ? +((u.cancelled / u.attempted) * 100).toFixed(1) : 0,
+          fakeRate:    u.attempted > 0 ? +((u.fake      / u.attempted) * 100).toFixed(1) : 0,
+        })).sort((a, b) => b.confirmed - a.confirmed);
+
+        // ── Aggregate by day (for daily view) ──
+        const dayMap = {};
+        for (const l of logs) {
+          const day  = l.timestamp.split('T')[0];
+          const user = l.changed_by_user_name || 'Unknown';
+          const key  = `${day}__${user}`;
+          if (!dayMap[key]) dayMap[key] = { date: day, user, attempted: 0, confirmed: 0, cancelled: 0, fake: 0, pending: 0 };
+          dayMap[key].attempted++;
+          const s = (l.new_status || '').toLowerCase();
+          if (s === 'confirmed')          dayMap[key].confirmed++;
+          else if (s === 'cancelled')     dayMap[key].cancelled++;
+          else if (s === 'fake order')    dayMap[key].fake++;
+          else if (s.includes('pending')) dayMap[key].pending++;
+        }
+
+        // Group by day for chart (all users combined or filtered)
+        const dayChartMap = {};
+        for (const entry of Object.values(dayMap)) {
+          const d = entry.date;
+          if (!dayChartMap[d]) dayChartMap[d] = { name: new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }), date: d, confirmed: 0, cancelled: 0, fake: 0, attempted: 0 };
+          dayChartMap[d].attempted  += entry.attempted;
+          dayChartMap[d].confirmed  += entry.confirmed;
+          dayChartMap[d].cancelled  += entry.cancelled;
+          dayChartMap[d].fake       += entry.fake;
+        }
+
+        const byDay = Object.values(dayChartMap).sort((a, b) => a.date.localeCompare(b.date));
+
+        setUserPerfData({ byUser, byDay, allUsers, byDayPerUser: Object.values(dayMap) });
+      } catch (e) {
+        console.error('[ReportsPanel] User perf fetch error:', e);
+      } finally {
+        setUserPerfLoading(false);
+      }
+    };
+
+    fetchUserPerformance();
+  }, [dateRange]);
+
+  // Filtered day data for selected user
+  const filteredDayData = useMemo(() => {
+    if (!userPerfData?.byDayPerUser) return [];
+    const rows = selectedUser === 'all'
+      ? userPerfData.byDayPerUser
+      : userPerfData.byDayPerUser.filter(r => r.user === selectedUser);
+
+    // Group by date
+    const m = {};
+    for (const r of rows) {
+      if (!m[r.date]) m[r.date] = { name: new Date(r.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }), date: r.date, confirmed: 0, cancelled: 0, fake: 0, attempted: 0 };
+      m[r.date].attempted  += r.attempted;
+      m[r.date].confirmed  += r.confirmed;
+      m[r.date].cancelled  += r.cancelled;
+      m[r.date].fake       += r.fake;
+    }
+    return Object.values(m).sort((a, b) => a.date.localeCompare(b.date));
+  }, [userPerfData, selectedUser]);
+
+  // Filtered user table data
+  const filteredUserData = useMemo(() => {
+    if (!userPerfData?.byUser) return [];
+    if (selectedUser === 'all') return userPerfData.byUser;
+    return userPerfData.byUser.filter(u => u.name === selectedUser);
+  }, [userPerfData, selectedUser]);
+
+
   // Export Orders as CSV
   const handleExportCSV = () => {
     if (!orders || orders.length === 0) return;
@@ -552,6 +670,226 @@ export const ReportsPanel = () => {
           </>
         )}
       </motion.div>
+
+      {/* ══════════════════════════════════════════════════
+          USER PERFORMANCE ANALYTICS — per-agent tracking
+      ══════════════════════════════════════════════════ */}
+      <motion.div className="uperf-section" variants={itemVariants}>
+
+        {/* Header + Controls */}
+        <div className="uperf-header">
+          <div className="section-header-elite" style={{ flex: 1 }}>
+            <div className="heartbeat-pulse uperf-pulse">
+              <Activity size={14} fill="currentColor" />
+            </div>
+            <h3>Agent Performance Intelligence</h3>
+            <span className="uperf-badge">Live Tracking</span>
+          </div>
+
+          <div className="uperf-controls">
+            {/* View Toggle */}
+            <div className="uperf-view-toggle">
+              <button
+                className={`uperf-toggle-btn ${perfView === 'overview' ? 'active' : ''}`}
+                onClick={() => setPerfView('overview')}
+              >
+                Overview
+              </button>
+              <button
+                className={`uperf-toggle-btn ${perfView === 'daily' ? 'active' : ''}`}
+                onClick={() => setPerfView('daily')}
+              >
+                Day-wise
+              </button>
+            </div>
+
+            {/* User Filter */}
+            <select
+              className="uperf-user-select"
+              value={selectedUser}
+              onChange={e => setSelectedUser(e.target.value)}
+            >
+              <option value="all">All Agents</option>
+              {(userPerfData?.allUsers || []).map(u => (
+                <option key={u} value={u}>{u}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {userPerfLoading ? (
+          <div className="ads-loading-state">
+            <div className="ads-loader-spin" />
+            <span>Loading agent performance data...</span>
+          </div>
+        ) : !userPerfData || userPerfData.byUser.length === 0 ? (
+          <div className="ads-empty-state">
+            <Activity size={28} />
+            <p>No performance data found for the selected period.</p>
+            <span>Agent activity logs will appear here as orders are processed.</span>
+          </div>
+        ) : (
+          <>
+            {/* ── OVERVIEW: Summary cards + Leaderboard ── */}
+            {perfView === 'overview' && (
+              <>
+                {/* Per-agent summary cards */}
+                <div className="uperf-cards-grid">
+                  {filteredUserData.map(u => (
+                    <div key={u.name} className={`uperf-agent-card ${selectedUser === u.name ? 'selected' : ''}`}
+                      onClick={() => setSelectedUser(selectedUser === u.name ? 'all' : u.name)}>
+                      <div className="uperf-agent-avatar">
+                        {u.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="uperf-agent-info">
+                        <span className="uperf-agent-name">{u.name}</span>
+                        <span className="uperf-agent-total">{u.attempted} total actions</span>
+                      </div>
+                      <div className="uperf-agent-stats">
+                        <div className="uperf-mini-stat confirmed">
+                          <span>{u.confirmed}</span>
+                          <label>Confirmed</label>
+                        </div>
+                        <div className="uperf-mini-stat cancelled">
+                          <span>{u.cancelled}</span>
+                          <label>Cancelled</label>
+                        </div>
+                        <div className="uperf-mini-stat fake">
+                          <span>{u.fake}</span>
+                          <label>Fake</label>
+                        </div>
+                      </div>
+                      <div className="uperf-confirm-rate">
+                        <span className="uperf-rate-val">{u.confirmRate}%</span>
+                        <label>Confirm Rate</label>
+                        <div className="uperf-rate-bar">
+                          <div className="uperf-rate-fill confirmed" style={{ width: `${u.confirmRate}%` }} />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Leaderboard table */}
+                <div className="uperf-leaderboard">
+                  <div className="uperf-lb-head">
+                    <span>Rank</span>
+                    <span>Agent</span>
+                    <span>Attempted</span>
+                    <span>✅ Confirmed</span>
+                    <span>❌ Cancelled</span>
+                    <span>🚫 Fake</span>
+                    <span>⏳ Pending</span>
+                    <span>Confirm %</span>
+                    <span>Cancel %</span>
+                    <span>Fake %</span>
+                  </div>
+                  {filteredUserData.map((u, i) => (
+                    <div key={u.name} className={`uperf-lb-row ${i === 0 && selectedUser === 'all' ? 'top-performer' : ''}`}>
+                      <span className="uperf-rank">
+                        {selectedUser === 'all' ? (i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`) : '—'}
+                      </span>
+                      <span className="uperf-lb-name">{u.name}</span>
+                      <span className="uperf-lb-num">{u.attempted}</span>
+                      <span className="uperf-lb-num green">{u.confirmed}</span>
+                      <span className="uperf-lb-num red">{u.cancelled}</span>
+                      <span className="uperf-lb-num orange">{u.fake}</span>
+                      <span className="uperf-lb-num blue">{u.pending}</span>
+                      <span className={`uperf-rate-pill ${u.confirmRate >= 50 ? 'good' : 'warn'}`}>{u.confirmRate}%</span>
+                      <span className={`uperf-rate-pill ${u.cancelRate > 30 ? 'bad' : 'neutral'}`}>{u.cancelRate}%</span>
+                      <span className={`uperf-rate-pill ${u.fakeRate > 15 ? 'bad' : 'neutral'}`}>{u.fakeRate}%</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* ── DAILY VIEW: Stacked bar chart + day table ── */}
+            {perfView === 'daily' && (
+              <>
+                {/* Stacked bar chart */}
+                <div className="uperf-chart-wrap">
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={filteredDayData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(99,102,241,0.05)" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false}
+                        tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} dy={10} />
+                      <YAxis axisLine={false} tickLine={false}
+                        tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} />
+                      <Tooltip
+                        content={({ active, payload, label }) => {
+                          if (!active || !payload?.length) return null;
+                          return (
+                            <div className="ads-custom-tooltip">
+                              <p className="ads-tt-date">{label}</p>
+                              {payload.map((p, i) => (
+                                <div key={i} className="ads-tt-row">
+                                  <span className="ads-tt-dot" style={{ background: p.fill }} />
+                                  <span>{p.name}:</span>
+                                  <strong>{p.value}</strong>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        }}
+                      />
+                      <Bar dataKey="confirmed" name="Confirmed" stackId="a" fill="#10b981" radius={[0,0,0,0]} />
+                      <Bar dataKey="cancelled" name="Cancelled" stackId="a" fill="#ef4444" radius={[0,0,0,0]} />
+                      <Bar dataKey="fake"      name="Fake"      stackId="a" fill="#f59e0b" radius={[6,6,0,0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                  <div className="ads-chart-legend">
+                    <span><i style={{ background: '#10b981' }} />Confirmed</span>
+                    <span><i style={{ background: '#ef4444' }} />Cancelled</span>
+                    <span><i style={{ background: '#f59e0b' }} />Fake</span>
+                  </div>
+                </div>
+
+                {/* Day-wise detail table */}
+                <div className="uperf-day-table">
+                  <div className="uperf-day-head">
+                    <span>Date</span>
+                    {selectedUser === 'all' && <span>Agent</span>}
+                    <span>Attempted</span>
+                    <span>✅ Confirmed</span>
+                    <span>❌ Cancelled</span>
+                    <span>🚫 Fake</span>
+                    <span>⏳ Pending</span>
+                    <span>Confirm %</span>
+                  </div>
+                  {(selectedUser === 'all'
+                    ? // Show per-user breakdown per day
+                      (userPerfData?.byDayPerUser || [])
+                        .sort((a, b) => b.date.localeCompare(a.date) || a.user.localeCompare(b.user))
+                    : (userPerfData?.byDayPerUser || [])
+                        .filter(r => r.user === selectedUser)
+                        .sort((a, b) => b.date.localeCompare(a.date))
+                  ).map((row, i) => {
+                    const rate = row.attempted > 0 ? +((row.confirmed / row.attempted) * 100).toFixed(1) : 0;
+                    return (
+                      <div key={`${row.date}-${row.user}-${i}`} className="uperf-day-row">
+                        <span className="uperf-day-date">
+                          {new Date(row.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                        </span>
+                        {selectedUser === 'all' && (
+                          <span className="uperf-day-user">{row.user}</span>
+                        )}
+                        <span>{row.attempted}</span>
+                        <span className="uperf-lb-num green">{row.confirmed}</span>
+                        <span className="uperf-lb-num red">{row.cancelled}</span>
+                        <span className="uperf-lb-num orange">{row.fake}</span>
+                        <span className="uperf-lb-num blue">{row.pending}</span>
+                        <span className={`uperf-rate-pill ${rate >= 50 ? 'good' : 'warn'}`}>{rate}%</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </>
+        )}
+      </motion.div>
+
     </motion.div>
   );
 };
