@@ -52,8 +52,11 @@ const EmptyState = ({ message }) => (
 
 // ── Campaign Read Row (display only) ──
 const CampaignReadRow = ({ row, index, onEdit, onDelete, disabled }) => {
-  const cpo = row.orders_received > 0 ? row.spend / row.orders_received : null;
+  const cpo   = row.orders_received > 0 ? row.spend / row.orders_received : null;
   const color = PLATFORM_COLORS[row.platform] || '#6b7280';
+  const roas  = row.bdt_per_purchase > 0 && row.order_value_bdt > 0
+    ? (row.order_value_bdt / row.bdt_per_purchase).toFixed(2)
+    : null;
   return (
     <div className="dm-campaign-row">
       <div className="dm-row-index">{index + 1}</div>
@@ -71,6 +74,11 @@ const CampaignReadRow = ({ row, index, onEdit, onDelete, disabled }) => {
       <span className="dm-row-cell dm-row-spend">{formatCurrency(row.spend)}</span>
       <span className="dm-row-cell">{row.orders_received}</span>
       <span className="dm-row-cell">{(row.impressions || 0).toLocaleString()}</span>
+      {/* BDT columns */}
+      <span className="dm-row-cell dm-bdt-cell">{row.quantity || '—'}</span>
+      <span className="dm-row-cell dm-bdt-cell">{row.bdt_per_purchase > 0 ? `৳${Number(row.bdt_per_purchase).toLocaleString()}` : '—'}</span>
+      <span className="dm-row-cell dm-bdt-cell">{row.bdt_av_value > 0 ? `৳${Number(row.bdt_av_value).toLocaleString()}` : '—'}</span>
+      <span className="dm-row-cell dm-bdt-cell">{row.order_value_bdt > 0 ? `৳${Number(row.order_value_bdt).toLocaleString()}` : '—'}</span>
       <div className="dm-cpo-badge">
         <span className="dm-cpo-label">CPO</span>
         <span className="dm-cpo-value">{cpo ? formatCurrency(cpo) : '—'}</span>
@@ -267,38 +275,36 @@ export const DigitalMarketerPanel = () => {
           .eq('id', reportId);
       }
 
-      // Upsert campaigns
-      for (const camp of campaigns) {
-        if (camp._new) {
-          const { data: saved } = await supabase
-            .from('ads_campaigns')
-            .insert({
-              report_id: reportId,
-              campaign_name: camp.campaign_name || 'Unnamed',
-              platform: camp.platform,
-              product_name: camp.product_name || 'Unknown',
-              spend: camp.spend,
-              orders_received: camp.orders_received,
-              impressions: camp.impressions,
-            })
-            .select()
-            .single();
-          // Replace temp row
-          setCampaigns(prev => prev.map(c => c.id === camp.id ? saved : c));
-        } else {
-          await supabase
-            .from('ads_campaigns')
-            .update({
-              campaign_name: camp.campaign_name,
-              platform: camp.platform,
-              product_name: camp.product_name,
-              spend: camp.spend,
-              orders_received: camp.orders_received,
-              impressions: camp.impressions,
-            })
-            .eq('id', camp.id);
-        }
-      }
+          const upsertCampaignFields = (camp) => ({
+            campaign_name:    camp.campaign_name || 'Unnamed',
+            platform:         camp.platform,
+            product_name:     camp.product_name || 'Unknown',
+            spend:            camp.spend,
+            orders_received:  camp.orders_received,
+            impressions:      camp.impressions,
+            quantity:         camp.quantity         || 0,
+            bdt_per_purchase: camp.bdt_per_purchase || 0,
+            bdt_av_value:     camp.bdt_av_value     || 0,
+            order_value_bdt:  camp.order_value_bdt  || 0,
+          });
+
+          // Upsert campaigns
+          for (const camp of campaigns) {
+            if (camp._new) {
+              const { data: saved } = await supabase
+                .from('ads_campaigns')
+                .insert({ report_id: reportId, ...upsertCampaignFields(camp) })
+                .select()
+                .single();
+              // Replace temp row
+              setCampaigns(prev => prev.map(c => c.id === camp.id ? saved : c));
+            } else {
+              await supabase
+                .from('ads_campaigns')
+                .update(upsertCampaignFields(camp))
+                .eq('id', camp.id);
+            }
+          }
     } catch (err) {
       console.error('Save error:', err);
     } finally {
@@ -483,6 +489,10 @@ export const DigitalMarketerPanel = () => {
                         <span>Spend</span>
                         <span>Orders</span>
                         <span>Reach</span>
+                        <span className="dm-bdt-head">Qty</span>
+                        <span className="dm-bdt-head">Per Purchase (৳)</span>
+                        <span className="dm-bdt-head">Av. Value (৳)</span>
+                        <span className="dm-bdt-head">Order Value (৳)</span>
                         <span>CPO</span>
                         {canEdit && <span></span>}
                       </div>

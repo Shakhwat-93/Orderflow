@@ -461,3 +461,274 @@
     font-size: 2.25rem;
   }
 }
+
+/* ================================================================
+   DAILY ADS COST INTELLIGENCE — ReportsPanel
+   ================================================================ */
+
+.ads-analytics-section {
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 20px;
+  padding: 28px;
+  margin-top: 24px;
+}
+
+.ads-pulse {
+  background: linear-gradient(135deg, #f59e0b22, #f59e0b10) !important;
+  color: #f59e0b !important;
+}
+
+.ads-section-badge {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: rgba(99,102,241,0.1);
+  color: #6366f1;
+  padding: 4px 10px;
+  border-radius: 99px;
+  border: 1px solid rgba(99,102,241,0.2);
+}
+
+/* KPI strip */
+.ads-kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin: 20px 0;
+}
+
+.ads-kpi-card {
+  background: var(--bg-soft, #f8fafc);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 14px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ads-kpi-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.ads-kpi-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary, #0f172a);
+  font-family: 'Inter', sans-serif;
+}
+
+.ads-kpi-value.positive { color: #10b981; }
+.ads-kpi-value.accent   { color: #6366f1; }
+
+/* Chart */
+.ads-chart-container {
+  margin: 0 0 20px;
+  background: var(--bg-soft, #f8fafc);
+  border-radius: 14px;
+  padding: 18px 12px 12px;
+}
+
+.ads-chart-legend {
+  display: flex;
+  gap: 18px;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.ads-chart-legend span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary, #64748b);
+  font-weight: 500;
+}
+
+.ads-chart-legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+/* Custom tooltip */
+.ads-custom-tooltip {
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+}
+
+.ads-tt-date {
+  font-weight: 700;
+  color: var(--text-primary, #0f172a);
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.ads-tt-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 2px 0;
+  color: var(--text-secondary, #64748b);
+}
+
+.ads-tt-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Day-wise table */
+.ads-day-table {
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.ads-day-table-head,
+.ads-day-row {
+  display: grid;
+  grid-template-columns: 80px 60px 1fr 1fr 1fr 60px 80px;
+  align-items: center;
+  padding: 10px 16px;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.ads-day-table-head {
+  background: var(--bg-soft, #f8fafc);
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+  font-weight: 600;
+  color: var(--text-secondary, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+}
+
+.ads-day-row {
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+  color: var(--text-primary, #0f172a);
+  transition: background 0.15s;
+}
+
+.ads-day-row:last-child { border-bottom: none; }
+.ads-day-row:hover { background: var(--bg-soft, #f8fafc); }
+.ads-day-row.good-roas { border-left: 3px solid #10b981; }
+.ads-day-row.poor-roas { border-left: 3px solid #ef4444; }
+
+.ads-day-date {
+  font-weight: 600;
+  color: var(--text-primary, #0f172a);
+  font-size: 12px;
+}
+
+.ads-spend-val    { color: #6366f1; font-weight: 600; }
+.ads-orderval-val { color: #10b981; font-weight: 600; }
+
+.ads-roas-badge {
+  padding: 3px 8px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.roas-good { background: rgba(16,185,129,0.12); color: #059669; }
+.roas-ok   { background: rgba(245,158,11,0.12); color: #d97706; }
+.roas-none { background: var(--bg-elevated, #f1f5f9); color: var(--text-secondary, #94a3b8); }
+
+/* Loading / empty */
+.ads-loading-state {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 32px;
+  color: var(--text-secondary, #64748b);
+  font-size: 14px;
+}
+
+.ads-loader-spin {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(99,102,241,0.2);
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.ads-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 40px 20px;
+  color: var(--text-secondary, #94a3b8);
+  text-align: center;
+}
+
+.ads-empty-state p {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary, #0f172a);
+  margin: 0;
+}
+
+.ads-empty-state span { font-size: 13px; }
+
+/* Dark mode */
+[data-theme='dark'] .ads-analytics-section {
+  background: var(--card-bg-dark, #1e293b);
+  border-color: rgba(255,255,255,0.08);
+}
+
+[data-theme='dark'] .ads-kpi-card,
+[data-theme='dark'] .ads-chart-container {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.08);
+}
+
+[data-theme='dark'] .ads-day-table-head { background: rgba(255,255,255,0.04); }
+[data-theme='dark'] .ads-day-row:hover  { background: rgba(255,255,255,0.04); }
+
+/* Responsive */
+@media (max-width: 900px) {
+  .ads-kpi-strip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .ads-kpi-strip {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .ads-day-table-head,
+  .ads-day-row {
+    grid-template-columns: 70px 50px 1fr 1fr;
+    font-size: 11px;
+  }
+
+  /* hide less critical cols on mobile */
+  .ads-day-table-head span:nth-child(4),
+  .ads-day-row span:nth-child(4),
+  .ads-day-table-head span:nth-child(6),
+  .ads-day-row span:nth-child(6) {
+    display: none;
+  }
+}

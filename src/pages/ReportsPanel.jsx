@@ -1,6 +1,6 @@
 import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
@@ -10,9 +10,10 @@ import {
   PieChart, Pie, Cell, 
   BarChart, Bar 
 } from 'recharts';
-import { Download, FileDown, TrendingUp, BarChart2, PieChart as PieChartIcon, Activity, Truck, Clock, AlertCircle, ArrowUpRight, ArrowDownRight, Zap } from 'lucide-react';
+import { Download, FileDown, TrendingUp, BarChart2, PieChart as PieChartIcon, Activity, Truck, Clock, AlertCircle, ArrowUpRight, ArrowDownRight, Zap, Megaphone } from 'lucide-react';
 import { analytics } from '../utils/analytics';
 import { deserializeDateRange, usePersistentState } from '../utils/persistentState';
+import { supabase } from '../lib/supabase';
 import './ReportsPanel.css';
 
 // ── Custom Tooltip for Premium Charts ──
@@ -83,6 +84,68 @@ export const ReportsPanel = () => {
   const sourceData = useMemo(() => analytics.getSourceDistribution(filteredOrders), [filteredOrders]);
   const confirmationData = useMemo(() => analytics.getConfirmationRate(filteredOrders), [filteredOrders]);
   const logisticsData = useMemo(() => analytics.getLogisticsSuccessRate(filteredOrders), [filteredOrders]);
+
+  // ── Ads Cost Analytics (day-wise) ──
+  const [adsData, setAdsData] = useState([]);
+  const [adsLoading, setAdsLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchAdsData = async () => {
+      setAdsLoading(true);
+      try {
+        const startStr = dateRange.start.toISOString().split('T')[0];
+        const endStr   = dateRange.end.toISOString().split('T')[0];
+
+        const { data: reports } = await supabase
+          .from('ads_reports')
+          .select(`
+            id, report_date, total_spend, total_orders, submitted_by_name,
+            ads_campaigns (
+              spend, orders_received, quantity,
+              bdt_per_purchase, bdt_av_value, order_value_bdt
+            )
+          `)
+          .eq('status', 'submitted')
+          .gte('report_date', startStr)
+          .lte('report_date', endStr)
+          .order('report_date', { ascending: true });
+
+        if (!reports) { setAdsData([]); return; }
+
+        // Aggregate by date (multiple submitters on same day → sum)
+        const byDate = {};
+        for (const r of reports) {
+          const d = r.report_date;
+          if (!byDate[d]) byDate[d] = { date: d, total_spend: 0, total_orders: 0, total_bdt_cost: 0, total_order_value_bdt: 0, qty: 0 };
+          byDate[d].total_spend        += Number(r.total_spend || 0);
+          byDate[d].total_orders       += Number(r.total_orders || 0);
+          for (const c of (r.ads_campaigns || [])) {
+            byDate[d].total_bdt_cost       += Number(c.bdt_per_purchase || 0) * Number(c.quantity || 0);
+            byDate[d].total_order_value_bdt += Number(c.order_value_bdt || 0);
+            byDate[d].qty                  += Number(c.quantity || 0);
+          }
+        }
+
+        const formatted = Object.values(byDate).map(d => ({
+          name:            new Date(d.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
+          date:            d.date,
+          spend:           Math.round(d.total_bdt_cost),
+          orders:          d.total_orders,
+          order_value:     Math.round(d.total_order_value_bdt),
+          roas:            d.total_bdt_cost > 0 ? +(d.total_order_value_bdt / d.total_bdt_cost).toFixed(2) : 0,
+          qty:             d.qty,
+        }));
+
+        setAdsData(formatted);
+      } catch (e) {
+        console.error('[ReportsPanel] Ads fetch error:', e);
+      } finally {
+        setAdsLoading(false);
+      }
+    };
+
+    fetchAdsData();
+  }, [dateRange]);
 
   // Export Orders as CSV
   const handleExportCSV = () => {
@@ -379,6 +442,116 @@ export const ReportsPanel = () => {
           </motion.div>
         </div>
       </div>
+
+      {/* ══════════════════════════════════════════════════
+          DAILY ADS COST INTELLIGENCE — day-wise BDT analytics
+      ══════════════════════════════════════════════════ */}
+      <motion.div className="ads-analytics-section" variants={itemVariants}>
+        <div className="section-header-elite">
+          <div className="heartbeat-pulse ads-pulse">
+            <Megaphone size={14} fill="currentColor" />
+          </div>
+          <h3>Daily Ads Cost Intelligence</h3>
+          <span className="ads-section-badge">BDT Breakdown</span>
+        </div>
+
+        {adsLoading ? (
+          <div className="ads-loading-state">
+            <div className="ads-loader-spin" />
+            <span>Fetching marketing data...</span>
+          </div>
+        ) : adsData.length === 0 ? (
+          <div className="ads-empty-state">
+            <Megaphone size={28} />
+            <p>No submitted ads reports found for the selected date range.</p>
+            <span>Go to Marketing → Submit a daily report to see data here.</span>
+          </div>
+        ) : (
+          <>
+            {/* Summary KPI strip */}
+            <div className="ads-kpi-strip">
+              <div className="ads-kpi-card">
+                <span className="ads-kpi-label">Total Ads Cost (BDT)</span>
+                <span className="ads-kpi-value">৳{adsData.reduce((s, d) => s + d.spend, 0).toLocaleString()}</span>
+              </div>
+              <div className="ads-kpi-card">
+                <span className="ads-kpi-label">Total Order Value (BDT)</span>
+                <span className="ads-kpi-value positive">৳{adsData.reduce((s, d) => s + d.order_value, 0).toLocaleString()}</span>
+              </div>
+              <div className="ads-kpi-card">
+                <span className="ads-kpi-label">Avg. Daily Spend</span>
+                <span className="ads-kpi-value">৳{Math.round(adsData.reduce((s, d) => s + d.spend, 0) / adsData.length).toLocaleString()}</span>
+              </div>
+              <div className="ads-kpi-card">
+                <span className="ads-kpi-label">Avg. ROAS</span>
+                <span className="ads-kpi-value accent">
+                  {(adsData.reduce((s, d) => s + d.roas, 0) / adsData.length).toFixed(2)}x
+                </span>
+              </div>
+            </div>
+
+            {/* Day-wise Bar Chart */}
+            <div className="ads-chart-container">
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={adsData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(99,102,241,0.06)" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} tickFormatter={v => `৳${v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}`} />
+                  <Tooltip
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload?.length) return null;
+                      return (
+                        <div className="ads-custom-tooltip">
+                          <p className="ads-tt-date">{label}</p>
+                          {payload.map((p, i) => (
+                            <div key={i} className="ads-tt-row">
+                              <span className="ads-tt-dot" style={{ background: p.fill }} />
+                              <span>{p.name}:</span>
+                              <strong>৳{Number(p.value).toLocaleString()}</strong>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    }}
+                  />
+                  <Bar dataKey="spend" name="Ads Cost" fill="#6366f1" fillOpacity={0.85} radius={[6, 6, 0, 0]} barSize={22} />
+                  <Bar dataKey="order_value" name="Order Value" fill="#10b981" fillOpacity={0.75} radius={[6, 6, 0, 0]} barSize={22} />
+                </BarChart>
+              </ResponsiveContainer>
+              <div className="ads-chart-legend">
+                <span><i style={{ background: '#6366f1' }} />Ads Cost (৳)</span>
+                <span><i style={{ background: '#10b981' }} />Order Value (৳)</span>
+              </div>
+            </div>
+
+            {/* Day-wise detailed table */}
+            <div className="ads-day-table">
+              <div className="ads-day-table-head">
+                <span>Date</span>
+                <span>Qty</span>
+                <span>Ads Cost (৳)</span>
+                <span>Per Purchase Av.</span>
+                <span>Order Value (৳)</span>
+                <span>Orders</span>
+                <span>ROAS</span>
+              </div>
+              {adsData.map((row) => (
+                <div key={row.date} className={`ads-day-row ${row.roas >= 2 ? 'good-roas' : row.roas > 0 && row.roas < 1 ? 'poor-roas' : ''}`}>
+                  <span className="ads-day-date">{row.name}</span>
+                  <span>{row.qty || '—'}</span>
+                  <span className="ads-spend-val">৳{row.spend.toLocaleString()}</span>
+                  <span>{row.qty > 0 ? `৳${Math.round(row.spend / row.qty).toLocaleString()}` : '—'}</span>
+                  <span className="ads-orderval-val">৳{row.order_value.toLocaleString()}</span>
+                  <span>{row.orders}</span>
+                  <span className={`ads-roas-badge ${row.roas >= 2 ? 'roas-good' : row.roas > 0 ? 'roas-ok' : 'roas-none'}`}>
+                    {row.roas > 0 ? `${row.roas}x` : '—'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </motion.div>
     </motion.div>
   );
 };

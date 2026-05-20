@@ -22,13 +22,18 @@ export const PLATFORM_COLORS = {
 };
 
 const EMPTY_FORM = {
-  campaign_name:   '',
-  platforms:       ['Facebook'],   // ← now an ARRAY
-  product_name:    '',
-  spend:           '',
-  orders_received: '',
-  impressions:     '',
-  notes:           '',
+  campaign_name:    '',
+  platforms:        ['Facebook'],
+  product_name:     '',
+  spend:            '',
+  orders_received:  '',
+  impressions:      '',
+  notes:            '',
+  // BDT cost tracking fields
+  quantity:         '',
+  bdt_per_purchase: '',
+  bdt_av_value:     '',
+  order_value_bdt:  '',
 };
 
 /**
@@ -52,13 +57,17 @@ const parsePlatforms = (raw) => {
  */
 export const CampaignEntryModal = ({ isOpen, onClose, onSave, initialData = null, disabled = false }) => {
   const [form, setForm] = useState(initialData ? {
-    campaign_name:   initialData.campaign_name   || '',
-    platforms:       parsePlatforms(initialData.platforms ?? initialData.platform),
-    product_name:    initialData.product_name    || '',
-    spend:           initialData.spend            ?? '',
-    orders_received: initialData.orders_received  ?? '',
-    impressions:     initialData.impressions       ?? '',
-    notes:           initialData.notes             || '',
+    campaign_name:    initialData.campaign_name    || '',
+    platforms:        parsePlatforms(initialData.platforms ?? initialData.platform),
+    product_name:     initialData.product_name     || '',
+    spend:            initialData.spend             ?? '',
+    orders_received:  initialData.orders_received   ?? '',
+    impressions:      initialData.impressions        ?? '',
+    notes:            initialData.notes              || '',
+    quantity:         initialData.quantity           ?? '',
+    bdt_per_purchase: initialData.bdt_per_purchase   ?? '',
+    bdt_av_value:     initialData.bdt_av_value        ?? '',
+    order_value_bdt:  initialData.order_value_bdt     ?? '',
   } : { ...EMPTY_FORM });
 
   const [platformOpen, setPlatformOpen]  = useState(false);
@@ -147,11 +156,15 @@ export const CampaignEntryModal = ({ isOpen, onClose, onSave, initialData = null
       await onSave({
         ...form,
         // keep backward-compat: also send comma-joined string as `platform`
-        platform:        form.platforms.join(', '),
-        spend:           parseFloat(form.spend)         || 0,
-        orders_received: parseInt(form.orders_received) || 0,
-        impressions:     parseInt(form.impressions)     || 0,
-        image_urls:      imageUrls,
+        platform:         form.platforms.join(', '),
+        spend:            parseFloat(form.spend)          || 0,
+        orders_received:  parseInt(form.orders_received)  || 0,
+        impressions:      parseInt(form.impressions)      || 0,
+        quantity:         parseInt(form.quantity)         || 0,
+        bdt_per_purchase: parseFloat(form.bdt_per_purchase) || 0,
+        bdt_av_value:     parseFloat(form.bdt_av_value)   || 0,
+        order_value_bdt:  parseFloat(form.order_value_bdt) || 0,
+        image_urls:       imageUrls,
       }, images.map(i => i.file));
 
       onClose();
@@ -433,6 +446,113 @@ export const CampaignEntryModal = ({ isOpen, onClose, onSave, initialData = null
                   <span className="cem-cpo-value">${cpo.toFixed(2)}</span>
                 </div>
                 <p className="cem-cpo-hint">Cost per order = spend ÷ orders (across all platforms)</p>
+              </motion.div>
+            )}
+          </div>
+
+          {/* ── Section 2b: BDT Cost Breakdown ── */}
+          <div className="cem-section">
+            <div className="cem-section-label">
+              <span className="cem-kicker">Daily BDT Cost Entry</span>
+              <span className="cem-kicker-sub">টাকায় খরচের হিসাব</span>
+            </div>
+
+            <div className="cem-row-2">
+              <div className="cem-field-group">
+                <label className="cem-label">Quantity (পরিমাণ)</label>
+                <input
+                  className="cem-input"
+                  type="number" min="0" placeholder="0"
+                  value={form.quantity}
+                  onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))}
+                  disabled={disabled}
+                />
+              </div>
+
+              <div className="cem-field-group">
+                <label className="cem-label">Ads Spent (BDT)</label>
+                <div className="cem-input-prefix-wrap">
+                  <span className="cem-input-prefix bdt">৳</span>
+                  <input
+                    className="cem-input prefix"
+                    type="number" min="0" step="0.01" placeholder="0.00"
+                    value={form.spend}
+                    readOnly
+                    disabled
+                    title="Uses the Ad Spend value above"
+                  />
+                </div>
+                <p className="cem-field-hint">Auto-linked from Ad Spend above</p>
+              </div>
+            </div>
+
+            <div className="cem-row-3">
+              <div className="cem-field-group">
+                <label className="cem-label">Per Purchase Av. (BDT)</label>
+                <div className="cem-input-prefix-wrap">
+                  <span className="cem-input-prefix bdt">৳</span>
+                  <input
+                    className="cem-input prefix"
+                    type="number" min="0" step="0.01" placeholder="0.00"
+                    value={form.bdt_per_purchase}
+                    onChange={e => setForm(f => ({ ...f, bdt_per_purchase: e.target.value }))}
+                    disabled={disabled}
+                  />
+                </div>
+              </div>
+
+              <div className="cem-field-group">
+                <label className="cem-label">BDT Av. Value</label>
+                <div className="cem-input-prefix-wrap">
+                  <span className="cem-input-prefix bdt">৳</span>
+                  <input
+                    className="cem-input prefix"
+                    type="number" min="0" step="0.01" placeholder="0.00"
+                    value={form.bdt_av_value}
+                    onChange={e => setForm(f => ({ ...f, bdt_av_value: e.target.value }))}
+                    disabled={disabled}
+                  />
+                </div>
+              </div>
+
+              <div className="cem-field-group">
+                <label className="cem-label">Order Value (BDT)</label>
+                <div className="cem-input-prefix-wrap">
+                  <span className="cem-input-prefix bdt">৳</span>
+                  <input
+                    className="cem-input prefix"
+                    type="number" min="0" step="0.01" placeholder="0.00"
+                    value={form.order_value_bdt}
+                    onChange={e => setForm(f => ({ ...f, order_value_bdt: e.target.value }))}
+                    disabled={disabled}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Auto-calculated BDT summary */}
+            {(parseFloat(form.bdt_per_purchase) > 0 || parseFloat(form.order_value_bdt) > 0) && (
+              <motion.div
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="cem-bdt-summary"
+              >
+                {parseFloat(form.bdt_per_purchase) > 0 && parseFloat(form.order_value_bdt) > 0 && (
+                  <div className="cem-bdt-stat">
+                    <span className="cem-bdt-label">ROAS</span>
+                    <span className="cem-bdt-val">
+                      {(parseFloat(form.order_value_bdt) / parseFloat(form.bdt_per_purchase)).toFixed(2)}x
+                    </span>
+                  </div>
+                )}
+                {parseInt(form.quantity) > 0 && parseFloat(form.bdt_per_purchase) > 0 && (
+                  <div className="cem-bdt-stat">
+                    <span className="cem-bdt-label">Total Ads Cost</span>
+                    <span className="cem-bdt-val">
+                      ৳{(parseInt(form.quantity) * parseFloat(form.bdt_per_purchase)).toLocaleString()}
+                    </span>
+                  </div>
+                )}
               </motion.div>
             )}
           </div>

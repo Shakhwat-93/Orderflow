@@ -711,3 +711,73 @@
   .cem-footer    { padding: 14px 18px; }
   .cem-row-2, .cem-row-3 { grid-template-columns: 1fr; }
 }
+
+/* ================================================================
+   BDT COST ENTRY — CampaignEntryModal additions
+   ================================================================ */
+
+.cem-kicker-sub {
+  font-size: 10px;
+  color: var(--text-secondary, #94a3b8);
+  margin-left: 8px;
+  font-weight: 500;
+}
+
+.cem-input-prefix.bdt {
+  color: #10b981;
+  font-weight: 700;
+}
+
+.cem-field-hint {
+  font-size: 10px;
+  color: var(--text-secondary, #94a3b8);
+  margin: 4px 0 0;
+  line-height: 1.4;
+}
+
+.cem-bdt-summary {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.cem-bdt-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: rgba(16,185,129,0.08);
+  border: 1px solid rgba(16,185,129,0.2);
+  border-radius: 10px;
+  padding: 8px 14px;
+}
+
+.cem-bdt-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #059669;
+}
+
+.cem-bdt-val {
+  font-size: 15px;
+  font-weight: 700;
+  color: #10b981;
+}
+
+/* BDT column headers in DigitalMarketerPanel */
+.dm-bdt-head {
+  color: #10b981 !important;
+  font-weight: 600;
+}
+
+.dm-bdt-cell {
+  color: #059669;
+  font-weight: 500;
+  font-size: 12px;
+}
+
+[data-theme='dark'] .dm-bdt-cell {
+  color: #6ee7b7;
+}
