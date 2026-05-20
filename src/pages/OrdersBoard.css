@@ -264,8 +264,8 @@
   32 + 70 + 95 + 140 + 115 + 82 + 75 + 105 + 80 + 68 = 862px  ✓ (with items)
   ────────────────────────────────────────────────────────────── */
 
-.checkbox-col, .checkbox-cell { width: 32px; }
-.id-col,       .id-cell       { width: 70px; }
+.checkbox-col, .checkbox-cell { width: 28px; }
+.id-col,       .id-cell       { width: 130px; min-width: 130px; }
 .date-col,     .date-cell     { width: 95px; }
 .customer-col, .customer-cell { width: 140px; }
 .product-col,  .product-cell  { width: 115px; }
@@ -297,16 +297,15 @@
   th.date-col, td.date-cell { display: none; }
 }
 
+/* ── General cell text styles ── */
 .order-id-cell { font-weight: 700; color: var(--ob-accent); font-size: 0.8rem; }
 .customer-name { font-weight: 650; color: var(--ob-text); font-size: 0.875rem; }
 .phone-cell, .date-cell { font-size: 0.8rem; color: var(--ob-text-sub); font-weight: 500; }
 .product-name { font-weight: 650; font-size: 0.82rem; color: var(--ob-text); }
 .size-cell, .source-cell { font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ob-text-sub); }
-.premium-checkbox { width: 16px; height: 16px; accent-color: var(--ob-accent); cursor: pointer; border-radius: 4px; }
-
+.premium-checkbox { width: 14px; height: 14px; accent-color: var(--ob-accent); cursor: pointer; border-radius: 3px; }
 .row-action-btn { background: transparent; border: none; color: var(--ob-text-muted); cursor: pointer; padding: 7px; border-radius: 7px; transition: all 0.15s ease; display: inline-flex; align-items: center; }
 .row-action-btn:hover { background: var(--ob-btn-bg); color: var(--ob-text); }
-
 .empty-state-cell { text-align: center; padding: 52px !important; font-weight: 500; color: var(--ob-text-muted); font-size: 0.9rem; }
 
 /* Pagination */
