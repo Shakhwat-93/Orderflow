@@ -1,4 +1,4 @@
-﻿import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { extractInvoiceItems, extractOrder } from '../services/aiProxy';
 
@@ -1521,7 +1521,7 @@ export const api = {
     ];
     const nextStatus = resolvedStatuses.includes(oldData?.status)
       ? oldData.status
-      : (isFailedCallStatus && newAttempts >= 4 ? 'Final Call Pending' : 'Pending Call');
+      : (isFailedCallStatus && newAttempts >= 6 ? 'Final Call Pending' : 'Pending Call');
 
     const { data, error } = await supabase
       .from('orders')
