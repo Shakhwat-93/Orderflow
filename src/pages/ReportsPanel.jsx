@@ -1,4 +1,4 @@
-﻿import { useOrders } from '../context/OrderContext';
+import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
 import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -153,12 +153,19 @@ export const ReportsPanel = () => {
   const [selectedUser,    setSelectedUser]    = useState('all');
   const [perfView,        setPerfView]        = useState('overview');
 
-  // Independent date range — defaults to TODAY
+  // Helper: create a Date at local midnight (start) or 23:59:59.999 (end) for a day offset
   const mkDay = (off = 0, isStart = true) => {
-    const d = new Date(); d.setDate(d.getDate() + off);
-    isStart ? d.setHours(0,0,0,0) : d.setHours(23,59,59,999); return d;
+    const d = new Date();
+    d.setDate(d.getDate() + off);
+    // Use local time, not UTC, so BD 12:00 AM is the true boundary
+    if (isStart) {
+      d.setHours(0, 0, 0, 0);      // local midnight = 12:00 AM BD
+    } else {
+      d.setHours(23, 59, 59, 999); // local end-of-day = 11:59:59 PM BD
+    }
+    return d;
   };
-  const [perfDateRange, setPerfDateRange] = useState({ start: mkDay(0,true), end: mkDay(0,false) });
+  const [perfDateRange, setPerfDateRange] = useState({ start: mkDay(0, true), end: mkDay(0, false) });
   const [perfPreset,    setPerfPreset]    = useState('today');
   const applyPerfPreset = (preset) => {
     const map = {
@@ -174,16 +181,28 @@ export const ReportsPanel = () => {
     const fetchUserPerformance = async () => {
       setUserPerfLoading(true);
       try {
-        const startStr = perfDateRange.start.toISOString().split('T')[0];
-        const endStr   = perfDateRange.end.toISOString().split('T')[0];
+        /**
+         * TIMEZONE FIX:
+         * toISOString() always returns UTC. For BD (UTC+6), local midnight
+         * = UTC previous day 18:00. So we must send the LOCAL time as ISO,
+         * not the UTC-converted value.
+         * We do this by shifting: localISO = UTCtime - tzOffset
+         */
+        const toLocalISO = (date) => {
+          const tzOffset = date.getTimezoneOffset() * 60000; // offset in ms
+          return new Date(date.getTime() - tzOffset).toISOString();
+        };
+
+        const startISO = toLocalISO(perfDateRange.start); // local 00:00:00
+        const endISO   = toLocalISO(perfDateRange.end);   // local 23:59:59.999
 
         // Fetch STATUS_CHANGE logs from real agents (exclude System bulk ops)
         const { data: logs } = await supabase
           .from('order_activity_logs')
           .select('changed_by_user_name, new_status, timestamp, action_type, order_id')
           .in('action_type', ['STATUS_CHANGE'])
-          .gte('timestamp', `${startStr}T00:00:00.000Z`)
-          .lte('timestamp', `${endStr}T23:59:59.999Z`)
+          .gte('timestamp', startISO)
+          .lte('timestamp', endISO)
           .neq('changed_by_user_name', 'System')
           .order('timestamp', { ascending: true });
 
