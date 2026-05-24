@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { OrderEditModal } from '../components/OrderEditModal';
 import { OrderDetailsModal } from '../components/OrderDetailsModal';
@@ -255,22 +255,17 @@ export const CallTeamPanel = () => {
     unchecked.forEach(p => checkPhone(p));
   }, [filteredOrders, checkPhone, getRatio]);
 
-  // ── Real-time Metrics Calculations ─────────────────────────────
+  // Metrics Calculations
   const pendingCount = orders.filter(o => ACTIVE_CALL_STATUSES.includes(o.status)).length;
 
-  // Today's local midnight boundary
-  const todayStart = (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })();
+  // Today's local midnight (BD time)
+  const todayStart = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; })();
 
   const confirmedToday = typeof stats?.confirmedTodayCount === 'number'
     ? stats.confirmedTodayCount
     : orders.filter(o => o.status === 'Confirmed' && new Date(o.updated_at || o.created_at) >= todayStart).length;
 
-  /**
-   * REAL CONFIRMATION RATE
-   * = orders that were ever called (have first_call_time OR call_attempts > 0)
-   *   and ended up Confirmed, out of ALL called orders today.
-   * We look at all orders updated today that have a call attempt recorded.
-   */
+  // Real Confirmation Rate — all called orders today vs confirmed ones
   const realConfirmRate = useMemo(() => {
     const calledToday = orders.filter(o => {
       const updatedAt = new Date(o.updated_at || o.created_at);
@@ -282,44 +277,28 @@ export const CallTeamPanel = () => {
     return { rate: +((confirmed / calledToday.length) * 100).toFixed(1), total: calledToday.length, confirmed };
   }, [orders]);
 
-  /**
-   * REAL AVERAGE RESPONSE TIME
-   * = average minutes between order created_at and first_call_time
-   *   for orders that have a first_call_time recorded today.
-   */
+  // Real Average Response Time — avg(first_call_time - created_at) for today's responses
   const realAvgResponseMin = useMemo(() => {
-    const respondedToday = orders.filter(o => {
-      if (!o.first_call_time) return false;
-      return new Date(o.first_call_time) >= todayStart;
-    });
+    const respondedToday = orders.filter(o => o.first_call_time && new Date(o.first_call_time) >= todayStart);
     if (respondedToday.length === 0) return null;
     const totalMins = respondedToday.reduce((sum, o) => {
-      const mins = (new Date(o.first_call_time) - new Date(o.created_at)) / 60000;
-      return sum + Math.max(0, mins);
+      return sum + Math.max(0, (new Date(o.first_call_time) - new Date(o.created_at)) / 60000);
     }, 0);
     return +(totalMins / respondedToday.length).toFixed(1);
   }, [orders]);
 
-  // Derived labels
-  const avgRespLabel = realAvgResponseMin === null
-    ? '—'
-    : realAvgResponseMin >= 60
-    ? `${(realAvgResponseMin / 60).toFixed(1)}h`
+  // Derived display values for avg response card
+  const avgRespLabel = realAvgResponseMin === null ? '—'
+    : realAvgResponseMin >= 60 ? `${(realAvgResponseMin / 60).toFixed(1)}h`
     : `${realAvgResponseMin}m`;
-
-  const avgRespStatus = realAvgResponseMin === null
-    ? 'neutral'
+  const avgRespStatus = realAvgResponseMin === null ? 'neutral'
     : realAvgResponseMin <= 10 ? 'good'
     : realAvgResponseMin <= 15 ? 'warning'
     : 'critical';
-
-  const avgRespDesc = realAvgResponseMin === null
-    ? 'No responses logged today yet.'
-    : realAvgResponseMin <= 10 ? '✅ Excellent — well within 10m target.'
-    : realAvgResponseMin <= 15 ? '⚡ Good — within 15m agency benchmark.'
-    : '⚠️ Slow — exceeding 15m response target.';
-
-  // Progress bar fill: cap at 30m → 0% at 0m, 100% at 30m
+  const avgRespDesc = realAvgResponseMin === null ? 'No responses logged today yet.'
+    : realAvgResponseMin <= 10 ? 'Excellent — well within 10m target.'
+    : realAvgResponseMin <= 15 ? 'Good — within 15m agency benchmark.'
+    : 'Slow — exceeding 15m response target.';
   const avgRespProgress = realAvgResponseMin === null ? 0 : Math.min(100, (realAvgResponseMin / 30) * 100);
 
   const closeActionNoteModal = (force = false) => {
@@ -435,11 +414,10 @@ export const CallTeamPanel = () => {
         </div>
       </div>
 
-
-      {/* -- 2. Metric Cards Row -- */}
+      {/* â”€â”€ 2. Metric Cards Row â”€â”€ */}
       <div className="elite-metrics-grid">
-
-        {/* -- REAL-TIME CONFIRMATION RATE CARD -- */}
+        
+        {/* ── Real-time Confirmation Rate Card ── */}
         <div className="elite-metric-card">
           <div className="metric-header">
             <span className="metric-sup-title">REAL-TIME PERFORMANCE</span>
@@ -447,10 +425,8 @@ export const CallTeamPanel = () => {
               <div
                 className="metric-target-badge"
                 style={{
-                  background: realConfirmRate.rate >= 60
-                    ? 'rgba(16,185,129,0.12)'
-                    : realConfirmRate.rate >= 40
-                    ? 'rgba(245,158,11,0.12)'
+                  background: realConfirmRate.rate >= 60 ? 'rgba(16,185,129,0.12)'
+                    : realConfirmRate.rate >= 40 ? 'rgba(245,158,11,0.12)'
                     : 'rgba(239,68,68,0.12)',
                   color: realConfirmRate.rate >= 60 ? '#10b981'
                     : realConfirmRate.rate >= 40 ? '#f59e0b' : '#ef4444',
@@ -462,31 +438,36 @@ export const CallTeamPanel = () => {
             )}
           </div>
           <div className="metric-big-val">
-            {realConfirmRate === null ? '\u2014' : ``}
+            {realConfirmRate === null ? '—' : realConfirmRate.rate}
             <span>% Confirmation Rate</span>
           </div>
-          {/* Dynamic bars: last 10 called orders */}
+
+          {/* Live bar chart — last 10 called orders */}
           <div className="metric-chart-container">
             {orders
               .filter(o => Number(o.call_attempts || 0) > 0 || o.first_call_time)
               .slice(-10)
               .map((o, i, arr) => {
-                const isC = o.status === 'Confirmed';
-                const isX = o.status === 'Cancelled' || o.status === 'Fake Order';
-                const h = Math.min(100, 25 + (Number(o.call_attempts || 1)) * 18);
+                const isConfirmed = o.status === 'Confirmed';
+                const isCancelled = o.status === 'Cancelled' || o.status === 'Fake Order';
+                const barH = Math.min(100, 25 + (Number(o.call_attempts || 1)) * 18);
                 return (
                   <div
                     key={o.id}
-                    className={`metric-bar `}
-                    style={{ height: `%`, background: isC ? '#10b981' : isX ? '#ef4444' : undefined, opacity: isC || isX ? 1 : 0.45 }}
-                    title={` -  ( calls)`}
+                    className={`metric-bar ${i === arr.length - 1 ? 'active' : ''}`}
+                    style={{
+                      height: `${barH}%`,
+                      background: isConfirmed ? '#10b981' : isCancelled ? '#ef4444' : undefined,
+                      opacity: isConfirmed || isCancelled ? 1 : 0.45,
+                    }}
+                    title={`${o.customer_name} — ${o.status} (${o.call_attempts || 0} calls)`}
                   />
                 );
               })}
           </div>
         </div>
 
-        {/* -- REAL AVERAGE RESPONSE TIME CARD -- */}
+        {/* ── Real Average Response Time Card ── */}
         <div className="elite-metric-card">
           <div className="metric-header">
             <span className="metric-sup-title">AVERAGE RESPONSE TIME</span>
@@ -503,10 +484,13 @@ export const CallTeamPanel = () => {
                   : '#64748b',
               }}
             >
-              {avgRespStatus === 'good' ? 'On Target' : avgRespStatus === 'warning' ? 'Near Limit' : avgRespStatus === 'critical' ? 'Overdue' : 'No Data'}
+              {avgRespStatus === 'good' ? 'On Target'
+                : avgRespStatus === 'warning' ? 'Near Limit'
+                : avgRespStatus === 'critical' ? 'Overdue'
+                : 'No Data'}
             </div>
           </div>
-          <div className="metric-big-val" style={{ fontSize: "48px", marginBottom: "8px" }}>
+          <div className="metric-big-val" style={{ fontSize: '48px', marginBottom: '8px' }}>
             {avgRespLabel}
             {realAvgResponseMin !== null && (
               <span style={{ fontSize: '14px', marginLeft: '6px', opacity: 0.5 }}>avg today</span>
@@ -517,16 +501,18 @@ export const CallTeamPanel = () => {
             <div
               className="metric-progress-fill"
               style={{
-                width: `%`,
-                background: avgRespStatus === 'good' ? '#10b981' : avgRespStatus === 'warning' ? '#f59e0b' : avgRespStatus === 'critical' ? '#ef4444' : '#94a3b8',
-                transition: 'width 0.8s ease'
+                width: `${avgRespProgress}%`,
+                background: avgRespStatus === 'good' ? '#10b981'
+                  : avgRespStatus === 'warning' ? '#f59e0b'
+                  : avgRespStatus === 'critical' ? '#ef4444'
+                  : '#94a3b8',
+                transition: 'width 0.8s ease',
               }}
             />
           </div>
         </div>
 
       </div>
-
 
       {/* â”€â”€ 3. Pill Filter Row â”€â”€ */}
       <div className="elite-filter-row">
@@ -925,105 +911,3 @@ export const CallTeamPanel = () => {
   );
 };
 
-
-
-      {/* ── 2. Metric Cards Row ── */}
-      <div className="elite-metrics-grid">
-
-        {/* ── REAL-TIME CONFIRMATION RATE CARD ── */}
-        <div className="elite-metric-card">
-          <div className="metric-header">
-            <span className="metric-sup-title">REAL-TIME PERFORMANCE</span>
-            {realConfirmRate && (
-              <div
-                className="metric-target-badge"
-                style={{
-                  background: realConfirmRate.rate >= 60
-                    ? 'rgba(16,185,129,0.12)'
-                    : realConfirmRate.rate >= 40
-                    ? 'rgba(245,158,11,0.12)'
-                    : 'rgba(239,68,68,0.12)',
-                  color: realConfirmRate.rate >= 60 ? '#10b981'
-                    : realConfirmRate.rate >= 40 ? '#f59e0b' : '#ef4444',
-                }}
-              >
-                <TrendingUp size={12} strokeWidth={3} />
-                {realConfirmRate.confirmed}/{realConfirmRate.total} called today
-              </div>
-            )}
-          </div>
-          <div className="metric-big-val">
-            {realConfirmRate === null ? '\u2014' : `${realConfirmRate.rate}`}
-            <span>% Confirmation Rate</span>
-          </div>
-          {/* Dynamic bar chart - last 10 called orders result */}
-          <div className="metric-chart-container">
-            {orders
-              .filter(o => Number(o.call_attempts || 0) > 0 || o.first_call_time)
-              .slice(-10)
-              .map((o, i, arr) => {
-                const isConfirmed = o.status === 'Confirmed';
-                const isCancelled = o.status === 'Cancelled' || o.status === 'Fake Order';
-                const h = Math.min(100, 25 + (Number(o.call_attempts || 1)) * 18);
-                return (
-                  <div
-                    key={o.id}
-                    className={`metric-bar ${i === arr.length - 1 ? 'active' : ''}`}
-                    style={{
-                      height: `${h}%`,
-                      background: isConfirmed ? '#10b981' : isCancelled ? '#ef4444' : undefined,
-                      opacity: isConfirmed || isCancelled ? 1 : 0.45,
-                    }}
-                    title={`${o.customer_name} - ${o.status} (${o.call_attempts || 0} calls)`}
-                  />
-                );
-              })}
-          </div>
-        </div>
-
-        {/* ── REAL AVERAGE RESPONSE TIME CARD ── */}
-        <div className="elite-metric-card">
-          <div className="metric-header">
-            <span className="metric-sup-title">AVERAGE RESPONSE TIME</span>
-            <div
-              className="metric-target-badge"
-              style={{
-                background: avgRespStatus === 'good' ? 'rgba(16,185,129,0.12)'
-                  : avgRespStatus === 'warning' ? 'rgba(245,158,11,0.12)'
-                  : avgRespStatus === 'critical' ? 'rgba(239,68,68,0.12)'
-                  : 'rgba(100,116,139,0.1)',
-                color: avgRespStatus === 'good' ? '#10b981'
-                  : avgRespStatus === 'warning' ? '#f59e0b'
-                  : avgRespStatus === 'critical' ? '#ef4444'
-                  : '#64748b',
-              }}
-            >
-              {avgRespStatus === 'good' ? 'On Target'
-                : avgRespStatus === 'warning' ? 'Near Limit'
-                : avgRespStatus === 'critical' ? 'Overdue'
-                : 'No Data'}
-            </div>
-          </div>
-          <div className="metric-big-val" style={{ fontSize: '48px', marginBottom: '8px' }}>
-            {avgRespLabel}
-            {realAvgResponseMin !== null && (
-              <span style={{ fontSize: '14px', marginLeft: '6px', opacity: 0.5 }}>avg today</span>
-            )}
-          </div>
-          <p className="metric-text-desc">{avgRespDesc}</p>
-          <div className="metric-progress-line">
-            <div
-              className="metric-progress-fill"
-              style={{
-                width: `${avgRespProgress}%`,
-                background: avgRespStatus === 'good' ? '#10b981'
-                  : avgRespStatus === 'warning' ? '#f59e0b'
-                  : avgRespStatus === 'critical' ? '#ef4444'
-                  : '#94a3b8',
-                transition: 'width 0.8s ease'
-              }}
-            />
-          </div>
-        </div>
-
-      </div>
