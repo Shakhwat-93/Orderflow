@@ -115,18 +115,19 @@
 .rt-full {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 14px 8px 10px;
-  border-radius: 14px;
+  gap: 6px;
+  padding: 5px 10px 5px 7px;
+  border-radius: 10px;
   border: 1px solid transparent;
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
+  max-width: 120px;
 }
 
 .rt-full-icon-wrap {
-  width: 32px;
-  height: 32px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -143,23 +144,27 @@
 }
 
 .rt-full-value {
-  font-size: 17px;
-  font-weight: 900;
-  letter-spacing: -0.02em;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
 }
 
 .rt-full-label {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   opacity: 0.75;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 70px;
 }
 
 .rt-full-meta {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
   opacity: 0.55;
   white-space: nowrap;
@@ -170,10 +175,10 @@
 /* Live pip */
 .rt-live-pip {
   position: absolute;
-  top: 8px;
-  right: 10px;
-  width: 7px;
-  height: 7px;
+  top: 6px;
+  right: 7px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: currentColor;
   animation: rt-dot-blink 1.4s ease-in-out infinite;

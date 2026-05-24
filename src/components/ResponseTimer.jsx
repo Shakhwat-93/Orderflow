@@ -164,7 +164,7 @@ export const ResponseTimer = ({ order, mode = 'compact' }) => {
       title={tooltipParts.join('\n')}
     >
       <div className="rt-full-icon-wrap">
-        <Icon size={16} />
+        <Icon size={12} />
       </div>
       <div className="rt-full-content">
         <span className="rt-full-value">{timeStr}</span>
