@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { MobileBottomNav } from './MobileBottomNav';
+import { UnattendedOrdersAlertModal } from './UnattendedOrdersAlertModal';
 import { getSessionStorage } from '../platform/storage';
 import './DashboardLayout.css';
 
@@ -68,6 +69,9 @@ export const DashboardLayout = () => {
 
       {/* Fixed bottom nav — mobile only, all routes */}
       <MobileBottomNav />
+
+      {/* Global premium real-time danger alert modal for uncalled orders > 20 mins */}
+      <UnattendedOrdersAlertModal />
     </div>
   );
 };

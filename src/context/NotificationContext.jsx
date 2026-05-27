@@ -49,6 +49,37 @@ export const NotificationProvider = ({ children }) => {
   const hasShownInitialUnreadToastsRef = useRef(false);
   const soundQueueRef = useRef(Promise.resolve());
 
+  const playFallbackSynthChime = useCallback(() => {
+    try {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc1 = audioCtx.createOscillator();
+      const gain1 = audioCtx.createGain();
+      osc1.connect(gain1);
+      gain1.connect(audioCtx.destination);
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(987.77, audioCtx.currentTime); // B5
+      gain1.gain.setValueAtTime(0.1, audioCtx.currentTime);
+      gain1.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+      osc1.start();
+      osc1.stop(audioCtx.currentTime + 0.4);
+
+      setTimeout(() => {
+        const osc2 = audioCtx.createOscillator();
+        const gain2 = audioCtx.createGain();
+        osc2.connect(gain2);
+        gain2.connect(audioCtx.destination);
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(1318.51, audioCtx.currentTime); // E6
+        gain2.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        gain2.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+        osc2.start();
+        osc2.stop(audioCtx.currentTime + 0.5);
+      }, 80);
+    } catch (e) {
+      console.warn('Synth fallback chime failed:', e);
+    }
+  }, []);
+
   const playAudioSequence = useCallback(async (audioUrl, repeatCount, volume) => {
     for (let index = 0; index < repeatCount; index += 1) {
       try {
@@ -64,12 +95,16 @@ export const NotificationProvider = ({ children }) => {
 
           audio.volume = volume;
           audio.onended = finish;
-          audio.onerror = finish;
+          audio.onerror = () => {
+            playFallbackSynthChime();
+            finish();
+          };
 
           const playback = audio.play();
           if (playback?.catch) {
             playback.catch((error) => {
               console.log('Audio play blocked:', error);
+              playFallbackSynthChime();
               finish();
             });
           }
@@ -78,10 +113,11 @@ export const NotificationProvider = ({ children }) => {
         });
       } catch (error) {
         console.log('Audio sequence interrupted:', error);
+        playFallbackSynthChime();
         break;
       }
     }
-  }, []);
+  }, [playFallbackSynthChime]);
 
   const playNotificationSound = useCallback((type) => {
     if (type !== 'ORDER_CREATED') return;
@@ -298,7 +334,7 @@ export const NotificationProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [addToast, requestNotificationPermission, userId]);
+  }, [requestNotificationPermission, userId]);
 
   useEffect(() => {
     if (!userId) {
@@ -312,12 +348,9 @@ export const NotificationProvider = ({ children }) => {
 
     fetchNotifications();
 
-    // OPTIMIZED: Single channel with broadcast-only listening.
-    // postgres_changes fallback removed — it creates extra DB replication slots.
-    // The server broadcasts notifications via the 'new_notification' event,
-    // so we don't need to also listen to DB row-level changes.
-    // The external_order_notifications channel is also removed — OrderContext
-    // already has a realtime subscription on the orders table.
+    // OPTIMIZED: Single channel with broadcast listening AND real-time insert listener on orders.
+    // OrderContext already has a subscription for UI state, but NotificationContext needs to listen
+    // to INSERT on 'orders' table to trigger premium alerts & browser push/toasts for new orders.
     const channel = supabase
       .channel('admin_notifications_realtime')
       .on('broadcast', { event: 'new_notification' }, (payload) => {
@@ -337,12 +370,46 @@ export const NotificationProvider = ({ children }) => {
         setUnreadCount(prev => prev + 1);
         addToast(notif);
       })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
+        const newOrder = payload.new;
+        if (!newOrder) return;
+
+        // Sync with browser notification settings (sound_enabled inside of_alerts_config)
+        let soundEnabled = true;
+        try {
+          const cfg = JSON.parse(localStorage.getItem('of_alerts_config') || '{}');
+          if (cfg.sound_enabled === false) soundEnabled = false;
+        } catch {}
+
+        // Build premium external order notification object
+        const notif = buildExternalOrderNotification(newOrder);
+
+        // Track and show toast (with audio alert and browser notification)
+        setNotifications(prev => {
+          if (prev.some(n => n.id === notif.id)) return prev;
+          return [notif, ...prev];
+        });
+        setUnreadCount(prev => prev + 1);
+
+        // If sound is globally disabled in settings, temporarily mute
+        if (soundEnabled) {
+          addToast(notif);
+        } else {
+          // Add toast without sound sequence
+          const id = Date.now();
+          setToasts(prev => [...prev, { ...notif, id }]);
+          showBrowserNotification(notif);
+          setTimeout(() => {
+            setToasts(prev => prev.filter(t => t.id !== id));
+          }, 5000);
+        }
+      })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [addToast, fetchNotifications, userId]);
+  }, [addToast, fetchNotifications, buildExternalOrderNotification, userId]);
 
   useEffect(() => {
     if (!userId) return undefined;
