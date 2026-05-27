@@ -161,9 +161,9 @@ export const UnattendedOrdersAlertModal = () => {
     });
   };
 
-  // Snooze alert for 5 minutes
+  // Snooze alert for 10 minutes
   const handleSnooze = () => {
-    setSnoozeUntil(Date.now() + 5 * 60 * 1000);
+    setSnoozeUntil(Date.now() + 10 * 60 * 1000);
   };
 
   // Quick Action Logger
@@ -344,7 +344,7 @@ export const UnattendedOrdersAlertModal = () => {
           {/* Bottom snoozes */}
           <div className="alert-modal-footer">
             <button className="snooze-action-btn" onClick={handleSnooze}>
-              Snooze Alert for 5 Min
+              Snooze Alert for 10 Min
             </button>
           </div>
         </motion.div>
