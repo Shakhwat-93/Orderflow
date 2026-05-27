@@ -2095,7 +2095,10 @@ export const api = {
   async createInventoryItem(itemData) {
     const payload = {
       ...itemData,
-      unit_price: Number(itemData.unit_price) || 0,
+      // selling_price is the customer-facing price; making_cost is the production cost
+      unit_price:   Number(itemData.unit_price)    || 0,
+      selling_price: Number(itemData.selling_price) || Number(itemData.unit_price) || 0,
+      making_cost:  Number(itemData.making_cost)   || 0,
       current_stock: Number(itemData.current_stock) || 0,
       min_stock_level: Number(itemData.min_stock_level) || 0,
       supports_serial_tracking: Boolean(itemData.supports_serial_tracking)
@@ -2125,12 +2128,16 @@ export const api = {
    * Update product details
    */
   async updateInventoryItem(id, updates) {
-    const payload = {
-      ...updates
-    };
+    const payload = { ...updates };
 
     if (Object.prototype.hasOwnProperty.call(updates, 'unit_price')) {
       payload.unit_price = Number(updates.unit_price) || 0;
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, 'selling_price')) {
+      payload.selling_price = Number(updates.selling_price) || 0;
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, 'making_cost')) {
+      payload.making_cost = Number(updates.making_cost) || 0;
     }
     if (Object.prototype.hasOwnProperty.call(updates, 'current_stock')) {
       payload.current_stock = Number(updates.current_stock) || 0;
@@ -2167,9 +2174,8 @@ export const api = {
   /**
    * Adjust stock levels directly
    */
-  async adjustStock(id, quantityChange) {
-    // We use a RPC or fetch-then-update since Supabase doesn't have an atomic increment in JS directly without RPC
-    // But for simplicity in this MVP, we'll fetch and update
+  async adjustStock(id, quantityChange, options = {}) {
+    // Fetch current stock atomically
     const { data: item, error: fetchError } = await supabase
       .from('inventory')
       .select('current_stock')
@@ -2178,7 +2184,7 @@ export const api = {
 
     if (fetchError) throw fetchError;
 
-    const newStock = (item.current_stock || 0) + quantityChange;
+    const newStock = Math.max(0, (item.current_stock || 0) + quantityChange);
 
     const { data, error } = await supabase
       .from('inventory')
@@ -2188,6 +2194,18 @@ export const api = {
       .single();
 
     if (error) throw error;
+
+    // Log the manual stock adjustment to the audit trail
+    const txType = quantityChange >= 0 ? 'manual_add' : 'manual_deduct';
+    await this.logInventoryTransaction({
+      inventory_id: id,
+      order_id: options.orderId || null,
+      type: options.txType || txType,
+      quantity: quantityChange,
+      note: options.note || (quantityChange >= 0 ? `Manual stock add: +${quantityChange}` : `Manual stock deduct: ${quantityChange}`),
+      created_by: options.userId || null
+    });
+
     return data;
   },
 
@@ -2203,20 +2221,34 @@ export const api = {
   },
 
   /**
-   * Sync stock for a specific product based on name
-   * Call this when an order is confirmed to deduct stock
+   * Log a stock movement to the inventory_transactions audit table.
+   * quantity: positive = stock added, negative = stock deducted.
    */
-  async deductStockByProductName(productName, quantity = 1) {
-    const { data: items, error: fetchError } = await supabase
+  async logInventoryTransaction({ inventory_id, order_id = null, type, quantity, note = null, created_by = null }) {
+    try {
+      const { error } = await supabase
+        .from('inventory_transactions')
+        .insert([{ inventory_id, order_id, type, quantity, note, created_by }]);
+      if (error) console.warn('inventory_transactions log error (non-fatal):', error.message);
+    } catch (e) {
+      console.warn('inventory_transactions insert failed (non-fatal):', e.message);
+    }
+  },
+
+  /**
+   * Deduct stock when an order is confirmed — by inventory_id (preferred) or product name (fallback).
+   * Also writes to inventory_transactions for full audit trail.
+   */
+  async deductStockByInventoryId(inventoryId, quantity = 1, options = {}) {
+    const { data: item, error: fetchError } = await supabase
       .from('inventory')
       .select('id, current_stock')
-      .eq('name', productName)
-      .limit(1);
+      .eq('id', inventoryId)
+      .single();
 
     if (fetchError) throw fetchError;
-    if (!items || items.length === 0) return null;
+    if (!item) return null;
 
-    const item = items[0];
     const newStock = Math.max(0, (item.current_stock || 0) - quantity);
 
     const { data, error } = await supabase
@@ -2227,7 +2259,179 @@ export const api = {
       .single();
 
     if (error) throw error;
+
+    // Write audit trail entry
+    await this.logInventoryTransaction({
+      inventory_id: item.id,
+      order_id: options.orderId || null,
+      type: 'order_confirmed',
+      quantity: -quantity,  // negative = deducted
+      note: options.note || `Order confirmed — deducted ${quantity} unit(s)`,
+      created_by: options.userId || null
+    });
+
     return data;
+  },
+
+  /**
+   * Restore stock when an order is cancelled or returned.
+   * Works by inventory_id (preferred) or product name (fallback).
+   */
+  async restoreStockByInventoryId(inventoryId, quantity = 1, options = {}) {
+    const { data: item, error: fetchError } = await supabase
+      .from('inventory')
+      .select('id, current_stock')
+      .eq('id', inventoryId)
+      .single();
+
+    if (fetchError) throw fetchError;
+    if (!item) return null;
+
+    const newStock = (item.current_stock || 0) + quantity;
+
+    const { data, error } = await supabase
+      .from('inventory')
+      .update({ current_stock: newStock })
+      .eq('id', item.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    const txType = options.txType || 'order_cancelled';
+    await this.logInventoryTransaction({
+      inventory_id: item.id,
+      order_id: options.orderId || null,
+      type: txType,
+      quantity: +quantity,  // positive = restored
+      note: options.note || `Order ${txType.replace('order_', '')} — restored ${quantity} unit(s)`,
+      created_by: options.userId || null
+    });
+
+    return data;
+  },
+
+  /**
+   * Legacy: Deduct stock by product name string match.
+   * Prefer deductStockByInventoryId when inventory_id is known.
+   */
+  async deductStockByProductName(productName, quantity = 1, options = {}) {
+    const { data: items, error: fetchError } = await supabase
+      .from('inventory')
+      .select('id, current_stock')
+      .ilike('name', productName)
+      .limit(1);
+
+    if (fetchError) throw fetchError;
+    if (!items || items.length === 0) return null;
+
+    return this.deductStockByInventoryId(items[0].id, quantity, options);
+  },
+
+  /**
+   * Get per-product order statistics and P&L data.
+   * Returns: units_sold, total_revenue, total_cogs, gross_profit, confirmed_orders, cancelled_orders.
+   * date range: { from: ISO string, to: ISO string } — optional.
+   */
+  async getProductOrderStats(inventoryId, dateRange = {}) {
+    let query = supabase
+      .from('orders')
+      .select('quantity, amount, status, inventory_id')
+      .eq('inventory_id', inventoryId);
+
+    if (dateRange.from) query = query.gte('created_at', dateRange.from);
+    if (dateRange.to)   query = query.lte('created_at', dateRange.to);
+
+    const { data: orders, error } = await query;
+    if (error) throw error;
+
+    const allOrders  = orders || [];
+    const confirmed  = allOrders.filter(o => ['Confirmed', 'Completed', 'Factory Processing', 'Courier Submitted', 'Courier Ready', 'Bulk Exported'].includes(o.status));
+    const cancelled  = allOrders.filter(o => o.status === 'Cancelled');
+    const unitsSold  = confirmed.reduce((s, o) => s + (Number(o.quantity) || 1), 0);
+    const revenue    = confirmed.reduce((s, o) => s + (Number(o.amount)   || 0), 0);
+
+    return {
+      total_orders:      allOrders.length,
+      confirmed_orders:  confirmed.length,
+      cancelled_orders:  cancelled.length,
+      units_sold:        unitsSold,
+      total_revenue:     revenue,
+    };
+  },
+
+  /**
+   * Get full P&L report for all inventory products or a date range.
+   * Returns an array of { product, units_sold, revenue, cogs, gross_profit, margin_pct }.
+   */
+  async getInventoryPnL(dateRange = {}) {
+    // 1. Fetch all inventory items with cost data
+    const { data: products, error: invError } = await supabase
+      .from('inventory')
+      .select('id, name, sku, category, selling_price, making_cost, unit_price, current_stock')
+      .order('name');
+
+    if (invError) throw invError;
+
+    // 2. Fetch all confirmed orders with inventory_id set, within date range
+    let ordersQuery = supabase
+      .from('orders')
+      .select('inventory_id, quantity, amount, status')
+      .in('status', ['Confirmed', 'Completed', 'Factory Processing', 'Courier Submitted', 'Courier Ready', 'Bulk Exported'])
+      .not('inventory_id', 'is', null);
+
+    if (dateRange.from) ordersQuery = ordersQuery.gte('created_at', dateRange.from);
+    if (dateRange.to)   ordersQuery = ordersQuery.lte('created_at', dateRange.to);
+
+    const { data: orders, error: ordersError } = await ordersQuery;
+    if (ordersError) throw ordersError;
+
+    // 3. Group orders by inventory_id
+    const ordersByProduct = (orders || []).reduce((acc, o) => {
+      const key = o.inventory_id;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(o);
+      return acc;
+    }, {});
+
+    // 4. Calculate P&L per product
+    const pnlData = (products || []).map(product => {
+      const productOrders = ordersByProduct[product.id] || [];
+      const unitsSold  = productOrders.reduce((s, o) => s + (Number(o.quantity) || 1), 0);
+      const revenue    = productOrders.reduce((s, o) => s + (Number(o.amount)   || 0), 0);
+      // Use selling_price > unit_price > 0 as fallback for COGS calculation
+      const sellingPrice = Number(product.selling_price) || Number(product.unit_price) || 0;
+      const makingCost   = Number(product.making_cost)   || 0;
+      const cogs         = makingCost * unitsSold;
+      const grossProfit  = revenue - cogs;
+      const marginPct    = revenue > 0 ? ((grossProfit / revenue) * 100) : 0;
+
+      return {
+        id:              product.id,
+        name:            product.name,
+        sku:             product.sku,
+        category:        product.category,
+        current_stock:   product.current_stock,
+        selling_price:   sellingPrice,
+        making_cost:     makingCost,
+        units_sold:      unitsSold,
+        total_revenue:   revenue,
+        total_cogs:      cogs,
+        gross_profit:    grossProfit,
+        margin_pct:      Number(marginPct.toFixed(1)),
+        confirmed_orders: productOrders.length,
+      };
+    });
+
+    // 5. Calculate overall totals
+    const totals = pnlData.reduce((acc, p) => ({
+      units_sold:    acc.units_sold    + p.units_sold,
+      total_revenue: acc.total_revenue + p.total_revenue,
+      total_cogs:    acc.total_cogs    + p.total_cogs,
+      gross_profit:  acc.gross_profit  + p.gross_profit,
+    }), { units_sold: 0, total_revenue: 0, total_cogs: 0, gross_profit: 0 });
+
+    return { products: pnlData, totals };
   },
 
   // --- Notification Management ---

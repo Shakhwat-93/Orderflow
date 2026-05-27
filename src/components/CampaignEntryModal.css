@@ -781,3 +781,86 @@
 [data-theme='dark'] .dm-bdt-cell {
   color: #6ee7b7;
 }
+
+/* Inventory Product Dropdown in Campaign Modal */
+.cem-inventory-select-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+}
+
+.cem-select {
+  width: 100%;
+  padding: 10px 36px 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--cem-border, rgba(255,255,255,0.1));
+  background: var(--cem-input-bg, rgba(255,255,255,0.05));
+  color: var(--cem-text, #e4e4e7);
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-family: inherit;
+  outline: none;
+  appearance: none;
+  cursor: pointer;
+  transition: border-color 0.18s;
+}
+.cem-select:focus { border-color: #6366f1; }
+.cem-select.error { border-color: #ef4444; }
+.cem-select-chevron { position: absolute; right: 12px; bottom: 13px; color: rgba(255,255,255,0.4); pointer-events: none; }
+
+.cem-product-override { margin-top: 4px; }
+
+/* Real-time P&L Profit Preview Card */
+.cem-profit-preview {
+  margin: 4px 0 8px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(34,197,94,0.25);
+  background: rgba(34,197,94,0.07);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: cem-fade 0.25s ease;
+}
+.cem-profit-preview.loss {
+  border-color: rgba(239,68,68,0.25);
+  background: rgba(239,68,68,0.07);
+}
+
+@keyframes cem-fade {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.cem-profit-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #22c55e;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.cem-profit-preview.loss .cem-profit-header { color: #ef4444; }
+
+.cem-profit-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cem-profit-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.cem-profit-row:last-child { border-bottom: none; }
+.cem-profit-row span { color: rgba(255,255,255,0.55); }
+.cem-profit-row.total { padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.12); border-bottom: none; }
+.cem-profit-row .green { color: #4ade80; }
+.cem-profit-row .red   { color: #f87171; }

@@ -285,11 +285,35 @@ export const OrderProvider = ({ children }) => {
         )));
       }
 
-      // Auto stock deduction on confirmation
-      if ((newStatus === 'Confirmed' || newStatus === 'Factory Processing') &&
-        !(oldStatus === 'Confirmed' || oldStatus === 'Factory Processing')) {
-        if (order && order.product_name) {
-          await api.deductStockByProductName(order.product_name, order.quantity || 1);
+      const CONFIRMED_STATUSES = ['Confirmed', 'Factory Processing'];
+      const CANCELLED_STATUSES = ['Cancelled', 'Fake Order'];
+
+      const isNowConfirmed  = CONFIRMED_STATUSES.includes(newStatus)  && !CONFIRMED_STATUSES.includes(oldStatus);
+      const isNowCancelled  = CANCELLED_STATUSES.includes(newStatus)  && CONFIRMED_STATUSES.includes(oldStatus);
+
+      const qty = order?.quantity || 1;
+      const stockOpts = { orderId, userId: user?.id };
+
+      // Auto stock deduction when order is confirmed (prefer inventory_id, fallback to name)
+      if (isNowConfirmed && order) {
+        if (order.inventory_id) {
+          await api.deductStockByInventoryId(order.inventory_id, qty, { ...stockOpts, note: `Order ${orderId} confirmed — deducted ${qty} unit(s)` });
+        } else if (order.product_name) {
+          await api.deductStockByProductName(order.product_name, qty, stockOpts);
+        }
+      }
+
+      // Auto stock restore when a previously-confirmed order is cancelled
+      if (isNowCancelled && order) {
+        const txType = newStatus === 'Fake Order' ? 'order_returned' : 'order_cancelled';
+        if (order.inventory_id) {
+          await api.restoreStockByInventoryId(order.inventory_id, qty, { ...stockOpts, txType, note: `Order ${orderId} ${newStatus.toLowerCase()} — restored ${qty} unit(s)` });
+        } else if (order.product_name) {
+          // Legacy name-based restore
+          const { data: items } = await supabase.from('inventory').select('id, current_stock').ilike('name', order.product_name).limit(1);
+          if (items?.[0]) {
+            await api.restoreStockByInventoryId(items[0].id, qty, { ...stockOpts, txType });
+          }
         }
       }
 
@@ -307,14 +331,19 @@ export const OrderProvider = ({ children }) => {
     try {
       const order = await api.createOrder(newOrder, user?.id, currentUserName, userRoles);
 
-      // If order is created as Confirmed already
+      // If order is created as Confirmed, deduct stock immediately
       if (order.status === 'Confirmed') {
-        if (Array.isArray(order.ordered_items) && order.ordered_items.length > 0) {
+        const qty = order.quantity || 1;
+        const stockOpts = { orderId: order.id, userId: user?.id };
+        if (order.inventory_id) {
+          // Preferred: deduct by linked inventory_id
+          await api.deductStockByInventoryId(order.inventory_id, qty, stockOpts);
+        } else if (Array.isArray(order.ordered_items) && order.ordered_items.length > 0) {
           for (const item of order.ordered_items) {
-            await api.deductStockByProductName(item.name || order.product_name, item.quantity || 1);
+            await api.deductStockByProductName(item.name || order.product_name, item.quantity || 1, stockOpts);
           }
-        } else {
-          await api.deductStockByProductName(order.product_name, order.quantity || 1);
+        } else if (order.product_name) {
+          await api.deductStockByProductName(order.product_name, qty, stockOpts);
         }
       }
 

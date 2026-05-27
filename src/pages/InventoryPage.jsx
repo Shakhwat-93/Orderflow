@@ -8,7 +8,8 @@ import { Modal } from '../components/Modal';
 import CurrencyIcon from '../components/CurrencyIcon';
 import {
   Search, Plus, Package, AlertTriangle, ArrowUpRight, ArrowDownRight,
-  Edit2, Trash2, Tag, Bot, Loader2, CheckCircle2, CircleAlert, ChevronDown, Sparkles
+  Edit2, Trash2, Tag, Bot, Loader2, CheckCircle2, CircleAlert, ChevronDown, Sparkles,
+  TrendingUp, TrendingDown, DollarSign, BarChart2
 } from 'lucide-react';
 import { PremiumSearch } from '../components/PremiumSearch';
 import { usePersistentState } from '../utils/persistentState';
@@ -57,7 +58,8 @@ export const InventoryPage = () => {
   const [toyBoxProductName, setToyBoxProductName] = useState('');
 
   const [formData, setFormData] = useState({
-    name: '', sku: '', category: 'Other', current_stock: 0, min_stock_level: 5, unit_price: 0, supports_serial_tracking: false
+    name: '', sku: '', category: 'Other', current_stock: 0, min_stock_level: 5,
+    unit_price: 0, selling_price: 0, making_cost: 0, supports_serial_tracking: false
   });
 
   const serialTrackedProducts = getSerialTrackedProducts(inventory);
@@ -75,6 +77,10 @@ export const InventoryPage = () => {
     return matchesSearch && matchesCategory;
   });
 
+  // --- Computed P&L stats across all inventory ---
+  const totalInventoryValue = inventory.reduce((s, i) => s + ((Number(i.selling_price) || Number(i.unit_price) || 0) * (Number(i.current_stock) || 0)), 0);
+  const totalCOGSValue      = inventory.reduce((s, i) => s + ((Number(i.making_cost) || 0) * (Number(i.current_stock) || 0)), 0);
+
   const lowStockItems = inventory.filter(item => item.current_stock <= item.min_stock_level);
   const outOfStockItems = inventory.filter(item => item.current_stock === 0);
 
@@ -88,11 +94,14 @@ export const InventoryPage = () => {
         current_stock: product.current_stock,
         min_stock_level: product.min_stock_level,
         unit_price: product.unit_price,
+        // selling_price falls back to unit_price for legacy records
+        selling_price: Number(product.selling_price) || Number(product.unit_price) || 0,
+        making_cost: Number(product.making_cost) || 0,
         supports_serial_tracking: Boolean(product.supports_serial_tracking ?? (product.category === 'TOY BOX'))
       });
     } else {
       setEditingProduct(null);
-      setFormData({ name: '', sku: '', category: 'Other', current_stock: 0, min_stock_level: 5, unit_price: 0, supports_serial_tracking: false });
+      setFormData({ name: '', sku: '', category: 'Other', current_stock: 0, min_stock_level: 5, unit_price: 0, selling_price: 0, making_cost: 0, supports_serial_tracking: false });
     }
     setIsProductModalOpen(true);
   };
@@ -298,6 +307,24 @@ export const InventoryPage = () => {
             <span className="value">{outOfStockItems.length}</span>
           </div>
         </Card>
+        <Card className="stat-card glass-card">
+          <div className="stat-icon-box green">
+            <TrendingUp size={22} />
+          </div>
+          <div className="stat-info">
+            <span className="label">Stock Value (Retail)</span>
+            <span className="value">৳{totalInventoryValue.toLocaleString()}</span>
+          </div>
+        </Card>
+        <Card className="stat-card glass-card">
+          <div className="stat-icon-box purple">
+            <BarChart2 size={22} />
+          </div>
+          <div className="stat-info">
+            <span className="label">Stock COGS (Cost)</span>
+            <span className="value">৳{totalCOGSValue.toLocaleString()}</span>
+          </div>
+        </Card>
       </div>
 
       <div className="inventory-controls-strip">
@@ -348,7 +375,8 @@ export const InventoryPage = () => {
               <tr>
                 <th>Product Information</th>
                 <th>Category</th>
-                <th>Price</th>
+                <th>Price / Cost</th>
+                <th>Margin</th>
                 <th>Stock Availability</th>
                 <th>Status</th>
                 <th className="text-right">Actions</th>
@@ -361,10 +389,15 @@ export const InventoryPage = () => {
                 const statusVariant = stockStatus === 'Out of Stock' ? 'danger' :
                   stockStatus === 'Low Stock' ? 'warning' : 'success';
 
-                // Calculate stock percentage for the progress bar
-                // Let's assume a healthy stock is 4x the min level
+                // Stock progress bar calculation
                 const maxRef = Math.max(item.min_stock_level * 4, item.current_stock, 10);
                 const stockPercent = Math.min((item.current_stock / maxRef) * 100, 100);
+
+                // Profit margin calculation
+                const sellingPrice = Number(item.selling_price) || Number(item.unit_price) || 0;
+                const makingCost   = Number(item.making_cost) || 0;
+                const marginPct    = sellingPrice > 0 ? ((sellingPrice - makingCost) / sellingPrice * 100) : 0;
+                const isProfit     = marginPct >= 0;
 
                 return (
                   <tr key={item.id} className="inventory-row">
@@ -380,11 +413,29 @@ export const InventoryPage = () => {
                       </div>
                     </td>
                     <td data-label="Category"><span className="category-pill">{item.category}</span></td>
-                    <td data-label="Price">
-                      <div className="price-cell">
-                        <CurrencyIcon size={12} className="currency-icon-elite" />
-                        <span className="amount-val">{Number(item.unit_price).toLocaleString()}</span>
+                    <td data-label="Price / Cost">
+                      <div className="price-cost-cell">
+                        <div className="price-cell">
+                          <CurrencyIcon size={11} className="currency-icon-elite" />
+                          <span className="amount-val">{sellingPrice.toLocaleString()}</span>
+                        </div>
+                        {makingCost > 0 && (
+                          <div className="cost-cell">
+                            <span className="cost-label">Cost: </span>
+                            <span className="cost-val">৳{makingCost.toLocaleString()}</span>
+                          </div>
+                        )}
                       </div>
+                    </td>
+                    <td data-label="Margin">
+                      {sellingPrice > 0 ? (
+                        <span className={`margin-badge ${isProfit ? 'profit' : 'loss'}`}>
+                          {isProfit ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                          {marginPct.toFixed(1)}%
+                        </span>
+                      ) : (
+                        <span className="margin-badge neutral">—</span>
+                      )}
                     </td>
                     <td data-label="Stock">
                       <div className="stock-visual-group">
@@ -538,20 +589,50 @@ export const InventoryPage = () => {
 
           <section className="inventory-form-section">
             <div className="inventory-form-section-head">
-              <span className="section-kicker">Stock Rules</span>
-              <p>Set opening quantity, low stock threshold, and fixed selling price.</p>
+              <span className="section-kicker">Stock & Pricing</span>
+              <p>Set quantity thresholds, selling price, and production cost for profit tracking.</p>
             </div>
-            <div className="form-grid three-cols">
+            <div className="form-grid">
               <Input label="Initial Inventory" type="number" value={formData.current_stock} onChange={(e) => setFormData({ ...formData, current_stock: parseInt(e.target.value) })} required />
               <Input label="Min Alert Level" type="number" value={formData.min_stock_level} onChange={(e) => setFormData({ ...formData, min_stock_level: parseInt(e.target.value) })} required />
+            </div>
+            <div className="form-grid">
               <Input
-                label={<>Fixed Price (<CurrencyIcon size={12} className="currency-icon-elite" />)</>}
+                label={<>Selling Price (<CurrencyIcon size={12} className="currency-icon-elite" />)</>}
                 type="number"
-                value={formData.unit_price}
-                onChange={(e) => setFormData({ ...formData, unit_price: parseFloat(e.target.value) })}
+                value={formData.selling_price}
+                onChange={(e) => setFormData({ ...formData, selling_price: parseFloat(e.target.value) || 0 })}
                 required
+                placeholder="Customer-facing price"
+              />
+              <Input
+                label={<>Making Cost (<CurrencyIcon size={12} className="currency-icon-elite" />) — Production</>}
+                type="number"
+                value={formData.making_cost}
+                onChange={(e) => setFormData({ ...formData, making_cost: parseFloat(e.target.value) || 0 })}
+                placeholder="Your cost to produce"
               />
             </div>
+
+            {/* Live Profit Margin Preview */}
+            {formData.selling_price > 0 && (() => {
+              const sp  = Number(formData.selling_price) || 0;
+              const mc  = Number(formData.making_cost)   || 0;
+              const pct = sp > 0 ? ((sp - mc) / sp * 100) : 0;
+              const profit = sp - mc;
+              return (
+                <div className={`margin-preview-card ${profit >= 0 ? 'profit' : 'loss'}`}>
+                  <div className="margin-preview-row">
+                    <span>Profit per Unit</span>
+                    <strong className={profit >= 0 ? 'green' : 'red'}>৳{profit.toLocaleString()}</strong>
+                  </div>
+                  <div className="margin-preview-row">
+                    <span>Profit Margin</span>
+                    <strong className={profit >= 0 ? 'green' : 'red'}>{pct.toFixed(1)}%</strong>
+                  </div>
+                </div>
+              );
+            })()}
           </section>
 
           <label className="feature-toggle-row">

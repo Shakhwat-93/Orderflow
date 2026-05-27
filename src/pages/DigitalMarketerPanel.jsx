@@ -218,9 +218,14 @@ export const DigitalMarketerPanel = () => {
           campaign_name:   formData.campaign_name,
           platform:        formData.platform,
           product_name:    formData.product_name,
+          inventory_id:    formData.inventory_id || null,
           spend:           formData.spend,
           orders_received: formData.orders_received,
           impressions:     formData.impressions,
+          quantity:        formData.quantity || 0,
+          bdt_per_purchase: formData.bdt_per_purchase || 0,
+          bdt_av_value:    formData.bdt_av_value || 0,
+          order_value_bdt: formData.order_value_bdt || 0,
         }).eq('id', editingCampaign.row.id);
       }
     } else {
@@ -279,6 +284,7 @@ export const DigitalMarketerPanel = () => {
             campaign_name:    camp.campaign_name || 'Unnamed',
             platform:         camp.platform,
             product_name:     camp.product_name || 'Unknown',
+            inventory_id:     camp.inventory_id || null,   // FK to inventory product
             spend:            camp.spend,
             orders_received:  camp.orders_received,
             impressions:      camp.impressions,

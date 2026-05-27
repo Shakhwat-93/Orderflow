@@ -1,11 +1,13 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Megaphone, ChevronDown, Check, Trash2,
-  DollarSign, ShoppingBag, Eye, FileText, Upload, Plus
+  DollarSign, ShoppingBag, Eye, FileText, Upload, Plus,
+  TrendingUp, TrendingDown, BarChart2, Package
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useOrders } from '../context/OrderContext';
 import './CampaignEntryModal.css';
 
 export const PLATFORMS = ['Facebook', 'Instagram', 'Google', 'TikTok', 'YouTube', 'Twitter', 'LinkedIn', 'Other'];
@@ -25,6 +27,7 @@ const EMPTY_FORM = {
   campaign_name:    '',
   platforms:        ['Facebook'],
   product_name:     '',
+  inventory_id:     null,   // FK to inventory.id — links campaign to a real product
   spend:            '',
   orders_received:  '',
   impressions:      '',
@@ -56,10 +59,14 @@ const parsePlatforms = (raw) => {
  *  disabled      – boolean (locked/read-only)
  */
 export const CampaignEntryModal = ({ isOpen, onClose, onSave, initialData = null, disabled = false }) => {
+  // Get inventory product list for the product dropdown
+  const { inventory } = useOrders();
+
   const [form, setForm] = useState(initialData ? {
     campaign_name:    initialData.campaign_name    || '',
     platforms:        parsePlatforms(initialData.platforms ?? initialData.platform),
     product_name:     initialData.product_name     || '',
+    inventory_id:     initialData.inventory_id     || null,
     spend:            initialData.spend             ?? '',
     orders_received:  initialData.orders_received   ?? '',
     impressions:      initialData.impressions        ?? '',
@@ -77,7 +84,28 @@ export const CampaignEntryModal = ({ isOpen, onClose, onSave, initialData = null
   const [dragging, setDragging]          = useState(false);
   const fileInputRef                     = useRef(null);
 
-  /* ── Derived ─────────────────────────────────────────── */
+  /* ── Inventory product lookup ──────────────────────────── */
+  // Find the currently selected inventory product for cost data
+  const selectedInventoryProduct = useMemo(() => {
+    if (!form.inventory_id || !Array.isArray(inventory)) return null;
+    return inventory.find(p => p.id === form.inventory_id) || null;
+  }, [form.inventory_id, inventory]);
+
+  /* ── Profit preview calculation ─────────────────────────── */
+  const profitPreview = useMemo(() => {
+    if (!selectedInventoryProduct) return null;
+    const makingCost  = Number(selectedInventoryProduct.making_cost) || 0;
+    const sellingPrice = Number(selectedInventoryProduct.selling_price) || Number(selectedInventoryProduct.unit_price) || 0;
+    const ordersCount  = parseInt(form.orders_received) || 0;
+    const adsSpend     = parseFloat(form.spend) || 0;
+    const revenue      = parseFloat(form.order_value_bdt) || (sellingPrice * ordersCount);
+    const totalCOGS    = makingCost * ordersCount;
+    const grossProfit  = revenue - totalCOGS;
+    const netProfit    = grossProfit - adsSpend;
+    const netMarginPct = revenue > 0 ? (netProfit / revenue) * 100 : 0;
+    return { makingCost, sellingPrice, ordersCount, adsSpend, revenue, totalCOGS, grossProfit, netProfit, netMarginPct };
+  }, [selectedInventoryProduct, form.orders_received, form.spend, form.order_value_bdt]);
+
   const spend  = parseFloat(form.spend)          || 0;
   const orders = parseInt(form.orders_received)  || 0;
   const cpo    = orders > 0 ? spend / orders : null;
@@ -157,6 +185,7 @@ export const CampaignEntryModal = ({ isOpen, onClose, onSave, initialData = null
         ...form,
         // keep backward-compat: also send comma-joined string as `platform`
         platform:         form.platforms.join(', '),
+        inventory_id:     form.inventory_id || null,
         spend:            parseFloat(form.spend)          || 0,
         orders_received:  parseInt(form.orders_received)  || 0,
         impressions:      parseInt(form.impressions)      || 0,
@@ -366,20 +395,91 @@ export const CampaignEntryModal = ({ isOpen, onClose, onSave, initialData = null
                 )}
               </div>
 
-              {/* Product Focus */}
+              {/* Product Focus — Inventory Dropdown */}
               <div className="cem-field-group">
                 <label className="cem-label">Product Focus <span className="cem-req">*</span></label>
-                <input
-                  className={`cem-input ${errors.product_name ? 'error' : ''}`}
-                  placeholder="e.g. Toy Box Combo, Organizer"
-                  value={form.product_name}
-                  onChange={e => setForm(f => ({ ...f, product_name: e.target.value }))}
-                  disabled={disabled}
-                />
+                {Array.isArray(inventory) && inventory.length > 0 ? (
+                  <div className="cem-inventory-select-wrap">
+                    <select
+                      className={`cem-select ${errors.product_name ? 'error' : ''}`}
+                      value={form.inventory_id || ''}
+                      onChange={e => {
+                        const selectedId = e.target.value || null;
+                        const product = inventory.find(p => p.id === selectedId);
+                        setForm(f => ({
+                          ...f,
+                          inventory_id: selectedId,
+                          product_name: product?.name || f.product_name,
+                        }));
+                      }}
+                      disabled={disabled}
+                    >
+                      <option value="">Select product from inventory...</option>
+                      {inventory.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}{p.sku ? ` (${p.sku})` : ''} — Stock: {p.current_stock}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown size={14} className="cem-select-chevron" />
+                    {/* Manual override if no inventory match */}
+                    {!form.inventory_id && (
+                      <input
+                        className={`cem-input cem-product-override ${errors.product_name ? 'error' : ''}`}
+                        placeholder="Or type product name manually..."
+                        value={form.product_name}
+                        onChange={e => setForm(f => ({ ...f, product_name: e.target.value }))}
+                        disabled={disabled}
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <input
+                    className={`cem-input ${errors.product_name ? 'error' : ''}`}
+                    placeholder="e.g. Toy Box Combo, Organizer"
+                    value={form.product_name}
+                    onChange={e => setForm(f => ({ ...f, product_name: e.target.value }))}
+                    disabled={disabled}
+                  />
+                )}
                 {errors.product_name && <p className="cem-error">{errors.product_name}</p>}
               </div>
             </div>
           </div>
+
+          {/* ── Profit Preview Card (shown when inventory product is selected) ── */}
+          {profitPreview && (
+            <div className={`cem-profit-preview ${profitPreview.netProfit >= 0 ? 'profit' : 'loss'}`}>
+              <div className="cem-profit-header">
+                {profitPreview.netProfit >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+                <span>Real-time P&L Preview — {selectedInventoryProduct?.name}</span>
+              </div>
+              <div className="cem-profit-grid">
+                <div className="cem-profit-row">
+                  <span>Making Cost/unit</span>
+                  <strong>৳{profitPreview.makingCost.toLocaleString()}</strong>
+                </div>
+                <div className="cem-profit-row">
+                  <span>Total COGS ({profitPreview.ordersCount} orders)</span>
+                  <strong className="red">৳{profitPreview.totalCOGS.toLocaleString()}</strong>
+                </div>
+                <div className="cem-profit-row">
+                  <span>Total Revenue</span>
+                  <strong>৳{profitPreview.revenue.toLocaleString()}</strong>
+                </div>
+                <div className="cem-profit-row">
+                  <span>Ads Spend</span>
+                  <strong className="red">৳{profitPreview.adsSpend.toLocaleString()}</strong>
+                </div>
+                <div className="cem-profit-row total">
+                  <span><strong>Net Profit</strong></span>
+                  <strong className={profitPreview.netProfit >= 0 ? 'green' : 'red'}>
+                    ৳{profitPreview.netProfit.toLocaleString()} ({profitPreview.netMarginPct.toFixed(1)}%)
+                  </strong>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ── Section 2: Metrics ── */}
           <div className="cem-section">
