@@ -701,3 +701,253 @@
   .st-slider-control { min-width: unset; width: 100%; }
   .st-toggle-row { flex-wrap: wrap; }
 }
+
+/* ================================================================
+   APP UPDATE CENTER — PREMIUM OTA UI
+   ================================================================ */
+.update-status-card {
+  background: var(--st-btn-bg);
+  border: 1px solid var(--st-btn-border);
+  border-radius: var(--st-radius-sm);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.update-info-cluster {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.version-indicator-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-glow-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-glow-dot.latest {
+  background: var(--st-success);
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.4);
+}
+
+.status-glow-dot.update-available {
+  background: #3b82f6;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.6);
+  animation: pulse-update-dot 1.5s infinite;
+}
+
+@keyframes pulse-update-dot {
+  0% { transform: scale(0.9); opacity: 0.8; }
+  50% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.8; }
+}
+
+.current-app-version {
+  font-size: 0.85rem;
+  color: var(--st-text);
+}
+
+.checking-box, .error-box, .server-version-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  color: var(--st-text-sub);
+}
+
+.error-box {
+  color: var(--st-danger);
+}
+
+.server-version-box {
+  font-weight: 500;
+  justify-content: space-between;
+}
+
+.release-time {
+  font-size: 0.72rem;
+  color: var(--st-text-muted);
+}
+
+/* Pulsing Badge & Banner */
+.new-update-banner-box {
+  background: var(--st-card);
+  border: 1px solid var(--st-accent-border);
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.06);
+  border-radius: 12px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: slide-up-update 0.3s ease;
+}
+
+@keyframes slide-up-update {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.badge-pulsing-wrap {
+  display: flex;
+}
+
+.new-badge-pulse {
+  background: #3b82f6;
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.05em;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.35);
+}
+
+.new-update-banner-box h3 {
+  font-size: 0.95rem;
+  font-weight: 750;
+  margin: 0;
+  color: var(--st-text);
+}
+
+.release-notes-preview {
+  background: var(--st-btn-bg);
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: var(--st-text-sub);
+  border: 1px solid var(--st-border);
+}
+
+.release-notes-preview strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--st-text);
+}
+
+.release-notes-preview p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+/* Download APK Button */
+.download-apk-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 11px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.25);
+}
+
+.download-apk-button:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+}
+
+.download-apk-button:active {
+  transform: translateY(0);
+}
+
+.animate-pulse-btn {
+  animation: pulse-download-btn 2s infinite;
+}
+
+@keyframes pulse-download-btn {
+  0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+  70% { box-shadow: 0 0 0 8px rgba(59, 130, 246, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+}
+
+/* Success status */
+.latest-status-success {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: rgba(34, 197, 94, 0.05);
+  border: 1px solid rgba(34, 197, 94, 0.12);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.latest-status-success .success-icon {
+  color: var(--st-success);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.latest-text-wrap h3 {
+  font-size: 0.88rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--st-text);
+}
+
+.latest-text-wrap p {
+  font-size: 0.76rem;
+  color: var(--st-text-sub);
+  margin: 4px 0 0;
+  line-height: 1.4;
+}
+
+/* Admin Release Portal */
+.admin-release-portal {
+  background: var(--st-card);
+  border: 1px solid var(--st-border);
+  border-radius: var(--st-radius);
+  padding: 22px;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.portal-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--st-accent);
+}
+
+.portal-head h3 {
+  font-size: 0.92rem;
+  font-weight: 800;
+  margin: 0;
+  color: var(--st-text);
+}
+
+.portal-desc {
+  font-size: 0.76rem;
+  color: var(--st-text-muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.release-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.st-textarea {
+  resize: vertical;
+  min-height: 80px;
+}

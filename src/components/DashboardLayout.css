@@ -100,3 +100,120 @@
     padding: var(--sp-4) var(--sp-6) var(--sp-10);
   }
 }
+
+/* ================================================================
+   OTA UPDATE TOP BANNER — GLASSMORPHIC ALERT
+   ================================================================ */
+.ota-update-top-banner {
+  background: rgba(59, 130, 246, 0.08);
+  border-bottom: 1px solid rgba(59, 130, 246, 0.18);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  animation: st-slide-down 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  z-index: 10;
+}
+
+[data-theme='dark'] .ota-update-top-banner {
+  background: rgba(59, 130, 246, 0.12);
+  border-bottom-color: rgba(59, 130, 246, 0.25);
+}
+
+@keyframes st-slide-down {
+  from { transform: translateY(-100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.ota-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8rem;
+  color: var(--st-text, #0f172a);
+}
+
+[data-theme='dark'] .ota-banner-content {
+  color: #fff;
+}
+
+.ota-banner-content span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ota-bounce-icon {
+  color: #3b82f6;
+  flex-shrink: 0;
+  animation: ota-bounce 1.5s infinite;
+}
+
+@keyframes ota-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.ota-banner-action-btn {
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+}
+
+.ota-banner-action-btn:hover {
+  background: #2563eb;
+  transform: translateY(-0.5px);
+}
+
+.ota-banner-close {
+  background: transparent;
+  border: none;
+  color: var(--st-text-muted, #94a3b8);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.ota-banner-close:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--st-text, #0f172a);
+}
+
+[data-theme='dark'] .ota-banner-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+@media (max-width: 560px) {
+  .ota-update-top-banner {
+    padding: 10px 12px;
+  }
+  .ota-banner-content {
+    font-size: 0.74rem;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .ota-banner-content span {
+    width: 100%;
+    white-space: normal;
+  }
+}

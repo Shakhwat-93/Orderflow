@@ -9,7 +9,7 @@ import {
   Settings as SettingsIcon, Trash2, AlertTriangle, CheckCircle, Loader2,
   ShieldAlert, Database, Truck, Zap, Key, Save, Type, Bell, Package,
   Clock, Shield, Sliders, Eye, EyeOff, ChevronRight, Activity,
-  ToggleLeft, ToggleRight, RefreshCw, Lock, Palette
+  ToggleLeft, ToggleRight, RefreshCw, Lock, Palette, Download
 } from 'lucide-react';
 
 // ── Sidebar nav sections ──
@@ -20,6 +20,7 @@ const NAV = [
   { id: 'inventory',   label: 'Inventory Alerts', icon: Package,    desc: 'Stock threshold controls' },
   { id: 'courier',     label: 'Courier',          icon: Truck,      desc: 'Steadfast integration' },
   { id: 'alerts',      label: 'Alert Timers',     icon: Bell,       desc: 'Response & notification timers' },
+  { id: 'update',      label: 'App Updates',      icon: RefreshCw,  desc: 'OTA Updates & Version Center' },
   { id: 'danger',      label: 'Danger Zone',      icon: AlertTriangle, desc: 'System reset', danger: true },
 ];
 
@@ -92,10 +93,85 @@ const saveLS = (key, val) => localStorage.setItem(key, JSON.stringify(val));
 
 // ──────────────────────────────────────────────────────────────────
 export const Settings = () => {
-  const { isAdmin } = useAuth();
+  const { user, profile, isAdmin } = useAuth();
   const { appName, isSaving: isSavingBranding, saveBranding } = useBranding();
 
-  const [activeSection, setActiveSection] = useState('general');
+  const [activeSection, setActiveSection] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('section') || 'general';
+  });
+
+  // ── App Updates OTA ──
+  const CURRENT_VERSION_CODE = 2;
+  const CURRENT_VERSION_NAME = "2.0.1";
+  const [remoteVersion, setRemoteVersion] = useState(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateError, setUpdateError] = useState(null);
+  const [publishSaving, setPublishSaving] = useState(false);
+  const [publishSaved, setPublishSaved] = useState(false);
+
+  // Form states for releasing new updates (Admins only)
+  const [formCode, setFormCode] = useState(CURRENT_VERSION_CODE + 1);
+  const [formName, setFormName] = useState("2.1.0");
+  const [formApkUrl, setFormApkUrl] = useState("");
+  const [formNotes, setFormNotes] = useState("");
+
+  const fetchRemoteVersion = useCallback(async () => {
+    setCheckingUpdate(true);
+    setUpdateError(null);
+    try {
+      const config = await api.getSystemConfig('app_version');
+      if (config) {
+        setRemoteVersion(config);
+        setFormCode((Number(config.versionCode) || CURRENT_VERSION_CODE) + 1);
+        setFormName(config.versionName || "2.1.0");
+        setFormApkUrl(config.apkUrl || "");
+        setFormNotes(config.releaseNotes || "");
+      } else {
+        const initVal = {
+          versionCode: CURRENT_VERSION_CODE,
+          versionName: CURRENT_VERSION_NAME,
+          apkUrl: "https://github.com/Shakhwat-93/Orderflow/actions",
+          releaseNotes: "Initial elite production release of OrderFlow App."
+        };
+        setRemoteVersion(initVal);
+      }
+    } catch (err) {
+      console.error('Error checking updates:', err);
+      setUpdateError('Failed to retrieve server version. Check connection.');
+    } finally {
+      setCheckingUpdate(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRemoteVersion();
+  }, [fetchRemoteVersion]);
+
+  const handlePublishRelease = async () => {
+    setPublishSaving(true);
+    setPublishSaved(false);
+    try {
+      const payload = {
+        versionCode: Number(formCode),
+        versionName: formName.trim(),
+        apkUrl: formApkUrl.trim(),
+        releaseNotes: formNotes.trim(),
+        publishedAt: new Date().toISOString(),
+        publishedBy: profile?.name || 'Admin'
+      };
+
+      await api.updateSystemConfig('app_version', payload);
+      setRemoteVersion(payload);
+      setPublishSaved(true);
+      setTimeout(() => setPublishSaved(false), 3000);
+    } catch (err) {
+      console.error('Failed to publish release:', err);
+      alert('Failed to publish release: ' + err.message);
+    } finally {
+      setPublishSaving(false);
+    }
+  };
 
   // ── Branding ──
   const [brandingName, setBrandingName] = useState(appName);
@@ -472,6 +548,148 @@ export const Settings = () => {
           )}
         </div>
       );
+
+      // ── APP UPDATES CENTER ──
+      case 'update': {
+        const hasNewUpdate = remoteVersion && Number(remoteVersion.versionCode) > CURRENT_VERSION_CODE;
+
+        return (
+          <div className="st-section-body">
+            <SectionHead icon={RefreshCw} title="App Update Center" desc="Check system OTA updates and manage self-hosted APK deployments." />
+            
+            <div className="update-status-card">
+              <div className="update-info-cluster">
+                <div className="version-indicator-wrapper">
+                  <div className={`status-glow-dot ${hasNewUpdate ? 'update-available' : 'latest'}`} />
+                  <span className="current-app-version">Your Installed Version: <b>v{CURRENT_VERSION_NAME}</b> (Build {CURRENT_VERSION_CODE})</span>
+                </div>
+                {checkingUpdate ? (
+                  <div className="checking-box"><Loader2 className="spin" size={14} /> Checking server for updates...</div>
+                ) : updateError ? (
+                  <div className="error-box"><ShieldAlert size={14} /> {updateError}</div>
+                ) : remoteVersion ? (
+                  <div className="server-version-box">
+                    <span>Server Version: <b>v{remoteVersion.versionName}</b> (Build {remoteVersion.versionCode})</span>
+                    <span className="release-time">Published: {remoteVersion.publishedAt ? new Date(remoteVersion.publishedAt).toLocaleDateString('en-BD', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}</span>
+                  </div>
+                ) : null}
+              </div>
+
+              {hasNewUpdate && remoteVersion && (
+                <div className="new-update-banner-box">
+                  <div className="badge-pulsing-wrap">
+                    <span className="new-badge-pulse">NEW UPDATE AVAILABLE</span>
+                  </div>
+                  <h3>OrderFlow v{remoteVersion.versionName} Build {remoteVersion.versionCode} is now live!</h3>
+                  
+                  {remoteVersion.releaseNotes && (
+                    <div className="release-notes-preview">
+                      <strong>Release Notes:</strong>
+                      <p>{remoteVersion.releaseNotes}</p>
+                    </div>
+                  )}
+
+                  <button 
+                    className="download-apk-button animate-pulse-btn"
+                    onClick={() => {
+                      if (remoteVersion.apkUrl) {
+                        window.open(remoteVersion.apkUrl, '_blank');
+                      } else {
+                        alert('No APK download link provided by Admin. Please check later.');
+                      }
+                    }}
+                  >
+                    <Download size={16} /> Download & Install Update (APK)
+                  </button>
+                </div>
+              )}
+
+              {!hasNewUpdate && !checkingUpdate && (
+                <div className="latest-status-success">
+                  <CheckCircle size={20} className="success-icon" />
+                  <div className="latest-text-wrap">
+                    <h3>You are up to date!</h3>
+                    <p>Your OrderFlow client is running the latest stable build with full real-time sounds and warning thresholds.</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {isAdmin && (
+              <div className="admin-release-portal">
+                <div className="portal-head">
+                  <Sliders size={16} />
+                  <h3>Release New App Update (Admin Control)</h3>
+                </div>
+                <p className="portal-desc">Publish a new build below. All active APKs will immediately detect this update and display a one-click install button to agents.</p>
+                
+                <div className="release-form-grid">
+                  <div className="st-field-group">
+                    <label className="st-label">New Version Code (Build Number) <span style={{ color: '#ef4444' }}>*</span></label>
+                    <input
+                      className="st-input"
+                      type="number"
+                      value={formCode}
+                      onChange={e => setFormCode(Number(e.target.value))}
+                      placeholder="e.g. 3"
+                    />
+                  </div>
+
+                  <div className="st-field-group">
+                    <label className="st-label">New Version Name <span style={{ color: '#ef4444' }}>*</span></label>
+                    <input
+                      className="st-input"
+                      type="text"
+                      value={formName}
+                      onChange={e => setFormName(e.target.value)}
+                      placeholder="e.g. 2.1.0"
+                    />
+                  </div>
+                </div>
+
+                <div className="st-field-group">
+                  <label className="st-label">APK Download Direct Link <span style={{ color: '#ef4444' }}>*</span></label>
+                  <input
+                    className="st-input"
+                    type="url"
+                    value={formApkUrl}
+                    onChange={e => setFormApkUrl(e.target.value)}
+                    placeholder="https://github.com/Shakhwat-93/Orderflow/actions... or Supabase Storage URL"
+                  />
+                  <p className="st-hint">Specify the link to download the compiled .apk file.</p>
+                </div>
+
+                <div className="st-field-group">
+                  <label className="st-label">Release Notes / Changes Log</label>
+                  <textarea
+                    className="st-input st-textarea"
+                    rows={4}
+                    value={formNotes}
+                    onChange={e => setFormNotes(e.target.value)}
+                    placeholder="Describe the new updates (e.g. fixed order notifications, added 10 min alert snooze)..."
+                  />
+                </div>
+
+                <div className="st-actions">
+                  <button 
+                    className={`st-save-btn ${publishSaved ? 'saved' : ''}`}
+                    onClick={handlePublishRelease}
+                    disabled={publishSaving}
+                  >
+                    {publishSaving ? (
+                      <Loader2 size={16} className="spin" />
+                    ) : publishSaved ? (
+                      <><CheckCircle size={16} /> Update Published!</>
+                    ) : (
+                      <><RefreshCw size={16} /> Publish App Release</>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      }
 
       default: return null;
     }
