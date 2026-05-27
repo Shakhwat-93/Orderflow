@@ -85,6 +85,79 @@ export const ReportsPanel = () => {
   const confirmationData = useMemo(() => analytics.getConfirmationRate(filteredOrders), [filteredOrders]);
   const logisticsData = useMemo(() => analytics.getLogisticsSuccessRate(filteredOrders), [filteredOrders]);
 
+  // Product-wise & Source-wise Conversion Funnel Data
+  const productFunnelData = useMemo(() => {
+    const productsToTrack = [
+      { id: 'stb_black', label: 'STB Black', keywords: ['stb black', 'black stb'] },
+      { id: 'stb_beige', label: 'STB Beige', keywords: ['stb beige', 'beige stb'] },
+      { id: 'sunglass', label: 'Sunglass', keywords: ['sunglass', 'sunglasses'] }
+    ];
+
+    const stats = productsToTrack.map(p => ({
+      name: p.label,
+      total: 0,
+      confirmed: 0,
+      cancelled: 0,
+      fbConfirmed: 0,
+      fbTotal: 0,
+      ttConfirmed: 0,
+      ttTotal: 0,
+    }));
+
+    filteredOrders.forEach(o => {
+      const orderProducts = [];
+      if (Array.isArray(o.ordered_items)) {
+        o.ordered_items.forEach(item => {
+          if (item.name) orderProducts.push(item.name.toLowerCase());
+        });
+      }
+      if (o.product_name) {
+        orderProducts.push(o.product_name.toLowerCase());
+      }
+
+      productsToTrack.forEach((p, idx) => {
+        const matches = orderProducts.some(name => p.keywords.some(kw => name.includes(kw)));
+        if (matches) {
+          stats[idx].total += 1;
+          const isConfirmed = o.status === 'Confirmed' || o.status === 'Confirmed & Printed';
+          const isCancelled = o.status === 'Cancelled';
+          
+          if (isConfirmed) stats[idx].confirmed += 1;
+          if (isCancelled) stats[idx].cancelled += 1;
+
+          const src = String(o.source || '').toLowerCase();
+          const isFB = src.includes('facebook') || src === 'fb';
+          const isTT = src.includes('tiktok');
+
+          if (isFB) {
+            stats[idx].fbTotal += 1;
+            if (isConfirmed) stats[idx].fbConfirmed += 1;
+          } else if (isTT) {
+            stats[idx].ttTotal += 1;
+            if (isConfirmed) stats[idx].ttConfirmed += 1;
+          }
+        }
+      });
+    });
+
+    return stats.map(s => {
+      const confirmationRate = s.total > 0 ? Math.round((s.confirmed / s.total) * 100) : 0;
+      const fbRate = s.fbTotal > 0 ? Math.round((s.fbConfirmed / s.fbTotal) * 100) : 0;
+      const ttRate = s.ttTotal > 0 ? Math.round((s.ttConfirmed / s.ttTotal) * 100) : 0;
+
+      return {
+        name: s.name,
+        'Confirmation Rate': confirmationRate,
+        'Facebook Conf. Rate': fbRate,
+        'TikTok Conf. Rate': ttRate,
+        total: s.total,
+        confirmed: s.confirmed,
+        fbTotal: s.fbTotal,
+        ttTotal: s.ttTotal
+      };
+    });
+  }, [filteredOrders]);
+
   // ── Ads Cost Analytics (day-wise) ──
   const [adsData, setAdsData] = useState([]);
   const [adsLoading, setAdsLoading] = useState(false);
@@ -848,6 +921,71 @@ export const ReportsPanel = () => {
           </motion.div>
         </div>
       </div>
+
+      {/* ══════════════════════════════════════════════════
+          PRODUCT-WISE CONVERSION FUNNEL & CHANNEL ATTRIBUTION
+      ══════════════════════════════════════════════════ */}
+      <motion.div className="ads-analytics-section" variants={itemVariants} style={{ marginBottom: '24px' }}>
+        <div className="section-header-elite">
+          <div className="heartbeat-pulse" style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981' }}>
+            <TrendingUp size={14} fill="currentColor" />
+          </div>
+          <h3>Product-wise Conversion Funnel</h3>
+          <span className="ads-section-badge" style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981' }}>
+            Attribution Analytics
+          </span>
+        </div>
+
+        <div className="ads-kpi-strip" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', marginBottom: '20px' }}>
+          {productFunnelData.map(p => (
+            <div key={p.name} className="ads-kpi-card" style={{ borderLeft: '3px solid var(--accent)' }}>
+              <span className="ads-kpi-label">{p.name} Total Orders</span>
+              <span className="ads-kpi-value">{p.total}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginTop: '6px', color: 'var(--text-secondary)' }}>
+                <span>Confirmed: <strong>{p.confirmed}</strong></span>
+                <span>Conv. Rate: <strong style={{ color: 'var(--color-success)' }}>{p['Confirmation Rate']}%</strong></span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="ads-chart-container" style={{ padding: '20px' }}>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={productFunnelData} margin={{ top: 10, right: 20, left: -10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(99,102,241,0.06)" />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} unit="%" />
+              <Tooltip
+                content={({ active, payload, label }) => {
+                  if (!active || !payload?.length) return null;
+                  return (
+                    <div className="ads-custom-tooltip" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', padding: '10px', borderRadius: '8px' }}>
+                      <p className="ads-tt-date" style={{ fontWeight: 'bold', marginBottom: '6px' }}>{label}</p>
+                      {payload.map((p, i) => (
+                        <div key={i} className="ads-tt-row" style={{ display: 'flex', justifyContent: 'space-between', gap: '20px', fontSize: '12px', margin: '4px 0' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span className="ads-tt-dot" style={{ background: p.fill, width: '8px', height: '8px', borderRadius: '50%', display: 'inline-block' }} />
+                            {p.name}:
+                          </span>
+                          <strong>{p.value}%</strong>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                }}
+              />
+              <Bar dataKey="Confirmation Rate" name="Overall Confirmation Rate" fill="#6366f1" radius={[6, 6, 0, 0]} barSize={26} />
+              <Bar dataKey="Facebook Conf. Rate" name="Facebook Confirmation Rate" fill="#1877f2" radius={[6, 6, 0, 0]} barSize={26} />
+              <Bar dataKey="TikTok Conf. Rate" name="TikTok Confirmation Rate" fill="#000000" radius={[6, 6, 0, 0]} barSize={26} />
+            </BarChart>
+          </ResponsiveContainer>
+          <div className="ads-chart-legend" style={{ marginTop: '16px', display: 'flex', justifyContent: 'center', gap: '20px', flexWrap: 'wrap' }}>
+            <span><i style={{ background: '#6366f1', width: '12px', height: '12px', display: 'inline-block', marginRight: '6px', borderRadius: '2px' }} />Overall Conf. Rate</span>
+            <span><i style={{ background: '#1877f2', width: '12px', height: '12px', display: 'inline-block', marginRight: '6px', borderRadius: '2px' }} />Facebook Conf. Rate</span>
+            <span><i style={{ background: '#000000', width: '12px', height: '12px', display: 'inline-block', marginRight: '6px', borderRadius: '2px' }} />TikTok Conf. Rate</span>
+          </div>
+        </div>
+      </motion.div>
 
       {/* ══════════════════════════════════════════════════
           DAILY ADS COST INTELLIGENCE — day-wise BDT analytics

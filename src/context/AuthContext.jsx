@@ -127,6 +127,15 @@ export const AuthProvider = ({ children }) => {
 
     const restoreSession = async () => {
       try {
+        // Safe Delay: If browser has a Supabase auth token, wait up to 100ms
+        // to let the Supabase JS Client load and decrypt the session from storage.
+        const hasLocalToken = Object.keys(localStorage).some(key => 
+          key.startsWith('sb-') && key.endsWith('-auth-token')
+        );
+        if (hasLocalToken) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
         const { data: { session } } = await supabase.auth.getSession();
         if (!isMounted) return;
 
@@ -159,7 +168,14 @@ export const AuthProvider = ({ children }) => {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'INITIAL_SESSION') {
-        return;
+        if (!session) {
+          // If indeed there is no initial session found, clear loading and mark ready
+          clearSessionState();
+          setLoading(false);
+          markAuthReady();
+          return;
+        }
+        // If there is a session, let it flow through the normal SIGNED_IN logic below
       }
 
       const nextUserId = session?.user?.id ?? null;

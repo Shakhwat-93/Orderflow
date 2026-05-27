@@ -1448,7 +1448,7 @@ export const api = {
     return entry;
   },
 
-  async appendOrderNote(orderId, noteText, userId, userName, userRoles = [], actionLabel = 'Note', existingNotes = null) {
+  async appendOrderNote(orderId, noteText, userId, userName, userRoles = [], actionLabel = 'Note', existingNotes = null, skipActivityLog = false) {
     const hasPermission = userRoles.some(r => ['Admin', 'Call Team', 'Moderator'].includes(r));
     if (!hasPermission) throw new Error('Unauthorized: You do not have permission to add order notes.');
 
@@ -1478,13 +1478,15 @@ export const api = {
 
     if (error) throw error;
 
-    await this.logActivity({
-      order_id: orderId,
-      action_type: 'UPDATE',
-      changed_by_user_id: userId,
-      changed_by_user_name: userName,
-      action_description: `${userName} added a note for ${String(actionLabel || 'update').toLowerCase()} on order #${orderId}: ${cleanNote}`
-    });
+    if (!skipActivityLog) {
+      await this.logActivity({
+        order_id: orderId,
+        action_type: 'UPDATE',
+        changed_by_user_id: userId,
+        changed_by_user_name: userName,
+        action_description: `${userName} added a note for ${String(actionLabel || 'update').toLowerCase()} on order #${orderId}: ${cleanNote}`
+      });
+    }
 
     return data;
   },
@@ -1548,7 +1550,7 @@ export const api = {
     });
 
     if (String(noteText || '').trim()) {
-      return this.appendOrderNote(orderId, noteText, userId, userName, userRoles, status, data?.notes || '');
+      return this.appendOrderNote(orderId, noteText, userId, userName, userRoles, status, data?.notes || '', true);
     }
 
     return data;

@@ -20,6 +20,44 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
   const [noteDraft, setNoteDraft] = useState('');
   const [savedNotesOverride, setSavedNotesOverride] = useState(null);
   const [isSavingNote, setIsSavingNote] = useState(false);
+  const [activeTab, setActiveTab] = useState('details'); // 'details' | 'history'
+  
+  // Note Quick Templates States
+  const [customTemplates, setCustomTemplates] = useState(() => {
+    try {
+      const saved = localStorage.getItem('orderflow_custom_notes_templates');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const [newTemplateText, setNewTemplateText] = useState('');
+  const [showAddTemplate, setShowAddTemplate] = useState(false);
+
+  const applyTemplate = (templateText) => {
+    if (noteDraft.trim()) {
+      setNoteDraft(prev => prev.trim() + '\n' + templateText);
+    } else {
+      setNoteDraft(templateText);
+    }
+  };
+
+  const saveCustomTemplate = () => {
+    if (!newTemplateText.trim()) return;
+    const updated = [...customTemplates, newTemplateText.trim()];
+    setCustomTemplates(updated);
+    localStorage.setItem('orderflow_custom_notes_templates', JSON.stringify(updated));
+    setNewTemplateText('');
+    setShowAddTemplate(false);
+  };
+
+  const deleteCustomTemplate = (indexToDelete, e) => {
+    e.stopPropagation();
+    const updated = customTemplates.filter((_, idx) => idx !== indexToDelete);
+    setCustomTemplates(updated);
+    localStorage.setItem('orderflow_custom_notes_templates', JSON.stringify(updated));
+  };
+
   // Inline field editing state
   const [editingField, setEditingField] = useState(null); // 'phone' | 'address' | 'delivery_charge'
   const [editValue, setEditValue] = useState('');
@@ -57,6 +95,7 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
       setLocalOrder(null);
       setEditingField(null);
       setFieldError('');
+      setActiveTab('details');
       refreshLogs();
     } else {
       setActivityLogs([]);
@@ -379,6 +418,58 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
       title={`Order Details: #${effectiveOrder.id.replace('ORD-', '')}`}
     >
       <div className="order-details-elite">
+        {/* Modern Tabs Bar */}
+        <div className="elite-modal-tabs" style={{
+          display: 'flex',
+          gap: '8px',
+          borderBottom: '1px solid var(--border-color)',
+          marginBottom: '16px',
+          paddingBottom: '8px'
+        }}>
+          <button
+            type="button"
+            className={`elite-tab-btn ${activeTab === 'details' ? 'active' : ''}`}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '6px',
+              border: 'none',
+              background: activeTab === 'details' ? 'rgba(99,102,241,0.12)' : 'transparent',
+              color: activeTab === 'details' ? '#6366f1' : 'var(--text-secondary)',
+              fontSize: '13px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s ease'
+            }}
+            onClick={() => setActiveTab('details')}
+          >
+            <User size={15} /> Details
+          </button>
+          <button
+            type="button"
+            className={`elite-tab-btn ${activeTab === 'history' ? 'active' : ''}`}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '6px',
+              border: 'none',
+              background: activeTab === 'history' ? 'rgba(99,102,241,0.12)' : 'transparent',
+              color: activeTab === 'history' ? '#6366f1' : 'var(--text-secondary)',
+              fontSize: '13px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s ease'
+            }}
+            onClick={() => setActiveTab('history')}
+          >
+            <History size={15} /> History / Audit Trail ({activityLogs.length})
+          </button>
+        </div>
+
         {/* Header Summary Card */}
         <div className="details-summary-grid">
           <div className="summary-main-card glass-card">
@@ -458,8 +549,9 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
 
         {/* Content Sections */}
         <div className="details-content-sections">
-          
-          <div className="section-row">
+          {activeTab === 'details' && (
+            <>
+              <div className="section-row">
             {/* Customer Info */}
             <div className="details-section-card glass-card half">
               <div className="section-title">
@@ -509,6 +601,115 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
                       placeholder="Add or update a single important call note for this order"
                       rows={4}
                     />
+                    
+                    {/* Quick Templates UI */}
+                    <div className="quick-templates-container" style={{ marginTop: '8px', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                        QUICK TEMPLATES (Click to add)
+                      </span>
+                      <div className="quick-templates-list" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {[
+                          "Customer busy — call after 30 mins",
+                          "Wrong address — needs correction",
+                          "Confirmed. Delivery before 7 PM"
+                        ].map((tpl, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            className="tpl-badge"
+                            style={{
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              border: '1px solid var(--border-color)',
+                              background: 'var(--bg-card-secondary)',
+                              color: 'var(--text-primary)',
+                              fontSize: '11px',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              transition: 'all 0.15s ease'
+                            }}
+                            onClick={() => applyTemplate(tpl)}
+                          >
+                            {tpl}
+                          </button>
+                        ))}
+                        
+                        {/* Custom Saved Templates */}
+                        {customTemplates.map((tpl, idx) => (
+                          <button
+                            key={`custom-${idx}`}
+                            type="button"
+                            className="tpl-badge custom-tpl"
+                            style={{
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              border: '1px solid rgba(99,102,241,0.3)',
+                              background: 'rgba(99,102,241,0.06)',
+                              color: '#6366f1',
+                              fontSize: '11px',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              transition: 'all 0.15s ease'
+                            }}
+                            onClick={() => applyTemplate(tpl)}
+                          >
+                            <span>{tpl}</span>
+                            <span 
+                              style={{ 
+                                color: '#ef4444', 
+                                marginLeft: '2px', 
+                                fontWeight: 'bold', 
+                                fontSize: '10px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '12px',
+                                height: '12px',
+                                borderRadius: '50%'
+                              }}
+                              onClick={(e) => deleteCustomTemplate(idx, e)}
+                              title="Delete template"
+                            >
+                              ×
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                      
+                      {/* Save current draft as template */}
+                      {noteDraft.trim() && (
+                        <div style={{ marginTop: '6px', textAlign: 'right' }}>
+                          <button
+                            type="button"
+                            style={{
+                              fontSize: '10.5px',
+                              color: '#6366f1',
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              fontWeight: 600,
+                              textDecoration: 'underline'
+                            }}
+                            onClick={() => {
+                              const trimmed = noteDraft.trim();
+                              // Avoid duplicate
+                              if (trimmed && !customTemplates.includes(trimmed) && trimmed.length < 100) {
+                                const updated = [...customTemplates, trimmed];
+                                setCustomTemplates(updated);
+                                localStorage.setItem('orderflow_custom_notes_templates', JSON.stringify(updated));
+                              }
+                            }}
+                            title="Save current note text as template"
+                          >
+                            + Save current note as template
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
                     <div className="order-note-actions">
                       <Button variant="secondary" size="sm" onClick={() => setNoteDraft(String(visibleNotes || ''))} disabled={isSavingNote}>Reset</Button>
                       <Button variant="primary" size="sm" onClick={saveOrderNote} disabled={isSavingNote || noteDraft === String(visibleNotes || '')}>
@@ -731,39 +932,43 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
               </div>
             </div>
           )}
+        </>
+      )}
 
-          {/* Timeline */}
-          <div className="details-section-card glass-card full-width">
-            <div className="section-title">
-              <History size={18} className="text-accent" />
-              <span>Activity Timeline & Audit Trail</span>
-            </div>
-            {isLoadingLogs ? (
-              <div className="timeline-loading">Syncing history...</div>
-            ) : activityLogs.length === 0 ? (
-              <div className="timeline-empty">No activity records found for this order.</div>
-            ) : (
-              <div className="elite-timeline">
-                {activityLogs.map((log, i) => (
-                  <div key={log.id || i} className="timeline-entry">
-                    <div className="entry-point" />
-                    <div className="entry-content">
-                      <div className="entry-header">
-                        <span className="entry-time">
-                          {new Date(log.timestamp).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
-                        </span>
-                        <div className="entry-user">
-                          <div className="mini-avatar">{(log.changed_by_user_name || 'S').charAt(0)}</div>
-                          <span>{log.changed_by_user_name || 'System'}</span>
-                        </div>
-                      </div>
-                      <div className="entry-desc">{log.action_description}</div>
-                    </div>
-                  </div>
-                ))}
+          {/* Timeline & Audit Trail */}
+          {activeTab === 'history' && (
+            <div className="details-section-card glass-card full-width">
+              <div className="section-title">
+                <History size={18} className="text-accent" />
+                <span>Activity Timeline & Audit Trail</span>
               </div>
-            )}
-          </div>
+              {isLoadingLogs ? (
+                <div className="timeline-loading">Syncing history...</div>
+              ) : activityLogs.length === 0 ? (
+                <div className="timeline-empty">No activity records found for this order.</div>
+              ) : (
+                <div className="elite-timeline">
+                  {activityLogs.filter(log => String(log.action_description || '').trim()).map((log, i) => (
+                    <div key={log.id || i} className="timeline-entry">
+                      <div className="entry-point" />
+                      <div className="entry-content">
+                        <div className="entry-header">
+                          <span className="entry-time">
+                            {new Date(log.timestamp).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                          </span>
+                          <div className="entry-user">
+                            <div className="mini-avatar">{(log.changed_by_user_name || 'S').charAt(0)}</div>
+                            <span>{log.changed_by_user_name || 'System'}</span>
+                          </div>
+                        </div>
+                        <div className="entry-desc">{log.action_description}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Footer Actions */}

@@ -1,3 +1,4 @@
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, 
@@ -9,7 +10,7 @@ import { Card } from '../components/Card';
 import { 
   Clock, Globe, Facebook, CheckCircle2, XCircle, TrendingUp, ShoppingBag, 
   BarChart3, Package, Users, RefreshCw, Zap, ShieldCheck, ClipboardList,
-  Calendar, History
+  Calendar, History, AlertCircle
 } from 'lucide-react';
 
 import { ActiveUsers } from '../components/ActiveUsers';
@@ -17,7 +18,6 @@ import { LiveActivityFeed } from '../components/LiveActivityFeed';
 import { AIBriefing } from '../components/AIBriefing';
 import CurrencyIcon from '../components/CurrencyIcon';
 import { useAuth } from '../context/AuthContext';
-import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import './DashboardOverview.css';
 
@@ -25,6 +25,105 @@ export const DashboardOverview = () => {
   const { stats, orders } = useOrders();
   const { myPendingAssigned, myIncompleteDailyCount } = useTasks();
   const { updatePresenceContext, profile } = useAuth();
+
+  // Daily Snapshot BD Time Calculation
+  const todayOrders = useMemo(() => {
+    if (!orders) return [];
+    const now = new Date();
+    // BD timezone offset (+6 hours)
+    const bdOffset = 6 * 60 * 60 * 1000;
+    const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+    const bdTime = new Date(utc + bdOffset);
+    
+    const startOfDayBD = new Date(bdTime);
+    startOfDayBD.setHours(0, 0, 0, 0);
+
+    return orders.filter(o => {
+      const orderDate = new Date(o.created_at);
+      const orderDateBD = new Date(orderDate.getTime() + bdOffset);
+      return orderDateBD >= startOfDayBD;
+    });
+  }, [orders]);
+
+  const dailySnapshot = useMemo(() => {
+    const total = todayOrders.length;
+    const confirmedOrders = todayOrders.filter(o => o.status === 'Confirmed' || o.status === 'Confirmed & Printed');
+    const confirmedPercent = total > 0 ? Math.round((confirmedOrders.length / total) * 100) : 0;
+    const revenue = confirmedOrders.reduce((acc, o) => acc + Number(o.amount || 0), 0);
+
+    const calledOrders = todayOrders.filter(o => o.first_call_time);
+    const totalDelay = calledOrders.reduce((acc, o) => {
+      const delay = (new Date(o.first_call_time) - new Date(o.created_at)) / 60000;
+      return acc + Math.max(0, delay);
+    }, 0);
+    const avgResponse = calledOrders.length > 0 ? Math.round(totalDelay / calledOrders.length) : 0;
+
+    const agents = {};
+    todayOrders.forEach(o => {
+      if ((o.status === 'Confirmed' || o.status === 'Confirmed & Printed') && o.called_by) {
+        agents[o.called_by] = (agents[o.called_by] || 0) + 1;
+      }
+    });
+
+    let topAgent = 'None';
+    let maxConfirms = 0;
+    Object.entries(agents).forEach(([name, count]) => {
+      if (count > maxConfirms) {
+        maxConfirms = count;
+        topAgent = name;
+      }
+    });
+
+    return {
+      total,
+      confirmedPercent,
+      revenue,
+      avgResponse,
+      topAgent,
+      maxConfirms
+    };
+  }, [todayOrders]);
+
+  const [timeLeft, setTimeLeft] = useState('');
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = new Date();
+      const target = new Date();
+      target.setHours(23, 59, 0, 0);
+      const diff = target - now;
+
+      if (diff <= 0) {
+        setTimeLeft('Completed');
+      } else {
+        const hours = Math.floor(diff / 3600000);
+        const mins = Math.floor((diff % 3600000) / 60000);
+        const secs = Math.floor((diff % 60000) / 1000);
+        setTimeLeft(`${hours}h ${mins}m ${secs}s`);
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // SLA Calculations
+  const { userRoles } = useAuth();
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'superadmin' || (userRoles && (userRoles.includes('admin') || userRoles.includes('superadmin')));
+
+  const idleOrders = useMemo(() => {
+    if (!orders) return [];
+    const now = new Date();
+    return orders.filter(o => {
+      const isPending = o.status === 'Pending' || o.status === 'Pending Call';
+      if (!isPending) return false;
+
+      // Idle defined as no call attempts and no first_call_time
+      const hasNoCalls = !o.first_call_time && (!o.call_attempts || o.call_attempts === 0);
+      if (!hasNoCalls) return false;
+
+      // Created more than 30 minutes ago
+      const ageMins = (now - new Date(o.created_at)) / 60000;
+      return ageMins > 30;
+    });
+  }, [orders]);
 
   // SLA Calculations
   const ordersWithCalls = orders?.filter(o => o.first_call_time) || [];
@@ -88,7 +187,126 @@ export const DashboardOverview = () => {
         </div>
       </div>
 
+      {/* ── Admin Idle Orders Alert Banner ── */}
+      {isAdmin && idleOrders.length > 0 && (
+        <div className="admin-idle-alert-banner" style={{
+          background: 'linear-gradient(135deg, rgba(239,68,68,0.15) 0%, rgba(220,38,38,0.25) 100%)',
+          border: '1px solid rgba(239,68,68,0.3)',
+          borderRadius: '12px',
+          padding: '14px 20px',
+          marginBottom: '20px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '16px',
+          flexWrap: 'wrap',
+          boxShadow: '0 8px 24px rgba(239,68,68,0.12)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              background: '#ef4444',
+              color: '#fff',
+              width: '32px',
+              height: '32px',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              <AlertCircle size={18} className="animate-pulse" />
+            </div>
+            <div>
+              <h4 style={{ margin: 0, color: '#ef4444', fontWeight: 700, fontSize: '14px' }}>
+                CRITICAL ALERT: {idleOrders.length} Idle Orders Detected!
+              </h4>
+              <p style={{ margin: '2px 0 0 0', color: 'var(--text-secondary)', fontSize: '12px' }}>
+                There are {idleOrders.length} orders created more than 30 minutes ago that have NOT been called by any agent.
+              </p>
+            </div>
+          </div>
+          <Link 
+            to="/orders" 
+            style={{
+              background: '#ef4444',
+              color: '#fff',
+              padding: '8px 16px',
+              borderRadius: '8px',
+              fontSize: '12px',
+              fontWeight: 700,
+              textDecoration: 'none',
+              transition: 'background 0.2s',
+              boxShadow: '0 4px 12px rgba(239,68,68,0.2)'
+            }}
+          >
+            Take Action Now →
+          </Link>
+        </div>
+      )}
+
       <AIBriefing stats={stats} avgCallDelay={avgCallDelay} slaRate={slaRate} />
+
+      {/* ── Daily Performance Summary Snapshot ── */}
+      <div className="daily-snapshot-wrap" style={{ marginBottom: '24px' }}>
+        <div className="glass-card" style={{
+          background: 'linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(16,185,129,0.08) 100%)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: '16px',
+          padding: '20px',
+          backdropFilter: 'blur(12px)',
+          boxShadow: '0 8px 32px 0 rgba(0,0,0,0.1)'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '14px', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ background: 'var(--accent)', color: '#fff', width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Clock size={16} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>Daily Snapshot</h3>
+                <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Calculates live today & resets at 11:59 PM (BD Time)</span>
+              </div>
+            </div>
+            <div style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', padding: '6px 12px', borderRadius: '999px', fontSize: '12px', fontWeight: 600, color: '#6366f1', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span>Resetting In:</span>
+              <strong style={{ fontFamily: 'monospace' }}>{timeLeft}</strong>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
+            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Today Total Orders</span>
+              <strong style={{ fontSize: '20px', color: 'var(--text-primary)', marginTop: '4px' }}>{dailySnapshot.total}</strong>
+            </div>
+            
+            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Confirmation Rate</span>
+              <strong style={{ fontSize: '20px', color: 'var(--color-success)', marginTop: '4px' }}>{dailySnapshot.confirmedPercent}%</strong>
+            </div>
+
+            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Avg Call Response</span>
+              <strong style={{ fontSize: '20px', color: 'var(--accent)', marginTop: '4px' }}>{dailySnapshot.avgResponse}m</strong>
+            </div>
+
+            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Today Revenue</span>
+              <strong style={{ fontSize: '20px', color: 'var(--text-primary)', marginTop: '4px', display: 'flex', alignItems: 'center' }}>
+                <CurrencyIcon size={18} className="currency-icon-elite" style={{ marginRight: '2px' }} />
+                {dailySnapshot.revenue.toLocaleString()}
+              </strong>
+            </div>
+
+            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', gridColumn: 'span 1' }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Today Top Performer</span>
+              <strong style={{ fontSize: '15px', color: 'var(--text-primary)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ background: 'var(--accent)', color: '#fff', width: '18px', height: '18px', borderRadius: '50%', fontSize: '10px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', textTransform: 'uppercase' }}>
+                  {dailySnapshot.topAgent.charAt(0)}
+                </span>
+                {dailySnapshot.topAgent} {dailySnapshot.maxConfirms > 0 && `(${dailySnapshot.maxConfirms} confirms)`}
+              </strong>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div className="metrics-grid">
         <Card className="metric-card floating success-glow" style={{ animationDelay: '0.1s' }}>
