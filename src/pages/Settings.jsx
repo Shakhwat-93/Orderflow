@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useBranding } from '../hooks/useBranding';
 import { supabase } from '../lib/supabase';
@@ -8,7 +9,7 @@ import './Settings.css';
 import {
   Settings as SettingsIcon, Trash2, AlertTriangle, CheckCircle, Loader2,
   ShieldAlert, Database, Truck, Zap, Key, Save, Type, Bell, Package,
-  Clock, Shield, Sliders, Eye, EyeOff, ChevronRight, Activity,
+  Clock, Shield, Sliders, Eye, EyeOff, ChevronRight, ChevronLeft, Activity,
   ToggleLeft, ToggleRight, RefreshCw, Lock, Palette, Download
 } from 'lucide-react';
 
@@ -96,10 +97,26 @@ export const Settings = () => {
   const { user, profile, isAdmin } = useAuth();
   const { appName, isSaving: isSavingBranding, saveBranding } = useBranding();
 
+  const location = useLocation();
+
   const [activeSection, setActiveSection] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get('section') || 'general';
   });
+
+  const [currentMobileView, setCurrentMobileView] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('section') ? 'detail' : 'master';
+  });
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const sec = params.get('section');
+    if (sec) {
+      setActiveSection(sec);
+      setCurrentMobileView('detail');
+    }
+  }, [location.search]);
 
   // ── App Updates OTA ──
   const CURRENT_VERSION_CODE = 2;
@@ -696,7 +713,7 @@ export const Settings = () => {
   };
 
   return (
-    <div className="st-root">
+    <div className={`st-root mobile-view-${currentMobileView}`}>
       {/* ── Sidebar ── */}
       <aside className="st-sidebar">
         <div className="st-sidebar-head">
@@ -713,8 +730,13 @@ export const Settings = () => {
             return (
               <button
                 key={item.id}
+                type="button"
                 className={`st-nav-item ${active ? 'active' : ''} ${item.danger ? 'danger' : ''}`}
-                onClick={() => { setActiveSection(item.id); setError(null); }}
+                onClick={() => {
+                  setActiveSection(item.id);
+                  setError(null);
+                  setCurrentMobileView('detail');
+                }}
               >
                 <div className="st-nav-icon"><Icon size={16} /></div>
                 <div className="st-nav-text">
@@ -737,6 +759,18 @@ export const Settings = () => {
       {/* ── Main content ── */}
       <main className="st-main">
         <div className="st-main-inner">
+          {currentMobileView === 'detail' && (
+            <div className="st-mobile-back-header">
+              <button 
+                type="button"
+                className="st-mobile-back-btn"
+                onClick={() => setCurrentMobileView('master')}
+              >
+                <ChevronLeft size={18} />
+                <span>Back to Settings</span>
+              </button>
+            </div>
+          )}
           {renderSection()}
         </div>
       </main>
