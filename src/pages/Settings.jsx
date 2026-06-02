@@ -109,6 +109,8 @@ export const Settings = () => {
     return params.get('section') ? 'detail' : 'master';
   });
 
+  const [updatingState, setUpdatingState] = useState('idle');
+
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const sec = params.get('section');
@@ -570,63 +572,80 @@ export const Settings = () => {
       case 'update': {
         const hasNewUpdate = remoteVersion && Number(remoteVersion.versionCode) > CURRENT_VERSION_CODE;
 
+        const handleDirectUpdate = () => {
+          if (!remoteVersion || !remoteVersion.apkUrl) {
+            alert('No update link available. Please contact admin.');
+            return;
+          }
+          setUpdatingState('downloading');
+          setTimeout(() => {
+            // Check if native app or web
+            if (typeof window !== 'undefined' && window.Capacitor) {
+              window.open(remoteVersion.apkUrl, '_system');
+            } else {
+              window.open(remoteVersion.apkUrl, '_blank');
+            }
+            setUpdatingState('idle');
+          }, 1500);
+        };
+
         return (
           <div className="st-section-body">
             <SectionHead icon={RefreshCw} title="App Update Center" desc="Check system OTA updates and manage self-hosted APK deployments." />
             
             <div className="update-status-card">
-              <div className="update-info-cluster">
-                <div className="version-indicator-wrapper">
-                  <div className={`status-glow-dot ${hasNewUpdate ? 'update-available' : 'latest'}`} />
-                  <span className="current-app-version">Your Installed Version: <b>v{CURRENT_VERSION_NAME}</b> (Build {CURRENT_VERSION_CODE})</span>
+              {checkingUpdate ? (
+                <div className="checking-box" style={{ padding: '24px 0', justifyContent: 'center', width: '100%', gap: '10px' }}>
+                  <Loader2 className="spin" size={24} style={{ color: 'var(--st-accent)' }} />
+                  <span style={{ fontSize: '0.88rem', fontWeight: 500, color: 'var(--st-text)' }}>Checking for updates...</span>
                 </div>
-                {checkingUpdate ? (
-                  <div className="checking-box"><Loader2 className="spin" size={14} /> Checking server for updates...</div>
-                ) : updateError ? (
-                  <div className="error-box"><ShieldAlert size={14} /> {updateError}</div>
-                ) : remoteVersion ? (
-                  <div className="server-version-box">
-                    <span>Server Version: <b>v{remoteVersion.versionName}</b> (Build {remoteVersion.versionCode})</span>
-                    <span className="release-time">Published: {remoteVersion.publishedAt ? new Date(remoteVersion.publishedAt).toLocaleDateString('en-BD', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}</span>
+              ) : hasNewUpdate && remoteVersion ? (
+                <div className="new-update-banner-box" style={{ border: 'none', background: 'transparent', padding: 0 }}>
+                  <div className="badge-pulsing-wrap" style={{ marginBottom: 8 }}>
+                    <span className="new-badge-pulse" style={{ background: '#22c55e' }}>NEW APP UPDATE</span>
                   </div>
-                ) : null}
-              </div>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800 }}>Version {remoteVersion.versionName} is ready!</h3>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--st-text-sub)', marginTop: 4, marginBottom: 12 }}>
+                    Build {remoteVersion.versionCode} • Released {remoteVersion.publishedBy ? `by ${remoteVersion.publishedBy}` : ''}
+                  </p>
 
-              {hasNewUpdate && remoteVersion && (
-                <div className="new-update-banner-box">
-                  <div className="badge-pulsing-wrap">
-                    <span className="new-badge-pulse">NEW UPDATE AVAILABLE</span>
-                  </div>
-                  <h3>OrderFlow v{remoteVersion.versionName} Build {remoteVersion.versionCode} is now live!</h3>
-                  
                   {remoteVersion.releaseNotes && (
-                    <div className="release-notes-preview">
-                      <strong>Release Notes:</strong>
+                    <div className="release-notes-preview" style={{ margin: '6px 0 16px' }}>
+                      <strong>What's New:</strong>
                       <p>{remoteVersion.releaseNotes}</p>
                     </div>
                   )}
 
                   <button 
                     className="download-apk-button animate-pulse-btn"
-                    onClick={() => {
-                      if (remoteVersion.apkUrl) {
-                        window.open(remoteVersion.apkUrl, '_blank');
-                      } else {
-                        alert('No APK download link provided by Admin. Please check later.');
-                      }
+                    disabled={updatingState !== 'idle'}
+                    onClick={handleDirectUpdate}
+                    style={{
+                      height: 48,
+                      fontSize: '0.92rem',
+                      background: '#22c55e',
+                      boxShadow: '0 4px 14px rgba(34, 197, 94, 0.25)',
                     }}
                   >
-                    <Download size={16} /> Download & Install Update (APK)
+                    {updatingState === 'downloading' ? (
+                      <>
+                        <Loader2 size={18} className="spin" /> Executing Native Install...
+                      </>
+                    ) : (
+                      <>
+                        <Download size={18} /> Update Now (Install APK)
+                      </>
+                    )}
                   </button>
                 </div>
-              )}
-
-              {!hasNewUpdate && !checkingUpdate && (
-                <div className="latest-status-success">
-                  <CheckCircle size={20} className="success-icon" />
+              ) : (
+                <div className="latest-status-success" style={{ border: 'none', background: 'rgba(34, 197, 94, 0.03)', padding: '24px 20px', borderRadius: '12px' }}>
+                  <CheckCircle size={28} className="success-icon" style={{ color: '#22c55e', marginRight: '14px' }} />
                   <div className="latest-text-wrap">
-                    <h3>You are up to date!</h3>
-                    <p>Your OrderFlow client is running the latest stable build with full real-time sounds and warning thresholds.</p>
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: 800 }}>Your App is Up to Date</h3>
+                    <p style={{ fontSize: '0.8rem', marginTop: 4 }}>
+                      Running version <b>v{CURRENT_VERSION_NAME}</b> (Build {CURRENT_VERSION_CODE}). Everything is fresh and fully synced!
+                    </p>
                   </div>
                 </div>
               )}
