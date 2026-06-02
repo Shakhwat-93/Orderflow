@@ -249,7 +249,7 @@ export const Settings = () => {
     (async () => {
       setCourierLoading(true);
       try {
-        const { data } = await supabase.from('system_config').select('value').eq('key', 'courier_steadfast').maybeSingle();
+        const { data } = await supabase.from('system_configs').select('value').eq('key', 'courier_steadfast').maybeSingle();
         if (data?.value) setCourierConfig(data.value);
       } catch (e) { console.warn(e); }
       finally { setCourierLoading(false); }
@@ -290,7 +290,7 @@ export const Settings = () => {
   const saveCourier = async () => {
     setCourierSaving(true);
     try {
-      await supabase.from('system_config').upsert({ key: 'courier_steadfast', value: courierConfig }, { onConflict: 'key' });
+      await supabase.from('system_configs').upsert({ key: 'courier_steadfast', value: courierConfig }, { onConflict: 'key' });
       setCourierSaved(true); setTimeout(() => setCourierSaved(false), 3000);
     } catch { setError('Courier save failed.'); } finally { setCourierSaving(false); }
   };
