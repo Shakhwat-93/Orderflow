@@ -168,13 +168,14 @@ export const Settings = () => {
   }, [fetchRemoteVersion]);
 
   const handlePublishRelease = async () => {
+    const finalApkUrl = formApkUrl.trim() || "https://github.com/Shakhwat-93/Orderflow/actions";
     setPublishSaving(true);
     setPublishSaved(false);
     try {
       const payload = {
         versionCode: Number(formCode),
         versionName: formName.trim(),
-        apkUrl: formApkUrl.trim(),
+        apkUrl: finalApkUrl,
         releaseNotes: formNotes.trim(),
         publishedAt: new Date().toISOString(),
         publishedBy: profile?.name || 'Admin'
@@ -573,17 +574,14 @@ export const Settings = () => {
         const hasNewUpdate = remoteVersion && Number(remoteVersion.versionCode) > CURRENT_VERSION_CODE;
 
         const handleDirectUpdate = () => {
-          if (!remoteVersion || !remoteVersion.apkUrl) {
-            alert('No update link available. Please contact admin.');
-            return;
-          }
+          const targetUrl = remoteVersion?.apkUrl || "https://github.com/Shakhwat-93/Orderflow/actions";
           setUpdatingState('downloading');
           setTimeout(() => {
             // Check if native app or web
             if (typeof window !== 'undefined' && window.Capacitor) {
-              window.open(remoteVersion.apkUrl, '_system');
+              window.open(targetUrl, '_system');
             } else {
-              window.open(remoteVersion.apkUrl, '_blank');
+              window.open(targetUrl, '_blank');
             }
             setUpdatingState('idle');
           }, 1500);
