@@ -22,6 +22,11 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
+    interface FraudCheckerConfig {
+      api_key: string;
+      api_url: string;
+      is_enabled: boolean;
+    }
 
     const { phone } = await req.json();
 
@@ -29,29 +34,76 @@ Deno.serve(async (req: Request) => {
       throw new Error('Missing phone number');
     }
 
-    // 1. Fetch Courier Config
-    const { data: configData, error: configError } = await supabaseClient
+    // 1. Fetch Configs
+    const { data: fraudConfigData } = await supabaseClient
       .from('system_configs')
       .select('value')
-      .eq('key', 'courier_steadfast')
-      .single();
+      .eq('key', 'fraud_checker_bd')
+      .maybeSingle();
 
-    if (configError || !configData) {
-      throw new Error('Courier configuration not found');
+    const fraudConfig = fraudConfigData?.value as FraudCheckerConfig | null;
+
+    let response: Response | null = null;
+    let isFraudCheckerUsed = false;
+
+    if (fraudConfig && fraudConfig.is_enabled && fraudConfig.api_key) {
+      isFraudCheckerUsed = true;
+      const token = fraudConfig.api_key;
+      const baseUrl = fraudConfig.api_url || 'https://fraudchecker.link/api/check';
+      
+      let url = baseUrl;
+      if (url.includes('{phone}')) {
+        url = url.replace('{phone}', phone);
+      } else {
+        url = url.endsWith('/') ? `${url}${phone}` : `${url}/${phone}`;
+      }
+
+      console.log(`[Courier Check] Querying Fraud Checker BD API at: ${url}`);
+      
+      try {
+        response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'api-key': token,
+            'Api-Key': token,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          }
+        });
+        console.log(`[Courier Check] Fraud Checker BD API status: ${response.status}`);
+      } catch (err: any) {
+        console.error('[Courier Check] Fraud Checker BD API request failed:', err.message);
+      }
     }
 
-    const config = configData.value as CourierConfig;
-
-    // 2. Call Steadfast Fraud Check API
-    // Endpoint: https://portal.steadfast.com.bd/api/v1/fraud_check/{phone}
-    const response = await fetch(`https://portal.steadfast.com.bd/api/v1/fraud_check/${phone}`, {
-      method: 'GET',
-      headers: {
-        'Api-Key': config.api_key,
-        'Secret-Key': config.secret_key,
-        'Content-Type': 'application/json'
+    // Fallback to Steadfast if Fraud Checker BD is disabled or failed
+    if (!isFraudCheckerUsed || !response || !response.ok) {
+      if (isFraudCheckerUsed) {
+        console.warn('[Courier Check] Fraud Checker BD API failed or returned error, falling back to Steadfast.');
       }
-    });
+      
+      const { data: configData, error: configError } = await supabaseClient
+        .from('system_configs')
+        .select('value')
+        .eq('key', 'courier_steadfast')
+        .single();
+
+      if (configError || !configData) {
+        throw new Error('Courier configuration not found');
+      }
+
+      const config = configData.value as CourierConfig;
+
+      response = await fetch(`https://portal.steadfast.com.bd/api/v1/fraud_check/${phone}`, {
+        method: 'GET',
+        headers: {
+          'Api-Key': config.api_key,
+          'Secret-Key': config.secret_key,
+          'Content-Type': 'application/json'
+        }
+      });
+    }
 
     const result = await response.json();
 

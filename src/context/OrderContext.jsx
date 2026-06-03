@@ -516,122 +516,242 @@ export const OrderProvider = ({ children }) => {
    * Auto Distribute: checks stock for source orders and moves stock-matched ones to Courier Ready.
    * Non-toybox orders pass through directly. Unmatched orders go to Factory Queue.
    */
+  /**
+   * Helper to check stock availability for a single order, considering current running deductions.
+   */
+  const checkOrderStock = (order, inventoryList, toyBoxesList, runningStockDeductions = {}, runningToyBoxDeductions = {}) => {
+    const items = order.ordered_items || [];
+    
+    // If no detailed items, fallback to product_name & quantity
+    const orderLines = items.length > 0 ? items : [
+      { name: order.product_name, quantity: order.quantity || 1 }
+    ];
+
+    let allAvailable = true;
+    const missingItems = [];
+    const proposedDeductions = {
+      inventory: [], // elements: { id, qty }
+      toyBox: []     // elements: { id, qty, stockKey }
+    };
+
+    for (const item of orderLines) {
+      const itemName = typeof item === 'object' ? (item.name || order.product_name) : order.product_name;
+      const qtyNeeded = typeof item === 'object' ? (item.quantity || 1) : (order.quantity || 1);
+      
+      // Check if it's a toybox (supports serial tracking)
+      const isToyBox = itemName.toUpperCase().includes('TOY BOX') || (typeof item === 'object' && item.isToyBox);
+
+      if (isToyBox) {
+        let boxNum = null;
+        if (typeof item === 'object') {
+          const boxMatch = (itemName || '').match(/#(\d+)/);
+          boxNum = item.toyBoxNumber || (boxMatch ? parseInt(boxMatch[1]) : null);
+        } else {
+          boxNum = Number(item);
+        }
+
+        if (boxNum != null) {
+          const box = toyBoxesList.find(b => 
+            (b.product_name || 'TOY BOX').toUpperCase().includes('TOY BOX') &&
+            Number(b.toy_box_number) === boxNum
+          );
+          const boxId = box ? box.id : null;
+          const stockKey = boxId || `toybox-${boxNum}`;
+          
+          const available = (box ? Number(box.stock_quantity) || 0 : 0) - (runningToyBoxDeductions[stockKey] || 0);
+          if (available < qtyNeeded) {
+            allAvailable = false;
+            missingItems.push(`${itemName} (Serial #${boxNum}): Needs ${qtyNeeded}, Has ${available + (runningToyBoxDeductions[stockKey] || 0)}`);
+          } else {
+            proposedDeductions.toyBox.push({ id: boxId, qty: qtyNeeded, stockKey });
+          }
+        } else {
+          // General matching for toy box by product name
+          const match = toyBoxesList.find(b => 
+            (b.product_name || 'TOY BOX').toLowerCase() === itemName.toLowerCase()
+          );
+          const boxId = match ? match.id : null;
+          const stockKey = boxId || `toybox-named-${itemName}`;
+          const available = (match ? Number(match.stock_quantity) || 0 : 0) - (runningToyBoxDeductions[stockKey] || 0);
+          if (available < qtyNeeded) {
+            allAvailable = false;
+            missingItems.push(`${itemName}: Needs ${qtyNeeded}, Has ${available + (runningToyBoxDeductions[stockKey] || 0)}`);
+          } else {
+            proposedDeductions.toyBox.push({ id: boxId, qty: qtyNeeded, stockKey });
+          }
+        }
+      } else {
+        // General inventory matching
+        const invMatch = api.matchInventoryProduct(itemName, inventoryList);
+        if (invMatch) {
+          const available = (Number(invMatch.current_stock) || 0) - (runningStockDeductions[invMatch.id] || 0);
+          if (available < qtyNeeded) {
+            allAvailable = false;
+            missingItems.push(`${itemName}: Needs ${qtyNeeded}, Has ${available + (runningStockDeductions[invMatch.id] || 0)}`);
+          } else {
+            proposedDeductions.inventory.push({ id: invMatch.id, qty: qtyNeeded });
+          }
+        } else {
+          // Treat unlisted products as out of stock for perfect inventory control
+          allAvailable = false;
+          missingItems.push(`${itemName}: Product not found in Inventory. Please create it first.`);
+        }
+      }
+    }
+
+    return { inStock: allAvailable, missingItems, proposedDeductions };
+  };
+
+  /**
+   * Auto Distribute: checks stock for source orders and moves stock-matched ones to Courier Ready.
+   * Universal stock check across both general inventory products and toy boxes.
+   * Respects first-confirmed priority order strictly based on updated_at ASC!
+   */
   const autoDistributeOrders = async (sourceStatus = 'Bulk Exported') => {
-    // Fetch source orders directly from DB (not just the paginated ones in state)
+    // Fetch source orders directly from DB (sorted by updated_at ASC for priority matching)
     const { data: sourceOrders, error: fetchErr } = await supabase
       .from('orders')
       .select('*')
-      .eq('status', sourceStatus);
+      .eq('status', sourceStatus)
+      .order('updated_at', { ascending: true });
+      
     if (fetchErr) throw fetchErr;
     if (!sourceOrders?.length) return { distributed: 0, queued: 0, total: 0, sourceStatus };
 
-    // Get current toy box stock through the API compatibility layer
-    const boxes = await api.getToyBoxInventory();
+    // Get current inventory & toy box stocks through the API compatibility layer
+    const inventoryList = await api.getInventory() || [];
+    const toyBoxesList = await api.getToyBoxInventory() || [];
 
-    const stockMap = {};
-    (boxes || []).forEach((box) => {
-      stockMap[getToyBoxStockKey(box.product_name || 'TOY BOX', box.toy_box_number)] = {
-        qty: Number(box.stock_quantity) || 0,
-        id: box.id,
-        product_name: box.product_name || 'TOY BOX',
-        toy_box_number: box.toy_box_number
-      };
-    });
+    const runningStockDeductions = {};
+    const runningToyBoxDeductions = {};
 
     let distributed = 0;
     let queued = 0;
-    const stockDeductions = {};
+
+    const stockDeductionUpdates = {}; // { id: new_qty } for inventory
+    const toyBoxDeductionUpdates = {}; // { id: new_qty } for toy_box_inventory
 
     for (const order of sourceOrders) {
-      const items = order.ordered_items || [];
-      const hasToyBox = items.length > 0 && items.some(item => {
-        if (typeof item === 'object') {
-          return (item.name || '').toUpperCase().includes('TOY BOX') || item.isToyBox;
+      const { inStock, proposedDeductions } = checkOrderStock(
+        order,
+        inventoryList,
+        toyBoxesList,
+        runningStockDeductions,
+        runningToyBoxDeductions
+      );
+
+      if (inStock) {
+        // Reserve stock in running deductions
+        for (const ded of proposedDeductions.inventory) {
+          runningStockDeductions[ded.id] = (runningStockDeductions[ded.id] || 0) + ded.qty;
+          const match = inventoryList.find(i => i.id === ded.id);
+          const current = match ? Number(match.current_stock) || 0 : 0;
+          stockDeductionUpdates[ded.id] = Math.max(0, current - runningStockDeductions[ded.id]);
         }
-        return true; // Legacy items were always toy box IDs
-      });
-
-      let targetStatus = 'Courier Ready';
-      let isMatched = false;
-
-      if (!hasToyBox) {
-        // No toybox items → direct to Courier Ready
-        targetStatus = 'Courier Ready';
-        isMatched = true;
-      } else {
-        // Check if all toy box items have enough stock (accounting for pending deductions)
-        let allInStock = true;
-        const orderDeductions = [];
-
-        for (const item of items) {
-          const isItemToyBox = typeof item === 'object' 
-            ? ((item.name || '').toUpperCase().includes('TOY BOX') || item.isToyBox)
-            : true; // Legacy
-            
-          if (!isItemToyBox) continue;
-
-          // Try to find the box number
-          let boxNum = null;
-          if (typeof item === 'object') {
-            const boxMatch = (item.name || '').match(/#(\d+)/);
-            boxNum = item.toyBoxNumber || (boxMatch ? parseInt(boxMatch[1]) : null);
-          } else {
-            boxNum = Number(item);
-          }
-
-          if (boxNum != null) {
-            const productName = typeof item === 'object' ? (item.name || order.product_name || 'TOY BOX') : 'TOY BOX';
-            const stockKey = getToyBoxStockKey(productName, boxNum);
-            const available = (stockMap[stockKey]?.qty || 0) - (stockDeductions[stockKey] || 0);
-            if (available < (item.quantity || 1)) {
-              allInStock = false;
-              break;
-            }
-            orderDeductions.push({ stockKey, qty: item.quantity || 1 });
+        for (const ded of proposedDeductions.toyBox) {
+          runningToyBoxDeductions[ded.stockKey] = (runningToyBoxDeductions[ded.stockKey] || 0) + ded.qty;
+          if (ded.id) {
+            const match = toyBoxesList.find(b => b.id === ded.id);
+            const current = match ? Number(match.stock_quantity) || 0 : 0;
+            toyBoxDeductionUpdates[ded.id] = Math.max(0, current - runningToyBoxDeductions[ded.stockKey]);
           }
         }
 
-        if (allInStock && orderDeductions.length > 0) {
-          // Reserve stock
-          for (const ded of orderDeductions) {
-            stockDeductions[ded.stockKey] = (stockDeductions[ded.stockKey] || 0) + ded.qty;
-          }
-          targetStatus = 'Courier Ready';
-          isMatched = true;
-        } else {
-          // Not enough stock or no box number detected → Factory Queue
-          targetStatus = 'Factory Queue';
-          isMatched = false;
-        }
-      }
+        // Move order to 'Courier Ready'
+        await supabase
+          .from('orders')
+          .update({ status: 'Courier Ready', updated_at: new Date().toISOString() })
+          .eq('id', order.id);
 
-      // Update status
-      await supabase.from('orders').update({ status: targetStatus, updated_at: new Date().toISOString() }).eq('id', order.id);
-      
-      if (isMatched) {
         distributed++;
       } else {
+        // If not in stock, leave in current status so user can view "Stock Out" badge
         queued++;
       }
     }
 
+    // Apply all stock deductions to inventory
+    for (const [id, newQty] of Object.entries(stockDeductionUpdates)) {
+      await supabase
+        .from('inventory')
+        .update({ current_stock: newQty, updated_at: new Date().toISOString() })
+        .eq('id', id);
+    }
+
     // Apply all stock deductions to toy_box_inventory
-    for (const [stockKey, deducted] of Object.entries(stockDeductions)) {
-      const current = stockMap[stockKey]?.qty || 0;
-      const newQty = Math.max(0, current - deducted);
-      const stockRowId = stockMap[stockKey]?.id;
-      if (!stockRowId) continue;
+    for (const [id, newQty] of Object.entries(toyBoxDeductionUpdates)) {
       await supabase
         .from('toy_box_inventory')
         .update({ stock_quantity: newQty, updated_at: new Date().toISOString() })
-        .eq('id', stockRowId);
+        .eq('id', id);
     }
 
     // Refresh data
     fetchOrders(1);
     fetchToyBoxes();
+    fetchInventory();
 
     return { distributed, queued, total: sourceOrders.length, sourceStatus };
+  };
+
+  /**
+   * Manual Single-Order Dispatch: validates stock and dispatches a single order to courier workflow.
+   * Deducts stock atomically. Throws an error if out of stock.
+   */
+  const distributeSingleOrder = async (orderId) => {
+    // 1. Fetch latest order state directly
+    const { data: order, error: fetchErr } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('id', orderId)
+      .single();
+    if (fetchErr) throw fetchErr;
+
+    // 2. Fetch latest inventory & toy boxes
+    const inventoryList = await api.getInventory() || [];
+    const toyBoxesList = await api.getToyBoxInventory() || [];
+
+    // 3. Verify stock
+    const { inStock, missingItems, proposedDeductions } = checkOrderStock(order, inventoryList, toyBoxesList);
+    if (!inStock) {
+      throw new Error(`Insufficient Stock: ${missingItems.join(', ')}`);
+    }
+
+    // 4. Deduct and save general inventory
+    for (const ded of proposedDeductions.inventory) {
+      const match = inventoryList.find(i => i.id === ded.id);
+      const current = match ? Number(match.current_stock) || 0 : 0;
+      const newQty = Math.max(0, current - ded.qty);
+      await supabase
+        .from('inventory')
+        .update({ current_stock: newQty, updated_at: new Date().toISOString() })
+        .eq('id', ded.id);
+    }
+
+    // 5. Deduct and save toy boxes
+    for (const ded of proposedDeductions.toyBox) {
+      if (ded.id) {
+        const match = toyBoxesList.find(b => b.id === ded.id);
+        const current = match ? Number(match.stock_quantity) || 0 : 0;
+        const newQty = Math.max(0, current - ded.qty);
+        await supabase
+          .from('toy_box_inventory')
+          .update({ stock_quantity: newQty, updated_at: new Date().toISOString() })
+          .eq('id', ded.id);
+      }
+    }
+
+    // 6. Update order status to 'Courier Ready'
+    const { error: updateErr } = await supabase
+      .from('orders')
+      .update({ status: 'Courier Ready', updated_at: new Date().toISOString() })
+      .eq('id', orderId);
+    if (updateErr) throw updateErr;
+
+    // 7. Refresh data
+    fetchOrders(1);
+    fetchToyBoxes();
+    fetchInventory();
   };
 
   const fetchOrderLogs = async (orderId) => {
@@ -682,6 +802,7 @@ export const OrderProvider = ({ children }) => {
       updateToyBoxStock,
       addToyBoxStocks,
       autoDistributeOrders,
+      distributeSingleOrder,
       previewInvoiceStockUpdate,
       applyInvoiceStockUpdate,
       isInitialized,

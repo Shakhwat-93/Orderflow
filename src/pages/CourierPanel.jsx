@@ -10,7 +10,8 @@ import { Modal } from '../components/Modal';
 import { OrderEditModal } from '../components/OrderEditModal';
 import { OrderDetailsModal } from '../components/OrderDetailsModal';
 import { ExportModal } from '../components/ExportModal';
-import { Search, Truck, CheckCircle, Package, ClipboardCheck, Edit2, Clock, Loader2, AlertTriangle, Download, FileSpreadsheet } from 'lucide-react';
+import { Search, Truck, CheckCircle, Package, ClipboardCheck, Edit2, Clock, Loader2, AlertTriangle, Download, FileSpreadsheet, Filter, Sparkles, Check, AlertCircle } from 'lucide-react';
+import api from '../lib/api';
 import { usePersistentState } from '../utils/persistentState';
 import { useRouteOrderReadState } from '../hooks/useRouteOrderReadState';
 import './CourierPanel.css';
@@ -30,7 +31,7 @@ const itemVariants = {
 };
 
 export const CourierPanel = () => {
-  const { orders, updateOrderStatus, editOrder, dispatchToCourier, autoDistributeOrders } = useOrders();
+  const { orders, updateOrderStatus, editOrder, dispatchToCourier, autoDistributeOrders, distributeSingleOrder, inventory, toyBoxes } = useOrders();
   const { updatePresenceContext } = useAuth();
 
   useEffect(() => {
@@ -44,6 +45,122 @@ export const CourierPanel = () => {
   const [steadfastSubmitted, setSteadfastSubmitted] = useState({});
   const [isDistributing, setIsDistributing] = useState(false);
   const [distributeResult, setDistributeResult] = useState(null);
+
+  // Elite Custom Filter States
+  const [selectedProduct, setSelectedProduct] = useState('All');
+  const [selectedVariant, setSelectedVariant] = useState('All');
+  const [selectedStockStatus, setSelectedStockStatus] = useState('All');
+  const [rowLoading, setRowLoading] = useState({});
+
+  /**
+   * Universal Client-Side Stock Verification Helper
+   */
+  const checkStockForUI = (order) => {
+    const items = order.ordered_items || [];
+    const orderLines = items.length > 0 ? items : [
+      { name: order.product_name, quantity: order.quantity || 1 }
+    ];
+    
+    let allAvailable = true;
+    const missingItems = [];
+    
+    for (const item of orderLines) {
+      const itemName = typeof item === 'object' ? (item.name || order.product_name) : order.product_name;
+      const qtyNeeded = typeof item === 'object' ? (item.quantity || 1) : (order.quantity || 1);
+      
+      const isToyBox = itemName.toUpperCase().includes('TOY BOX') || (typeof item === 'object' && item.isToyBox);
+      if (isToyBox) {
+        let boxNum = null;
+        if (typeof item === 'object') {
+          const boxMatch = (itemName || '').match(/#(\d+)/);
+          boxNum = item.toyBoxNumber || (boxMatch ? parseInt(boxMatch[1]) : null);
+        } else {
+          boxNum = Number(item);
+        }
+
+        if (boxNum != null) {
+          const box = toyBoxes.find(b => 
+            (b.product_name || 'TOY BOX').toUpperCase().includes('TOY BOX') &&
+            Number(b.toy_box_number) === boxNum
+          );
+          const available = box ? Number(box.stock_quantity) || 0 : 0;
+          if (available < qtyNeeded) {
+            allAvailable = false;
+            missingItems.push(`Serial #${boxNum}: ${available}/${qtyNeeded}`);
+          }
+        } else {
+          const match = toyBoxes.find(b => 
+            (b.product_name || 'TOY BOX').toLowerCase() === itemName.toLowerCase()
+          );
+          const available = match ? Number(match.stock_quantity) || 0 : 0;
+          if (available < qtyNeeded) {
+            allAvailable = false;
+            missingItems.push(`${itemName}: ${available}/${qtyNeeded}`);
+          }
+        }
+      } else {
+        const invMatch = api.matchInventoryProduct(itemName, inventory);
+        if (invMatch) {
+          const available = Number(invMatch.current_stock) || 0;
+          if (available < qtyNeeded) {
+            allAvailable = false;
+            missingItems.push(`${invMatch.name}: ${available}/${qtyNeeded}`);
+          }
+        } else {
+          allAvailable = false;
+          missingItems.push(`${itemName}: Out of Stock`);
+        }
+      }
+    }
+    return { inStock: allAvailable, details: missingItems.join(', ') };
+  };
+
+  /**
+   * Distribute currently filtered eligible in-stock orders
+   */
+  const handleDistributeFiltered = async () => {
+    const eligibleOrders = bulkExportedQueue.filter(order => checkStockForUI(order).inStock);
+    if (eligibleOrders.length === 0) {
+      alert("No in-stock orders match your current filters.");
+      return;
+    }
+
+    const confirmed = window.confirm(`Distribute ${eligibleOrders.length} filtered, in-stock orders to courier workflow?`);
+    if (!confirmed) return;
+
+    setIsDistributing(true);
+    let successCount = 0;
+    let failCount = 0;
+    let errors = [];
+
+    for (const order of eligibleOrders) {
+      try {
+        await distributeSingleOrder(order.id);
+        successCount++;
+      } catch (err) {
+        failCount++;
+        errors.push(`#${order.id.replace('ORD-', '')}: ${err.message}`);
+      }
+    }
+
+    setIsDistributing(false);
+    alert(`Successfully distributed ${successCount} orders. Failed: ${failCount}.${errors.length ? '\n\nErrors:\n' + errors.slice(0, 5).join('\n') : ''}`);
+  };
+
+  /**
+   * Single Manual Order Dispatch
+   */
+  const handleSingleDistribute = async (e, orderId) => {
+    e.stopPropagation();
+    setRowLoading(prev => ({ ...prev, [orderId]: true }));
+    try {
+      await distributeSingleOrder(orderId);
+    } catch (err) {
+      alert("Manual dispatch failed: " + err.message);
+    } finally {
+      setRowLoading(prev => ({ ...prev, [orderId]: false }));
+    }
+  };
 
   // Modal State for Tracking ID
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -82,10 +199,51 @@ export const CourierPanel = () => {
     (order.phone || '').includes(searchTerm)
   );
 
-  const filterOrder = (order) => matchesSearch(order) && matchesDate(order);
+  const filterOrder = (order) => {
+    // Search filter
+    const matchesSearchVal = matchesSearch(order);
+      
+    // Date filter
+    const matchesDateVal = matchesDate(order);
+
+    // Product Filter
+    const matchesProduct = selectedProduct === 'All' || order.product_name === selectedProduct;
+
+    // Variant Filter
+    let matchesVariant = true;
+    if (selectedVariant !== 'All') {
+      const items = order.ordered_items || [];
+      matchesVariant = items.some(item => {
+        const name = typeof item === 'object' ? (item.name || '') : '';
+        return name.toLowerCase().includes(selectedVariant.toLowerCase());
+      });
+    }
+
+    // Stock Status Filter (using computed local status)
+    let matchesStock = true;
+    if (selectedStockStatus !== 'All') {
+      const { inStock } = checkStockForUI(order);
+      matchesStock = selectedStockStatus === 'InStock' ? inStock : !inStock;
+    }
+
+    return matchesSearchVal && matchesDateVal && matchesProduct && matchesVariant && matchesStock;
+  };
 
   const bulkExportedAll = orders.filter((order) => order.status === 'Bulk Exported');
   const courierReadyAll = orders.filter((order) => order.status === 'Courier Ready');
+  
+  // Premium Filter Options List
+  const uniqueProducts = Array.from(new Set(orders.map(o => o.product_name).filter(Boolean)));
+  const uniqueVariants = Array.from(new Set(
+    orders.flatMap(o => {
+      const items = o.ordered_items || [];
+      return items.map(item => {
+        const name = typeof item === 'object' ? item.name || '' : '';
+        const parts = name.split('-');
+        return parts.length > 1 ? parts[parts.length - 1].trim() : null;
+      }).filter(Boolean);
+    })
+  ));
   const bulkExportedQueue = bulkExportedAll.filter(filterOrder);
   const courierReadyQueue = courierReadyAll.filter(filterOrder);
   const courierQueue = activeTab === 'bulk' ? bulkExportedQueue : courierReadyQueue;
@@ -267,6 +425,71 @@ export const CourierPanel = () => {
       </div>
 
       <Card className="table-card" noPadding>
+        {/* Ultimate Premium Filters Row */}
+        <div className="courier-filters-row">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: '12px' }}>
+            <Filter size={16} style={{ color: 'var(--cp-text-muted)' }} />
+            <span style={{ fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--cp-text-muted)' }}>Filters</span>
+          </div>
+          
+          <select 
+            className="premium-filter-select"
+            value={selectedProduct}
+            onChange={(e) => setSelectedProduct(e.target.value)}
+          >
+            <option value="All">All Products</option>
+            {uniqueProducts.map(p => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+
+          <select 
+            className="premium-filter-select"
+            value={selectedVariant}
+            onChange={(e) => setSelectedVariant(e.target.value)}
+          >
+            <option value="All">All Color/Variants</option>
+            {uniqueVariants.map(v => (
+              <option key={v} value={v}>{v}</option>
+            ))}
+          </select>
+
+          <select 
+            className="premium-filter-select"
+            value={selectedStockStatus}
+            onChange={(e) => setSelectedStockStatus(e.target.value)}
+          >
+            <option value="All">All Stock Status</option>
+            <option value="InStock">In Stock Only</option>
+            <option value="StockOut">Stock Out Only</option>
+          </select>
+
+          {activeTab === 'bulk' && bulkExportedQueue.length > 0 && (
+            <Button
+              variant="outline"
+              onClick={handleDistributeFiltered}
+              disabled={isDistributing}
+              style={{
+                marginLeft: 'auto',
+                padding: '6px 14px',
+                height: '34px',
+                fontSize: '0.78rem',
+                fontWeight: '800',
+                borderRadius: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                borderColor: 'var(--cp-accent-bdr)',
+                background: 'var(--cp-accent-bg)',
+                color: 'var(--cp-accent)'
+              }}
+            >
+              <Sparkles size={14} />
+              <span>Distribute Filtered ({bulkExportedQueue.filter(o => checkStockForUI(o).inStock).length})</span>
+            </Button>
+          )}
+        </div>
+
         <div className="table-search-bar">
           <div className="elite-search-wrapper">
             <Search className="elite-search-icon" size={18} />
@@ -345,6 +568,7 @@ export const CourierPanel = () => {
                 <th>Recipient</th>
                 <th>Product Package</th>
                 <th>Tracking ID</th>
+                <th>Stock Status</th>
                 <th>Phase</th>
                 <th className="courier-actions-col">Control</th>
               </tr>
@@ -363,6 +587,7 @@ export const CourierPanel = () => {
                     Boolean(order.courier_assigned_id) ||
                     order.courier_name === 'Steadfast';
 
+                  const { inStock, details } = checkStockForUI(order);
                   return (
                     <motion.tr 
                       key={order.id} 
@@ -402,12 +627,39 @@ export const CourierPanel = () => {
                         )}
                       </td>
                       <td>
+                        {isBulkExported ? (
+                          <div 
+                            className={`stock-badge ${inStock ? 'in-stock' : 'stock-out'}`}
+                            title={details}
+                          >
+                            <span className="stock-dot">●</span>
+                            <span>{inStock ? 'In Stock' : 'Stock Out'}</span>
+                          </div>
+                        ) : (
+                          <div className="stock-badge in-stock">
+                            <span className="stock-dot">●</span>
+                            <span>Assigned</span>
+                          </div>
+                        )}
+                      </td>
+                      <td>
                         <Badge variant={isBulkExported ? 'bulk-exported' : 'courier-ready'} className="courier-status-pill">
                           {isBulkExported ? 'Bulk Exported' : 'Ready'}
                         </Badge>
                       </td>
                       <td className="courier-actions-cell">
                         <div className="dispatch-action-grid">
+                          {isBulkExported && (
+                            <button
+                              className="courier-action-btn distribute"
+                              disabled={!inStock || rowLoading[order.id]}
+                              onClick={(e) => handleSingleDistribute(e, order.id)}
+                              title={inStock ? "Distribute to Courier" : "Out of Stock - Locked"}
+                            >
+                              {rowLoading[order.id] ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />}
+                              <span>{inStock ? 'Distribute' : 'No Stock'}</span>
+                            </button>
+                          )}
                           <button
                             className="courier-action-btn edit"
                             onClick={(e) => { e.stopPropagation(); handleOpenEditModal(order); }}
@@ -467,6 +719,7 @@ export const CourierPanel = () => {
           <AnimatePresence>
             {courierQueue.map(order => {
               const isBulkExported = order.status === 'Bulk Exported';
+              const { inStock, details } = checkStockForUI(order);
 
               return (
                 <motion.div
@@ -484,9 +737,20 @@ export const CourierPanel = () => {
                       <span className="order-id">#{order.id.replace('ORD-', '')}</span>
                       {isOrderUnread(order) && <span className="route-unread-chip">New</span>}
                     </div>
-                    <Badge variant={isBulkExported ? 'bulk-exported' : 'courier-ready'}>
-                      {isBulkExported ? 'Bulk Exported' : 'Ready'}
-                    </Badge>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      {isBulkExported ? (
+                        <div className={`stock-badge ${inStock ? 'in-stock' : 'stock-out'}`} title={details} style={{ scale: 0.9 }}>
+                          <span>{inStock ? 'In Stock' : 'Stock Out'}</span>
+                        </div>
+                      ) : (
+                        <div className="stock-badge in-stock" style={{ scale: 0.9 }}>
+                          <span>Assigned</span>
+                        </div>
+                      )}
+                      <Badge variant={isBulkExported ? 'bulk-exported' : 'courier-ready'} style={{ scale: 0.9 }}>
+                        {isBulkExported ? 'Exported' : 'Ready'}
+                      </Badge>
+                    </div>
                   </div>
 
                   <div className="customer-primary-box">
@@ -507,6 +771,16 @@ export const CourierPanel = () => {
                   </div>
 
                   <div className="courier-mobile-actions" onClick={(e) => e.stopPropagation()}>
+                    {isBulkExported && (
+                      <button 
+                        className="courier-action-btn distribute" 
+                        disabled={!inStock || rowLoading[order.id]}
+                        onClick={(e) => handleSingleDistribute(e, order.id)}
+                      >
+                        {rowLoading[order.id] ? <Loader2 size={16} className="spin" /> : <Sparkles size={16} />}
+                        <span>{inStock ? 'Distribute' : 'No Stock'}</span>
+                      </button>
+                    )}
                     <button className="courier-action-btn edit" onClick={() => handleOpenEditModal(order)}>
                       <Edit2 size={16} /> <span>Edit</span>
                     </button>

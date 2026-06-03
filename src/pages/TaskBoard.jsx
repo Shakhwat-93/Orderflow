@@ -57,9 +57,12 @@ const MetricCard = ({ label, value, icon: Icon, accent, trend }) => (
 );
 
 // ── Task Row (Today's Tasks table) ───────────────────────────────────────────
-const TaskRow = ({ task, onView }) => {
+const TaskRow = ({ task, onView, onStatusUpdate }) => {
   const p = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.medium;
   const s = STATUS_CONFIG[task.status] || STATUS_CONFIG.pending;
+  const progressPct = task.status === 'completed' ? 100 : task.status === 'in_progress' ? 50 : 0;
+  const progressColor = task.status === 'completed' ? '#22c55e' : task.status === 'in_progress' ? '#6366f1' : '#f59e0b';
+
   return (
     <tr className="tb-task-row" onClick={() => onView(task)}>
       <td className="tb-td">
@@ -69,18 +72,56 @@ const TaskRow = ({ task, onView }) => {
         </div>
       </td>
       <td className="tb-td">
-        <div className="tb-project-chip">
-          <FolderOpen size={13} />
-          {task.assigned_role || 'General'}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="tb-owner-av" style={{ width: '22px', height: '22px', fontSize: '0.65rem' }}>
+            {task.assigned_to_name ? task.assigned_to_name.charAt(0).toUpperCase() : '?'}
+          </div>
+          <span style={{ fontSize: '0.8rem', fontWeight: 500 }}>
+            {task.assigned_to_name || 'Unassigned'}
+          </span>
+        </div>
+      </td>
+      <td className="tb-td">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="tb-owner-av" style={{ width: '22px', height: '22px', fontSize: '0.65rem', background: '#94a3b8' }}>
+            {task.assigned_by_name ? task.assigned_by_name.charAt(0).toUpperCase() : 'S'}
+          </div>
+          <span style={{ fontSize: '0.8rem', color: 'var(--tb-text-sub)' }}>
+            {task.assigned_by_name || 'System'}
+          </span>
         </div>
       </td>
       <td className="tb-td">
         <span className="tb-date-text">{fmtDate(task.due_date)}</span>
       </td>
+      <td className="tb-td" onClick={(e) => e.stopPropagation()}>
+        <select
+          className="tb-kanban-status-select"
+          value={task.status}
+          onChange={(e) => onStatusUpdate(task.id, e.target.value)}
+          style={{
+            background: s.bg,
+            color: s.color,
+            border: 'none',
+            borderRadius: '6px',
+            padding: '4px 8px',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            outline: 'none'
+          }}
+        >
+          <option value="pending" style={{ background: 'var(--tb-card)', color: 'var(--tb-text)' }}>Pending</option>
+          <option value="in_progress" style={{ background: 'var(--tb-card)', color: 'var(--tb-text)' }}>In Progress</option>
+          <option value="completed" style={{ background: 'var(--tb-card)', color: 'var(--tb-text)' }}>Completed</option>
+        </select>
+      </td>
       <td className="tb-td">
-        <span className="tb-status-badge" style={{ background: s.bg, color: s.color }}>
-          {s.label}
-        </span>
+        <div className="tb-progress-wrap" style={{ minWidth: '90px' }}>
+          <div className="tb-progress-bar" style={{ height: '4px' }}>
+            <div className="tb-progress-fill" style={{ width: `${progressPct}%`, background: progressColor }} />
+          </div>
+          <span className="tb-progress-pct" style={{ fontSize: '0.7rem' }}>{progressPct}%</span>
+        </div>
       </td>
     </tr>
   );
@@ -135,6 +176,7 @@ const KanbanColumn = ({ title, tasks, color, onView, onStatusUpdate }) => (
       <AnimatePresence mode="popLayout">
         {tasks.map((task) => {
           const p = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.medium;
+          const assignedInitials = task.assigned_to_name ? task.assigned_to_name.charAt(0).toUpperCase() : '?';
           return (
             <motion.div
               key={task.id}
@@ -150,7 +192,9 @@ const KanbanColumn = ({ title, tasks, color, onView, onStatusUpdate }) => (
               </div>
               <div className="tb-kanban-card-title">{task.title}</div>
               <div className="tb-kanban-card-meta">
-                <span className="tb-kanban-av">?</span>
+                <span className="tb-kanban-av" title={`Assigned to: ${task.assigned_to_name || 'Unassigned'}`}>
+                  {assignedInitials}
+                </span>
                 <select
                   className="tb-kanban-status-select"
                   value={task.status}
@@ -181,6 +225,7 @@ export const TaskBoard = () => {
   const { user, profile, isAdmin, updatePresenceContext } = useAuth();
 
   const [activeTab, setActiveTab] = usePersistentState('panel:tasks:tab', 'overview');
+  const [assignmentFilter, setAssignmentFilter] = useState('all'); // 'all', 'assigned_to_me', 'assigned_by_me'
   const [isCreateAssignedOpen, setIsCreateAssignedOpen] = useState(false);
   const [isCreateDailyOpen, setIsCreateDailyOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
@@ -197,17 +242,32 @@ export const TaskBoard = () => {
     } catch (e) { console.error('Failed to fetch related order:', e); }
   };
 
+  // Calculate counts for filters
+  const assignedToMeCount = assignedTasks.filter(t => t.assigned_to === user?.id).length;
+  const assignedByMeCount = assignedTasks.filter(t => t.assigned_by === user?.id).length;
+
   const stats = {
     backlog:    assignedTasks.filter(t => t.status === 'pending').length,
     inProgress: assignedTasks.filter(t => t.status === 'in_progress').length,
     completed:  assignedTasks.filter(t => t.status === 'completed').length,
     total:      assignedTasks.length,
+    assignedToMe: assignedToMeCount,
+    assignedByMe: assignedByMeCount,
   };
 
-  const todayTasks = assignedTasks
-    .filter(t => t.status !== 'completed')
-    .filter(t => !searchQuery || t.title?.toLowerCase().includes(searchQuery.toLowerCase()))
-    .slice(0, 8);
+  const filteredTasks = assignedTasks.filter(t => {
+    // Apply search filter
+    if (searchQuery && !t.title?.toLowerCase().includes(searchQuery.toLowerCase())) {
+      return false;
+    }
+    // Apply tab filter
+    if (assignmentFilter === 'assigned_to_me') {
+      return t.assigned_to === user?.id;
+    } else if (assignmentFilter === 'assigned_by_me') {
+      return t.assigned_by === user?.id;
+    }
+    return true; // 'all'
+  });
 
   // Fake "projects" by grouping tasks by assigned_role
   const roleGroups = [...new Set(assignedTasks.map(t => t.assigned_role).filter(Boolean))];
@@ -273,11 +333,11 @@ export const TaskBoard = () => {
         transition={{ delay: 0.05, duration: 0.4 }}
       >
         <div className="tb-welcome-text">
-          <h2>Welcome Back, {profile?.name?.split(' ')[0] || 'James'} 👋</h2>
+          <h2>Welcome Back, {profile?.name?.split(' ')[0] || 'User'} 👋</h2>
           <p>
-            <span className="tb-badge-pill">{stats.backlog > 0 ? stats.backlog : 0} Tasks Due Today</span>
-            <span className="tb-badge-pill warning">{stats.inProgress} Overdue Tasks</span>
-            <span className="tb-badge-pill info">{stats.total} Upcoming Deadlines (This Week)</span>
+            <span className="tb-badge-pill">{stats.assignedToMe} Assigned to Me</span>
+            <span className="tb-badge-pill warning">{stats.assignedByMe} Assigned to Others</span>
+            <span className="tb-badge-pill info">{stats.total} Total System Tasks</span>
           </p>
         </div>
         <button className="tb-export-subtle-btn">
@@ -307,19 +367,49 @@ export const TaskBoard = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15, duration: 0.4 }}
           >
-            <div className="tb-section-header">
-              <h2 className="tb-section-title">Today's Tasks</h2>
+            <div className="tb-section-header" style={{ paddingBottom: '8px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <h2 className="tb-section-title">Assigned Tasks Tracker</h2>
+                <span style={{ fontSize: '0.75rem', color: 'var(--tb-text-muted)' }}>
+                  Monitor progress and update task statuses in real-time.
+                </span>
+              </div>
               <div className="tb-section-actions">
                 <div className="tb-search-box">
                   <Search size={14} />
                   <input
-                    placeholder="Search here..."
+                    placeholder="Search by title..."
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                   />
                 </div>
-                <button className="tb-filter-btn">
-                  <Filter size={14} /> Filter
+                <button className="tb-filter-btn" onClick={() => setIsCreateAssignedOpen(true)}>
+                  <Plus size={14} /> Assign Task
+                </button>
+              </div>
+
+              {/* Tab Filters for User Assignments */}
+              <div className="tb-filter-tabs">
+                <button
+                  type="button"
+                  className={`tb-filter-tab ${assignmentFilter === 'all' ? 'active' : ''}`}
+                  onClick={() => setAssignmentFilter('all')}
+                >
+                  All Tasks ({stats.total})
+                </button>
+                <button
+                  type="button"
+                  className={`tb-filter-tab ${assignmentFilter === 'assigned_to_me' ? 'active' : ''}`}
+                  onClick={() => setAssignmentFilter('assigned_to_me')}
+                >
+                  Assigned to Me ({stats.assignedToMe})
+                </button>
+                <button
+                  type="button"
+                  className={`tb-filter-tab ${assignmentFilter === 'assigned_by_me' ? 'active' : ''}`}
+                  onClick={() => setAssignmentFilter('assigned_by_me')}
+                >
+                  Assigned by Me ({stats.assignedByMe})
                 </button>
               </div>
             </div>
@@ -329,24 +419,27 @@ export const TaskBoard = () => {
                 <thead>
                   <tr>
                     <th className="tb-th">Task Name</th>
-                    <th className="tb-th">Project</th>
-                    <th className="tb-th">Due</th>
+                    <th className="tb-th">Assigned To</th>
+                    <th className="tb-th">Assigned By</th>
+                    <th className="tb-th">Due Date</th>
                     <th className="tb-th">Status</th>
+                    <th className="tb-th">Progress</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {todayTasks.length > 0
-                    ? todayTasks.map(t => (
+                  {filteredTasks.length > 0
+                    ? filteredTasks.map(t => (
                         <TaskRow
                           key={t.id}
                           task={t}
                           onView={() => { setSelectedTask(t); setSelectedTaskType('assigned'); }}
+                          onStatusUpdate={(id, s) => updateAssignedTask(id, { status: s })}
                         />
                       ))
                     : (
                       <tr>
-                        <td colSpan={4} className="tb-empty-row">
-                          No tasks found — you're all caught up! 🎉
+                        <td colSpan={6} className="tb-empty-row">
+                          No tasks found matching your filter criteria. 🎉
                         </td>
                       </tr>
                     )

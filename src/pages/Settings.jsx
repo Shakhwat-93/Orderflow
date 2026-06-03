@@ -236,6 +236,13 @@ export const Settings = () => {
   const [showApiKey, setShowApiKey] = useState(false);
   const [showSecretKey, setShowSecretKey] = useState(false);
 
+  // ── Fraud Checker BD ──
+  const [fraudCheckerConfig, setFraudCheckerConfig] = useState({ api_key: '', api_url: 'https://fraudchecker.link/api/check', is_enabled: false });
+  const [fraudCheckerLoading, setFraudCheckerLoading] = useState(true);
+  const [fraudCheckerSaving, setFraudCheckerSaving] = useState(false);
+  const [fraudCheckerSaved, setFraudCheckerSaved] = useState(false);
+  const [showFraudToken, setShowFraudToken] = useState(false);
+
   // ── Danger Zone ──
   const [showReset, setShowReset] = useState(false);
   const [resetScope, setResetScope] = useState('all');
@@ -248,11 +255,18 @@ export const Settings = () => {
   useEffect(() => {
     (async () => {
       setCourierLoading(true);
+      setFraudCheckerLoading(true);
       try {
         const { data } = await supabase.from('system_configs').select('value').eq('key', 'courier_steadfast').maybeSingle();
         if (data?.value) setCourierConfig(data.value);
       } catch (e) { console.warn(e); }
       finally { setCourierLoading(false); }
+
+      try {
+        const { data } = await supabase.from('system_configs').select('value').eq('key', 'fraud_checker_bd').maybeSingle();
+        if (data?.value) setFraudCheckerConfig(data.value);
+      } catch (e) { console.warn(e); }
+      finally { setFraudCheckerLoading(false); }
     })();
   }, []);
 
@@ -293,6 +307,14 @@ export const Settings = () => {
       await supabase.from('system_configs').upsert({ key: 'courier_steadfast', value: courierConfig }, { onConflict: 'key' });
       setCourierSaved(true); setTimeout(() => setCourierSaved(false), 3000);
     } catch { setError('Courier save failed.'); } finally { setCourierSaving(false); }
+  };
+
+  const saveFraudChecker = async () => {
+    setFraudCheckerSaving(true);
+    try {
+      await supabase.from('system_configs').upsert({ key: 'fraud_checker_bd', value: fraudCheckerConfig }, { onConflict: 'key' });
+      setFraudCheckerSaved(true); setTimeout(() => setFraudCheckerSaved(false), 3000);
+    } catch { setError('Fraud Checker BD save failed.'); } finally { setFraudCheckerSaving(false); }
   };
 
   const handleReset = async () => {
@@ -433,38 +455,80 @@ export const Settings = () => {
       // ── COURIER ──
       case 'courier': return (
         <div className="st-section-body">
-          <SectionHead icon={Truck} title="Courier Integration" desc="Connect Steadfast courier API for automatic order dispatch and tracking." />
-          {courierLoading ? (
-            <div className="st-loading-row"><Loader2 size={20} className="spin" /><span>Loading configuration...</span></div>
-          ) : (
-            <>
-              <div className="st-field-group">
-                <label className="st-label"><Key size={13} /> API Key</label>
-                <div className="st-input-eye">
-                  <input className="st-input" type={showApiKey ? 'text' : 'password'} value={courierConfig.api_key} onChange={e => setCourierConfig(c => ({ ...c, api_key: e.target.value }))} placeholder="Enter Steadfast API Key" />
-                  <button className="st-eye-btn" onClick={() => setShowApiKey(v => !v)} type="button">{showApiKey ? <EyeOff size={15} /> : <Eye size={15} />}</button>
+          <SectionHead icon={Truck} title="Courier & Ratio Settings" desc="Connect Steadfast courier API and Fraud Checker BD for automated dispatch and return checks." />
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            {/* Steadfast Courier Settings */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <h3 style={{ fontSize: '0.9rem', fontWeight: '750', color: 'var(--st-text)', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                <Truck size={15} style={{ color: 'var(--st-accent)' }} />
+                <span>Steadfast Courier API</span>
+              </h3>
+              {courierLoading ? (
+                <div className="st-loading-row"><Loader2 size={20} className="spin" /><span>Loading configuration...</span></div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div className="st-field-group">
+                    <label className="st-label"><Key size={13} /> API Key</label>
+                    <div className="st-input-eye">
+                      <input className="st-input" type={showApiKey ? 'text' : 'password'} value={courierConfig.api_key} onChange={e => setCourierConfig(c => ({ ...c, api_key: e.target.value }))} placeholder="Enter Steadfast API Key" />
+                      <button className="st-eye-btn" onClick={() => setShowApiKey(v => !v)} type="button">{showApiKey ? <EyeOff size={15} /> : <Eye size={15} />}</button>
+                    </div>
+                  </div>
+                  <div className="st-field-group">
+                    <label className="st-label"><Lock size={13} /> Secret Key</label>
+                    <div className="st-input-eye">
+                      <input className="st-input" type={showSecretKey ? 'text' : 'password'} value={courierConfig.secret_key} onChange={e => setCourierConfig(c => ({ ...c, secret_key: e.target.value }))} placeholder="Enter Steadfast Secret Key" />
+                      <button className="st-eye-btn" onClick={() => setShowSecretKey(v => !v)} type="button">{showSecretKey ? <EyeOff size={15} /> : <Eye size={15} />}</button>
+                    </div>
+                  </div>
+                  <div className="st-toggle-row">
+                    <div><span className="st-toggle-label">Enable Integration</span><span className="st-toggle-desc">Allow system to communicate with Steadfast API.</span></div>
+                    <Toggle checked={courierConfig.is_enabled} onChange={v => setCourierConfig(c => ({ ...c, is_enabled: v }))} />
+                  </div>
+                  <div className="st-toggle-row">
+                    <div><span className="st-toggle-label">Auto-Dispatch</span><span className="st-toggle-desc">Submit orders to courier when stock is matched.</span></div>
+                    <Toggle checked={courierConfig.auto_dispatch} onChange={v => setCourierConfig(c => ({ ...c, auto_dispatch: v }))} />
+                  </div>
+                  <div className="st-actions" style={{ justifyContent: 'flex-start', marginTop: '4px' }}>
+                    <SaveBtn onClick={saveCourier} saving={courierSaving} saved={courierSaved} />
+                  </div>
                 </div>
-              </div>
-              <div className="st-field-group">
-                <label className="st-label"><Lock size={13} /> Secret Key</label>
-                <div className="st-input-eye">
-                  <input className="st-input" type={showSecretKey ? 'text' : 'password'} value={courierConfig.secret_key} onChange={e => setCourierConfig(c => ({ ...c, secret_key: e.target.value }))} placeholder="Enter Steadfast Secret Key" />
-                  <button className="st-eye-btn" onClick={() => setShowSecretKey(v => !v)} type="button">{showSecretKey ? <EyeOff size={15} /> : <Eye size={15} />}</button>
+              )}
+            </div>
+
+            {/* Fraud Checker BD Settings */}
+            <div style={{ borderTop: '1px solid var(--st-border)', paddingTop: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <h3 style={{ fontSize: '0.9rem', fontWeight: '750', color: 'var(--st-text)', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                <Shield size={15} style={{ color: 'var(--st-accent)' }} />
+                <span>Fraud Checker BD (Ratio Intelligence)</span>
+              </h3>
+              {fraudCheckerLoading ? (
+                <div className="st-loading-row"><Loader2 size={20} className="spin" /><span>Loading configuration...</span></div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div className="st-field-group">
+                    <label className="st-label"><Key size={13} /> Bearer Token</label>
+                    <div className="st-input-eye">
+                      <input className="st-input" type={showFraudToken ? 'text' : 'password'} value={fraudCheckerConfig.api_key || ''} onChange={e => setFraudCheckerConfig(c => ({ ...c, api_key: e.target.value }))} placeholder="Enter Bearer Token for Fraud Checker BD" />
+                      <button className="st-eye-btn" onClick={() => setShowFraudToken(v => !v)} type="button">{showFraudToken ? <EyeOff size={15} /> : <Eye size={15} />}</button>
+                    </div>
+                  </div>
+                  <div className="st-field-group">
+                    <label className="st-label"><Sliders size={13} /> API Endpoint URL</label>
+                    <input className="st-input" type="text" value={fraudCheckerConfig.api_url || ''} onChange={e => setFraudCheckerConfig(c => ({ ...c, api_url: e.target.value }))} placeholder="https://fraudchecker.link/api/check" />
+                  </div>
+                  <div className="st-toggle-row">
+                    <div><span className="st-toggle-label">Enable Fraud Checker BD API</span><span className="st-toggle-desc">Check order success rates from Fraud Checker BD API first.</span></div>
+                    <Toggle checked={fraudCheckerConfig.is_enabled || false} onChange={v => setFraudCheckerConfig(c => ({ ...c, is_enabled: v }))} />
+                  </div>
+                  <div className="st-actions" style={{ justifyContent: 'flex-start', marginTop: '4px' }}>
+                    <SaveBtn onClick={saveFraudChecker} saving={fraudCheckerSaving} saved={fraudCheckerSaved} />
+                  </div>
                 </div>
-              </div>
-              <div className="st-toggle-row">
-                <div><span className="st-toggle-label">Enable Integration</span><span className="st-toggle-desc">Allow system to communicate with Steadfast API.</span></div>
-                <Toggle checked={courierConfig.is_enabled} onChange={v => setCourierConfig(c => ({ ...c, is_enabled: v }))} />
-              </div>
-              <div className="st-toggle-row">
-                <div><span className="st-toggle-label">Auto-Dispatch</span><span className="st-toggle-desc">Submit orders to courier when stock is matched.</span></div>
-                <Toggle checked={courierConfig.auto_dispatch} onChange={v => setCourierConfig(c => ({ ...c, auto_dispatch: v }))} />
-              </div>
-              <div className="st-actions">
-                <SaveBtn onClick={saveCourier} saving={courierSaving} saved={courierSaved} />
-              </div>
-            </>
-          )}
+              )}
+            </div>
+          </div>
         </div>
       );
 
