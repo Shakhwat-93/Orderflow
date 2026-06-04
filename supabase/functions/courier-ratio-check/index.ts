@@ -84,7 +84,19 @@ Deno.serve(async (req: Request) => {
             }
           });
         }
-        console.log(`[Courier Check] Fraud Checker BD API status: ${response.status}`);
+        if (response) {
+          console.log(`[Courier Check] Fraud Checker BD API status: ${response.status}`);
+          if (response.ok) {
+            const tempRes = response.clone();
+            const bodyJson = await tempRes.json().catch(() => null);
+            if (bodyJson) {
+              if (bodyJson.status === 'error' || bodyJson.success === false) {
+                console.warn('[Courier Check] Fraud Checker BD API returned application error:', bodyJson.message || bodyJson.error);
+                response = null; // Triggers fallback to Steadfast
+              }
+            }
+          }
+        }
       } catch (err: any) {
         console.error('[Courier Check] Fraud Checker BD API request failed:', err.message);
       }
@@ -116,6 +128,10 @@ Deno.serve(async (req: Request) => {
           'Content-Type': 'application/json'
         }
       });
+    }
+
+    if (!response) {
+      throw new Error('No courier response received from any provider');
     }
 
     const result = await response.json();

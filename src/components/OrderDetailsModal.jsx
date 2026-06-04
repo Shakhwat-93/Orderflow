@@ -834,7 +834,12 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
             ) : courierRatioData?.loading ? (
               <div className="courier-ratio-empty">Checking courier ratio for this number...</div>
             ) : courierRatioData?.error ? (
-              <div className="courier-ratio-empty">Courier ratio data is not available right now.</div>
+              <div className="courier-ratio-empty text-red-500" style={{ color: 'var(--danger-color)', display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center', padding: '16px 8px' }}>
+                <AlertCircle size={20} />
+                <span style={{ fontSize: '0.85rem', textAlign: 'center', lineHeight: '1.4' }}>
+                  {courierRatioData.raw?.error || courierRatioData.raw?.message || 'Courier ratio data is not available right now.'}
+                </span>
+              </div>
             ) : courierRatioData?.fetched ? (
               <div className="courier-ratio-stack">
                 <div className="courier-ratio-metrics">

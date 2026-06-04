@@ -134,6 +134,19 @@ export const api = {
   },
 
   normalizeCourierRatioPayload(result = {}, phone = '') {
+    // Check for application-level error or API response indicating failure
+    if (
+      result?.success === false ||
+      result?.status === 'error' ||
+      result?.error ||
+      result?.stats?.success === false ||
+      result?.stats?.status === 'error' ||
+      result?.stats?.error
+    ) {
+      const errMsg = result?.error || result?.message || result?.stats?.error || result?.stats?.message || 'Courier check returned error';
+      throw new Error(errMsg);
+    }
+
     const normalizedPhone = this.normalizePhone(phone || result?.phone);
     const primaryPayload =
       (result?.stats?.data && typeof result.stats.data === 'object' && !Array.isArray(result.stats.data) && result.stats.data) ||
@@ -337,25 +350,45 @@ export const api = {
   },
 
   async saveCourierRatioCache(phone, result, fetchStatus = 'completed') {
-    const normalizedPayload = this.normalizeCourierRatioPayload(result, phone);
-    if (!normalizedPayload.phone || this.courierRatioCacheTableState === false) return null;
+    const normalizedPhone = this.normalizePhone(phone);
+    if (!normalizedPhone || this.courierRatioCacheTableState === false) return null;
 
     const isCompleted = fetchStatus === 'completed';
     const nowIso = new Date().toISOString();
-    const payload = {
-      phone: normalizedPayload.phone,
-      total: normalizedPayload.total,
-      success_count: normalizedPayload.success_count,
-      cancelled: normalizedPayload.cancelled,
-      ratio: normalizedPayload.ratio,
-      risk_level: normalizedPayload.riskLevel,
-      couriers: normalizedPayload.couriers || {},
-      raw: normalizedPayload.raw || result || null,
-      fetch_status: fetchStatus,
-      source: 'steadfast',
-      fetched_at: isCompleted ? nowIso : null,
-      updated_at: nowIso
-    };
+    
+    let payload;
+    if (fetchStatus === 'failed') {
+      payload = {
+        phone: normalizedPhone,
+        total: 0,
+        success_count: 0,
+        cancelled: 0,
+        ratio: 0,
+        risk_level: 'new',
+        couriers: {},
+        raw: result || null,
+        fetch_status: 'failed',
+        source: 'steadfast',
+        fetched_at: null,
+        updated_at: nowIso
+      };
+    } else {
+      const normalizedPayload = this.normalizeCourierRatioPayload(result, phone);
+      payload = {
+        phone: normalizedPayload.phone,
+        total: normalizedPayload.total,
+        success_count: normalizedPayload.success_count,
+        cancelled: normalizedPayload.cancelled,
+        ratio: normalizedPayload.ratio,
+        risk_level: normalizedPayload.riskLevel,
+        couriers: normalizedPayload.couriers || {},
+        raw: normalizedPayload.raw || result || null,
+        fetch_status: fetchStatus,
+        source: 'steadfast',
+        fetched_at: isCompleted ? nowIso : null,
+        updated_at: nowIso
+      };
+    }
 
     const { data, error } = await supabase
       .from('courier_ratio_cache')

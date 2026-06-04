@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTasks } from '../context/TaskContext';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 import api from '../lib/api';
 import { Card } from '../components/Card';
 import { TaskDetailsModal } from '../components/TaskDetailsModal';
@@ -232,8 +233,37 @@ export const TaskBoard = () => {
   const [selectedTaskType, setSelectedTaskType] = useState('daily');
   const [selectedOrderData, setSelectedOrderData] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [users, setUsers] = useState([]);
+  const [userRoles, setUserRoles] = useState({});
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState(null);
 
   useEffect(() => { updatePresenceContext?.('Managing Tasks'); }, [updatePresenceContext]);
+
+  useEffect(() => {
+    const fetchUsersData = async () => {
+      setLoadingUsers(true);
+      try {
+        const [{ data: usersData }, { data: rolesData }] = await Promise.all([
+          supabase.from('users').select('*'),
+          supabase.from('user_roles').select('*')
+        ]);
+        setUsers(usersData || []);
+        
+        const rolesMap = {};
+        rolesData?.forEach(mapping => {
+          if (!rolesMap[mapping.user_id]) rolesMap[mapping.user_id] = [];
+          rolesMap[mapping.user_id].push(mapping.role_id);
+        });
+        setUserRoles(rolesMap);
+      } catch (error) {
+        console.error('Error fetching users for task board:', error);
+      } finally {
+        setLoadingUsers(false);
+      }
+    };
+    fetchUsersData();
+  }, []);
 
   const handleOpenOrder = async (orderId) => {
     try {
@@ -241,6 +271,72 @@ export const TaskBoard = () => {
       if (order) setSelectedOrderData(order);
     } catch (e) { console.error('Failed to fetch related order:', e); }
   };
+
+  // Group tasks by assignee (user)
+  const userStatsList = useMemo(() => {
+    const statsMap = {};
+    
+    // Seed with all users loaded from DB
+    users.forEach(u => {
+      statsMap[u.id] = {
+        id: u.id,
+        name: u.name || u.full_name || 'Unnamed User',
+        email: u.email,
+        avatar_url: u.avatar_url,
+        roles: userRoles[u.id] || [],
+        total: 0,
+        completed: 0,
+        inProgress: 0,
+        pending: 0,
+        assignedByMeCount: 0,
+        assignedByMeTasks: [],
+        allTasks: []
+      };
+    });
+
+    // Populate stats from assignedTasks
+    assignedTasks.forEach(task => {
+      if (task.assigned_to) {
+        const uid = task.assigned_to;
+        // If the user wasn't in the DB list for some reason, seed them
+        if (!statsMap[uid]) {
+          statsMap[uid] = {
+            id: uid,
+            name: task.assigned_to_name || 'Unknown User',
+            email: '',
+            avatar_url: null,
+            roles: [],
+            total: 0,
+            completed: 0,
+            inProgress: 0,
+            pending: 0,
+            assignedByMeCount: 0,
+            assignedByMeTasks: [],
+            allTasks: []
+          };
+        }
+
+        const userStat = statsMap[uid];
+        userStat.total += 1;
+        userStat.allTasks.push(task);
+
+        if (task.status === 'completed') {
+          userStat.completed += 1;
+        } else if (task.status === 'in_progress') {
+          userStat.inProgress += 1;
+        } else {
+          userStat.pending += 1;
+        }
+
+        if (task.assigned_by === user?.id) {
+          userStat.assignedByMeCount += 1;
+          userStat.assignedByMeTasks.push(task);
+        }
+      }
+    });
+
+    return Object.values(statsMap).sort((a, b) => b.total - a.total);
+  }, [users, userRoles, assignedTasks, user?.id]);
 
   // Calculate counts for filters
   const assignedToMeCount = assignedTasks.filter(t => t.assigned_to === user?.id).length;
@@ -319,9 +415,6 @@ export const TaskBoard = () => {
           <button className="tb-export-btn" onClick={() => setIsCreateAssignedOpen(true)}>
             <Plus size={15} /> New Task
           </button>
-          <button className="tb-view-toggle" onClick={() => setActiveTab(activeTab === 'kanban' ? 'overview' : 'kanban')}>
-            {activeTab === 'kanban' ? <List size={18} /> : <Kanban size={18} />}
-          </button>
         </div>
       </motion.div>
 
@@ -358,7 +451,50 @@ export const TaskBoard = () => {
         <MetricCard label="Completed Tasks"  value={stats.completed}        icon={CheckCircle2}   accent="#06b6d4" trend={`+${myCompletedTodayCount}`} />
       </motion.div>
 
-      {activeTab === 'overview' ? (
+      {/* ── VIEW TAB SELECTOR ─────────────────────────────────────────── */}
+      <div className="tb-view-selector" style={{
+        display: 'flex',
+        gap: '12px',
+        borderBottom: '1px solid var(--tb-border)',
+        paddingBottom: '8px',
+        marginBottom: '10px'
+      }}>
+        {[
+          { id: 'overview', label: 'Overview', icon: ClipboardList },
+          { id: 'kanban', label: 'Kanban Board', icon: Kanban },
+          { id: 'team', label: 'Team Performance', icon: Users }
+        ].map(t => {
+          const Icon = t.icon;
+          const isActive = activeTab === t.id;
+          return (
+            <button
+              key={t.id}
+              className={`tb-tab-btn ${isActive ? 'active' : ''}`}
+              onClick={() => setActiveTab(t.id)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 16px',
+                background: isActive ? 'var(--tb-accent-bg)' : 'transparent',
+                color: isActive ? 'var(--tb-accent)' : 'var(--tb-text-sub)',
+                border: 'none',
+                borderRadius: '8px',
+                fontWeight: '700',
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                boxShadow: isActive ? 'inset 0 0 0 1px rgba(99,102,241,0.1)' : 'none'
+              }}
+            >
+              <Icon size={16} />
+              <span>{t.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {activeTab === 'overview' && (
         <>
           {/* ── TODAY'S TASKS TABLE ───────────────────────────────────── */}
           <motion.div
@@ -494,7 +630,9 @@ export const TaskBoard = () => {
             </div>
           </motion.div>
         </>
-      ) : (
+      )}
+
+      {activeTab === 'kanban' && (
         /* ── KANBAN VIEW ──────────────────────────────────────────────── */
         <motion.div
           className="tb-kanban-board"
@@ -524,6 +662,266 @@ export const TaskBoard = () => {
             onStatusUpdate={(id, s) => updateAssignedTask(id, { status: s })}
           />
         </motion.div>
+      )}
+
+      {activeTab === 'team' && (
+        /* ── TEAM PERFORMANCE VIEW ──────────────────────────────────── */
+        <div className="tb-team-view-container">
+          {/* Left Column: Team List & Stats */}
+          <div className="tb-section-card" style={{ height: '100%' }}>
+            <div className="tb-section-header" style={{ padding: '16px 20px' }}>
+              <div>
+                <h2 className="tb-section-title">Team Members</h2>
+                <span style={{ fontSize: '0.75rem', color: 'var(--tb-text-muted)' }}>
+                  Select a member to view tasks
+                </span>
+              </div>
+            </div>
+            
+            <div style={{
+              maxHeight: '600px',
+              overflowY: 'auto',
+              padding: '8px'
+            }}>
+              {loadingUsers ? (
+                <div style={{ padding: '20px', textAlign: 'center', color: 'var(--tb-text-muted)' }}>
+                  <Loader2 className="animate-spin" size={24} style={{ margin: '0 auto 8px' }} />
+                  <span>Loading members...</span>
+                </div>
+              ) : userStatsList.length === 0 ? (
+                <div style={{ padding: '20px', textAlign: 'center', color: 'var(--tb-text-muted)' }}>
+                  No members found.
+                </div>
+              ) : (
+                userStatsList.map(member => {
+                  const isSelected = selectedUserId === member.id || (!selectedUserId && userStatsList[0]?.id === member.id);
+                  // Set selected user ID if not already selected
+                  if (!selectedUserId && isSelected) {
+                    setSelectedUserId(member.id);
+                  }
+                  
+                  const primaryRole = member.roles[0] || 'Staff';
+                  const completionPct = member.total > 0 ? Math.round((member.completed / member.total) * 100) : 0;
+                  
+                  return (
+                    <div
+                      key={member.id}
+                      onClick={() => setSelectedUserId(member.id)}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '10px',
+                        padding: '14px',
+                        borderRadius: '12px',
+                        background: isSelected ? 'var(--tb-accent-bg)' : 'transparent',
+                        border: `1px solid ${isSelected ? 'var(--tb-accent)' : 'transparent'}`,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        marginBottom: '6px'
+                      }}
+                      className="tb-team-member-item"
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div className="tb-owner-av" style={{
+                          width: '36px',
+                          height: '36px',
+                          fontSize: '0.9rem',
+                          flexShrink: 0
+                        }}>
+                          {member.avatar_url ? (
+                            <img src={member.avatar_url} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                          ) : (
+                            member.name.charAt(0).toUpperCase()
+                          )}
+                        </div>
+                        <div style={{ overflow: 'hidden' }}>
+                          <div style={{ fontWeight: '700', fontSize: '0.88rem', color: 'var(--tb-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {member.name}
+                          </div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--tb-text-muted)', textTransform: 'capitalize' }}>
+                            {primaryRole}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--tb-text-sub)' }}>
+                        <span>Done: <strong>{member.completed}/{member.total}</strong></span>
+                        <span>Assigned by me: <strong>{member.assignedByMeCount}</strong></span>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div className="tb-progress-bar" style={{ height: '4px' }}>
+                          <div className="tb-progress-fill" style={{ width: `${completionPct}%`, background: 'var(--tb-accent)' }} />
+                        </div>
+                        <span style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--tb-text-sub)' }}>{completionPct}%</span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Right Column: Detailed Tasks for Selected User */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {(() => {
+              const selectedMember = userStatsList.find(m => m.id === selectedUserId) || userStatsList[0];
+              if (!selectedMember) {
+                return (
+                  <div className="tb-section-card" style={{ padding: '40px', textAlign: 'center', color: 'var(--tb-text-muted)' }}>
+                    Select a team member to view their assigned tasks.
+                  </div>
+                );
+              }
+
+              const assignedByMeTasks = selectedMember.assignedByMeTasks || [];
+              const otherTasks = (selectedMember.allTasks || []).filter(t => t.assigned_by !== user?.id);
+
+              return (
+                <>
+                  {/* Header Card */}
+                  <div className="tb-section-card" style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                      <div className="tb-owner-av" style={{ width: '48px', height: '48px', fontSize: '1.2rem' }}>
+                        {selectedMember.avatar_url ? (
+                          <img src={selectedMember.avatar_url} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                        ) : (
+                          selectedMember.name.charAt(0).toUpperCase()
+                        )}
+                      </div>
+                      <div>
+                        <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--tb-text)', margin: 0 }}>
+                          {selectedMember.name}
+                        </h2>
+                        <p style={{ fontSize: '0.8rem', color: 'var(--tb-text-muted)', margin: '2px 0 0' }}>
+                          {selectedMember.email} • {selectedMember.roles[0] || 'Staff'}
+                        </p>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                      <div className="tb-metric-badge" style={{ padding: '6px 12px', background: 'var(--tb-bg)', borderRadius: '8px', fontSize: '0.78rem', border: '1px solid var(--tb-border)' }}>
+                        Total: <strong>{selectedMember.total}</strong>
+                      </div>
+                      <div className="tb-metric-badge" style={{ padding: '6px 12px', background: 'rgba(34,197,94,0.1)', color: '#22c55e', borderRadius: '8px', fontSize: '0.78rem', border: '1px solid rgba(34,197,94,0.15)' }}>
+                        Done: <strong>{selectedMember.completed}</strong>
+                      </div>
+                      <div className="tb-metric-badge" style={{ padding: '6px 12px', background: 'rgba(245,158,11,0.1)', color: '#f59e0b', borderRadius: '8px', fontSize: '0.78rem', border: '1px solid rgba(245,158,11,0.15)' }}>
+                        Pending: <strong>{selectedMember.pending}</strong>
+                      </div>
+                      <div className="tb-metric-badge" style={{ padding: '6px 12px', background: 'var(--tb-accent-bg)', color: 'var(--tb-accent)', borderRadius: '8px', fontSize: '0.78rem', border: '1px solid rgba(99,102,241,0.15)' }}>
+                        By Me: <strong>{selectedMember.assignedByMeCount}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 1: Assigned By Me Tasks */}
+                  <div className="tb-section-card">
+                    <div className="tb-section-header" style={{ borderBottom: '1px solid var(--tb-border)' }}>
+                      <div>
+                        <h3 className="tb-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <ShieldCheck size={16} style={{ color: 'var(--tb-accent)' }} />
+                          <span>Assigned By Me ({assignedByMeTasks.length})</span>
+                        </h3>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--tb-text-muted)' }}>
+                          Tasks you created and assigned to this user. You can modify their status or details.
+                        </span>
+                      </div>
+                      <button
+                        className="tb-filter-btn"
+                        onClick={() => {
+                          setIsCreateAssignedOpen(true);
+                        }}
+                      >
+                        <Plus size={14} /> Assign New Task
+                      </button>
+                    </div>
+
+                    <div className="tb-table-wrapper">
+                      <table className="tb-table">
+                        <thead>
+                          <tr>
+                            <th className="tb-th">Task Name</th>
+                            <th className="tb-th">Assigned To</th>
+                            <th className="tb-th">Assigned By</th>
+                            <th className="tb-th">Due Date</th>
+                            <th className="tb-th">Status</th>
+                            <th className="tb-th">Progress</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {assignedByMeTasks.length > 0 ? (
+                            assignedByMeTasks.map(t => (
+                              <TaskRow
+                                key={t.id}
+                                task={t}
+                                onView={() => { setSelectedTask(t); setSelectedTaskType('assigned'); }}
+                                onStatusUpdate={(id, s) => updateAssignedTask(id, { status: s })}
+                              />
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={6} className="tb-empty-row">
+                                You have not assigned any tasks to this user yet.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Section 2: Other Assigned Tasks */}
+                  <div className="tb-section-card">
+                    <div className="tb-section-header">
+                      <div>
+                        <h3 className="tb-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <Users size={16} />
+                          <span>Other Assigned Tasks ({otherTasks.length})</span>
+                        </h3>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--tb-text-muted)' }}>
+                          Tasks assigned to this user by the system or other administrators.
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="tb-table-wrapper">
+                      <table className="tb-table">
+                        <thead>
+                          <tr>
+                            <th className="tb-th">Task Name</th>
+                            <th className="tb-th">Assigned To</th>
+                            <th className="tb-th">Assigned By</th>
+                            <th className="tb-th">Due Date</th>
+                            <th className="tb-th">Status</th>
+                            <th className="tb-th">Progress</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {otherTasks.length > 0 ? (
+                            otherTasks.map(t => (
+                              <TaskRow
+                                key={t.id}
+                                task={t}
+                                onView={() => { setSelectedTask(t); setSelectedTaskType('assigned'); }}
+                                onStatusUpdate={(id, s) => updateAssignedTask(id, { status: s })}
+                              />
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={6} className="tb-empty-row">
+                                No other tasks assigned to this user.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
       )}
 
       {/* ── MODALS ────────────────────────────────────────────────────── */}

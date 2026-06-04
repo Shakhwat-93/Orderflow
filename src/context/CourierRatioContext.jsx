@@ -88,7 +88,8 @@ export const CourierRatioProvider = ({ children }) => {
             const cacheAgeMs = cachedDate ? (Date.now() - new Date(cachedDate).getTime()) : Infinity;
             const cacheAgeHours = cacheAgeMs / (1000 * 60 * 60);
 
-            if (cacheAgeHours < 24) {
+            const maxAgeHours = cached.error ? (10 / 60) : 24;
+            if (cacheAgeHours < maxAgeHours) {
               setRatios(prev => ({
                 ...prev,
                 [phone]: { ...prev[phone], ...cached, phone }

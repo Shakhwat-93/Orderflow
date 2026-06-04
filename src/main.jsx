@@ -11,6 +11,12 @@ if (isNativeApp()) {
   document.body.classList.add('native-app');
 }
 
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    window.location.reload();
+  });
+}
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <App />
