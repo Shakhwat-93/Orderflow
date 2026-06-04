@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { 
   User, Phone, MapPin, Package, Calendar, Clock, 
   History, Edit2, X, Clipboard, Copy, ExternalLink, 
-  Truck, CheckCircle2, AlertCircle, Info 
+  Truck, CheckCircle2, AlertCircle, Info, RotateCcw, Loader2
 } from 'lucide-react';
 import CurrencyIcon from './CurrencyIcon';
 import api from '../lib/api';
@@ -773,22 +773,60 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
           </div>
 
           <div className="details-section-card glass-card full-width">
-            <div className="section-title">
+            <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div className="section-title-main">
                 <Truck size={18} className="text-accent" />
                 <span>Courier Ratio Intelligence</span>
               </div>
-              {courierRatioData?.fetchedAt && (
-                <span className="courier-ratio-updated">
-                  Synced {new Date(courierRatioData.fetchedAt).toLocaleString('en-GB', {
-                    day: '2-digit',
-                    month: 'short',
-                    hour: 'numeric',
-                    minute: '2-digit',
-                    hour12: true
-                  })}
-                </span>
-              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {courierRatioData?.fetchedAt && (
+                  <span className="courier-ratio-updated" style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
+                    Synced {new Date(courierRatioData.fetchedAt).toLocaleString('en-GB', {
+                      day: '2-digit',
+                      month: 'short',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                      hour12: true
+                    })}
+                  </span>
+                )}
+                {order.phone && (
+                  <button
+                    type="button"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '4px 8px',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-card-secondary)',
+                      color: 'var(--text-primary)',
+                      fontSize: '11px',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      checkPhone(order.phone, true);
+                    }}
+                    disabled={courierRatioData?.loading}
+                  >
+                    {courierRatioData?.loading ? (
+                      <>
+                        <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} />
+                        <span>Syncing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <RotateCcw size={12} />
+                        <span>Sync Now</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
 
             {!order.phone ? (

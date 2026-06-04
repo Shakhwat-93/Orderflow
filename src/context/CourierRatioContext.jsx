@@ -84,12 +84,18 @@ export const CourierRatioProvider = ({ children }) => {
         if (!force) {
           const cached = await api.getCourierRatioCache(phone);
           if (cached?.fetched) {
-            setRatios(prev => ({
-              ...prev,
-              [phone]: { ...prev[phone], ...cached, phone }
-            }));
-            inFlight.current.delete(phone);
-            continue;
+            const cachedDate = cached.fetchedAt || cached.updatedAt;
+            const cacheAgeMs = cachedDate ? (Date.now() - new Date(cachedDate).getTime()) : Infinity;
+            const cacheAgeHours = cacheAgeMs / (1000 * 60 * 60);
+
+            if (cacheAgeHours < 24) {
+              setRatios(prev => ({
+                ...prev,
+                [phone]: { ...prev[phone], ...cached, phone }
+              }));
+              inFlight.current.delete(phone);
+              continue;
+            }
           }
         }
 
