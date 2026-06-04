@@ -142,6 +142,8 @@ export const api = {
       (typeof result === 'object' && !Array.isArray(result) ? result : {});
 
     const total = Math.max(0, Math.round(this.toFiniteNumber(
+      primaryPayload.summary?.total_parcel,
+      primaryPayload.summary?.total,
       primaryPayload.total,
       primaryPayload.total_parcel,
       primaryPayload.total_parcels,
@@ -151,6 +153,8 @@ export const api = {
     ) || 0));
 
     const successCount = Math.max(0, Math.round(this.toFiniteNumber(
+      primaryPayload.summary?.success_parcel,
+      primaryPayload.summary?.success_count,
       primaryPayload.success_count,
       primaryPayload.success_parcel,
       primaryPayload.success_parcels,
@@ -160,6 +164,8 @@ export const api = {
     ) || 0));
 
     const cancelled = Math.max(0, Math.round(this.toFiniteNumber(
+      primaryPayload.summary?.cancelled_parcel,
+      primaryPayload.summary?.cancelled,
       primaryPayload.cancelled,
       primaryPayload.cancelled_count,
       primaryPayload.cancel_count,
@@ -170,6 +176,8 @@ export const api = {
 
     const ratio = this.normalizeCourierRatioValue(
       this.toFiniteNumber(
+        primaryPayload.summary?.success_ratio,
+        primaryPayload.summary?.ratio,
         primaryPayload.ratio,
         primaryPayload.success_ratio,
         primaryPayload.delivery_ratio,
@@ -179,17 +187,30 @@ export const api = {
       successCount
     );
 
+    let couriers = {};
     const couriersSource =
       primaryPayload.couriers ||
       primaryPayload.courier_stats ||
       primaryPayload.courier_breakdown ||
       primaryPayload.breakdown ||
-      result?.couriers ||
-      {};
+      result?.couriers;
 
-    const couriers = (couriersSource && typeof couriersSource === 'object' && !Array.isArray(couriersSource))
-      ? couriersSource
-      : {};
+    if (couriersSource && typeof couriersSource === 'object' && !Array.isArray(couriersSource)) {
+      couriers = couriersSource;
+    } else if (primaryPayload && !primaryPayload.total && !primaryPayload.total_parcel) {
+      // Reconstruct BD Courier breakdown
+      Object.keys(primaryPayload).forEach(key => {
+        if (key !== 'summary' && primaryPayload[key] && typeof primaryPayload[key] === 'object') {
+          couriers[key] = {
+            name: primaryPayload[key].name || key,
+            total: primaryPayload[key].total_parcel || primaryPayload[key].total || 0,
+            success: primaryPayload[key].success_parcel || primaryPayload[key].success_count || primaryPayload[key].success || 0,
+            cancelled: primaryPayload[key].cancelled_parcel || primaryPayload[key].cancelled || 0,
+            ratio: primaryPayload[key].success_ratio || primaryPayload[key].ratio || 0
+          };
+        }
+      });
+    }
 
     const riskLevel = this.inferCourierRiskLevel(
       total,

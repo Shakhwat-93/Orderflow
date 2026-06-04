@@ -49,28 +49,41 @@ Deno.serve(async (req: Request) => {
     if (fraudConfig && fraudConfig.is_enabled && fraudConfig.api_key) {
       isFraudCheckerUsed = true;
       const token = fraudConfig.api_key;
-      const baseUrl = fraudConfig.api_url || 'https://fraudchecker.link/api/check';
+      const baseUrl = fraudConfig.api_url || 'https://api.bdcourier.com/courier-check';
       
-      let url = baseUrl;
-      if (url.includes('{phone}')) {
-        url = url.replace('{phone}', phone);
-      } else {
-        url = url.endsWith('/') ? `${url}${phone}` : `${url}/${phone}`;
-      }
+      const isBdCourier = baseUrl.includes('api.bdcourier.com') || baseUrl.includes('courier-check');
 
-      console.log(`[Courier Check] Querying Fraud Checker BD API at: ${url}`);
-      
       try {
-        response = await fetch(url, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'api-key': token,
-            'Api-Key': token,
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
+        if (isBdCourier) {
+          console.log(`[Courier Check] Querying BD Courier POST API at: ${baseUrl}`);
+          response = await fetch(baseUrl, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({ phone })
+          });
+        } else {
+          let url = baseUrl;
+          if (url.includes('{phone}')) {
+            url = url.replace('{phone}', phone);
+          } else {
+            url = url.endsWith('/') ? `${url}${phone}` : `${url}/${phone}`;
           }
-        });
+          console.log(`[Courier Check] Querying Custom GET API at: ${url}`);
+          response = await fetch(url, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'api-key': token,
+              'Api-Key': token,
+              'Accept': 'application/json',
+              'Content-Type': 'application/json'
+            }
+          });
+        }
         console.log(`[Courier Check] Fraud Checker BD API status: ${response.status}`);
       } catch (err: any) {
         console.error('[Courier Check] Fraud Checker BD API request failed:', err.message);
