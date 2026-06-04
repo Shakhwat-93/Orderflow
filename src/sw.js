@@ -8,7 +8,14 @@ import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
 
 // Precache all Vite build assets
 precacheAndRoute(self.__WB_MANIFEST);
-cleanupOutdatedCaches();
+// Force activation of new service worker immediately
+self.addEventListener('install', () => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
+});
 
 // ============================================================
 // PUSH NOTIFICATION HANDLER
