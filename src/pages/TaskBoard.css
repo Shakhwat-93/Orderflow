@@ -716,7 +716,7 @@
 /* ── Team Performance View ───────────────────────────────────────────────── */
 .tb-team-view-container {
   display: grid;
-  grid-template-columns: 350px 1fr;
+  grid-template-columns: 350px minmax(0, 1fr);
   gap: 20px;
   align-items: start;
 }
@@ -765,7 +765,7 @@
 @media (min-width: 1200px) {
   .tb-overview-layout {
     display: grid;
-    grid-template-columns: 1fr 340px;
+    grid-template-columns: minmax(0, 1fr) 340px;
     gap: 24px;
   }
 }
