@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { OrderProvider } from './context/OrderContext';
 import { TaskProvider } from './context/TaskContext';
+import { TaskAlertManager } from './components/TaskAlertManager';
 import { NotificationProvider } from './context/NotificationContext';
 import { CourierRatioProvider } from './context/CourierRatioContext';
 import { BrandingProvider } from './context/BrandingContext';
@@ -237,6 +238,7 @@ function App() {
                                 </Route>
                               </Routes>
                             </Suspense>
+                            <TaskAlertManager />
                             <AppInner />
                             <ChatBot />
                             <CommandPalette />

@@ -186,6 +186,24 @@ export const TaskProvider = ({ children }) => {
     await fetchTasks();
   };
 
+  const addCommentToTask = async (taskId, commentText) => {
+    const userName = profile?.name || user?.email || 'User';
+    await api.addCommentToTask(taskId, commentText, user.id, userName);
+    await fetchTasks();
+  };
+
+  const requestTaskExtension = async (taskId, requestedDate, reason) => {
+    const userName = profile?.name || user?.email || 'User';
+    await api.requestTaskExtension(taskId, requestedDate, reason, user.id, userName);
+    await fetchTasks();
+  };
+
+  const evaluateTaskExtension = async (taskId, approve) => {
+    const userName = profile?.name || user?.email || 'User';
+    await api.evaluateTaskExtension(taskId, approve, user.id, userName);
+    await fetchTasks();
+  };
+
   // ── Stats for dashboard widget ──
   const myPendingAssigned = assignedTasks.filter(
     t => t.assigned_to === user?.id && t.status !== 'completed'
@@ -208,6 +226,9 @@ export const TaskProvider = ({ children }) => {
     createAssignedTask,
     updateAssignedTask,
     deleteAssignedTask,
+    addCommentToTask,
+    requestTaskExtension,
+    evaluateTaskExtension,
     fetchTasks,
     myPendingAssigned,
     myIncompleteDailyCount

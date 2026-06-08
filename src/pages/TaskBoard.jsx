@@ -14,7 +14,8 @@ import {
   AlertTriangle, User, Users, Zap, ListChecks, Target, Filter,
   ChevronRight, Loader2, Search, List, Kanban, TrendingUp, Activity,
   ShieldCheck, MoreHorizontal, ChevronDown, ArrowUpRight, Briefcase,
-  FileText, FolderOpen, Star
+  FileText, FolderOpen, Star, AlertCircle, Award, CheckSquare, Square,
+  TrendingDown
 } from 'lucide-react';
 import './TaskBoard.css';
 
@@ -221,7 +222,7 @@ const KanbanColumn = ({ title, tasks, color, onView, onStatusUpdate }) => (
 export const TaskBoard = () => {
   const {
     myDailyTasks, assignedTasks, todayCompletions, loading,
-    isCompletedToday, completeDailyTask, updateAssignedTask
+    isCompletedToday, completeDailyTask, uncompleteDailyTask, updateAssignedTask
   } = useTasks();
   const { user, profile, isAdmin, updatePresenceContext } = useAuth();
 
@@ -298,7 +299,6 @@ export const TaskBoard = () => {
     assignedTasks.forEach(task => {
       if (task.assigned_to) {
         const uid = task.assigned_to;
-        // If the user wasn't in the DB list for some reason, seed them
         if (!statsMap[uid]) {
           statsMap[uid] = {
             id: uid,
@@ -380,6 +380,59 @@ export const TaskBoard = () => {
     : 0;
 
   const myCompletedTodayCount = todayCompletions.length;
+
+  // ── Proactive & Real-time KPIs ──────────────────────────────────────────────
+  const urgentTasksCount = useMemo(() => {
+    return assignedTasks.filter(t => t.priority === 'urgent' && t.status !== 'completed' && t.assigned_to === user?.id).length;
+  }, [assignedTasks, user?.id]);
+
+  const overdueTasksCount = useMemo(() => {
+    const now = new Date();
+    return assignedTasks.filter(t => t.status !== 'completed' && t.due_date && new Date(t.due_date) < now && t.assigned_to === user?.id).length;
+  }, [assignedTasks, user?.id]);
+
+  const pendingExtensionRequestsCount = useMemo(() => {
+    return assignedTasks.filter(t => t.status !== 'completed' && t.extension_request_status === 'pending' && (t.assigned_by === user?.id || isAdmin)).length;
+  }, [assignedTasks, user?.id, isAdmin]);
+
+  // Urgent Task Queue
+  const urgentTaskQueue = useMemo(() => {
+    return assignedTasks
+      .filter(t => t.status !== 'completed' && (t.priority === 'urgent' || t.priority === 'high') && t.assigned_to === user?.id)
+      .sort((a, b) => {
+        // Urgent first, then high
+        if (a.priority === b.priority) {
+          return new Date(a.due_date || 0) - new Date(b.due_date || 0);
+        }
+        return a.priority === 'urgent' ? -1 : 1;
+      });
+  }, [assignedTasks, user?.id]);
+
+  // Team Leaderboard Podium calculation
+  const leaderboardPodium = useMemo(() => {
+    return userStatsList
+      .filter(u => u.total > 0)
+      .map(u => ({
+        ...u,
+        completionRate: Math.round((u.completed / u.total) * 100)
+      }))
+      .sort((a, b) => b.completionRate - a.completionRate || b.completed - a.completed)
+      .slice(0, 3);
+  }, [userStatsList]);
+
+  // Handle checking/unchecking a daily task
+  const handleToggleDailyTask = async (taskId) => {
+    const isCompleted = isCompletedToday(taskId);
+    try {
+      if (isCompleted) {
+        await uncompleteDailyTask(taskId);
+      } else {
+        await completeDailyTask(taskId);
+      }
+    } catch (err) {
+      console.error('Failed to toggle daily task completion:', err);
+    }
+  };
 
   if (loading) return <div className="tb-loading">Preparing Workspace…</div>;
 
@@ -495,141 +548,294 @@ export const TaskBoard = () => {
       </div>
 
       {activeTab === 'overview' && (
-        <>
-          {/* ── TODAY'S TASKS TABLE ───────────────────────────────────── */}
-          <motion.div
-            className="tb-section-card"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15, duration: 0.4 }}
-          >
-            <div className="tb-section-header" style={{ paddingBottom: '8px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <h2 className="tb-section-title">Assigned Tasks Tracker</h2>
-                <span style={{ fontSize: '0.75rem', color: 'var(--tb-text-muted)' }}>
-                  Monitor progress and update task statuses in real-time.
-                </span>
+        <div className="tb-overview-layout">
+          {/* Main Dashboard Section */}
+          <div className="tb-overview-main">
+            {/* Assigned Tasks Tracker */}
+            <motion.div
+              className="tb-section-card"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15, duration: 0.4 }}
+            >
+              <div className="tb-section-header" style={{ paddingBottom: '8px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <h2 className="tb-section-title">Assigned Tasks Tracker</h2>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--tb-text-muted)' }}>
+                    Monitor progress and update task statuses in real-time.
+                  </span>
+                </div>
+                <div className="tb-section-actions">
+                  <div className="tb-search-box">
+                    <Search size={14} />
+                    <input
+                      placeholder="Search by title..."
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                    />
+                  </div>
+                  <button className="tb-filter-btn" onClick={() => setIsCreateAssignedOpen(true)}>
+                    <Plus size={14} /> Assign Task
+                  </button>
+                </div>
+
+                {/* Tab Filters for User Assignments */}
+                <div className="tb-filter-tabs">
+                  <button
+                    type="button"
+                    className={`tb-filter-tab ${assignmentFilter === 'all' ? 'active' : ''}`}
+                    onClick={() => setAssignmentFilter('all')}
+                  >
+                    All Tasks ({stats.total})
+                  </button>
+                  <button
+                    type="button"
+                    className={`tb-filter-tab ${assignmentFilter === 'assigned_to_me' ? 'active' : ''}`}
+                    onClick={() => setAssignmentFilter('assigned_to_me')}
+                  >
+                    Assigned to Me ({stats.assignedToMe})
+                  </button>
+                  <button
+                    type="button"
+                    className={`tb-filter-tab ${assignmentFilter === 'assigned_by_me' ? 'active' : ''}`}
+                    onClick={() => setAssignmentFilter('assigned_by_me')}
+                  >
+                    Assigned by Me ({stats.assignedByMe})
+                  </button>
+                </div>
               </div>
-              <div className="tb-section-actions">
-                <div className="tb-search-box">
-                  <Search size={14} />
-                  <input
-                    placeholder="Search by title..."
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
+
+              <div className="tb-table-wrapper">
+                <table className="tb-table">
+                  <thead>
+                    <tr>
+                      <th className="tb-th">Task Name</th>
+                      <th className="tb-th">Assigned To</th>
+                      <th className="tb-th">Assigned By</th>
+                      <th className="tb-th">Due Date</th>
+                      <th className="tb-th">Status</th>
+                      <th className="tb-th">Progress</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredTasks.length > 0
+                      ? filteredTasks.map(t => (
+                          <TaskRow
+                            key={t.id}
+                            task={t}
+                            onView={() => { setSelectedTask(t); setSelectedTaskType('assigned'); }}
+                            onStatusUpdate={(id, s) => updateAssignedTask(id, { status: s })}
+                          />
+                        ))
+                      : (
+                        <tr>
+                          <td colSpan={6} className="tb-empty-row">
+                            No tasks found matching your filter criteria. 🎉
+                          </td>
+                        </tr>
+                      )
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </motion.div>
+
+            {/* List Projects */}
+            <motion.div
+              className="tb-section-card"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2, duration: 0.4 }}
+            >
+              <div className="tb-section-header">
+                <h2 className="tb-section-title">List Projects</h2>
+                <div className="tb-section-actions">
+                  <div className="tb-search-box">
+                    <Search size={14} />
+                    <input placeholder="Search here..." />
+                  </div>
+                  <button className="tb-filter-btn">
+                    <Filter size={14} /> Filter
+                  </button>
+                </div>
+              </div>
+              <div className="tb-table-wrapper">
+                <table className="tb-table">
+                  <thead>
+                    <tr>
+                      <th className="tb-th">Project Name</th>
+                      <th className="tb-th">Status</th>
+                      <th className="tb-th">Progress</th>
+                      <th className="tb-th">Total Tasks</th>
+                      <th className="tb-th">Due Date</th>
+                      <th className="tb-th">Owner</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {listProjects.length > 0
+                      ? listProjects.map((p, i) => <ProjectRow key={i} project={p} />)
+                      : (
+                        <tr>
+                          <td colSpan={6} className="tb-empty-row">No project data yet.</td>
+                        </tr>
+                      )
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </motion.div>
+          </div>
+
+          {/* Right Sidebar widgets */}
+          <div className="tb-overview-sidebar">
+            
+            {/* KPI Performance Dial Widget */}
+            <div className="tb-sidebar-widget kpi-dial-widget">
+              <h3 className="tb-widget-title">
+                <Activity size={16} className="text-accent" />
+                <span>My Performance KPIs</span>
+              </h3>
+              <div className="kpi-ring-wrapper">
+                <svg className="kpi-circle-svg" viewBox="0 0 100 100">
+                  <circle className="ring-bg" cx="50" cy="50" r="42" />
+                  <circle 
+                    className="ring-progress" 
+                    cx="50" 
+                    cy="50" 
+                    r="42" 
+                    strokeDasharray="264" 
+                    strokeDashoffset={264 - (264 * completionRate) / 100}
                   />
+                </svg>
+                <div className="kpi-ring-label">
+                  <span className="rate">{completionRate}%</span>
+                  <span className="caption">Completion</span>
                 </div>
-                <button className="tb-filter-btn" onClick={() => setIsCreateAssignedOpen(true)}>
-                  <Plus size={14} /> Assign Task
-                </button>
               </div>
 
-              {/* Tab Filters for User Assignments */}
-              <div className="tb-filter-tabs">
-                <button
-                  type="button"
-                  className={`tb-filter-tab ${assignmentFilter === 'all' ? 'active' : ''}`}
-                  onClick={() => setAssignmentFilter('all')}
-                >
-                  All Tasks ({stats.total})
-                </button>
-                <button
-                  type="button"
-                  className={`tb-filter-tab ${assignmentFilter === 'assigned_to_me' ? 'active' : ''}`}
-                  onClick={() => setAssignmentFilter('assigned_to_me')}
-                >
-                  Assigned to Me ({stats.assignedToMe})
-                </button>
-                <button
-                  type="button"
-                  className={`tb-filter-tab ${assignmentFilter === 'assigned_by_me' ? 'active' : ''}`}
-                  onClick={() => setAssignmentFilter('assigned_by_me')}
-                >
-                  Assigned by Me ({stats.assignedByMe})
-                </button>
-              </div>
-            </div>
-
-            <div className="tb-table-wrapper">
-              <table className="tb-table">
-                <thead>
-                  <tr>
-                    <th className="tb-th">Task Name</th>
-                    <th className="tb-th">Assigned To</th>
-                    <th className="tb-th">Assigned By</th>
-                    <th className="tb-th">Due Date</th>
-                    <th className="tb-th">Status</th>
-                    <th className="tb-th">Progress</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredTasks.length > 0
-                    ? filteredTasks.map(t => (
-                        <TaskRow
-                          key={t.id}
-                          task={t}
-                          onView={() => { setSelectedTask(t); setSelectedTaskType('assigned'); }}
-                          onStatusUpdate={(id, s) => updateAssignedTask(id, { status: s })}
-                        />
-                      ))
-                    : (
-                      <tr>
-                        <td colSpan={6} className="tb-empty-row">
-                          No tasks found matching your filter criteria. 🎉
-                        </td>
-                      </tr>
-                    )
-                  }
-                </tbody>
-              </table>
-            </div>
-          </motion.div>
-
-          {/* ── LIST PROJECTS TABLE ───────────────────────────────────── */}
-          <motion.div
-            className="tb-section-card"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.4 }}
-          >
-            <div className="tb-section-header">
-              <h2 className="tb-section-title">List Projects</h2>
-              <div className="tb-section-actions">
-                <div className="tb-search-box">
-                  <Search size={14} />
-                  <input placeholder="Search here..." />
+              <div className="kpi-metrics-list">
+                <div className="kpi-metric-row-item text-danger">
+                  <div className="label-wrap">
+                    <AlertTriangle size={14} />
+                    <span>Overdue Tasks</span>
+                  </div>
+                  <strong>{overdueTasksCount}</strong>
                 </div>
-                <button className="tb-filter-btn">
-                  <Filter size={14} /> Filter
-                </button>
+                <div className="kpi-metric-row-item text-warning">
+                  <div className="label-wrap">
+                    <Zap size={14} />
+                    <span>Urgent Tasks</span>
+                  </div>
+                  <strong>{urgentTasksCount}</strong>
+                </div>
+                {pendingExtensionRequestsCount > 0 && (
+                  <div className="kpi-metric-row-item text-info">
+                    <div className="label-wrap">
+                      <Clock size={14} />
+                      <span>Extension Requests</span>
+                    </div>
+                    <strong>{pendingExtensionRequestsCount}</strong>
+                  </div>
+                )}
               </div>
             </div>
-            <div className="tb-table-wrapper">
-              <table className="tb-table">
-                <thead>
-                  <tr>
-                    <th className="tb-th">Project Name</th>
-                    <th className="tb-th">Status</th>
-                    <th className="tb-th">Progress</th>
-                    <th className="tb-th">Total Tasks</th>
-                    <th className="tb-th">Due Date</th>
-                    <th className="tb-th">Owner</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {listProjects.length > 0
-                    ? listProjects.map((p, i) => <ProjectRow key={i} project={p} />)
-                    : (
-                      <tr>
-                        <td colSpan={6} className="tb-empty-row">No project data yet.</td>
-                      </tr>
-                    )
-                  }
-                </tbody>
-              </table>
+
+            {/* Daily Tasks Checklist Widget */}
+            <div className="tb-sidebar-widget daily-tasks-widget">
+              <div className="widget-header-row">
+                <h3 className="tb-widget-title">
+                  <ListChecks size={16} className="text-success" />
+                  <span>Daily Checklist</span>
+                </h3>
+                {isAdmin && (
+                  <button 
+                    className="create-daily-btn"
+                    onClick={() => setIsCreateDailyOpen(true)}
+                  >
+                    <Plus size={12} /> Add
+                  </button>
+                )}
+              </div>
+
+              <div className="daily-checklist-scroll">
+                {myDailyTasks.length > 0 ? (
+                  myDailyTasks.map(task => {
+                    const completed = isCompletedToday(task.id);
+                    return (
+                      <div 
+                        key={task.id} 
+                        className={`daily-task-item ${completed ? 'completed' : ''}`}
+                        onClick={() => handleToggleDailyTask(task.id)}
+                      >
+                        <div className="checkbox-wrap">
+                          {completed ? (
+                            <CheckSquare size={18} className="checkbox-icon checked" />
+                          ) : (
+                            <Square size={18} className="checkbox-icon" />
+                          )}
+                        </div>
+                        <div className="daily-task-info">
+                          <span className="daily-title">{task.title}</span>
+                          <span className="daily-role">{task.assigned_role}</span>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="daily-empty">
+                    <CheckSquare size={20} />
+                    <p>No active daily tasks for your role.</p>
+                  </div>
+                )}
+              </div>
             </div>
-          </motion.div>
-        </>
+
+            {/* Urgent Priority Queue */}
+            <div className="tb-sidebar-widget priority-queue-widget">
+              <h3 className="tb-widget-title">
+                <AlertCircle size={16} style={{ color: '#ef4444' }} />
+                <span>Urgent & High Queue</span>
+              </h3>
+              <div className="queue-list">
+                {urgentTaskQueue.length > 0 ? (
+                  urgentTaskQueue.map(task => {
+                    const isUrgent = task.priority === 'urgent';
+                    const dueDateObj = task.due_date ? new Date(task.due_date) : null;
+                    const isOverdue = dueDateObj && dueDateObj < new Date();
+                    
+                    return (
+                      <div 
+                        key={task.id} 
+                        className={`queue-item ${isUrgent ? 'urgent' : 'high'}`}
+                        onClick={() => { setSelectedTask(task); setSelectedTaskType('assigned'); }}
+                      >
+                        <div className="queue-header">
+                          <span className={`queue-badge ${task.priority}`}>
+                            {task.priority.toUpperCase()}
+                          </span>
+                          {isOverdue && <span className="overdue-badge">OVERDUE</span>}
+                        </div>
+                        <div className="queue-body">
+                          <span className="queue-title">{task.title}</span>
+                        </div>
+                        <div className="queue-footer">
+                          <Clock size={12} />
+                          <span>Due: {fmtDate(task.due_date)}</span>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="queue-empty">
+                    <Check size={20} />
+                    <p>All clear! No pending urgent tasks.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+          </div>
+        </div>
       )}
 
       {activeTab === 'kanban' && (
@@ -665,261 +871,306 @@ export const TaskBoard = () => {
       )}
 
       {activeTab === 'team' && (
-        /* ── TEAM PERFORMANCE VIEW ──────────────────────────────────── */
-        <div className="tb-team-view-container">
-          {/* Left Column: Team List & Stats */}
-          <div className="tb-section-card" style={{ height: '100%' }}>
-            <div className="tb-section-header" style={{ padding: '16px 20px' }}>
-              <div>
-                <h2 className="tb-section-title">Team Members</h2>
-                <span style={{ fontSize: '0.75rem', color: 'var(--tb-text-muted)' }}>
-                  Select a member to view tasks
-                </span>
-              </div>
-            </div>
-            
-            <div style={{
-              maxHeight: '600px',
-              overflowY: 'auto',
-              padding: '8px'
-            }}>
-              {loadingUsers ? (
-                <div style={{ padding: '20px', textAlign: 'center', color: 'var(--tb-text-muted)' }}>
-                  <Loader2 className="animate-spin" size={24} style={{ margin: '0 auto 8px' }} />
-                  <span>Loading members...</span>
-                </div>
-              ) : userStatsList.length === 0 ? (
-                <div style={{ padding: '20px', textAlign: 'center', color: 'var(--tb-text-muted)' }}>
-                  No members found.
-                </div>
-              ) : (
-                userStatsList.map(member => {
-                  const isSelected = selectedUserId === member.id || (!selectedUserId && userStatsList[0]?.id === member.id);
-                  // Set selected user ID if not already selected
-                  if (!selectedUserId && isSelected) {
-                    setSelectedUserId(member.id);
-                  }
-                  
-                  const primaryRole = member.roles[0] || 'Staff';
-                  const completionPct = member.total > 0 ? Math.round((member.completed / member.total) * 100) : 0;
-                  
+        /* ── TEAM PERFORMANCE VIEW WITH LEADERBOARD ──────────────────── */
+        <div className="tb-team-layout">
+          
+          {/* TOP Leaderboard Podiums */}
+          <div className="tb-leaderboard-podium-container">
+            <h3 className="podium-section-title">
+              <Award size={18} className="text-warning" />
+              <span>Team Performance Leaderboard</span>
+            </h3>
+
+            <div className="leaderboard-podium-row">
+              {leaderboardPodium.length > 0 ? (
+                // Order layout: Rank 2 (index 1), Rank 1 (index 0), Rank 3 (index 2)
+                [1, 0, 2].map(posIndex => {
+                  const m = leaderboardPodium[posIndex];
+                  if (!m) return null;
+                  const ranks = [
+                    { label: '1st', badge: '🥇', class: 'first' },
+                    { label: '2nd', badge: '🥈', class: 'second' },
+                    { label: '3rd', badge: '🥉', class: 'third' }
+                  ];
+                  const r = ranks[posIndex];
+
                   return (
-                    <div
-                      key={member.id}
-                      onClick={() => setSelectedUserId(member.id)}
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '10px',
-                        padding: '14px',
-                        borderRadius: '12px',
-                        background: isSelected ? 'var(--tb-accent-bg)' : 'transparent',
-                        border: `1px solid ${isSelected ? 'var(--tb-accent)' : 'transparent'}`,
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        marginBottom: '6px'
-                      }}
-                      className="tb-team-member-item"
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div className="tb-owner-av" style={{
-                          width: '36px',
-                          height: '36px',
-                          fontSize: '0.9rem',
-                          flexShrink: 0
-                        }}>
-                          {member.avatar_url ? (
-                            <img src={member.avatar_url} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
-                          ) : (
-                            member.name.charAt(0).toUpperCase()
-                          )}
-                        </div>
-                        <div style={{ overflow: 'hidden' }}>
-                          <div style={{ fontWeight: '700', fontSize: '0.88rem', color: 'var(--tb-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {member.name}
-                          </div>
-                          <div style={{ fontSize: '0.72rem', color: 'var(--tb-text-muted)', textTransform: 'capitalize' }}>
-                            {primaryRole}
-                          </div>
-                        </div>
+                    <div key={m.id} className={`podium-column ${r.class}`}>
+                      <div className="podium-badge">{r.badge}</div>
+                      <div className="podium-avatar">
+                        {m.avatar_url ? (
+                          <img src={m.avatar_url} alt="" />
+                        ) : (
+                          m.name.charAt(0).toUpperCase()
+                        )}
                       </div>
-
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--tb-text-sub)' }}>
-                        <span>Done: <strong>{member.completed}/{member.total}</strong></span>
-                        <span>Assigned by me: <strong>{member.assignedByMeCount}</strong></span>
-                      </div>
-
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div className="tb-progress-bar" style={{ height: '4px' }}>
-                          <div className="tb-progress-fill" style={{ width: `${completionPct}%`, background: 'var(--tb-accent)' }} />
-                        </div>
-                        <span style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--tb-text-sub)' }}>{completionPct}%</span>
+                      <span className="podium-name">{m.name}</span>
+                      <span className="podium-completion">{m.completionRate}% Done</span>
+                      <span className="podium-count">{m.completed} / {m.total} Tasks</span>
+                      <div className="podium-bar-visual">
+                        <span className="label">{r.label}</span>
                       </div>
                     </div>
                   );
                 })
+              ) : (
+                <div className="leaderboard-empty">
+                  No task completions logged yet. Keep going team!
+                </div>
               )}
             </div>
           </div>
 
-          {/* Right Column: Detailed Tasks for Selected User */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {(() => {
-              const selectedMember = userStatsList.find(m => m.id === selectedUserId) || userStatsList[0];
-              if (!selectedMember) {
-                return (
-                  <div className="tb-section-card" style={{ padding: '40px', textAlign: 'center', color: 'var(--tb-text-muted)' }}>
-                    Select a team member to view their assigned tasks.
+          <div className="tb-team-view-container">
+            {/* Left Column: Team List & Stats */}
+            <div className="tb-section-card" style={{ height: '100%' }}>
+              <div className="tb-section-header" style={{ padding: '16px 20px' }}>
+                <div>
+                  <h2 className="tb-section-title">Team Members</h2>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--tb-text-muted)' }}>
+                    Select a member to view tasks
+                  </span>
+                </div>
+              </div>
+              
+              <div className="team-scroll-container">
+                {loadingUsers ? (
+                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--tb-text-muted)' }}>
+                    <Loader2 className="animate-spin" size={24} style={{ margin: '0 auto 8px' }} />
+                    <span>Loading members...</span>
                   </div>
-                );
-              }
-
-              const assignedByMeTasks = selectedMember.assignedByMeTasks || [];
-              const otherTasks = (selectedMember.allTasks || []).filter(t => t.assigned_by !== user?.id);
-
-              return (
-                <>
-                  {/* Header Card */}
-                  <div className="tb-section-card" style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                      <div className="tb-owner-av" style={{ width: '48px', height: '48px', fontSize: '1.2rem' }}>
-                        {selectedMember.avatar_url ? (
-                          <img src={selectedMember.avatar_url} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
-                        ) : (
-                          selectedMember.name.charAt(0).toUpperCase()
-                        )}
-                      </div>
-                      <div>
-                        <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--tb-text)', margin: 0 }}>
-                          {selectedMember.name}
-                        </h2>
-                        <p style={{ fontSize: '0.8rem', color: 'var(--tb-text-muted)', margin: '2px 0 0' }}>
-                          {selectedMember.email} • {selectedMember.roles[0] || 'Staff'}
-                        </p>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                      <div className="tb-metric-badge" style={{ padding: '6px 12px', background: 'var(--tb-bg)', borderRadius: '8px', fontSize: '0.78rem', border: '1px solid var(--tb-border)' }}>
-                        Total: <strong>{selectedMember.total}</strong>
-                      </div>
-                      <div className="tb-metric-badge" style={{ padding: '6px 12px', background: 'rgba(34,197,94,0.1)', color: '#22c55e', borderRadius: '8px', fontSize: '0.78rem', border: '1px solid rgba(34,197,94,0.15)' }}>
-                        Done: <strong>{selectedMember.completed}</strong>
-                      </div>
-                      <div className="tb-metric-badge" style={{ padding: '6px 12px', background: 'rgba(245,158,11,0.1)', color: '#f59e0b', borderRadius: '8px', fontSize: '0.78rem', border: '1px solid rgba(245,158,11,0.15)' }}>
-                        Pending: <strong>{selectedMember.pending}</strong>
-                      </div>
-                      <div className="tb-metric-badge" style={{ padding: '6px 12px', background: 'var(--tb-accent-bg)', color: 'var(--tb-accent)', borderRadius: '8px', fontSize: '0.78rem', border: '1px solid rgba(99,102,241,0.15)' }}>
-                        By Me: <strong>{selectedMember.assignedByMeCount}</strong>
-                      </div>
-                    </div>
+                ) : userStatsList.length === 0 ? (
+                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--tb-text-muted)' }}>
+                    No members found.
                   </div>
-
-                  {/* Section 1: Assigned By Me Tasks */}
-                  <div className="tb-section-card">
-                    <div className="tb-section-header" style={{ borderBottom: '1px solid var(--tb-border)' }}>
-                      <div>
-                        <h3 className="tb-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <ShieldCheck size={16} style={{ color: 'var(--tb-accent)' }} />
-                          <span>Assigned By Me ({assignedByMeTasks.length})</span>
-                        </h3>
-                        <span style={{ fontSize: '0.72rem', color: 'var(--tb-text-muted)' }}>
-                          Tasks you created and assigned to this user. You can modify their status or details.
-                        </span>
-                      </div>
-                      <button
-                        className="tb-filter-btn"
-                        onClick={() => {
-                          setIsCreateAssignedOpen(true);
+                ) : (
+                  userStatsList.map(member => {
+                    const isSelected = selectedUserId === member.id || (!selectedUserId && userStatsList[0]?.id === member.id);
+                    if (!selectedUserId && isSelected) {
+                      setSelectedUserId(member.id);
+                    }
+                    
+                    const primaryRole = member.roles[0] || 'Staff';
+                    const completionPct = member.total > 0 ? Math.round((member.completed / member.total) * 100) : 0;
+                    
+                    return (
+                      <div
+                        key={member.id}
+                        onClick={() => setSelectedUserId(member.id)}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '10px',
+                          padding: '14px',
+                          borderRadius: '12px',
+                          background: isSelected ? 'var(--tb-accent-bg)' : 'transparent',
+                          border: `1px solid ${isSelected ? 'var(--tb-accent)' : 'transparent'}`,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          marginBottom: '6px'
                         }}
+                        className="tb-team-member-item"
                       >
-                        <Plus size={14} /> Assign New Task
-                      </button>
-                    </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div className="tb-owner-av" style={{
+                            width: '36px',
+                            height: '36px',
+                            fontSize: '0.9rem',
+                            flexShrink: 0
+                          }}>
+                            {member.avatar_url ? (
+                              <img src={member.avatar_url} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                            ) : (
+                              member.name.charAt(0).toUpperCase()
+                            )}
+                          </div>
+                          <div style={{ overflow: 'hidden' }}>
+                            <div style={{ fontWeight: '700', fontSize: '0.88rem', color: 'var(--tb-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {member.name}
+                            </div>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--tb-text-muted)', textTransform: 'capitalize' }}>
+                              {primaryRole}
+                            </div>
+                          </div>
+                        </div>
 
-                    <div className="tb-table-wrapper">
-                      <table className="tb-table">
-                        <thead>
-                          <tr>
-                            <th className="tb-th">Task Name</th>
-                            <th className="tb-th">Assigned To</th>
-                            <th className="tb-th">Assigned By</th>
-                            <th className="tb-th">Due Date</th>
-                            <th className="tb-th">Status</th>
-                            <th className="tb-th">Progress</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {assignedByMeTasks.length > 0 ? (
-                            assignedByMeTasks.map(t => (
-                              <TaskRow
-                                key={t.id}
-                                task={t}
-                                onView={() => { setSelectedTask(t); setSelectedTaskType('assigned'); }}
-                                onStatusUpdate={(id, s) => updateAssignedTask(id, { status: s })}
-                              />
-                            ))
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--tb-text-sub)' }}>
+                          <span>Done: <strong>{member.completed}/{member.total}</strong></span>
+                          <span>Assigned by me: <strong>{member.assignedByMeCount}</strong></span>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div className="tb-progress-bar" style={{ height: '4px' }}>
+                            <div className="tb-progress-fill" style={{ width: `${completionPct}%`, background: 'var(--tb-accent)' }} />
+                          </div>
+                          <span style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--tb-text-sub)' }}>{completionPct}%</span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Right Column: Detailed Tasks for Selected User */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {(() => {
+                const selectedMember = userStatsList.find(m => m.id === selectedUserId) || userStatsList[0];
+                if (!selectedMember) {
+                  return (
+                    <div className="tb-section-card" style={{ padding: '40px', textAlign: 'center', color: 'var(--tb-text-muted)' }}>
+                      Select a team member to view their assigned tasks.
+                    </div>
+                  );
+                }
+
+                const assignedByMeTasks = selectedMember.assignedByMeTasks || [];
+                const otherTasks = (selectedMember.allTasks || []).filter(t => t.assigned_by !== user?.id);
+
+                return (
+                  <>
+                    {/* Header Card */}
+                    <div className="tb-section-card" style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <div className="tb-owner-av" style={{ width: '48px', height: '48px', fontSize: '1.2rem' }}>
+                          {selectedMember.avatar_url ? (
+                            <img src={selectedMember.avatar_url} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
                           ) : (
-                            <tr>
-                              <td colSpan={6} className="tb-empty-row">
-                                You have not assigned any tasks to this user yet.
-                              </td>
-                            </tr>
+                            selectedMember.name.charAt(0).toUpperCase()
                           )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  {/* Section 2: Other Assigned Tasks */}
-                  <div className="tb-section-card">
-                    <div className="tb-section-header">
-                      <div>
-                        <h3 className="tb-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <Users size={16} />
-                          <span>Other Assigned Tasks ({otherTasks.length})</span>
-                        </h3>
-                        <span style={{ fontSize: '0.72rem', color: 'var(--tb-text-muted)' }}>
-                          Tasks assigned to this user by the system or other administrators.
-                        </span>
+                        </div>
+                        <div>
+                          <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--tb-text)', margin: 0 }}>
+                            {selectedMember.name}
+                          </h2>
+                          <p style={{ fontSize: '0.8rem', color: 'var(--tb-text-muted)', margin: '2px 0 0' }}>
+                            {selectedMember.email} • {selectedMember.roles[0] || 'Staff'}
+                          </p>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                        <div className="tb-metric-badge" style={{ padding: '6px 12px', background: 'var(--tb-bg)', borderRadius: '8px', fontSize: '0.78rem', border: '1px solid var(--tb-border)' }}>
+                          Total: <strong>{selectedMember.total}</strong>
+                        </div>
+                        <div className="tb-metric-badge" style={{ padding: '6px 12px', background: 'rgba(34,197,94,0.1)', color: '#22c55e', borderRadius: '8px', fontSize: '0.78rem', border: '1px solid rgba(34,197,94,0.15)' }}>
+                          Done: <strong>{selectedMember.completed}</strong>
+                        </div>
+                        <div className="tb-metric-badge" style={{ padding: '6px 12px', background: 'rgba(245,158,11,0.1)', color: '#f59e0b', borderRadius: '8px', fontSize: '0.78rem', border: '1px solid rgba(245,158,11,0.15)' }}>
+                          Pending: <strong>{selectedMember.pending}</strong>
+                        </div>
+                        <div className="tb-metric-badge" style={{ padding: '6px 12px', background: 'var(--tb-accent-bg)', color: 'var(--tb-accent)', borderRadius: '8px', fontSize: '0.78rem', border: '1px solid rgba(99,102,241,0.15)' }}>
+                          By Me: <strong>{selectedMember.assignedByMeCount}</strong>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="tb-table-wrapper">
-                      <table className="tb-table">
-                        <thead>
-                          <tr>
-                            <th className="tb-th">Task Name</th>
-                            <th className="tb-th">Assigned To</th>
-                            <th className="tb-th">Assigned By</th>
-                            <th className="tb-th">Due Date</th>
-                            <th className="tb-th">Status</th>
-                            <th className="tb-th">Progress</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {otherTasks.length > 0 ? (
-                            otherTasks.map(t => (
-                              <TaskRow
-                                key={t.id}
-                                task={t}
-                                onView={() => { setSelectedTask(t); setSelectedTaskType('assigned'); }}
-                                onStatusUpdate={(id, s) => updateAssignedTask(id, { status: s })}
-                              />
-                            ))
-                          ) : (
+                    {/* Section 1: Assigned By Me Tasks */}
+                    <div className="tb-section-card">
+                      <div className="tb-section-header" style={{ borderBottom: '1px solid var(--tb-border)' }}>
+                        <div>
+                          <h3 className="tb-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <ShieldCheck size={16} style={{ color: 'var(--tb-accent)' }} />
+                            <span>Assigned By Me ({assignedByMeTasks.length})</span>
+                          </h3>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--tb-text-muted)' }}>
+                            Tasks you created and assigned to this user. You can modify their status or details.
+                          </span>
+                        </div>
+                        <button
+                          className="tb-filter-btn"
+                          onClick={() => {
+                            setIsCreateAssignedOpen(true);
+                          }}
+                        >
+                          <Plus size={14} /> Assign New Task
+                        </button>
+                      </div>
+
+                      <div className="tb-table-wrapper">
+                        <table className="tb-table">
+                          <thead>
                             <tr>
-                              <td colSpan={6} className="tb-empty-row">
-                                No other tasks assigned to this user.
-                              </td>
+                              <th className="tb-th">Task Name</th>
+                              <th className="tb-th">Assigned To</th>
+                              <th className="tb-th">Assigned By</th>
+                              <th className="tb-th">Due Date</th>
+                              <th className="tb-th">Status</th>
+                              <th className="tb-th">Progress</th>
                             </tr>
-                          )}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {assignedByMeTasks.length > 0 ? (
+                              assignedByMeTasks.map(t => (
+                                <TaskRow
+                                  key={t.id}
+                                  task={t}
+                                  onView={() => { setSelectedTask(t); setSelectedTaskType('assigned'); }}
+                                  onStatusUpdate={(id, s) => updateAssignedTask(id, { status: s })}
+                                />
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan={6} className="tb-empty-row">
+                                  You have not assigned any tasks to this user yet.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
-                  </div>
-                </>
-              );
-            })()}
+
+                    {/* Section 2: Other Assigned Tasks */}
+                    <div className="tb-section-card">
+                      <div className="tb-section-header">
+                        <div>
+                          <h3 className="tb-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Users size={16} />
+                            <span>Other Assigned Tasks ({otherTasks.length})</span>
+                          </h3>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--tb-text-muted)' }}>
+                            Tasks assigned to this user by the system or other administrators.
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="tb-table-wrapper">
+                        <table className="tb-table">
+                          <thead>
+                            <tr>
+                              <th className="tb-th">Task Name</th>
+                              <th className="tb-th">Assigned To</th>
+                              <th className="tb-th">Assigned By</th>
+                              <th className="tb-th">Due Date</th>
+                              <th className="tb-th">Status</th>
+                              <th className="tb-th">Progress</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {otherTasks.length > 0 ? (
+                              otherTasks.map(t => (
+                                <TaskRow
+                                  key={t.id}
+                                  task={t}
+                                  onView={() => { setSelectedTask(t); setSelectedTaskType('assigned'); }}
+                                  onStatusUpdate={(id, s) => updateAssignedTask(id, { status: s })}
+                                />
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan={6} className="tb-empty-row">
+                                  No other tasks assigned to this user.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
           </div>
         </div>
       )}

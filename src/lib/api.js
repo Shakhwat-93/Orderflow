@@ -3131,6 +3131,95 @@ export const api = {
     if (error) throw error;
   },
 
+  async addCommentToTask(taskId, commentText, userId, userName) {
+    const { data: task, error: fetchError } = await supabase
+      .from('assigned_tasks')
+      .select('comments')
+      .eq('id', taskId)
+      .single();
+    if (fetchError) throw fetchError;
+
+    const currentComments = task.comments || [];
+    const newComment = {
+      id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9),
+      user_id: userId,
+      user_name: userName,
+      text: commentText,
+      created_at: new Date().toISOString()
+    };
+    const updatedComments = [...currentComments, newComment];
+
+    const { data, error } = await supabase
+      .from('assigned_tasks')
+      .update({ comments: updatedComments })
+      .eq('id', taskId)
+      .select()
+      .single();
+    if (error) throw error;
+
+    await this.logTaskActivity(
+      taskId, 'assigned', 'UPDATE',
+      `${userName} added a note/comment: "${commentText.substring(0, 30)}${commentText.length > 30 ? '...' : ''}"`
+    );
+
+    return data;
+  },
+
+  async requestTaskExtension(taskId, requestedDate, reason, userId, userName) {
+    const { data, error } = await supabase
+      .from('assigned_tasks')
+      .update({
+        extension_requested_date: requestedDate,
+        extension_request_reason: reason,
+        extension_request_status: 'pending'
+      })
+      .eq('id', taskId)
+      .select()
+      .single();
+    if (error) throw error;
+
+    await this.logTaskActivity(
+      taskId, 'assigned', 'UPDATE',
+      `${userName} requested a due date extension to ${new Date(requestedDate).toLocaleDateString()}`
+    );
+
+    return data;
+  },
+
+  async evaluateTaskExtension(taskId, approve, userId, userName) {
+    const { data: task, error: fetchError } = await supabase
+      .from('assigned_tasks')
+      .select('*')
+      .eq('id', taskId)
+      .single();
+    if (fetchError) throw fetchError;
+
+    const updates = {
+      extension_request_status: approve ? 'approved' : 'rejected'
+    };
+
+    if (approve && task.extension_requested_date) {
+      updates.due_date = task.extension_requested_date;
+    }
+
+    const { data, error } = await supabase
+      .from('assigned_tasks')
+      .update(updates)
+      .eq('id', taskId)
+      .select()
+      .single();
+    if (error) throw error;
+
+    const statusStr = approve ? 'Approved' : 'Rejected';
+    await this.logTaskActivity(
+      taskId, 'assigned', 'UPDATE',
+      `${userName} ${statusStr} the due date extension request`
+    );
+
+    return data;
+  },
+
+
   // --- Fraud Controls / IP Blocking ---
   async getIpBlocklist() {
     const { data, error } = await supabase
