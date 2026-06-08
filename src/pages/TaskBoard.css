@@ -1293,3 +1293,122 @@
   border-radius: 10px;
 }
 
+/* ── Full Device Responsiveness Overrides ── */
+
+@media (max-width: 1200px) {
+  .tb-overview-sidebar {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)) !important;
+    gap: 20px !important;
+    width: 100% !important;
+  }
+}
+
+@media (max-width: 992px) {
+  .team-scroll-container {
+    display: flex !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    gap: 12px !important;
+    padding: 4px 4px 12px 4px !important;
+    max-height: none !important;
+    width: 100% !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tb-team-member-item {
+    flex: 0 0 260px !important;
+    margin-bottom: 0 !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .tb-kanban-board {
+    display: flex !important;
+    overflow-x: auto !important;
+    scroll-snap-type: x mandatory !important;
+    gap: 12px !important;
+    padding-bottom: 12px !important;
+    margin-bottom: 20px !important;
+    width: 100% !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tb-kanban-col {
+    flex: 0 0 85% !important;
+    scroll-snap-align: center !important;
+    min-width: 280px !important;
+  }
+
+  /* Main Tasks Table: Hide 'Assigned By' column */
+  .tb-table th:nth-child(3),
+  .tb-td:nth-child(3) {
+    display: none !important;
+  }
+
+  /* Project List Table: Hide 'Total Tasks' & 'Owner' columns */
+  .tb-overview-main .tb-section-card:nth-of-type(2) .tb-table th:nth-child(4),
+  .tb-overview-main .tb-section-card:nth-of-type(2) .tb-table td:nth-child(4),
+  .tb-overview-main .tb-section-card:nth-of-type(2) .tb-table th:nth-child(6),
+  .tb-overview-main .tb-section-card:nth-of-type(2) .tb-table td:nth-child(6) {
+    display: none !important;
+  }
+}
+
+@media (max-width: 600px) {
+  /* Main Tasks Table: Hide 'Progress' column */
+  .tb-table th:nth-child(6),
+  .tb-td:nth-child(6) {
+    display: none !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .leaderboard-podium-row {
+    gap: 8px !important;
+    min-height: 180px !important;
+  }
+
+  .podium-avatar {
+    width: 48px !important;
+    height: 48px !important;
+    font-size: 1.1rem !important;
+  }
+
+  .podium-badge {
+    font-size: 1.4rem !important;
+    margin-bottom: -6px !important;
+  }
+
+  .podium-name {
+    font-size: 0.75rem !important;
+  }
+
+  .podium-completion {
+    font-size: 0.7rem !important;
+  }
+
+  .podium-count {
+    font-size: 0.65rem !important;
+  }
+
+  .podium-column.first .podium-bar-visual {
+    height: 70px !important;
+  }
+
+  .podium-column.second .podium-bar-visual {
+    height: 50px !important;
+  }
+
+  .podium-column.third .podium-bar-visual {
+    height: 35px !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .tb-metrics-row {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+
