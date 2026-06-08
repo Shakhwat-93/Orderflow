@@ -245,7 +245,7 @@ export const CallTeamPanel = () => {
   // Auto-queue visible phones for Courier Ratio checking
   useEffect(() => {
     const unchecked = [...new Set(
-      filteredOrders
+      paginatedOrders
         .map(o => o.phone)
         .filter((phone) => {
           const currentRatio = getRatio(phone);
@@ -253,7 +253,7 @@ export const CallTeamPanel = () => {
         })
     )];
     unchecked.forEach(p => checkPhone(p));
-  }, [filteredOrders, checkPhone, getRatio]);
+  }, [paginatedOrders, checkPhone, getRatio]);
 
   // Metrics Calculations
   const pendingCount = orders.filter(o => ACTIVE_CALL_STATUSES.includes(o.status)).length;

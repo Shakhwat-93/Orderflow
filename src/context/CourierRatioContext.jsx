@@ -48,17 +48,148 @@ export const CourierRatioProvider = ({ children }) => {
 
   // Core fetch function
   const fetchRatio = async (phone) => {
+    let lastError = '';
     try {
-      const { data, error } = await supabase.functions.invoke('courier-ratio-check', {
+      const { data, error, response } = await supabase.functions.invoke('courier-ratio-check', {
         body: { phone },
       });
-      if (error) throw error;
+
+      if (error) {
+        let errMsg = error.message || 'Edge Function returned a non-2xx status code';
+        if (response) {
+          try {
+            const tempResponse = response.clone();
+            const body = await tempResponse.json().catch(() => null);
+            if (body && body.error) {
+              errMsg = body.error;
+            } else if (body && body.message) {
+              errMsg = body.message;
+            }
+          } catch (e) {
+            // Ignore parse errors
+          }
+        }
+        throw new Error(errMsg);
+      }
       return api.normalizeCourierRatioPayload(data, phone);
     } catch (err) {
-      console.error('[BD Courier Context]', phone, err);
-      return null;
+      console.warn('[BD Courier Context] Server-side check failed or timed out. Attempting client-side direct check...', err.message);
+      lastError = err.message || 'Server check failed';
+
+      // Client-side fallback check
+      try {
+        const config = await api.getSystemConfig('fraud_checker_bd');
+        if (config && config.is_enabled && config.api_key) {
+          const token = config.api_key;
+          const baseUrl = config.api_url || 'https://api.bdcourier.com/courier-check';
+          const isBdCourier = baseUrl.includes('api.bdcourier.com') || baseUrl.includes('courier-check');
+
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+          let clientResponse;
+          try {
+            if (isBdCourier) {
+              clientResponse = await fetch(baseUrl, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json'
+                },
+                body: JSON.stringify({ phone }),
+                signal: controller.signal
+              });
+            } else {
+              let url = baseUrl;
+              if (url.includes('{phone}')) {
+                url = url.replace('{phone}', phone);
+              } else {
+                url = url.endsWith('/') ? `${url}${phone}` : `${url}/${phone}`;
+              }
+              clientResponse = await fetch(url, {
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'api-key': token,
+                  'Api-Key': token,
+                  'Accept': 'application/json',
+                  'Content-Type': 'application/json'
+                },
+                signal: controller.signal
+              });
+            }
+          } finally {
+            clearTimeout(timeoutId);
+          }
+
+          if (clientResponse.ok) {
+            const clientData = await clientResponse.json();
+            if (clientData.status === 'error' || clientData.success === false) {
+              throw new Error(clientData.message || clientData.error || 'Application error from BD Courier');
+            }
+            console.log('[BD Courier Context] Client-side fallback check succeeded for phone:', phone);
+            return api.normalizeCourierRatioPayload(clientData, phone);
+          } else {
+            let errorMsg = `BD Courier HTTP Error ${clientResponse.status}`;
+            try {
+              const errBody = await clientResponse.json();
+              if (errBody && (errBody.message || errBody.error)) {
+                errorMsg = errBody.message || errBody.error;
+              }
+            } catch (_) {}
+            throw new Error(errorMsg);
+          }
+        } else {
+          throw new Error(`${lastError}. Client fallback skipped (no config).`);
+        }
+      } catch (fallbackErr) {
+        console.error('[BD Courier Context] Direct client check failed:', fallbackErr.message);
+        
+        // Try Steadfast client-side fallback if configured
+        try {
+          const configSteadfast = await api.getSystemConfig('courier_steadfast');
+          if (configSteadfast && configSteadfast.is_enabled && configSteadfast.api_key && configSteadfast.secret_key) {
+            console.log('[BD Courier Context] Attempting Steadfast client-side check...');
+            
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 6000);
+            
+            let steadfastRes;
+            try {
+              steadfastRes = await fetch(`https://portal.steadfast.com.bd/api/v1/fraud_check/${phone}`, {
+                method: 'GET',
+                headers: {
+                  'Api-Key': configSteadfast.api_key,
+                  'Secret-Key': configSteadfast.secret_key,
+                  'Content-Type': 'application/json'
+                },
+                signal: controller.signal
+              });
+            } finally {
+              clearTimeout(timeoutId);
+            }
+            
+            if (steadfastRes.ok) {
+              const steadfastData = await steadfastRes.json();
+              console.log('[BD Courier Context] Steadfast client-side check succeeded!');
+              return api.normalizeCourierRatioPayload(steadfastData, phone);
+            } else {
+              throw new Error(`Steadfast HTTP Error ${steadfastRes.status}`);
+            }
+          }
+        } catch (steadfastErr) {
+          console.error('[BD Courier Context] Steadfast client-side check failed:', steadfastErr.message);
+        }
+
+        return {
+          success: false,
+          error: fallbackErr.message || lastError || 'Courier ratio check failed'
+        };
+      }
     }
   };
+
 
   // Process the queue one by one to avoid rate limits
   const processQueue = useCallback(async () => {
@@ -122,7 +253,7 @@ export const CourierRatioProvider = ({ children }) => {
 
         const result = await fetchRatio(phone);
 
-        if (result) {
+        if (result && result.success !== false) {
           const persisted = await api.saveCourierRatioCache(phone, result);
           const finalRatio = persisted || {
             loading: false,
@@ -144,7 +275,8 @@ export const CourierRatioProvider = ({ children }) => {
             [phone]: { ...prev[phone], ...finalRatio, phone }
           }));
         } else {
-          const failedRatio = await api.markCourierRatioCacheFailed(phone, 'Courier ratio check failed');
+          const errMsg = result?.error || 'Courier ratio check failed';
+          const failedRatio = await api.markCourierRatioCacheFailed(phone, errMsg);
           setRatios(prev => ({
             ...prev,
             [phone]: failedRatio
@@ -197,19 +329,7 @@ export const CourierRatioProvider = ({ children }) => {
     return ratios[normalizedPhone] || null;
   }, [ratios]);
 
-  useEffect(() => {
-    const phonesToPrime = [...new Set(
-      (orders || [])
-        .map((order) => api.normalizePhone(order?.phone))
-        .filter(Boolean)
-    )];
 
-    phonesToPrime.forEach((phone) => {
-      if (!ratiosRef.current[phone]?.fetched && !ratiosRef.current[phone]?.loading) {
-        checkPhone(phone);
-      }
-    });
-  }, [orders, checkPhone]);
 
   return (
     <CourierRatioContext.Provider value={{ ratios, checkPhone, getRatio }}>

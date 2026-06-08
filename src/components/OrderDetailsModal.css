@@ -168,9 +168,9 @@
   line-height: 1.2;
   color: var(--m-text);
 }
-.courier-risk-tag.high { color: #059669; }
+.courier-risk-tag.high { color: #dc2626; }
 .courier-risk-tag.medium { color: #b45309; }
-.courier-risk-tag.low { color: #dc2626; }
+.courier-risk-tag.low { color: #059669; }
 .courier-risk-tag.new { color: var(--m-accent); }
 .courier-ratio-breakdown { display: flex; flex-direction: column; gap: 10px; }
 .courier-ratio-subtitle {

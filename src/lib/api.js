@@ -125,12 +125,14 @@ export const api = {
   },
 
   inferCourierRiskLevel(total = 0, ratio = 0, explicitRisk = '') {
+    if (Number(total) > 0) {
+      if (Number(ratio) >= 70) return 'low';
+      if (Number(ratio) >= 40) return 'medium';
+      return 'high';
+    }
     const normalizedExplicit = String(explicitRisk || '').trim().toLowerCase();
     if (normalizedExplicit) return normalizedExplicit;
-    if (Number(total) <= 0) return 'new';
-    if (Number(ratio) >= 70) return 'high';
-    if (Number(ratio) >= 40) return 'medium';
-    return 'low';
+    return 'new';
   },
 
   normalizeCourierRatioPayload(result = {}, phone = '') {
@@ -244,15 +246,18 @@ export const api = {
   },
 
   hydrateCourierRatioCacheRecord(record = {}) {
+    const total = Number(record.total || 0);
+    const ratio = Number(record.ratio || 0);
+    const riskLevel = this.inferCourierRiskLevel(total, ratio, record.risk_level);
     return {
       loading: record.fetch_status === 'pending',
       fetched: record.fetch_status === 'completed' || record.fetch_status === 'failed',
       error: record.fetch_status === 'failed',
-      total: Number(record.total || 0),
+      total,
       success_count: Number(record.success_count || 0),
       cancelled: Number(record.cancelled || 0),
-      ratio: Number(record.ratio || 0),
-      riskLevel: record.risk_level || 'new',
+      ratio,
+      riskLevel,
       couriers: (record.couriers && typeof record.couriers === 'object' && !Array.isArray(record.couriers)) ? record.couriers : {},
       raw: record.raw || null,
       fetchedAt: record.fetched_at || null,
