@@ -605,7 +605,7 @@ export const TaskBoard = () => {
                 </div>
               </div>
 
-              <div className="tb-table-wrapper">
+              <div className="tb-table-wrapper desktop-only">
                 <table className="tb-table">
                   <thead>
                     <tr>
@@ -638,6 +638,51 @@ export const TaskBoard = () => {
                   </tbody>
                 </table>
               </div>
+
+              <div className="tb-mobile-tasks-list mobile-only">
+                {filteredTasks.length > 0 ? (
+                  filteredTasks.map(t => (
+                    <div 
+                      key={t.id} 
+                      className="tb-mobile-task-card" 
+                      onClick={() => { setSelectedTask(t); setSelectedTaskType('assigned'); }}
+                    >
+                      <div className="tb-mobile-task-header">
+                        <div className="tb-mobile-task-title-group">
+                          <span className={`tb-priority-dot ${t.priority || 'medium'}`} />
+                          <span className="tb-mobile-task-title">{t.title}</span>
+                        </div>
+                        <span className={`tb-status-badge status-${t.status || 'pending'}`}>
+                          {t.status === 'in_progress' ? 'Active' : t.status === 'completed' ? 'Done' : 'Pending'}
+                        </span>
+                      </div>
+                      
+                      <div className="tb-mobile-task-body">
+                        <div className="tb-mobile-task-meta">
+                          <div className="meta-item">
+                            <span className="meta-label">Due:</span>
+                            <span className={`meta-value ${t.due_date && new Date(t.due_date) < new Date() && t.status !== 'completed' ? 'overdue' : ''}`}>
+                              {fmtDate(t.due_date)}
+                            </span>
+                          </div>
+                          <div className="meta-item">
+                            <span className="meta-label">To:</span>
+                            <span className="meta-value">{t.assigned_to_name || 'Unassigned'}</span>
+                          </div>
+                        </div>
+                        {t.progress !== undefined && (
+                          <div className="tb-mobile-task-progress-bar">
+                            <div className="progress-fill" style={{ width: `${t.progress}%` }} />
+                            <span className="progress-text">{t.progress}%</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="tb-empty-mobile">No tasks found matching your filter criteria. 🎉</div>
+                )}
+              </div>
             </motion.div>
 
             {/* List Projects */}
@@ -659,7 +704,7 @@ export const TaskBoard = () => {
                   </button>
                 </div>
               </div>
-              <div className="tb-table-wrapper">
+              <div className="tb-table-wrapper desktop-only">
                 <table className="tb-table">
                   <thead>
                     <tr>
@@ -682,6 +727,39 @@ export const TaskBoard = () => {
                     }
                   </tbody>
                 </table>
+              </div>
+
+              <div className="tb-mobile-projects-list mobile-only">
+                {listProjects.length > 0 ? (
+                  listProjects.map((p, i) => (
+                    <div key={i} className="tb-mobile-project-card">
+                      <div className="tb-mobile-project-header">
+                        <span className="tb-mobile-project-name">{p.name}</span>
+                        <span className={`tb-status-badge status-${p.status}`}>
+                          {p.status === 'completed' ? 'Done' : p.status === 'in_progress' ? 'Active' : 'Pending'}
+                        </span>
+                      </div>
+                      <div className="tb-mobile-project-body">
+                        <div className="tb-mobile-project-meta">
+                          <div className="meta-item">
+                            <span className="meta-label">Tasks:</span>
+                            <span className="meta-value">{p.tasks}</span>
+                          </div>
+                          <div className="meta-item">
+                            <span className="meta-label">Owner:</span>
+                            <span className="meta-value">{p.owner}</span>
+                          </div>
+                        </div>
+                        <div className="tb-mobile-task-progress-bar">
+                          <div className="progress-fill" style={{ width: `${p.progress}%` }} />
+                          <span className="progress-text">{p.progress}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="tb-empty-mobile">No project data yet.</div>
+                )}
               </div>
             </motion.div>
           </div>
@@ -1086,7 +1164,7 @@ export const TaskBoard = () => {
                         </button>
                       </div>
 
-                      <div className="tb-table-wrapper">
+                      <div className="tb-table-wrapper desktop-only">
                         <table className="tb-table">
                           <thead>
                             <tr>
@@ -1118,6 +1196,47 @@ export const TaskBoard = () => {
                           </tbody>
                         </table>
                       </div>
+
+                      <div className="tb-mobile-tasks-list mobile-only">
+                        {assignedByMeTasks.length > 0 ? (
+                          assignedByMeTasks.map(t => (
+                            <div 
+                              key={t.id} 
+                              className="tb-mobile-task-card" 
+                              onClick={() => { setSelectedTask(t); setSelectedTaskType('assigned'); }}
+                            >
+                              <div className="tb-mobile-task-header">
+                                <div className="tb-mobile-task-title-group">
+                                  <span className={`tb-priority-dot ${t.priority || 'medium'}`} />
+                                  <span className="tb-mobile-task-title">{t.title}</span>
+                                </div>
+                                <span className={`tb-status-badge status-${t.status || 'pending'}`}>
+                                  {t.status === 'in_progress' ? 'Active' : t.status === 'completed' ? 'Done' : 'Pending'}
+                                </span>
+                              </div>
+                              
+                              <div className="tb-mobile-task-body">
+                                <div className="tb-mobile-task-meta">
+                                  <div className="meta-item">
+                                    <span className="meta-label">Due:</span>
+                                    <span className={`meta-value ${t.due_date && new Date(t.due_date) < new Date() && t.status !== 'completed' ? 'overdue' : ''}`}>
+                                      {fmtDate(t.due_date)}
+                                    </span>
+                                  </div>
+                                </div>
+                                {t.progress !== undefined && (
+                                  <div className="tb-mobile-task-progress-bar">
+                                    <div className="progress-fill" style={{ width: `${t.progress}%` }} />
+                                    <span className="progress-text">{t.progress}%</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="tb-empty-mobile">You have not assigned any tasks to this user yet.</div>
+                        )}
+                      </div>
                     </div>
 
                     {/* Section 2: Other Assigned Tasks */}
@@ -1134,7 +1253,7 @@ export const TaskBoard = () => {
                         </div>
                       </div>
 
-                      <div className="tb-table-wrapper">
+                      <div className="tb-table-wrapper desktop-only">
                         <table className="tb-table">
                           <thead>
                             <tr>
@@ -1166,6 +1285,51 @@ export const TaskBoard = () => {
                           </tbody>
                         </table>
                       </div>
+
+                      <div className="tb-mobile-tasks-list mobile-only">
+                        {otherTasks.length > 0 ? (
+                          otherTasks.map(t => (
+                            <div 
+                              key={t.id} 
+                              className="tb-mobile-task-card" 
+                              onClick={() => { setSelectedTask(t); setSelectedTaskType('assigned'); }}
+                            >
+                              <div className="tb-mobile-task-header">
+                                <div className="tb-mobile-task-title-group">
+                                  <span className={`tb-priority-dot ${t.priority || 'medium'}`} />
+                                  <span className="tb-mobile-task-title">{t.title}</span>
+                                </div>
+                                <span className={`tb-status-badge status-${t.status || 'pending'}`}>
+                                  {t.status === 'in_progress' ? 'Active' : t.status === 'completed' ? 'Done' : 'Pending'}
+                                </span>
+                              </div>
+                              
+                              <div className="tb-mobile-task-body">
+                                <div className="tb-mobile-task-meta">
+                                  <div className="meta-item">
+                                    <span className="meta-label">Due:</span>
+                                    <span className={`meta-value ${t.due_date && new Date(t.due_date) < new Date() && t.status !== 'completed' ? 'overdue' : ''}`}>
+                                      {fmtDate(t.due_date)}
+                                    </span>
+                                  </div>
+                                  <div className="meta-item">
+                                    <span className="meta-label">By:</span>
+                                    <span className="meta-value">{t.assigned_by_name || 'System'}</span>
+                                  </div>
+                                </div>
+                                {t.progress !== undefined && (
+                                  <div className="tb-mobile-task-progress-bar">
+                                    <div className="progress-fill" style={{ width: `${t.progress}%` }} />
+                                    <span className="progress-text">{t.progress}%</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="tb-empty-mobile">No other tasks assigned to this user.</div>
+                        )}
+                      </div>
                     </div>
                   </>
                 );
@@ -1174,6 +1338,16 @@ export const TaskBoard = () => {
           </div>
         </div>
       )}
+
+      {/* Mobile Floating Action Button (FAB) */}
+      <button 
+        type="button" 
+        className="tb-mobile-fab mobile-only" 
+        onClick={() => setIsCreateAssignedOpen(true)}
+        aria-label="Assign Task"
+      >
+        <Plus size={24} />
+      </button>
 
       {/* ── MODALS ────────────────────────────────────────────────────── */}
       <CreateTaskOverlay
