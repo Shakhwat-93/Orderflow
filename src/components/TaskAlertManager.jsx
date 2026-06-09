@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTasks } from '../context/TaskContext';
 import { useAuth } from '../context/AuthContext';
-import { Bell, AlertTriangle, Calendar, User, Check, Zap, Sparkles, X } from 'lucide-react';
+import { Bell, AlertTriangle, Calendar, User, Check, Zap, Sparkles, X, FileText } from 'lucide-react';
 import './TaskAlertManager.css';
 
 export const TaskAlertManager = () => {
@@ -43,21 +43,23 @@ export const TaskAlertManager = () => {
     myTasks.forEach(task => {
       // 1. Check for New Assignment Alerts
       if (!ackTasks.includes(task.id)) {
+        const isDailyReport = task.title?.startsWith('[Daily Report]');
         pendingAlerts.push({
           id: `new_${task.id}`,
           taskId: task.id,
-          type: 'new',
-          title: 'New Task Assigned',
-          taskTitle: task.title,
+          type: isDailyReport ? 'daily_report' : 'new',
+          title: isDailyReport ? 'Daily Report Submitted' : 'New Task Assigned',
+          taskTitle: isDailyReport ? 'Daily Highlights Summary' : task.title,
           priority: task.priority || 'medium',
           dueDate: task.due_date,
           actor: task.assigned_by_name || 'System',
-          description: task.description
+          description: task.description,
+          isDailyReport
         });
       }
 
-      // 2. Check for Due Soon / Overdue Alerts
-      if (task.due_date) {
+      // 2. Check for Due Soon / Overdue Alerts (Ignore daily report submissions here since they don't have overdue conditions)
+      if (task.due_date && !task.title?.startsWith('[Daily Report]')) {
         const dueDate = new Date(task.due_date);
         const isOverdue = dueDate < now;
         const isDueSoon = dueDate <= tomorrow && dueDate >= now;
@@ -146,7 +148,9 @@ export const TaskAlertManager = () => {
             {/* Icon & Title */}
             <div className="task-alert-header">
               <div className="task-alert-icon-wrapper">
-                {currentAlert.type === 'new' ? (
+                {currentAlert.isDailyReport ? (
+                  <FileText className="task-alert-icon pulse-animation" size={24} />
+                ) : currentAlert.type === 'new' ? (
                   <Sparkles className="task-alert-icon pulse-animation" size={24} />
                 ) : (
                   <AlertTriangle className="task-alert-icon shake-animation" size={24} />
@@ -154,7 +158,7 @@ export const TaskAlertManager = () => {
               </div>
               <div className="task-alert-title-group">
                 <span className="task-alert-badge">
-                  {currentAlert.type === 'new' ? 'New Assignment' : currentAlert.type === 'overdue' ? 'Overdue' : 'Due Soon'}
+                  {currentAlert.isDailyReport ? 'Daily Submission' : currentAlert.type === 'new' ? 'New Assignment' : currentAlert.type === 'overdue' ? 'Overdue' : 'Due Soon'}
                 </span>
                 <h3 className="task-alert-title">{currentAlert.title}</h3>
               </div>
