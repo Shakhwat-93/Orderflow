@@ -31,6 +31,7 @@ import './Sidebar.css';
 
 const menuItems = [
   { path: '/', label: 'Overview', icon: LayoutDashboard, group: 'Main Console' },
+  { path: '/tasks', label: 'Tasks', icon: ClipboardList, group: 'Main Console' },
   {
     path: '/orders',
     label: 'Orders',
@@ -55,7 +56,6 @@ const menuItems = [
   { path: '/fraud', label: 'Fraud', icon: ShieldAlert, roles: ['Admin'], group: 'Intelligence' },
   { path: '/reports', label: 'Analytics', icon: BarChart3, roles: ['Admin'], group: 'System' },
   { path: '/digital-marketer', label: 'Marketing', icon: Megaphone, roles: ['Admin', 'Digital Marketer'], group: 'System' },
-  { path: '/tasks', label: 'Tasks', icon: ClipboardList, group: 'System' },
   { path: '/backup', label: 'Backup', icon: DatabaseBackup, roles: ['Admin'], group: 'System' },
 ];
 
