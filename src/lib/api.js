@@ -3014,7 +3014,7 @@ export const api = {
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (!isAdmin && userId) {
+    if (userId) {
       query = query.or(`assigned_to.eq.${userId},assigned_by.eq.${userId}`);
     }
 
@@ -3218,7 +3218,6 @@ export const api = {
 
     return data;
   },
-
 
   // --- Fraud Controls / IP Blocking ---
   async getIpBlocklist() {
