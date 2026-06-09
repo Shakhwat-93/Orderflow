@@ -15,7 +15,7 @@ import {
   ChevronRight, Loader2, Search, List, Kanban, TrendingUp, Activity,
   ShieldCheck, MoreHorizontal, ChevronDown, ArrowUpRight, Briefcase,
   FileText, FolderOpen, Star, AlertCircle, Award, CheckSquare, Square,
-  TrendingDown
+  TrendingDown, Send
 } from 'lucide-react';
 import './TaskBoard.css';
 
@@ -222,7 +222,8 @@ const KanbanColumn = ({ title, tasks, color, onView, onStatusUpdate }) => (
 export const TaskBoard = () => {
   const {
     myDailyTasks, assignedTasks, todayCompletions, loading,
-    isCompletedToday, completeDailyTask, uncompleteDailyTask, updateAssignedTask
+    isCompletedToday, completeDailyTask, uncompleteDailyTask, updateAssignedTask,
+    createAssignedTask
   } = useTasks();
   const { user, profile, isAdmin, updatePresenceContext } = useAuth();
 
@@ -239,7 +240,86 @@ export const TaskBoard = () => {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState(null);
 
+  // Daily report submission state
+  const [reportText, setReportText] = useState('');
+  const [reportAssignee, setReportAssignee] = useState('');
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+
+  // Alerts logic state
+  const [showOverdueAlert, setShowOverdueAlert] = useState(false);
+  const [showReminderAlert, setShowReminderAlert] = useState(false);
+
   useEffect(() => { updatePresenceContext?.('Managing Tasks'); }, [updatePresenceContext]);
+
+  // Handle submission of daily report task
+  const handleCreateDailyReport = async (e) => {
+    e.preventDefault();
+    if (!reportText.trim() || !reportAssignee || isSubmittingReport) return;
+    
+    setIsSubmittingReport(true);
+    try {
+      const selectedUser = users.find(u => u.id === reportAssignee);
+      const reportTitle = `[Daily Report] Daily Submission`;
+      
+      await createAssignedTask({
+        title: reportTitle,
+        description: reportText.trim(),
+        assigned_to: reportAssignee,
+        assigned_to_name: selectedUser?.name || selectedUser?.full_name || 'Supervisor',
+        priority: 'high',
+        due_date: new Date().toISOString(), // due today
+      });
+
+      setReportText('');
+      setReportAssignee('');
+    } catch (err) {
+      console.error('Failed to submit daily report:', err);
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
+
+  // Alert check for 10:00 PM daily task submission
+  useEffect(() => {
+    if (!user || loading) return;
+
+    const todayStr = new Date().toDateString();
+    const submitted = assignedTasks.some(t => 
+      t.assigned_by === user?.id && 
+      t.title?.startsWith('[Daily Report]') && 
+      new Date(t.created_at).toDateString() === todayStr
+    );
+
+    if (submitted) {
+      setShowOverdueAlert(false);
+      setShowReminderAlert(false);
+      return;
+    }
+
+    const checkTime = () => {
+      const now = new Date();
+      const hours = now.getHours();
+      const todayStr = now.toDateString();
+      
+      if (hours >= 22) { // Past 10:00 PM (22:00)
+        const dismissedOverdue = sessionStorage.getItem(`dismissed_overdue_${todayStr}`);
+        if (!dismissedOverdue) {
+          setShowOverdueAlert(true);
+          setShowReminderAlert(false);
+        }
+      } else if (hours >= 20) { // Past 8:00 PM (20:00 to 22:00)
+        const dismissedReminder = sessionStorage.getItem(`dismissed_reminder_${todayStr}`);
+        if (!dismissedReminder) {
+          setShowReminderAlert(true);
+          setShowOverdueAlert(false);
+        }
+      }
+    };
+
+    checkTime();
+    const interval = setInterval(checkTime, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, [assignedTasks, user, loading]);
 
   useEffect(() => {
     const fetchUsersData = async () => {
@@ -263,7 +343,6 @@ export const TaskBoard = () => {
         setLoadingUsers(false);
       }
     };
-    fetchUsersData();
   }, []);
 
   const handleOpenOrder = async (orderId) => {
@@ -434,6 +513,24 @@ export const TaskBoard = () => {
     }
   };
 
+  // Calculate if daily report has been submitted today
+  const hasSubmittedToday = useMemo(() => {
+    const todayStr = new Date().toDateString();
+    return assignedTasks.some(t => 
+      t.assigned_by === user?.id && 
+      t.title?.startsWith('[Daily Report]') && 
+      new Date(t.created_at).toDateString() === todayStr
+    );
+  }, [assignedTasks, user?.id]);
+
+  // Determine deadline status
+  const deadlineStatus = useMemo(() => {
+    if (hasSubmittedToday) return 'submitted';
+    const now = new Date();
+    const hours = now.getHours();
+    return hours >= 22 ? 'overdue' : 'pending';
+  }, [hasSubmittedToday]);
+
   if (loading) return <div className="tb-loading">Preparing Workspace…</div>;
 
   return (
@@ -502,6 +599,88 @@ export const TaskBoard = () => {
         <MetricCard label="Total Tasks"      value={stats.total}            icon={ClipboardList}  accent="#f97316" trend="+2%" />
         <MetricCard label="In Progress"      value={stats.inProgress}       icon={Activity}       accent="#22c55e" trend={`+${stats.inProgress}`} />
         <MetricCard label="Completed Tasks"  value={stats.completed}        icon={CheckCircle2}   accent="#06b6d4" trend={`+${myCompletedTodayCount}`} />
+      </motion.div>
+
+      {/* ── DAILY REPORT SUBMISSION CENTER ──────────────────────────────── */}
+      <motion.div
+        className="tb-daily-submission-widget"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.12, duration: 0.4 }}
+      >
+        <div className="tb-daily-widget-left">
+          <div>
+            <h3 className="tb-daily-widget-title">
+              <FileText size={20} style={{ color: 'var(--tb-accent)' }} />
+              <span>Daily Submission Center</span>
+            </h3>
+            <p className="tb-daily-widget-desc">
+              Submit a details-wise summary of what you have worked on today. 
+              Only the assignee/supervisor you select will have access to this report on their Task Board.
+            </p>
+          </div>
+          <div className="tb-daily-status-container">
+            {deadlineStatus === 'submitted' && (
+              <span className="tb-daily-status-banner submitted">
+                <CheckCircle2 size={15} /> Submitted Today
+              </span>
+            )}
+            {deadlineStatus === 'pending' && (
+              <span className="tb-daily-status-banner pending">
+                <Clock size={15} /> Pending Today (10:00 PM Deadline)
+              </span>
+            )}
+            {deadlineStatus === 'overdue' && (
+              <span className="tb-daily-status-banner overdue">
+                <AlertCircle size={15} /> Overdue! 10:00 PM Deadline Missed
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="tb-daily-widget-right">
+          <form onSubmit={handleCreateDailyReport}>
+            <textarea
+              id="tb-daily-textarea-input"
+              className="tb-daily-textarea"
+              placeholder="Provide a detailed list of tasks completed today (e.g., - Fixed 3 responsive bugs, - Met with client...)"
+              value={reportText}
+              onChange={(e) => setReportText(e.target.value)}
+              required
+            />
+            <div className="tb-daily-form-row">
+              <div className="tb-daily-select-wrapper">
+                <select
+                  className="tb-daily-select"
+                  value={reportAssignee}
+                  onChange={(e) => setReportAssignee(e.target.value)}
+                  required
+                >
+                  <option value="">-- Submit to Supervisor --</option>
+                  {users
+                    .filter(u => u.id !== user?.id)
+                    .map(u => (
+                      <option key={u.id} value={u.id}>
+                        {u.name || u.full_name || u.email}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <button
+                type="submit"
+                className="tb-daily-submit-btn"
+                disabled={!reportText.trim() || !reportAssignee || isSubmittingReport}
+              >
+                {isSubmittingReport ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Send size={16} />
+                )}
+                <span>Submit Report</span>
+              </button>
+            </div>
+          </form>
+        </div>
       </motion.div>
 
       {/* ── VIEW TAB SELECTOR ─────────────────────────────────────────── */}
@@ -1367,6 +1546,114 @@ export const TaskBoard = () => {
         isOpen={!!selectedOrderData}
         onClose={() => setSelectedOrderData(null)}
       />
+
+      {/* ── DAILY REPORT REMINDER ALERT ─────────────────────────────────── */}
+      <AnimatePresence>
+        {showReminderAlert && (
+          <div className="tb-daily-alert-overlay">
+            <motion.div
+              className="tb-daily-alert-card reminder"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', padding: '10px', borderRadius: '50%' }}>
+                  <Clock size={24} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800' }}>Daily Report Reminder</h3>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: 'var(--tb-text-sub)' }}>
+                    Submission deadline is 10:00 PM tonight.
+                  </p>
+                </div>
+              </div>
+              <p style={{ fontSize: '0.85rem', color: 'var(--tb-text)', margin: '8px 0 0 0', lineHeight: '1.4' }}>
+                Please write a summary of what you worked on today and submit it to your supervisor. 
+                Submissions are secure and strictly visible only to your supervisor.
+              </p>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '12px' }}>
+                <button
+                  className="tb-filter-btn"
+                  onClick={() => {
+                    setShowReminderAlert(false);
+                    const todayStr = new Date().toDateString();
+                    sessionStorage.setItem(`dismissed_reminder_${todayStr}`, 'true');
+                  }}
+                >
+                  Later
+                </button>
+                <button
+                  className="tb-daily-submit-btn"
+                  onClick={() => {
+                    setShowReminderAlert(false);
+                    const todayStr = new Date().toDateString();
+                    sessionStorage.setItem(`dismissed_reminder_${todayStr}`, 'true');
+                    document.getElementById('tb-daily-textarea-input')?.focus();
+                  }}
+                >
+                  Submit Now
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── DAILY REPORT OVERDUE ALERT ──────────────────────────────────── */}
+      <AnimatePresence>
+        {showOverdueAlert && (
+          <div className="tb-daily-alert-overlay">
+            <motion.div
+              className="tb-daily-alert-card overdue"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              style={{ borderLeft: '4px solid #ef4444' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: '10px', borderRadius: '50%' }}>
+                  <AlertTriangle className="shake-animation" size={24} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800', color: '#ef4444' }}>Submission Overdue!</h3>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: 'var(--tb-text-sub)' }}>
+                    The 10:00 PM deadline has passed.
+                  </p>
+                </div>
+              </div>
+              <p style={{ fontSize: '0.85rem', color: 'var(--tb-text)', margin: '8px 0 0 0', lineHeight: '1.4' }}>
+                You have not submitted your daily task report for today. 
+                Please write and submit your daily highlights immediately to keep your KPIs updated.
+              </p>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '12px' }}>
+                <button
+                  className="tb-filter-btn"
+                  onClick={() => {
+                    setShowOverdueAlert(false);
+                    const todayStr = new Date().toDateString();
+                    sessionStorage.setItem(`dismissed_overdue_${todayStr}`, 'true');
+                  }}
+                >
+                  Dismiss
+                </button>
+                <button
+                  className="tb-daily-submit-btn"
+                  style={{ background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}
+                  onClick={() => {
+                    setShowOverdueAlert(false);
+                    const todayStr = new Date().toDateString();
+                    sessionStorage.setItem(`dismissed_overdue_${todayStr}`, 'true');
+                    document.getElementById('tb-daily-textarea-input')?.focus();
+                  }}
+                >
+                  Submit Report Now
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
