@@ -343,6 +343,7 @@ export const TaskBoard = () => {
         setLoadingUsers(false);
       }
     };
+    fetchUsersData();
   }, []);
 
   const handleOpenOrder = async (orderId) => {
