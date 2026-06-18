@@ -15,7 +15,7 @@ import {
   ChevronRight, Loader2, Search, List, Kanban, TrendingUp, Activity,
   ShieldCheck, MoreHorizontal, ChevronDown, ArrowUpRight, Briefcase,
   FileText, FolderOpen, Star, AlertCircle, Award, CheckSquare, Square,
-  TrendingDown, Send
+  TrendingDown, Send, X, Mail, Sparkles
 } from 'lucide-react';
 import './TaskBoard.css';
 
@@ -216,6 +216,337 @@ const KanbanColumn = ({ title, tasks, color, onView, onStatusUpdate }) => (
   </div>
 );
 
+// ── Avatar color palette ──────────────────────────────────────────────────
+const AVATAR_COLORS = [
+  '#6366f1','#f97316','#22c55e','#06b6d4','#ec4899','#a855f7','#eab308','#14b8a6'
+];
+const getAvatarColor = (name = '') => {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+};
+
+// ── UserCard ──────────────────────────────────────────────────────────────
+const UserCard = ({ member, onClick }) => {
+  const color = getAvatarColor(member.name);
+  const completionPct = member.total > 0 ? Math.round((member.completed / member.total) * 100) : 0;
+  const primaryRole = member.roles?.[0] || 'Staff';
+  const activeTasks = member.pending + member.inProgress;
+
+  return (
+    <motion.div
+      className="uc-card"
+      onClick={() => onClick(member)}
+      whileHover={{ y: -6, scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ type: 'spring', stiffness: 260, damping: 22 }}
+    >
+      {/* Glow blob */}
+      <div className="uc-card-glow" style={{ background: color }} />
+
+      {/* Avatar */}
+      <div className="uc-avatar-wrap">
+        {member.avatar_url ? (
+          <img src={member.avatar_url} alt="" className="uc-avatar-img" />
+        ) : (
+          <div className="uc-avatar" style={{ background: color }}>
+            {member.name.charAt(0).toUpperCase()}
+          </div>
+        )}
+        {/* Online dot */}
+        <span className="uc-online-dot" />
+      </div>
+
+      {/* Name + role */}
+      <div className="uc-name">{member.name}</div>
+      <div className="uc-role">{primaryRole}</div>
+
+      {/* Stats row */}
+      <div className="uc-stats">
+        <div className="uc-stat">
+          <span className="uc-stat-val" style={{ color: '#f59e0b' }}>{activeTasks}</span>
+          <span className="uc-stat-lbl">Active</span>
+        </div>
+        <div className="uc-stat-divider" />
+        <div className="uc-stat">
+          <span className="uc-stat-val" style={{ color: '#22c55e' }}>{member.completed}</span>
+          <span className="uc-stat-lbl">Done</span>
+        </div>
+        <div className="uc-stat-divider" />
+        <div className="uc-stat">
+          <span className="uc-stat-val" style={{ color }}>{member.total}</span>
+          <span className="uc-stat-lbl">Total</span>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="uc-progress-track">
+        <div className="uc-progress-fill" style={{ width: `${completionPct}%`, background: color }} />
+      </div>
+      <div className="uc-progress-label">{completionPct}% completed</div>
+    </motion.div>
+  );
+};
+
+// ── UserProfileModal ──────────────────────────────────────────────────────
+const UserProfileModal = ({ member, onClose, assignedTasks, currentUser, createAssignedTask, users }) => {
+  const [modalTab, setModalTab] = useState('tasks'); // 'tasks' | 'assign'
+  const [taskFilter, setTaskFilter] = useState('all');
+  const [assignTitle, setAssignTitle] = useState('');
+  const [assignDesc, setAssignDesc] = useState('');
+  const [assignPriority, setAssignPriority] = useState('medium');
+  const [assignDue, setAssignDue] = useState('');
+  const [isAssigning, setIsAssigning] = useState(false);
+  const [assignSuccess, setAssignSuccess] = useState(false);
+
+  const color = getAvatarColor(member.name);
+  const primaryRole = member.roles?.[0] || 'Staff';
+  const completionPct = member.total > 0 ? Math.round((member.completed / member.total) * 100) : 0;
+
+  // All tasks for this member from global assignedTasks
+  const memberTasks = assignedTasks.filter(t => t.assigned_to === member.id);
+  const filtered = taskFilter === 'all' ? memberTasks
+    : taskFilter === 'active' ? memberTasks.filter(t => t.status !== 'completed')
+    : memberTasks.filter(t => t.status === 'completed');
+
+  const handleAssign = async (e) => {
+    e.preventDefault();
+    if (!assignTitle.trim() || isAssigning) return;
+    setIsAssigning(true);
+    try {
+      await createAssignedTask({
+        title: assignTitle.trim(),
+        description: assignDesc.trim(),
+        assigned_to: member.id,
+        assigned_to_name: member.name,
+        priority: assignPriority,
+        due_date: assignDue ? new Date(assignDue).toISOString() : null,
+      });
+      setAssignTitle(''); setAssignDesc(''); setAssignDue(''); setAssignPriority('medium');
+      setAssignSuccess(true);
+      setTimeout(() => setAssignSuccess(false), 3000);
+      setModalTab('tasks');
+    } catch (err) {
+      console.error('Assign failed:', err);
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        className="upm-overlay"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      >
+        <motion.div
+          className="upm-panel"
+          initial={{ opacity: 0, y: 40, scale: 0.96 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 24, scale: 0.97 }}
+          transition={{ type: 'spring', stiffness: 280, damping: 28 }}
+        >
+          {/* Close */}
+          <button className="upm-close" onClick={onClose}><X size={18} /></button>
+
+          {/* Hero header */}
+          <div className="upm-hero" style={{ '--upm-color': color }}>
+            <div className="upm-hero-blur" style={{ background: color }} />
+            <div className="upm-hero-content">
+              {member.avatar_url ? (
+                <img src={member.avatar_url} alt="" className="upm-hero-avatar" />
+              ) : (
+                <div className="upm-hero-avatar" style={{ background: color }}>
+                  {member.name.charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div className="upm-hero-info">
+                <h2 className="upm-hero-name">{member.name}</h2>
+                <div className="upm-hero-role">{primaryRole}</div>
+                {member.email && (
+                  <div className="upm-hero-email">
+                    <Mail size={12} /> {member.email}
+                  </div>
+                )}
+              </div>
+              {/* Completion ring */}
+              <div className="upm-ring-wrap">
+                <svg viewBox="0 0 60 60" className="upm-ring-svg">
+                  <circle cx="30" cy="30" r="24" className="upm-ring-bg" />
+                  <circle
+                    cx="30" cy="30" r="24"
+                    className="upm-ring-fill"
+                    style={{
+                      stroke: color,
+                      strokeDasharray: 150.8,
+                      strokeDashoffset: 150.8 - (150.8 * completionPct / 100)
+                    }}
+                  />
+                </svg>
+                <div className="upm-ring-label">
+                  <span className="rate">{completionPct}%</span>
+                  <span className="cap">done</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick stats */}
+            <div className="upm-quick-stats">
+              <div className="upm-qs-item">
+                <span className="upm-qs-val">{member.total}</span>
+                <span className="upm-qs-lbl">Total Tasks</span>
+              </div>
+              <div className="upm-qs-item">
+                <span className="upm-qs-val" style={{ color: '#f59e0b' }}>{member.pending}</span>
+                <span className="upm-qs-lbl">Pending</span>
+              </div>
+              <div className="upm-qs-item">
+                <span className="upm-qs-val" style={{ color: '#6366f1' }}>{member.inProgress}</span>
+                <span className="upm-qs-lbl">In Progress</span>
+              </div>
+              <div className="upm-qs-item">
+                <span className="upm-qs-val" style={{ color: '#22c55e' }}>{member.completed}</span>
+                <span className="upm-qs-lbl">Completed</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="upm-tabs">
+            {[{id:'tasks',label:'Tasks',icon:ClipboardList},{id:'assign',label:'Assign Task',icon:Plus}].map(t => (
+              <button
+                key={t.id}
+                className={`upm-tab ${modalTab === t.id ? 'active' : ''}`}
+                onClick={() => setModalTab(t.id)}
+                style={modalTab === t.id ? { color, borderColor: color, background: `${color}14` } : {}}
+              >
+                <t.icon size={14} /> {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab content */}
+          <div className="upm-body">
+            {modalTab === 'tasks' && (
+              <div className="upm-tasks-view">
+                {/* Filter chips */}
+                <div className="upm-task-filters">
+                  {[['all','All'],['active','Active'],['completed','Completed']].map(([v,l]) => (
+                    <button
+                      key={v}
+                      className={`upm-chip ${taskFilter === v ? 'active' : ''}`}
+                      onClick={() => setTaskFilter(v)}
+                      style={taskFilter === v ? { background: color, color: '#fff', borderColor: color } : {}}
+                    >{l}</button>
+                  ))}
+                </div>
+
+                {assignSuccess && (
+                  <div className="upm-success-banner">
+                    <CheckCircle2 size={16} /> Task assigned successfully!
+                  </div>
+                )}
+
+                <div className="upm-task-list">
+                  {filtered.length === 0 ? (
+                    <div className="upm-empty">
+                      <ClipboardList size={28} />
+                      <p>No tasks found</p>
+                    </div>
+                  ) : filtered.map(t => {
+                    const p = PRIORITY_CONFIG[t.priority] || PRIORITY_CONFIG.medium;
+                    const s = STATUS_CONFIG[t.status] || STATUS_CONFIG.pending;
+                    return (
+                      <div key={t.id} className="upm-task-item">
+                        <div className="upm-task-dot" style={{ background: p.color }} />
+                        <div className="upm-task-content">
+                          <div className="upm-task-title">{t.title}</div>
+                          <div className="upm-task-meta">
+                            <span className="upm-task-pri" style={{ color: p.color, background: p.bg }}>{p.label}</span>
+                            <span className="upm-task-due"><Clock size={11}/> {fmtDate(t.due_date)}</span>
+                          </div>
+                        </div>
+                        <span className="upm-task-status" style={{ color: s.color, background: s.bg }}>{s.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {modalTab === 'assign' && (
+              <form className="upm-assign-form" onSubmit={handleAssign}>
+                <div className="upm-assign-header">
+                  <Sparkles size={16} style={{ color }} />
+                  <span>Assign a new task to <strong>{member.name}</strong></span>
+                </div>
+
+                <div className="upm-field">
+                  <label className="upm-label">Task Title *</label>
+                  <input
+                    className="upm-input"
+                    placeholder="e.g., Review campaign analytics report"
+                    value={assignTitle}
+                    onChange={e => setAssignTitle(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="upm-field">
+                  <label className="upm-label">Description</label>
+                  <textarea
+                    className="upm-textarea"
+                    placeholder="Optional details, links, or instructions..."
+                    value={assignDesc}
+                    onChange={e => setAssignDesc(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+
+                <div className="upm-field-row">
+                  <div className="upm-field">
+                    <label className="upm-label">Priority</label>
+                    <select className="upm-select" value={assignPriority} onChange={e => setAssignPriority(e.target.value)}>
+                      <option value="urgent">🔴 Urgent</option>
+                      <option value="high">🟠 High</option>
+                      <option value="medium">🔵 Medium</option>
+                      <option value="low">⚪ Low</option>
+                    </select>
+                  </div>
+                  <div className="upm-field">
+                    <label className="upm-label">Due Date</label>
+                    <input
+                      type="date"
+                      className="upm-input"
+                      value={assignDue}
+                      onChange={e => setAssignDue(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="upm-assign-btn"
+                  style={{ background: `linear-gradient(135deg, ${color}, ${color}cc)` }}
+                  disabled={!assignTitle.trim() || isAssigning}
+                >
+                  {isAssigning ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                  {isAssigning ? 'Assigning...' : 'Assign Task'}
+                </button>
+              </form>
+            )}
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+};
+
 // ═════════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═════════════════════════════════════════════════════════════════════════════
@@ -239,6 +570,7 @@ export const TaskBoard = () => {
   const [userRoles, setUserRoles] = useState({});
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState(null);
+  const [selectedMemberModal, setSelectedMemberModal] = useState(null);
 
   // Daily report submission state
   const [reportText, setReportText] = useState('');
@@ -683,6 +1015,42 @@ export const TaskBoard = () => {
           </form>
         </div>
       </motion.div>
+
+      {/* ── PREMIUM USER CARDS STRIP (PERMANENTLY AT THE TOP) ─── */}
+      <div className="uc-section" style={{ marginBottom: '20px' }}>
+        <div className="uc-section-header">
+          <div>
+            <h3 className="uc-section-title">
+              <Users size={18} style={{ color: 'var(--tb-accent)' }} /> Team Members
+            </h3>
+            <p className="uc-section-sub">Click any member to view tasks & assign work directly</p>
+          </div>
+          <span className="uc-count-badge">{userStatsList.length} members</span>
+        </div>
+
+        {loadingUsers ? (
+          <div className="uc-loading">
+            <Loader2 className="animate-spin" size={28} />
+            <span>Loading team...</span>
+          </div>
+        ) : userStatsList.length === 0 ? (
+          <div className="uc-loading"><Users size={28} /><span>No members found.</span></div>
+        ) : (
+          <div className="uc-grid-horizontal">
+            {userStatsList.map((member, i) => (
+              <motion.div
+                key={member.id}
+                className="uc-card-wrapper"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: i * 0.03, duration: 0.25 }}
+              >
+                <UserCard member={member} onClick={setSelectedMemberModal} />
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* ── VIEW TAB SELECTOR ─────────────────────────────────────────── */}
       <div className="tb-view-selector" style={{
@@ -1179,96 +1547,43 @@ export const TaskBoard = () => {
             </div>
           </div>
 
-          <div className="tb-team-view-container">
-            {/* Left Column: Team List & Stats */}
-            <div className="tb-section-card" style={{ height: '100%' }}>
-              <div className="tb-section-header" style={{ padding: '16px 20px' }}>
-                <div>
-                  <h2 className="tb-section-title">Team Members</h2>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--tb-text-muted)' }}>
-                    Select a member to view tasks
-                  </span>
-                </div>
+          {/* ── PREMIUM USER CARDS GRID ─── */}
+          <div className="uc-section">
+            <div className="uc-section-header">
+              <div>
+                <h3 className="uc-section-title">
+                  <Users size={18} /> Team Members
+                </h3>
+                <p className="uc-section-sub">Click any card to view tasks & assign work</p>
               </div>
-              
-              <div className="team-scroll-container">
-                {loadingUsers ? (
-                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--tb-text-muted)' }}>
-                    <Loader2 className="animate-spin" size={24} style={{ margin: '0 auto 8px' }} />
-                    <span>Loading members...</span>
-                  </div>
-                ) : userStatsList.length === 0 ? (
-                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--tb-text-muted)' }}>
-                    No members found.
-                  </div>
-                ) : (
-                  userStatsList.map(member => {
-                    const isSelected = selectedUserId === member.id || (!selectedUserId && userStatsList[0]?.id === member.id);
-                    if (!selectedUserId && isSelected) {
-                      setSelectedUserId(member.id);
-                    }
-                    
-                    const primaryRole = member.roles[0] || 'Staff';
-                    const completionPct = member.total > 0 ? Math.round((member.completed / member.total) * 100) : 0;
-                    
-                    return (
-                      <div
-                        key={member.id}
-                        onClick={() => setSelectedUserId(member.id)}
-                        style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '10px',
-                          padding: '14px',
-                          borderRadius: '12px',
-                          background: isSelected ? 'var(--tb-accent-bg)' : 'transparent',
-                          border: `1px solid ${isSelected ? 'var(--tb-accent)' : 'transparent'}`,
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
-                          marginBottom: '6px'
-                        }}
-                        className="tb-team-member-item"
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <div className="tb-owner-av" style={{
-                            width: '36px',
-                            height: '36px',
-                            fontSize: '0.9rem',
-                            flexShrink: 0
-                          }}>
-                            {member.avatar_url ? (
-                              <img src={member.avatar_url} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
-                            ) : (
-                              member.name.charAt(0).toUpperCase()
-                            )}
-                          </div>
-                          <div style={{ overflow: 'hidden' }}>
-                            <div style={{ fontWeight: '700', fontSize: '0.88rem', color: 'var(--tb-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {member.name}
-                            </div>
-                            <div style={{ fontSize: '0.72rem', color: 'var(--tb-text-muted)', textTransform: 'capitalize' }}>
-                              {primaryRole}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--tb-text-sub)' }}>
-                          <span>Done: <strong>{member.completed}/{member.total}</strong></span>
-                          <span>Assigned by me: <strong>{member.assignedByMeCount}</strong></span>
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <div className="tb-progress-bar" style={{ height: '4px' }}>
-                            <div className="tb-progress-fill" style={{ width: `${completionPct}%`, background: 'var(--tb-accent)' }} />
-                          </div>
-                          <span style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--tb-text-sub)' }}>{completionPct}%</span>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
+              <span className="uc-count-badge">{userStatsList.length} members</span>
             </div>
+
+            {loadingUsers ? (
+              <div className="uc-loading">
+                <Loader2 className="animate-spin" size={28} />
+                <span>Loading team...</span>
+              </div>
+            ) : userStatsList.length === 0 ? (
+              <div className="uc-loading"><Users size={28} /><span>No members found.</span></div>
+            ) : (
+              <div className="uc-grid">
+                {userStatsList.map((member, i) => (
+                  <motion.div
+                    key={member.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.05, duration: 0.35 }}
+                  >
+                    <UserCard member={member} onClick={setSelectedMemberModal} />
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Detailed tasks panel for selected user — kept for fallback */}
+          <div style={{ display: 'none' }}>
 
             {/* Right Column: Detailed Tasks for Selected User */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -1515,8 +1830,20 @@ export const TaskBoard = () => {
                 );
               })()}
             </div>
-          </div>
+          </div>{/* end hidden fallback div */}
         </div>
+      )}
+
+      {/* ── USER PROFILE MODAL */}
+      {selectedMemberModal && (
+        <UserProfileModal
+          member={selectedMemberModal}
+          onClose={() => setSelectedMemberModal(null)}
+          assignedTasks={assignedTasks}
+          currentUser={user}
+          createAssignedTask={createAssignedTask}
+          users={users}
+        />
       )}
 
       {/* Mobile Floating Action Button (FAB) */}
