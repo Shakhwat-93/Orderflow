@@ -35,6 +35,7 @@ const Profile = lazy(() => import('./pages/Profile').then(m => ({ default: m.Pro
 const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
 const TaskBoard = lazy(() => import('./pages/TaskBoard').then(m => ({ default: m.TaskBoard })));
 const DigitalMarketerPanel = lazy(() => import('./pages/DigitalMarketerPanel').then(m => ({ default: m.DigitalMarketerPanel })));
+const ContentPlanning = lazy(() => import('./pages/ContentPlanning').then(m => ({ default: m.ContentPlanning })));
 const SteadfastPanel = lazy(() => import('./pages/SteadfastPanel').then(m => ({ default: m.SteadfastPanel })));
 const FraudControl = lazy(() => import('./pages/FraudControl').then(m => ({ default: m.FraudControl })));
 const BackupPanel = lazy(() => import('./pages/BackupPanel').then(m => ({ default: m.BackupPanel })));
@@ -232,6 +233,7 @@ function App() {
                                   <Route path="settings" element={<Settings />} />
                                   <Route path="tasks" element={<TaskBoard />} />
                                   <Route path="digital-marketer" element={<RoleRoute roles={['Admin', 'Digital Marketer']}><DigitalMarketerPanel /></RoleRoute>} />
+                                  <Route path="digital-marketer/content-planning" element={<RoleRoute roles={['Admin', 'Digital Marketer']}><ContentPlanning /></RoleRoute>} />
                                   <Route path="steadfast" element={<RoleRoute roles={['Admin', 'Courier Team', 'Moderator']}><SteadfastPanel /></RoleRoute>} />
                                   <Route path="backup" element={<RoleRoute roles={['Admin']}><BackupPanel /></RoleRoute>} />
                                   <Route path="*" element={<Navigate to="/" replace />} />

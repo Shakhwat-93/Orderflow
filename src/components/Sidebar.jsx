@@ -55,7 +55,17 @@ const menuItems = [
   { path: '/users', label: 'Users', icon: Users, roles: ['Admin'], group: 'Intelligence' },
   { path: '/fraud', label: 'Fraud', icon: ShieldAlert, roles: ['Admin'], group: 'Intelligence' },
   { path: '/reports', label: 'Analytics', icon: BarChart3, roles: ['Admin'], group: 'System' },
-  { path: '/digital-marketer', label: 'Marketing', icon: Megaphone, roles: ['Admin', 'Digital Marketer'], group: 'System' },
+  {
+    path: '/digital-marketer',
+    label: 'Marketing',
+    icon: Megaphone,
+    roles: ['Admin', 'Digital Marketer'],
+    group: 'System',
+    children: [
+      { path: '/digital-marketer', label: 'Campaigns' },
+      { path: '/digital-marketer/content-planning', label: 'Content Planning' }
+    ]
+  },
   { path: '/backup', label: 'Backup', icon: DatabaseBackup, roles: ['Admin'], group: 'System' },
 ];
 
@@ -68,7 +78,10 @@ export const Sidebar = ({ isOpen, onClose }) => {
   const { hasAnyRole, signOut, profile, user, userRoles } = useAuth();
   const { appName } = useBranding();
   const { theme, toggleTheme } = useTheme();
-  const [openMenus, setOpenMenus] = useState(() => ({ orders: location.pathname === '/orders' }));
+  const [openMenus, setOpenMenus] = useState(() => ({ 
+    orders: location.pathname === '/orders',
+    marketing: location.pathname.startsWith('/digital-marketer')
+  }));
   const primaryRole = userRoles?.[0] || 'Team Member';
   const displayName = profile?.name || user?.user_metadata?.full_name || user?.email || 'User';
   const currentStatus = new URLSearchParams(location.search).get('status') || '';
@@ -137,7 +150,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
                         event.preventDefault();
                         setOpenMenus(prev => ({
                           ...prev,
-                          [item.label.toLowerCase()]: true
+                          [item.label.toLowerCase()]: !prev[item.label.toLowerCase()]
                         }));
                         navigate(item.path);
                       } else {
@@ -157,12 +170,14 @@ export const Sidebar = ({ isOpen, onClose }) => {
                   {hasChildren && isMenuOpen && (
                     <div className="nav-submenu">
                       {item.children.map((child) => {
-                        const isChildActive = isActive && currentStatus === child.status;
+                        const isChildActive = child.status
+                          ? (isActive && (currentStatus === child.status || (!currentStatus && child.status === 'All')))
+                          : (location.pathname === child.path);
                         return (
                           <Link
-                            key={child.status}
+                            key={child.status || child.path}
                             to={child.path}
-                            className={`nav-subitem ${isChildActive ? 'active' : ''} tone-${child.tone}`}
+                            className={`nav-subitem ${isChildActive ? 'active' : ''} ${child.tone ? `tone-${child.tone}` : ''}`}
                             onClick={onClose}
                           >
                             <span className="nav-subitem-dot" />

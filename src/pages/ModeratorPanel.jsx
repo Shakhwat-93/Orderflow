@@ -57,6 +57,19 @@ export const ModeratorPanel = () => {
     { deserialize: deserializeDateRange }
   );
 
+  const [sourceDropdownOpen, setSourceDropdownOpen] = useState(false);
+  const sourceDropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (sourceDropdownRef.current && !sourceDropdownRef.current.contains(event.target)) {
+        setSourceDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Scroll refs
   const statusTabsRef = useRef(null);
   const checkpointsRef = useRef(null);
@@ -345,17 +358,53 @@ export const ModeratorPanel = () => {
           }}
         />
         
-        <div className="elite-select-wrapper">
+        <div 
+          className="elite-select-wrapper" 
+          ref={sourceDropdownRef}
+          onClick={() => setSourceDropdownOpen(!sourceDropdownOpen)}
+          style={{ position: 'relative', cursor: 'pointer' }}
+        >
           <Globe size={14} className="elite-select-icon" />
-          <select 
-            className="elite-select-field"
-            value={sourceFilter} 
-            onChange={(e) => setSourceFilter(e.target.value)}
-          >
-            <option value="All">All Sources</option>
-            {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <ChevronDown size={14} className="ml-auto opacity-50" />
+          <span className="elite-select-selected-value">
+            {sourceFilter === 'All' ? 'All Sources' : sourceFilter}
+          </span>
+          <ChevronDown size={14} className="ml-auto opacity-50" style={{ transform: sourceDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease', flexShrink: 0 }} />
+          
+          <AnimatePresence>
+            {sourceDropdownOpen && (
+              <motion.div 
+                className="premium-select-dropdown"
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                transition={{ duration: 0.15, ease: 'easeOut' }}
+              >
+                <div 
+                  className={`select-dropdown-item ${sourceFilter === 'All' ? 'active' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSourceFilter('All');
+                    setSourceDropdownOpen(false);
+                  }}
+                >
+                  All Sources
+                </div>
+                {SOURCES.map(s => (
+                  <div 
+                    key={s} 
+                    className={`select-dropdown-item ${sourceFilter === s ? 'active' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSourceFilter(s);
+                      setSourceDropdownOpen(false);
+                    }}
+                  >
+                    {s}
+                  </div>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
         
         <DateRangePicker value={dateRange} onChange={setDateRange} />

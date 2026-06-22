@@ -528,7 +528,7 @@ export const UserManagement = () => {
             required
             minLength={6}
           />
-          <div className="elite-select-wrapper">
+          <div className="um-select-wrapper">
             <label className="input-label">Initial Role</label>
             <select 
               className="elite-select"
