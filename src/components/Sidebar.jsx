@@ -63,7 +63,8 @@ const menuItems = [
     group: 'System',
     children: [
       { path: '/digital-marketer', label: 'Campaigns' },
-      { path: '/digital-marketer/content-planning', label: 'Content Planning' }
+      { path: '/digital-marketer/content-planning', label: 'Content Planning' },
+      { path: '/digital-marketer/finance-planning', label: 'Finance Plan' }
     ]
   },
   { path: '/backup', label: 'Backup', icon: DatabaseBackup, roles: ['Admin'], group: 'System' },
