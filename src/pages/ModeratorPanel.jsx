@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useOrders } from '../context/OrderContext';
 import { Card } from '../components/Card';
 import { Input } from '../components/Input';
