@@ -13,7 +13,7 @@ const LAST_EXPORT_KEY = 'orderflow:last_export_v1';
 const ORDER_STATUSES = [
   'New', 'Pending Call', 'Final Call Pending', 'Confirmed',
   'Bulk Exported', 'Courier Submitted', 'Factory Processing',
-  'Completed', 'Fake Order', 'Cancelled'
+  'Completed', 'Fake Order', 'Cancelled', 'Test'
 ];
 
 const STATUS_COLORS = {
@@ -27,6 +27,7 @@ const STATUS_COLORS = {
   'Completed': '#22c55e',
   'Fake Order': '#ef4444',
   'Cancelled': '#94a3b8',
+  'Test': '#64748b',
 };
 
 /** All available CSV columns with labels and field mappings */
@@ -169,11 +170,10 @@ export const ExportModal = ({
         return allOrders.filter(o => selectedStatuses.includes(o.status));
 
       case 'date': {
-        if (!dateFrom && !dateTo) return allOrders;
         const from = dateFrom ? new Date(dateFrom).getTime() : null;
-        // dateTo: end of day
         const to = dateTo ? new Date(dateTo + 'T23:59:59').getTime() : null;
         return allOrders.filter(o => {
+          if (o.status === 'Test') return false;
           const t = new Date(o.updated_at || o.created_at || 0).getTime();
           if (from && t < from) return false;
           if (to && t > to) return false;
@@ -182,14 +182,15 @@ export const ExportModal = ({
       }
 
       case 'product':
-        if (!selectedProduct) return allOrders;
+        if (!selectedProduct) return allOrders.filter(o => o.status !== 'Test');
         return allOrders.filter(o =>
+          o.status !== 'Test' &&
           String(o.product_name || '').toLowerCase().includes(selectedProduct.toLowerCase())
         );
 
       case 'current':
       default:
-        return allOrders;
+        return allOrders.filter(o => o.status !== 'Test');
     }
   }, [mode, allOrders, selectedOrderIds, selectedStatuses, dateFrom, dateTo, selectedProduct]);
 

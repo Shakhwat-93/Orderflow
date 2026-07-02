@@ -1235,6 +1235,9 @@ export const api = {
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const orderId = `ORD-${randomSuffix}`;
 
+    const isTestOrder = orderData.customer_name && String(orderData.customer_name).toLowerCase().includes('test');
+    const status = isTestOrder ? 'Test' : (orderData.status || 'New');
+
     const payload = {
       id: orderId,
       customer_name: orderData.customer_name,
@@ -1246,7 +1249,7 @@ export const api = {
       quantity: parseInt(orderData.quantity || 1),
       source: orderData.source,
       amount: parseFloat(orderData.amount) || 0,
-      status: orderData.status || 'New',
+      status: status,
       notes: orderData.notes,
       created_by: userId,
       ordered_items: orderData.ordered_items || []
@@ -1891,10 +1894,11 @@ export const api = {
       { data: recentOrders, error: ordersError },
       { data: todayConfirmLogs }
     ] = await Promise.all([
-      supabase.from('orders').select('*', { count: 'exact', head: true }),
+      supabase.from('orders').select('*', { count: 'exact', head: true }).neq('status', 'Test'),
       supabase.from('orders')
         .select('status, amount, phone, product_name, created_at, updated_at, source')
-        .gte('created_at', thirtyDaysAgo.toISOString()),
+        .gte('created_at', thirtyDaysAgo.toISOString())
+        .neq('status', 'Test'),
       supabase.from('order_activity_logs')
         .select('new_status,timestamp,action_type')
         .eq('action_type', 'STATUS_CHANGE')
@@ -2396,7 +2400,8 @@ export const api = {
     let query = supabase
       .from('orders')
       .select('quantity, amount, status, inventory_id')
-      .eq('inventory_id', inventoryId);
+      .eq('inventory_id', inventoryId)
+      .neq('status', 'Test');
 
     if (dateRange.from) query = query.gte('created_at', dateRange.from);
     if (dateRange.to)   query = query.lte('created_at', dateRange.to);

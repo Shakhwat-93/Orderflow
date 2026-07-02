@@ -39,6 +39,7 @@ export const DashboardOverview = () => {
     startOfDayBD.setHours(0, 0, 0, 0);
 
     return orders.filter(o => {
+      if (o.status === 'Test') return false;
       const orderDate = new Date(o.created_at);
       const orderDateBD = new Date(orderDate.getTime() + bdOffset);
       return orderDateBD >= startOfDayBD;
@@ -126,7 +127,7 @@ export const DashboardOverview = () => {
   }, [orders]);
 
   // SLA Calculations
-  const ordersWithCalls = orders?.filter(o => o.first_call_time) || [];
+  const ordersWithCalls = orders?.filter(o => o.status !== 'Test' && o.first_call_time) || [];
   const totalDelayMins = ordersWithCalls.reduce((acc, o) => {
     const delay = (new Date(o.first_call_time) - new Date(o.created_at)) / 60000;
     return acc + Math.max(0, delay);

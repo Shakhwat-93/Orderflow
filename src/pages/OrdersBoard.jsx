@@ -33,7 +33,8 @@ const ORDER_STATUSES = [
   'Factory Processing',
   'Completed',
   'Fake Order',
-  'Cancelled'
+  'Cancelled',
+  'Test'
 ];
 
 const SOURCES = ['Website', 'Facebook', 'Instagram', 'Direct'];
@@ -438,6 +439,7 @@ export const OrdersBoard = () => {
       case 'Courier Submitted': return 'courier';
       case 'Factory Processing': return 'factory';
       case 'Completed': return 'completed';
+      case 'Test': return 'test';
       default: return 'default';
     }
   };

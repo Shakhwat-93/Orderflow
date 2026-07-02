@@ -93,6 +93,12 @@
   border-color: rgba(14, 165, 233, 0.24);
 }
 
+.badge-test {
+  background: rgba(148, 163, 184, 0.08);
+  color: #64748b;
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
 [data-theme='dark'] .badge-default {
   background: rgba(255, 255, 255, 0.03);
   color: #e2e8f0;
@@ -152,4 +158,10 @@
   background: rgba(14, 165, 233, 0.16);
   color: #7dd3fc;
   border-color: rgba(125, 211, 252, 0.28);
+}
+
+[data-theme='dark'] .badge-test {
+  background: rgba(148, 163, 184, 0.08);
+  color: #94a3b8;
+  border-color: rgba(148, 163, 184, 0.2);
 }

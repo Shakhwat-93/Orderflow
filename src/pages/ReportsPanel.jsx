@@ -74,6 +74,7 @@ export const ReportsPanel = () => {
   const filteredOrders = useMemo(() => {
     if (!orders) return [];
     return orders.filter(o => {
+      if (o.status === 'Test') return false;
       const d = new Date(o.created_at);
       return d >= dateRange.start && d <= dateRange.end;
     });
@@ -377,12 +378,14 @@ export const ReportsPanel = () => {
   // Export Orders as CSV
   const handleExportCSV = () => {
     if (!orders || orders.length === 0) return;
+    const cleanOrders = orders.filter(o => o.status !== 'Test');
+    if (cleanOrders.length === 0) return;
 
     // Build CSV header and rows
     const headers = ['Order ID', 'Customer Name', 'Phone', 'Product', 'Size', 'Quantity', 'Source', 'Status', 'Amount', 'Date'];
     const csvContent = [
       headers.join(','),
-      ...orders.map(o => [
+      ...cleanOrders.map(o => [
         o.id,
         `"${o.customer_name}"`, // Escape commas in name
         `"${o.phone}"`,

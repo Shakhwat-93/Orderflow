@@ -125,7 +125,8 @@ export const FinancePlanning = () => {
         .from('orders')
         .select('product_name, status, amount, created_at, quantity')
         .gte('created_at', monthRange.start.toISOString())
-        .lte('created_at', monthRange.end.toISOString());
+        .lte('created_at', monthRange.end.toISOString())
+        .neq('status', 'Test');
       if (error) throw error;
       return data || [];
     } catch (e) {

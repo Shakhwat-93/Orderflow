@@ -11,6 +11,7 @@ export const analytics = {
    * @returns {Array} [{ name: '01 Mar', orders: 45 }]
    */
   getDailyTrend(orders, days = 7) {
+    const cleanOrders = (orders || []).filter(o => o.status !== 'Test');
     const result = [];
     const now = new Date();
     
@@ -19,7 +20,7 @@ export const analytics = {
       date.setDate(date.getDate() - i);
       const dateStr = date.toLocaleDateString('en-US', { day: '2-digit', month: 'short' });
       
-      const count = orders.filter(o => {
+      const count = cleanOrders.filter(o => {
         const orderDate = new Date(o.created_at);
         return orderDate.toLocaleDateString() === date.toLocaleDateString();
       }).length;
@@ -36,6 +37,7 @@ export const analytics = {
    * @returns {Array} [{ name: 'Website', value: 400, color: '#7c4dff' }]
    */
   getSourceDistribution(orders) {
+    const cleanOrders = (orders || []).filter(o => o.status !== 'Test');
     const sources = {};
     const colors = {
       'Website': '#7c4dff',
@@ -44,7 +46,7 @@ export const analytics = {
       'Other': '#94a3b8'
     };
 
-    orders.forEach(o => {
+    cleanOrders.forEach(o => {
       const s = o.source || 'Other';
       sources[s] = (sources[s] || 0) + 1;
     });
@@ -62,10 +64,11 @@ export const analytics = {
    * @returns {Array} [{ name: 'Mon', rate: 75 }]
    */
   getConfirmationRate(orders) {
+    const cleanOrders = (orders || []).filter(o => o.status !== 'Test');
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const counts = {}; // { Mon: { total: 0, confirmed: 0 } }
 
-    orders.forEach(o => {
+    cleanOrders.forEach(o => {
       if (!o.created_at) return;
       const day = days[new Date(o.created_at).getDay()];
       if (!counts[day]) counts[day] = { total: 0, confirmed: 0 };
@@ -86,10 +89,11 @@ export const analytics = {
    * Calculates logistics success rate (Completed vs Cancelled/Returned) by day.
    */
   getLogisticsSuccessRate(orders) {
+    const cleanOrders = (orders || []).filter(o => o.status !== 'Test');
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const counts = {};
 
-    orders.forEach(o => {
+    cleanOrders.forEach(o => {
       if (!o.created_at) return;
       const day = days[new Date(o.created_at).getDay()];
       if (!counts[day]) counts[day] = { attempts: 0, success: 0 };

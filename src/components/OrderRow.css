@@ -282,6 +282,14 @@
 }
 .saas-badge-default .dot { background-color: #64748b; }
 
+/* Test */
+.saas-badge-test {
+  color: #64748b;
+  background: rgba(100, 116, 139, 0.08);
+  border: 1px solid rgba(100, 116, 139, 0.2);
+}
+.saas-badge-test .dot { background-color: #94a3b8; }
+
 /* Dark Theme Overrides */
 [data-theme='dark'] .saas-badge {
   filter: brightness(1.2);
@@ -574,7 +582,7 @@
 }
 
 /* ================================================================
-   FIRST CALLER CELL — replaces Order ID column
+   FIRST CALLER CELL ï¿½ replaces Order ID column
    ================================================================ */
 
 .first-caller-cell {

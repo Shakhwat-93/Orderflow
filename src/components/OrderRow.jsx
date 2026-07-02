@@ -106,13 +106,14 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
       case 'Courier Submitted': return 'courier';
       case 'Factory Processing': return 'factory';
       case 'Completed': return 'completed';
+      case 'Test': return 'test';
       default: return 'default';
     }
   };
 
   const ORDER_STATUSES = [
     'New', 'Pending Call', 'Final Call Pending', 'Confirmed', 'Bulk Exported', 'Courier Submitted',
-    'Factory Processing', 'Completed', 'Fake Order', 'Cancelled'
+    'Factory Processing', 'Completed', 'Fake Order', 'Cancelled', 'Test'
   ];
 
   const orderTimestamp = order.created_at
