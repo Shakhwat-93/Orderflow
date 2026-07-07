@@ -8,6 +8,7 @@ import {
   Truck, 
   Factory, 
   BarChart3,
+  TrendingUp,
   Settings,
   LogOut,
   Users,
@@ -55,6 +56,7 @@ const menuItems = [
   { path: '/users', label: 'Users', icon: Users, roles: ['Admin'], group: 'Intelligence' },
   { path: '/fraud', label: 'Fraud', icon: ShieldAlert, roles: ['Admin'], group: 'Intelligence' },
   { path: '/reports', label: 'Analytics', icon: BarChart3, roles: ['Admin'], group: 'System' },
+  { path: '/sales-report', label: 'Sales Report', icon: TrendingUp, roles: ['Admin', 'Moderator', 'Call Team'], group: 'System' },
   {
     path: '/digital-marketer',
     label: 'Marketing',

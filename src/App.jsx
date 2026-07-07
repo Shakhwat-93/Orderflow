@@ -40,6 +40,7 @@ const FinancePlanning = lazy(() => import('./pages/FinancePlanning').then(m => (
 const SteadfastPanel = lazy(() => import('./pages/SteadfastPanel').then(m => ({ default: m.SteadfastPanel })));
 const FraudControl = lazy(() => import('./pages/FraudControl').then(m => ({ default: m.FraudControl })));
 const BackupPanel = lazy(() => import('./pages/BackupPanel').then(m => ({ default: m.BackupPanel })));
+const SalesReport = lazy(() => import('./pages/SalesReport').then(m => ({ default: m.SalesReport })));
 
 // ── Premium Skeleton Loading Screen ──
 const NativeSkeletonScreen = () => (
@@ -238,6 +239,7 @@ function App() {
                                   <Route path="digital-marketer/finance-planning" element={<RoleRoute roles={['Admin', 'Digital Marketer']}><FinancePlanning /></RoleRoute>} />
                                   <Route path="steadfast" element={<RoleRoute roles={['Admin', 'Courier Team', 'Moderator']}><SteadfastPanel /></RoleRoute>} />
                                   <Route path="backup" element={<RoleRoute roles={['Admin']}><BackupPanel /></RoleRoute>} />
+                                  <Route path="sales-report" element={<RoleRoute roles={['Admin','Moderator','Call Team']}><SalesReport /></RoleRoute>} />
                                   <Route path="*" element={<Navigate to="/" replace />} />
                                 </Route>
                               </Routes>
