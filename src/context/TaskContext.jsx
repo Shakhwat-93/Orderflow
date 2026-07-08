@@ -77,10 +77,11 @@ export const TaskProvider = ({ children }) => {
     };
   }, [fetchTasks, userId]);
 
-  // ── Filter daily tasks by user's role ──
+  // ── Filter daily tasks by user's role or direct assignment ──
   const myDailyTasks = dailyTasks.filter(task => {
     if (isAdmin) return true;
-    return userRoles.includes(task.assigned_role);
+    if (task.assigned_to === user?.id) return true;
+    return !task.assigned_to && userRoles.includes(task.assigned_role);
   });
 
   // ── Check if a daily task is completed today ──
@@ -93,14 +94,14 @@ export const TaskProvider = ({ children }) => {
   }, [todayCompletions]);
 
   // ── Actions ──
-  const completeDailyTask = async (taskId, notes = '') => {
+  const completeDailyTask = async (taskId, notes = '', dateStr = null) => {
     const userName = profile?.name || user?.email || 'User';
-    await api.completeDailyTask(taskId, user.id, userName, notes);
+    await api.completeDailyTask(taskId, user.id, userName, notes, dateStr);
     await fetchTasks();
   };
 
-  const uncompleteDailyTask = async (taskId) => {
-    await api.uncompleteDailyTask(taskId);
+  const uncompleteDailyTask = async (taskId, dateStr = null) => {
+    await api.uncompleteDailyTask(taskId, dateStr);
     await fetchTasks();
   };
 

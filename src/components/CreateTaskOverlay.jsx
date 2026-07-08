@@ -16,10 +16,10 @@ const PRIORITY_OPTIONS = [
 export const CreateTaskOverlay = ({ isOpen, onClose, defaultType = 'daily' }) => {
   const { createDailyTask, createAssignedTask } = useTasks();
   const { isAdmin } = useAuth();
-  const resolvedDefaultType = isAdmin ? defaultType : 'daily';
 
   const [allUsers, setAllUsers] = useState([]);
   const [taskType, setTaskType] = useState(defaultType);
+  const [dailyAssignType, setDailyAssignType] = useState('role'); // 'role' | 'person'
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('medium');
@@ -40,16 +40,14 @@ export const CreateTaskOverlay = ({ isOpen, onClose, defaultType = 'daily' }) =>
     };
 
     if (isOpen) {
-      setTaskType(resolvedDefaultType);
-    }
-
-    if (isAdmin && isOpen) {
+      setTaskType(defaultType);
       fetchUsers();
     }
-  }, [defaultType, isAdmin, isOpen, resolvedDefaultType]);
+  }, [defaultType, isOpen]);
 
   const resetForm = () => {
-    setTaskType(resolvedDefaultType);
+    setTaskType(defaultType);
+    setDailyAssignType('role');
     setTitle('');
     setDescription('');
     setPriority('medium');
@@ -70,6 +68,7 @@ export const CreateTaskOverlay = ({ isOpen, onClose, defaultType = 'daily' }) =>
 
     if (!title.trim() || isSaving) return;
     if (taskType === 'assigned' && !assignedTo) return;
+    if (taskType === 'daily' && dailyAssignType === 'person' && !assignedTo) return;
 
     setIsSaving(true);
 
@@ -87,13 +86,26 @@ export const CreateTaskOverlay = ({ isOpen, onClose, defaultType = 'daily' }) =>
           related_order_id: relatedOrderId.trim() || null,
         });
       } else {
-        await createDailyTask({
-          title: title.trim(),
-          description: description.trim(),
-          assigned_role: assignedRole,
-          priority,
-          recurrence: 'daily',
-        });
+        if (dailyAssignType === 'person') {
+          const selectedUser = allUsers.find((user) => user.id === assignedTo);
+          await createDailyTask({
+            title: title.trim(),
+            description: description.trim(),
+            assigned_role: 'Custom',
+            assigned_to: assignedTo,
+            assigned_to_name: selectedUser?.name || '',
+            priority,
+            recurrence: 'daily',
+          });
+        } else {
+          await createDailyTask({
+            title: title.trim(),
+            description: description.trim(),
+            assigned_role: assignedRole,
+            priority,
+            recurrence: 'daily',
+          });
+        }
       }
 
       handleClose();
@@ -105,7 +117,7 @@ export const CreateTaskOverlay = ({ isOpen, onClose, defaultType = 'daily' }) =>
 
   const isAssignedTask = taskType === 'assigned';
   const selectedUser = allUsers.find((user) => user.id === assignedTo);
-  const submitDisabled = !title.trim() || isSaving || (isAssignedTask && !assignedTo);
+  const submitDisabled = !title.trim() || isSaving || ((isAssignedTask || (taskType === 'daily' && dailyAssignType === 'person')) && !assignedTo);
 
   return (
     <Modal
@@ -115,26 +127,24 @@ export const CreateTaskOverlay = ({ isOpen, onClose, defaultType = 'daily' }) =>
       subtitle="A clean composer for assigning work without leaving the board."
     >
       <form className="ct-sheet" onSubmit={handleSubmit}>
-        {isAdmin && (
-          <div className="ct-mode-switch" role="tablist" aria-label="Task type">
-            <button
-              type="button"
-              className={`ct-mode-btn ${taskType === 'daily' ? 'active' : ''}`}
-              onClick={() => setTaskType('daily')}
-            >
-              <Users size={16} />
-              Role Task
-            </button>
-            <button
-              type="button"
-              className={`ct-mode-btn ${taskType === 'assigned' ? 'active' : ''}`}
-              onClick={() => setTaskType('assigned')}
-            >
-              <UserRound size={16} />
-              Person Task
-            </button>
-          </div>
-        )}
+        <div className="ct-mode-switch" role="tablist" aria-label="Task type">
+          <button
+            type="button"
+            className={`ct-mode-btn ${taskType === 'daily' ? 'active' : ''}`}
+            onClick={() => setTaskType('daily')}
+          >
+            <Users size={16} />
+            Daily Task
+          </button>
+          <button
+            type="button"
+            className={`ct-mode-btn ${taskType === 'assigned' ? 'active' : ''}`}
+            onClick={() => setTaskType('assigned')}
+          >
+            <UserRound size={16} />
+            One-Time Task
+          </button>
+        </div>
 
         <div className="ct-layout">
           <section className="ct-panel ct-panel-main">
@@ -221,22 +231,67 @@ export const CreateTaskOverlay = ({ isOpen, onClose, defaultType = 'daily' }) =>
             <div className="ct-panel-header">
               <div>
                 <p className="ct-eyebrow">Assignment</p>
-                <h3>{isAssignedTask ? 'Choose a teammate' : 'Choose a role'}</h3>
+                <h3>
+                  {isAssignedTask 
+                    ? 'Choose a teammate' 
+                    : (dailyAssignType === 'person' ? 'Choose a teammate' : 'Choose a role')}
+                </h3>
               </div>
             </div>
 
+            {!isAssignedTask && (
+              <div className="ct-daily-assign-switch" style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                <button
+                  type="button"
+                  className={`ct-sub-tab-btn ${dailyAssignType === 'role' ? 'active' : ''}`}
+                  onClick={() => setDailyAssignType('role')}
+                  style={{
+                    flex: 1,
+                    padding: '6px 12px',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    borderRadius: '6px',
+                    border: '1px solid var(--tb-border)',
+                    background: dailyAssignType === 'role' ? 'var(--tb-accent-bg)' : 'transparent',
+                    color: dailyAssignType === 'role' ? 'var(--tb-accent)' : 'var(--tb-text-sub)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  By Role
+                </button>
+                <button
+                  type="button"
+                  className={`ct-sub-tab-btn ${dailyAssignType === 'person' ? 'active' : ''}`}
+                  onClick={() => setDailyAssignType('person')}
+                  style={{
+                    flex: 1,
+                    padding: '6px 12px',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    borderRadius: '6px',
+                    border: '1px solid var(--tb-border)',
+                    background: dailyAssignType === 'person' ? 'var(--tb-accent-bg)' : 'transparent',
+                    color: dailyAssignType === 'person' ? 'var(--tb-accent)' : 'var(--tb-text-sub)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  By Person
+                </button>
+              </div>
+            )}
+
             <div className="ct-assignee-summary">
               <div className="ct-assignee-icon">
-                {isAssignedTask ? <UserRound size={18} /> : <ClipboardList size={18} />}
+                {isAssignedTask || dailyAssignType === 'person' ? <UserRound size={18} /> : <ClipboardList size={18} />}
               </div>
               <div className="ct-assignee-copy">
                 <strong>
-                  {isAssignedTask
+                  {isAssignedTask || dailyAssignType === 'person'
                     ? selectedUser?.name || 'No teammate selected'
                     : assignedRole}
                 </strong>
                 <span>
-                  {isAssignedTask
+                  {isAssignedTask || dailyAssignType === 'person'
                     ? selectedUser?.email || 'Select one person for ownership.'
                     : 'Daily recurring work for this operational role.'}
                 </span>
@@ -244,7 +299,7 @@ export const CreateTaskOverlay = ({ isOpen, onClose, defaultType = 'daily' }) =>
             </div>
 
             <div className="ct-chip-grid">
-              {isAssignedTask ? (
+              {isAssignedTask || dailyAssignType === 'person' ? (
                 allUsers.length > 0 ? (
                   allUsers.map((user) => (
                     <button

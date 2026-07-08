@@ -12,7 +12,7 @@ import { usePersistentState } from '../utils/persistentState';
 import {
   ClipboardList, CheckCircle2, Check, Circle, Plus, Calendar, Clock,
   AlertTriangle, User, Users, Zap, ListChecks, Target, Filter,
-  ChevronRight, Loader2, Search, List, Kanban, TrendingUp, Activity,
+  ChevronRight, ChevronLeft, Loader2, Search, List, Kanban, TrendingUp, Activity,
   ShieldCheck, MoreHorizontal, ChevronDown, ArrowUpRight, Briefcase,
   FileText, FolderOpen, Star, AlertCircle, Award, CheckSquare, Square,
   TrendingDown, Send, X, Mail, Sparkles
@@ -552,13 +552,13 @@ const UserProfileModal = ({ member, onClose, assignedTasks, currentUser, createA
 // ═════════════════════════════════════════════════════════════════════════════
 export const TaskBoard = () => {
   const {
-    myDailyTasks, assignedTasks, todayCompletions, loading,
+    dailyTasks, myDailyTasks, assignedTasks, todayCompletions, loading,
     isCompletedToday, completeDailyTask, uncompleteDailyTask, updateAssignedTask,
-    createAssignedTask
+    createAssignedTask, deleteDailyTask
   } = useTasks();
-  const { user, profile, isAdmin, updatePresenceContext } = useAuth();
+  const { user, profile, userRoles: currentUserRoles, isAdmin, updatePresenceContext } = useAuth();
 
-  const [activeTab, setActiveTab] = usePersistentState('panel:tasks:tab', 'overview');
+  const [activeTab, setActiveTab] = usePersistentState('panel:tasks:tab', 'daily');
   const [assignmentFilter, setAssignmentFilter] = useState('all'); // 'all', 'assigned_to_me', 'assigned_by_me'
   const [isCreateAssignedOpen, setIsCreateAssignedOpen] = useState(false);
   const [isCreateDailyOpen, setIsCreateDailyOpen] = useState(false);
@@ -572,6 +572,14 @@ export const TaskBoard = () => {
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [selectedMemberModal, setSelectedMemberModal] = useState(null);
 
+  // Daily checklist states
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [completionsForDate, setCompletionsForDate] = useState([]);
+  const [loadingCompletions, setLoadingCompletions] = useState(false);
+  const [dailySearchQuery, setDailySearchQuery] = useState('');
+  const [dailyRoleFilter, setDailyRoleFilter] = useState('all');
+  const [dailyAssignFilter, setDailyAssignFilter] = useState('all'); // 'all', 'assigned_to_me'
+
   // Daily report submission state
   const [reportText, setReportText] = useState('');
   const [reportAssignee, setReportAssignee] = useState('');
@@ -580,6 +588,47 @@ export const TaskBoard = () => {
   // Alerts logic state
   const [showOverdueAlert, setShowOverdueAlert] = useState(false);
   const [showReminderAlert, setShowReminderAlert] = useState(false);
+
+  // Fetch completions dynamically for the chosen date
+  useEffect(() => {
+    let active = true;
+    const fetchCompletions = async () => {
+      setLoadingCompletions(true);
+      try {
+        const data = await api.getDailyCompletions(selectedDate);
+        if (active) {
+          setCompletionsForDate(data || []);
+        }
+      } catch (e) {
+        console.error('Error fetching completions for date:', e);
+      } finally {
+        if (active) {
+          setLoadingCompletions(false);
+        }
+      }
+    };
+    fetchCompletions();
+    return () => {
+      active = false;
+    };
+  }, [selectedDate, dailyTasks, todayCompletions]);
+
+  // Handle checking/unchecking a daily task for a specific date
+  const handleToggleDailyTaskForDate = async (taskId) => {
+    const isCompleted = completionsForDate.some(c => c.daily_task_id === taskId);
+    try {
+      if (isCompleted) {
+        await uncompleteDailyTask(taskId, selectedDate);
+      } else {
+        await completeDailyTask(taskId, '', selectedDate);
+      }
+      // Re-fetch completions for this date
+      const data = await api.getDailyCompletions(selectedDate);
+      setCompletionsForDate(data || []);
+    } catch (err) {
+      console.error('Failed to toggle daily task completion:', err);
+    }
+  };
 
   useEffect(() => { updatePresenceContext?.('Managing Tasks'); }, [updatePresenceContext]);
 
@@ -1061,6 +1110,7 @@ export const TaskBoard = () => {
         marginBottom: '10px'
       }}>
         {[
+          { id: 'daily', label: 'Daily Tasks', icon: CheckSquare },
           { id: 'overview', label: 'Overview', icon: ClipboardList },
           { id: 'kanban', label: 'Kanban Board', icon: Kanban },
           { id: 'team', label: 'Team Performance', icon: Users }
@@ -1094,6 +1144,423 @@ export const TaskBoard = () => {
           );
         })}
       </div>
+
+      {activeTab === 'daily' && (
+        <motion.div
+          className="tb-daily-panel"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.2 }}
+          style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}
+        >
+          {/* DATE SELECTOR & PRESETS CONTROL BANNER */}
+          <div className="tb-section-card" style={{ padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ background: 'var(--tb-accent-bg)', color: 'var(--tb-accent)', padding: '10px', borderRadius: '10px' }}>
+                <Calendar size={20} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800 }}>Date-Wise Checklist</h3>
+                <p style={{ margin: '2px 0 0 0', fontSize: '0.78rem', color: 'var(--tb-text-sub)' }}>
+                  Browse history or complete responsibilities for specific days.
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              {/* Date Presets */}
+              <button
+                type="button"
+                className="tb-filter-btn"
+                onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
+                style={{
+                  background: selectedDate === new Date().toISOString().split('T')[0] ? 'var(--tb-accent-bg)' : 'var(--tb-bg)',
+                  color: selectedDate === new Date().toISOString().split('T')[0] ? 'var(--tb-accent)' : 'var(--tb-text-sub)',
+                  borderColor: selectedDate === new Date().toISOString().split('T')[0] ? 'var(--tb-accent)' : 'var(--tb-border)'
+                }}
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                className="tb-filter-btn"
+                onClick={() => {
+                  const prev = new Date();
+                  prev.setDate(prev.getDate() - 1);
+                  setSelectedDate(prev.toISOString().split('T')[0]);
+                }}
+                style={{
+                  background: selectedDate === new Date(Date.now() - 86400000).toISOString().split('T')[0] ? 'var(--tb-accent-bg)' : 'var(--tb-bg)',
+                  color: selectedDate === new Date(Date.now() - 86400000).toISOString().split('T')[0] ? 'var(--tb-accent)' : 'var(--tb-text-sub)',
+                  borderColor: selectedDate === new Date(Date.now() - 86400000).toISOString().split('T')[0] ? 'var(--tb-accent)' : 'var(--tb-border)'
+                }}
+              >
+                Yesterday
+              </button>
+
+              {/* Day navigation controls */}
+              <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--tb-border)', borderRadius: '9px', background: 'var(--tb-bg)', overflow: 'hidden' }}>
+                <button
+                  type="button"
+                  style={{ background: 'transparent', border: 'none', padding: '8px 10px', color: 'var(--tb-text-sub)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                  onClick={() => {
+                    const d = new Date(selectedDate);
+                    d.setDate(d.getDate() - 1);
+                    setSelectedDate(d.toISOString().split('T')[0]);
+                  }}
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    outline: 'none',
+                    color: 'var(--tb-text)',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    padding: '6px 8px',
+                    fontFamily: 'inherit',
+                    cursor: 'pointer'
+                  }}
+                />
+
+                <button
+                  type="button"
+                  style={{ background: 'transparent', border: 'none', padding: '8px 10px', color: 'var(--tb-text-sub)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                  onClick={() => {
+                    const d = new Date(selectedDate);
+                    d.setDate(d.getDate() + 1);
+                    setSelectedDate(d.toISOString().split('T')[0]);
+                  }}
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* DYNAMIC KPIs FOR SELECTED DATE */}
+          {(() => {
+            const filteredTasksForKPIs = dailyTasks.filter(task => {
+              if (isAdmin) return true;
+              if (task.assigned_to === user?.id) return true;
+              return !task.assigned_to && (currentUserRoles || []).includes(task.assigned_role);
+            });
+
+            const totalCount = filteredTasksForKPIs.length;
+            const completedCount = filteredTasksForKPIs.filter(t => completionsForDate.some(c => c.daily_task_id === t.id)).length;
+            const pendingCount = totalCount - completedCount;
+            const pct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+
+            return (
+              <div className="tb-metrics-row">
+                <div className="tb-metric-card">
+                  <div className="tb-metric-top">
+                    <div className="tb-metric-icon" style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1' }}>
+                      <ListChecks size={20} />
+                    </div>
+                  </div>
+                  <div className="tb-metric-value">{totalCount}</div>
+                  <div className="tb-metric-label">Total Daily Tasks</div>
+                </div>
+
+                <div className="tb-metric-card">
+                  <div className="tb-metric-top">
+                    <div className="tb-metric-icon" style={{ background: 'rgba(34,197,94,0.1)', color: '#22c55e' }}>
+                      <CheckCircle2 size={20} />
+                    </div>
+                  </div>
+                  <div className="tb-metric-value">{completedCount}</div>
+                  <div className="tb-metric-label">Completed</div>
+                </div>
+
+                <div className="tb-metric-card">
+                  <div className="tb-metric-top">
+                    <div className="tb-metric-icon" style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}>
+                      <Clock size={20} />
+                    </div>
+                  </div>
+                  <div className="tb-metric-value">{pendingCount}</div>
+                  <div className="tb-metric-label">Pending</div>
+                </div>
+
+                <div className="tb-metric-card">
+                  <div className="tb-metric-top">
+                    <div className="tb-metric-icon" style={{ background: 'rgba(129,140,248,0.1)', color: '#818cf8' }}>
+                      <Target size={20} />
+                    </div>
+                    <div className="tb-metric-trend text-success">{pct}%</div>
+                  </div>
+                  <div className="tb-metric-value">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+                      <span style={{ fontSize: '1.5rem', fontWeight: 900 }}>{pct}%</span>
+                      <div style={{ flex: 1, height: '8px', background: 'var(--tb-bg)', borderRadius: '99px', overflow: 'hidden' }}>
+                        <div style={{ width: `${pct}%`, height: '100%', background: 'var(--tb-accent)', borderRadius: '99px', transition: 'width 0.4s ease' }} />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="tb-metric-label">Completion Rate</div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* MAIN CHECKLIST WORKSPACE */}
+          <div className="tb-team-view-container">
+            {/* LEFT / MAIN COLUMN: CHECKLIST */}
+            <div className="tb-section-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px 24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid var(--tb-border)', paddingBottom: '16px' }}>
+                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800 }}>Task Checklist</h4>
+
+                {/* Filters */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <div className="tb-search-box">
+                    <Search size={14} />
+                    <input
+                      type="text"
+                      placeholder="Search daily tasks..."
+                      value={dailySearchQuery}
+                      onChange={(e) => setDailySearchQuery(e.target.value)}
+                    />
+                  </div>
+
+                  <select
+                    className="tb-filter-btn"
+                    value={dailyRoleFilter}
+                    onChange={(e) => setDailyRoleFilter(e.target.value)}
+                    style={{ outline: 'none', cursor: 'pointer' }}
+                  >
+                    <option value="all">All Roles</option>
+                    <option value="Admin">Admin</option>
+                    <option value="Moderator">Moderator</option>
+                    <option value="Call Team">Call Team</option>
+                    <option value="Courier Team">Courier Team</option>
+                    <option value="Factory Team">Factory Team</option>
+                    <option value="Custom">Teammate Custom</option>
+                  </select>
+
+                  <select
+                    className="tb-filter-btn"
+                    value={dailyAssignFilter}
+                    onChange={(e) => setDailyAssignFilter(e.target.value)}
+                    style={{ outline: 'none', cursor: 'pointer' }}
+                  >
+                    <option value="all">All Assignments</option>
+                    <option value="assigned_to_me">My Tasks</option>
+                  </select>
+
+                  <button
+                    type="button"
+                    className="tb-export-btn"
+                    onClick={() => setIsCreateDailyOpen(true)}
+                    style={{ padding: '6px 12px', borderRadius: '8px', fontSize: '0.78rem' }}
+                  >
+                    <Plus size={14} />
+                    Add Daily Task
+                  </button>
+                </div>
+              </div>
+
+              {/* LIST OF DAILY TASKS */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {(() => {
+                  const filteredDaily = dailyTasks.filter(task => {
+                    if (dailySearchQuery && !task.title?.toLowerCase().includes(dailySearchQuery.toLowerCase())) return false;
+                    if (dailyRoleFilter !== 'all' && task.assigned_role !== dailyRoleFilter) return false;
+
+                    if (dailyAssignFilter === 'assigned_to_me') {
+                      if (task.assigned_to !== user?.id) return false;
+                    } else {
+                      if (!isAdmin) {
+                        if (task.assigned_to && task.assigned_to !== user?.id) return false;
+                        if (!task.assigned_to && !(currentUserRoles || []).includes(task.assigned_role)) return false;
+                      }
+                    }
+                    return true;
+                  });
+
+                  if (filteredDaily.length === 0) {
+                    return (
+                      <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--tb-text-muted)', fontSize: '0.85rem' }}>
+                        No daily tasks match the filter criteria.
+                      </div>
+                    );
+                  }
+
+                  return filteredDaily.map(task => {
+                    const completion = completionsForDate.find(c => c.daily_task_id === task.id);
+                    const isCompleted = !!completion;
+                    const priorityConfig = PRIORITY_CONFIG[task.priority || 'medium'];
+
+                    return (
+                      <div
+                        key={task.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '14px 16px',
+                          background: 'var(--tb-bg)',
+                          border: '1px solid var(--tb-border)',
+                          borderRadius: '12px',
+                          gap: '16px',
+                          opacity: isCompleted ? 0.75 : 1,
+                          transition: 'all 0.2s ease',
+                          position: 'relative'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1 }}>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleDailyTaskForDate(task.id)}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: isCompleted ? 'var(--tb-accent)' : 'var(--tb-text-muted)',
+                              cursor: 'pointer',
+                              padding: 0,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              transition: 'color 0.2s'
+                            }}
+                          >
+                            {isCompleted ? <CheckSquare size={22} /> : <Square size={22} />}
+                          </button>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                              <span style={{
+                                fontWeight: 700,
+                                fontSize: '0.88rem',
+                                color: 'var(--tb-text)',
+                                textDecoration: isCompleted ? 'line-through' : 'none'
+                              }}>
+                                {task.title}
+                              </span>
+
+                              <span style={{
+                                fontSize: '0.65rem',
+                                fontWeight: 800,
+                                textTransform: 'uppercase',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                background: priorityConfig?.bg || 'rgba(0,0,0,0.05)',
+                                color: priorityConfig?.color || 'var(--tb-text-sub)'
+                              }}>
+                                {task.priority}
+                              </span>
+
+                              <span style={{
+                                fontSize: '0.65rem',
+                                fontWeight: 800,
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                background: 'rgba(99,102,241,0.08)',
+                                color: 'var(--tb-accent)'
+                              }}>
+                                {task.assigned_to_name ? `@${task.assigned_to_name}` : `Role: ${task.assigned_role}`}
+                              </span>
+                            </div>
+                            {task.description && (
+                              <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--tb-text-sub)' }}>
+                                {task.description}
+                              </p>
+                            )}
+
+                            {isCompleted && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '0.72rem', color: '#22c55e', fontWeight: 600 }}>
+                                <ShieldCheck size={12} />
+                                <span>Checked by {completion.completed_by_name} at {new Date(completion.completed_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {(isAdmin || task.created_by === user?.id) && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (confirm(`Are you sure you want to delete the daily task "${task.title}"?`)) {
+                                try {
+                                  await deleteDailyTask(task.id);
+                                  const data = await api.getDailyCompletions(selectedDate);
+                                  setCompletionsForDate(data || []);
+                                } catch (e) {
+                                  console.error(e);
+                                }
+                              }
+                            }}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: 'var(--tb-text-muted)',
+                              cursor: 'pointer',
+                              padding: '6px',
+                              borderRadius: '6px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
+                            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--tb-text-muted)'}
+                          >
+                            <X size={16} />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+
+            {/* RIGHT COLUMN: HISTORY & AUDIT LOG */}
+            <div className="tb-sidebar-widget" style={{ padding: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--tb-border)', paddingBottom: '12px', marginBottom: '4px' }}>
+                <Activity size={16} style={{ color: 'var(--tb-accent)' }} />
+                <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 850 }}>Daily Activity Log</h4>
+              </div>
+
+              {loadingCompletions ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
+                  <Loader2 className="animate-spin" size={20} />
+                </div>
+              ) : completionsForDate.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--tb-text-muted)', fontSize: '0.78rem' }}>
+                  No activities recorded yet for this date.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '350px', overflowY: 'auto', paddingRight: '4px' }}>
+                  {completionsForDate.map(completion => {
+                    const task = dailyTasks.find(t => t.id === completion.daily_task_id);
+                    return (
+                      <div key={completion.id} style={{ display: 'flex', gap: '8px', fontSize: '0.78rem', borderBottom: '1px solid var(--tb-border-row)', paddingBottom: '8px' }}>
+                        <div style={{ minWidth: '45px', color: 'var(--tb-text-muted)', fontWeight: 600 }}>
+                          {new Date(completion.completed_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false })}
+                        </div>
+                        <div style={{ flex: 1, color: 'var(--tb-text)' }}>
+                          <strong>{completion.completed_by_name}</strong> completed{' '}
+                          <span style={{ color: 'var(--tb-accent)', fontWeight: 600 }}>
+                            {task?.title || 'Unknown Task'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       {activeTab === 'overview' && (
         <div className="tb-overview-layout">

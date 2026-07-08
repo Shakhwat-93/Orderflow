@@ -2972,15 +2972,15 @@ export const api = {
     return data || [];
   },
 
-  async completeDailyTask(dailyTaskId, userId, userName, notes = '') {
-    const today = new Date().toISOString().split('T')[0];
+  async completeDailyTask(dailyTaskId, userId, userName, notes = '', dateStr = null) {
+    const targetDate = dateStr || new Date().toISOString().split('T')[0];
     const { data, error } = await supabase
       .from('task_completions')
       .insert({
         daily_task_id: dailyTaskId,
         completed_by: userId,
         completed_by_name: userName,
-        completion_date: today,
+        completion_date: targetDate,
         notes
       })
       .select()
@@ -2989,25 +2989,25 @@ export const api = {
     
     await this.logTaskActivity(
       dailyTaskId, 'daily', 'STATUS_CHANGE', 
-      'Marked as Completed for today', 
+      `Marked as Completed for ${targetDate}`, 
       'Pending', 'Completed'
     );
     
     return data;
   },
 
-  async uncompleteDailyTask(dailyTaskId) {
-    const today = new Date().toISOString().split('T')[0];
+  async uncompleteDailyTask(dailyTaskId, dateStr = null) {
+    const targetDate = dateStr || new Date().toISOString().split('T')[0];
     const { error } = await supabase
       .from('task_completions')
       .delete()
       .eq('daily_task_id', dailyTaskId)
-      .eq('completion_date', today);
+      .eq('completion_date', targetDate);
     if (error) throw error;
     
     await this.logTaskActivity(
       dailyTaskId, 'daily', 'STATUS_CHANGE', 
-      'Marked as Pending for today', 
+      `Marked as Pending for ${targetDate}`, 
       'Completed', 'Pending'
     );
   },
