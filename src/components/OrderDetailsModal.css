@@ -94,11 +94,12 @@
 .order-product-item:hover { border-color: var(--m-accent); }
 .product-qty { font-weight: 700; color: var(--m-text-muted); font-size: 0.72rem; background: var(--m-btn-bg); border: 1px solid var(--m-btn-border); padding: 3px 8px; border-radius: 6px; flex-shrink: 0; }
 .product-details { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.name-flex { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
-.name-flex .name { font-weight: 700; font-size: 0.875rem; color: var(--m-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.name-flex { display: flex; align-items: flex-start; gap: 7px; flex-wrap: wrap; }
+.name-flex .name { font-weight: 700; font-size: 0.875rem; color: var(--m-text); white-space: normal; word-break: break-word; line-height: 1.35; }
 .box-tag { font-size: 0.68rem; background: rgba(245,158,11,0.1); color: #b45309; padding: 2px 7px; border-radius: 5px; font-weight: 700; border: 1px solid rgba(245,158,11,0.2); flex-shrink: 0; }
 [data-theme='dark'] .box-tag { background: rgba(251,191,36,0.08); color: #fbbf24; border-color: rgba(251,191,36,0.15); }
 .product-details .size { font-size: 0.72rem; color: var(--m-text-muted); font-weight: 500; }
+.product-price-column { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; min-width: 64px; }
 .product-price { font-weight: 700; font-size: 0.875rem; color: var(--m-text); flex-shrink: 0; letter-spacing: -0.01em; }
 
 /* ── Notes Box ── */

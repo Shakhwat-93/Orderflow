@@ -43,6 +43,7 @@ export const analytics = {
       'Website': '#7c4dff',
       'Facebook': '#2dd4bf',
       'Instagram': '#3f51b5',
+      'Messenger': '#0084ff',
       'Other': '#94a3b8'
     };
 

@@ -339,24 +339,59 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
     : 'N/A';
 
   const productDetails = Array.isArray(order.order_lines_payload) && order.order_lines_payload.length > 0
-    ? order.order_lines_payload.map((item) => ({
-        name: item.product_name || 'Unknown Product',
-        quantity: item.quantity || 1,
-        size: item.size || '',
-        price: Number(item.line_total ?? ((item.unit_price || 0) * (item.quantity || 1))) || 0
-      }))
-    : Array.isArray(order.ordered_items) && order.ordered_items.length > 0 && typeof order.ordered_items[0] === 'object'
-      ? order.ordered_items.map((item) => ({
-          name: item.name || item.product_name || 'Unknown Product',
-          quantity: item.quantity || 1,
+    ? order.order_lines_payload.map((item) => {
+        const qty = Number(item.quantity) || 1;
+        const total = Number(item.line_total ?? ((item.unit_price || 0) * qty)) || 0;
+        const unit = Number(item.unit_price ?? (total / qty)) || 0;
+        return {
+          name: item.product_name || 'Unknown Product',
+          quantity: qty,
           size: item.size || '',
-          price: Number((item.price || 0) * (item.quantity || 1)) || 0
-        }))
+          unitPrice: unit,
+          totalPrice: total,
+          price: total,
+          toyBoxNumber: item.toybox_serial || item.toyBoxNumber || null
+        };
+      })
+    : Array.isArray(order.ordered_items) && order.ordered_items.length > 0
+      ? (typeof order.ordered_items[0] !== 'object'
+          ? order.ordered_items.map((serial) => {
+              const totalAmount = Number(order.amount) || 0;
+              const count = order.ordered_items.length;
+              const unit = count > 0 ? totalAmount / count : 0;
+              return {
+                name: order.product_name || 'TOY BOX',
+                quantity: 1,
+                size: order.size || '',
+                unitPrice: unit,
+                totalPrice: unit,
+                price: unit,
+                toyBoxNumber: serial
+              };
+            })
+          : order.ordered_items.map((item) => {
+              const qty = Number(item.quantity) || 1;
+              const unit = Number(item.price || 0);
+              const total = unit * qty;
+              return {
+                name: item.name || item.product_name || 'Unknown Product',
+                quantity: qty,
+                size: item.size || '',
+                unitPrice: unit,
+                totalPrice: total,
+                price: total,
+                toyBoxNumber: item.toyBoxNumber || item.toybox_serial || null
+              };
+            })
+        )
       : [{
           name: order.product_name || 'Unknown Product',
-          quantity: order.quantity || 1,
+          quantity: Number(order.quantity) || 1,
           size: order.size || '',
-          price: Number(order.amount || 0) || 0
+          unitPrice: Number(order.amount) || 0,
+          totalPrice: Number(order.amount) || 0,
+          price: Number(order.amount) || 0,
+          toyBoxNumber: order.toybox_serial || null
         }];
 
   const copyOrderSummary = () => {
@@ -734,40 +769,33 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
                 <span>Ordered Products</span>
               </div>
               <div className="product-scroll-list">
-                {Array.isArray(order.ordered_items) && order.ordered_items.length > 0 ? (
-                  order.ordered_items.map((item, idx) => (
-                    <div key={idx} className="order-product-card glass-card">
-                      <div className="product-qty-badge">{item.quantity}x</div>
-                      <div className="product-main-info">
-                        <div className="product-name-row">
-                          <span className="name">{item.name}</span>
-                          {item.toyBoxNumber && <span className="box-tag">Box #{item.toyBoxNumber}</span>}
+                {productDetails.map((item, idx) => (
+                  <div key={idx} className="order-product-item glass-card">
+                    <div className="product-qty">{item.quantity}x</div>
+                    <div className="product-details">
+                      <div className="name-flex">
+                        <span className="name" title={item.name}>{item.name}</span>
+                        {item.toyBoxNumber && <span className="box-tag">Box #{item.toyBoxNumber}</span>}
+                      </div>
+                      {item.size && (
+                        <div className="size">
+                          Size: <span className="highlight" style={{ fontWeight: 600, color: 'var(--m-text)' }}>{item.size}</span>
                         </div>
-                        {item.size && <div className="product-meta-detail">Size: <span className="highlight">{item.size}</span></div>}
-                      </div>
-                      <div className="product-price-column">
-                        <div className="unit-price">@<CurrencyIcon size={10} className="currency-icon-elite" />{Number(item.price || 0).toLocaleString()}</div>
-                        <div className="total-price"><CurrencyIcon size={12} className="currency-icon-elite" />{Number((item.price || 0) * (item.quantity || 1)).toLocaleString()}</div>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="order-product-card glass-card">
-                    <div className="product-qty-badge">{order.quantity || 1}x</div>
-                    <div className="product-main-info">
-                      <div className="product-name-row">
-                        <span className="name">{order.product_name}</span>
-                      </div>
-                      {order.size && <div className="product-meta-detail">Size: <span className="highlight">{order.size}</span></div>}
+                      )}
                     </div>
                     <div className="product-price-column">
-                      <div className="total-price">
+                      {item.quantity > 1 && (
+                        <div className="unit-price" style={{ fontSize: '0.7rem', color: 'var(--m-text-muted)', fontWeight: 600 }}>
+                          @<CurrencyIcon size={10} className="currency-icon-elite" />{Number(item.unitPrice || 0).toLocaleString()}
+                        </div>
+                      )}
+                      <div className="product-price">
                         <CurrencyIcon size={12} className="currency-icon-elite" />
-                        {Number(order.amount || 0).toLocaleString()}
+                        {Number(item.totalPrice || 0).toLocaleString()}
                       </div>
                     </div>
                   </div>
-                )}
+                ))}
               </div>
             </div>
           </div>

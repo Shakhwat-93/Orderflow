@@ -559,6 +559,19 @@
   border-color: rgba(52, 211, 153, 0.25);
 }
 
+/* Messenger */
+.source-badge-messenger {
+  background: rgba(0, 132, 255, 0.1);
+  color: #0084ff;
+  border-color: rgba(0, 132, 255, 0.22);
+}
+[data-theme='dark'] .source-badge-messenger {
+  background: rgba(0, 132, 255, 0.15);
+  color: #60a5fa;
+  border-color: rgba(96, 165, 250, 0.28);
+}
+
+
 /* ── RESPONSE TIMER CELL (table column) ─────────────────────── */
 .response-timer-cell {
   white-space: nowrap;

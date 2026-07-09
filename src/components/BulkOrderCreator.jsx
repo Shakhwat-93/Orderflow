@@ -25,7 +25,7 @@ const PRODUCT_COLORS = DEFAULT_PRODUCT_CATALOG.reduce((acc, item) => {
   return acc;
 }, {});
 
-const SOURCES = ['Website', 'Facebook', 'Instagram', 'Direct'];
+const SOURCES = ['Website', 'Facebook', 'Instagram', 'Direct', 'Messenger'];
 const SHIPPING_ZONES = [
   { value: 'Inside Dhaka', charge: 80 },
   { value: 'Outside Dhaka', charge: 150 }

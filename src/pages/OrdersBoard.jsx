@@ -19,7 +19,7 @@ import BulkOrderCreator from '../components/BulkOrderCreator';
 import './OrdersBoard.css';
 import '../components/BulkActions.css';
 import api from '../lib/api';
-import { getProductCheckpoints } from '../utils/productCatalog';
+import { getProductCheckpoints, getFormattedProductName } from '../utils/productCatalog';
 import { useRouteOrderReadState } from '../hooks/useRouteOrderReadState';
 import { ExportModal } from '../components/ExportModal';
 
@@ -37,7 +37,7 @@ const ORDER_STATUSES = [
   'Test'
 ];
 
-const SOURCES = ['Website', 'Facebook', 'Instagram', 'Direct'];
+const SOURCES = ['Website', 'Facebook', 'Instagram', 'Direct', 'Messenger'];
 
 const DELIVERY_ZONES = [
   { value: 'Inside Dhaka', charge: 80 },
@@ -1013,7 +1013,7 @@ export const OrdersBoard = () => {
                 <div className="details-grid-elite">
                   <div className="detail-box-elite">
                     <span className="detail-label">Product</span>
-                    <span className="detail-value product">{order.product_name}</span>
+                    <span className="detail-value product">{getFormattedProductName(order)}</span>
                     <span className="detail-subvalue">{order.size || 'No Size'}</span>
                     {order.source && (
                       <span style={{
@@ -1022,7 +1022,9 @@ export const OrdersBoard = () => {
                         fontWeight: 700, letterSpacing: '0.03em', whiteSpace: 'nowrap',
                         border: '1px solid',
                         ...(
-                          String(order.source).toLowerCase().includes('facebook') || String(order.source).toLowerCase() === 'fb'
+                          String(order.source).toLowerCase().includes('messenger') || String(order.source).toLowerCase() === 'msg'
+                            ? { background: 'rgba(0,132,255,0.1)', color: '#0084ff', borderColor: 'rgba(0,132,255,0.22)' }
+                          : String(order.source).toLowerCase().includes('facebook') || String(order.source).toLowerCase() === 'fb'
                             ? { background: 'rgba(24,119,242,0.1)', color: '#1877f2', borderColor: 'rgba(24,119,242,0.22)' }
                           : String(order.source).toLowerCase().includes('tiktok')
                             ? { background: 'rgba(0,0,0,0.07)', color: '#1a1a1a', borderColor: 'rgba(0,0,0,0.14)' }

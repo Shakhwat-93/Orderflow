@@ -4,6 +4,7 @@ import ReactDOM from 'react-dom';
 import { FileText, Clock, AlertTriangle, Phone, Copy, MessageCircle, Edit2, Globe, Facebook, Play, Users } from 'lucide-react';
 import CurrencyIcon from './CurrencyIcon';
 import { ResponseTimer } from './ResponseTimer';
+import { getFormattedProductName, getOrderTotalQuantity } from '../utils/productCatalog';
 import './OrderRow.css';
 
 /**
@@ -22,7 +23,10 @@ const SourceBadge = ({ traffic_source, source }) => {
   let cls   = 'source-badge-default';
 
   // Normalise common values
-  if (s.includes('facebook') || s === 'fb' || s.includes('l.facebook.com') || s.includes('m.facebook.com')) {
+  if (s.includes('messenger') || s === 'msg') {
+    cls   = 'source-badge-messenger';
+    label = 'Messenger';
+  } else if (s.includes('facebook') || s === 'fb' || s.includes('l.facebook.com') || s.includes('m.facebook.com')) {
     cls   = 'source-badge-fb';
     label = 'Facebook';
   } else if (s.includes('tiktok') || s.includes('ttclid')) {
@@ -127,7 +131,7 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
       })
     : 'N/A';
 
-  const productName = String(order.product_name || 'Unknown Product').trim() || 'Unknown Product';
+  const productName = getFormattedProductName(order);
   const rawPhone = String(order.phone || '').trim();
   const normalizedPhone = rawPhone.replace(/\D/g, '');
   const whatsappPhone = normalizedPhone.startsWith('880')
@@ -248,7 +252,7 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
       </td>
 
       <td className="items-cell">
-        <span className="saas-text">{order.items || 1} items</span>
+        <span className="saas-text">{getOrderTotalQuantity(order)} items</span>
       </td>
 
       <td className="status-cell" onClick={(e) => e.stopPropagation()}>

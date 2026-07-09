@@ -142,3 +142,61 @@ export const getProductCheckpoints = (inventory = []) => {
     }))
   ];
 };
+
+export const getNormalizedOrderProducts = (order) => {
+  if (!order) return [];
+  if (Array.isArray(order.order_lines_payload) && order.order_lines_payload.length > 0) {
+    return order.order_lines_payload.map(item => ({
+      name: normalizeProductName(item.product_name || 'Unknown Product'),
+      quantity: Number(item.quantity) || 1,
+      toyBoxNumber: item.toybox_serial || item.toyBoxNumber || null
+    }));
+  }
+  if (Array.isArray(order.ordered_items) && order.ordered_items.length > 0) {
+    if (typeof order.ordered_items[0] !== 'object') {
+      return order.ordered_items.map(serial => ({
+        name: normalizeProductName(order.product_name || 'TOY BOX'),
+        quantity: 1,
+        toyBoxNumber: serial
+      }));
+    }
+    return order.ordered_items.map(item => ({
+      name: normalizeProductName(item.name || item.product_name || 'Unknown Product'),
+      quantity: Number(item.quantity || item.qty) || 1,
+      toyBoxNumber: item.toyBoxNumber || null
+    }));
+  }
+  return [{
+    name: normalizeProductName(order.product_name || 'Unknown Product'),
+    quantity: Number(order.quantity) || 1,
+    toyBoxNumber: null
+  }];
+};
+
+export const getOrderTotalQuantity = (order) => {
+  const products = getNormalizedOrderProducts(order);
+  const sum = products.reduce((acc, p) => acc + p.quantity, 0);
+  return sum || Number(order.quantity) || 1;
+};
+
+export const getFormattedProductName = (order) => {
+  if (!order) return 'Unknown Product';
+  const products = getNormalizedOrderProducts(order);
+  if (products.length === 0) {
+    return normalizeProductName(order.product_name || 'Unknown Product');
+  }
+
+  const uniqueNames = [...new Set(products.map(p => p.name))];
+  
+  if (uniqueNames.length === 1) {
+    const name = uniqueNames[0];
+    const serials = products.map(p => p.toyBoxNumber).filter(Boolean);
+    if (serials.length > 0) {
+      return `${name} (#${serials.join(', #')})`;
+    }
+    return name;
+  }
+
+  return uniqueNames.join(', ');
+};
+
