@@ -290,6 +290,14 @@
 }
 .saas-badge-test .dot { background-color: #94a3b8; }
 
+/* Incomplete */
+.saas-badge-incomplete {
+  color: #db2777;
+  background: rgba(219, 39, 119, 0.12);
+  border: 1px solid rgba(219, 39, 119, 0.3);
+}
+.saas-badge-incomplete .dot { background-color: #ec4899; }
+
 /* Dark Theme Overrides */
 [data-theme='dark'] .saas-badge {
   filter: brightness(1.2);

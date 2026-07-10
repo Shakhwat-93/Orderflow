@@ -107,6 +107,7 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
       case 'Bulk Exported': return 'bulk-exported';
       case 'Fake Order': return 'fake-order';
       case 'Cancelled': return 'cancelled';
+      case 'Incomplete': return 'incomplete';
       case 'Courier Submitted': return 'courier';
       case 'Factory Processing': return 'factory';
       case 'Completed': return 'completed';
@@ -117,7 +118,7 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
 
   const ORDER_STATUSES = [
     'New', 'Pending Call', 'Final Call Pending', 'Confirmed', 'Bulk Exported', 'Courier Submitted',
-    'Factory Processing', 'Completed', 'Fake Order', 'Cancelled', 'Test'
+    'Factory Processing', 'Completed', 'Fake Order', 'Cancelled', 'Incomplete', 'Test'
   ];
 
   const orderTimestamp = order.created_at

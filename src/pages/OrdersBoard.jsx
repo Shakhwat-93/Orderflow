@@ -34,6 +34,7 @@ const ORDER_STATUSES = [
   'Completed',
   'Fake Order',
   'Cancelled',
+  'Incomplete',
   'Test'
 ];
 
@@ -436,6 +437,7 @@ export const OrdersBoard = () => {
       case 'Bulk Exported': return 'bulk-exported';
       case 'Fake Order': return 'fake-order';
       case 'Cancelled': return 'cancelled';
+      case 'Incomplete': return 'incomplete';
       case 'Courier Submitted': return 'courier';
       case 'Factory Processing': return 'factory';
       case 'Completed': return 'completed';

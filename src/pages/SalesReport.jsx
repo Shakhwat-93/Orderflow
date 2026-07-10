@@ -39,6 +39,7 @@ const STATUS_COLORS = {
   'Pending Call': '#3b82f6',
   'Final Call Pending': '#8b5cf6', 
   'Hold': '#94a3b8',
+  'Incomplete': '#ec4899',
 };
 const PIE_COLORS = ['#10b981','#6366f1','#ef4444','#f59e0b','#3b82f6','#8b5cf6','#94a3b8','#14b8a6'];
 

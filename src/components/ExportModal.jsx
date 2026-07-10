@@ -13,7 +13,7 @@ const LAST_EXPORT_KEY = 'orderflow:last_export_v1';
 const ORDER_STATUSES = [
   'New', 'Pending Call', 'Final Call Pending', 'Confirmed',
   'Bulk Exported', 'Courier Submitted', 'Factory Processing',
-  'Completed', 'Fake Order', 'Cancelled', 'Test'
+  'Completed', 'Fake Order', 'Cancelled', 'Incomplete', 'Test'
 ];
 
 const STATUS_COLORS = {
@@ -27,6 +27,7 @@ const STATUS_COLORS = {
   'Completed': '#22c55e',
   'Fake Order': '#ef4444',
   'Cancelled': '#94a3b8',
+  'Incomplete': '#ec4899',
   'Test': '#64748b',
 };
 

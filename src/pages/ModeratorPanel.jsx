@@ -24,7 +24,7 @@ import './ModeratorPanel.css';
 
 const ORDER_STATUSES = [
   'New', 'Pending Call', 'Final Call Pending', 'Confirmed', 'Bulk Exported', 'Factory Queue', 'Courier Ready',
-  'Courier Submitted', 'Factory Processing', 'Completed', 'Fake Order', 'Cancelled', 'Test'
+  'Courier Submitted', 'Factory Processing', 'Completed', 'Fake Order', 'Cancelled', 'Incomplete', 'Test'
 ];
 
 const SOURCES = ['Website', 'Facebook', 'Instagram', 'Direct', 'Messenger'];

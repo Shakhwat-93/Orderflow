@@ -377,6 +377,11 @@
   box-shadow: 0 0 0 3px rgba(127, 29, 29, 0.16);
 }
 
+.nav-subitem.tone-incomplete .nav-subitem-dot {
+  background: #ec4899;
+  box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.12);
+}
+
 @keyframes navSubmenuReveal {
   from {
     opacity: 0;

@@ -1408,6 +1408,7 @@ export const api = {
       'Cancelled': ['Admin', 'Call Team'],
       'Fake Order': ['Admin', 'Call Team'],
       'Final Call Pending': ['Admin', 'Call Team', 'Moderator'],
+      'Incomplete': ['Admin', 'Call Team', 'Moderator'],
       'Bulk Exported': ['Admin', 'Factory Team', 'Courier Team'],
       'Courier Ready': ['Admin', 'Factory Team'],
       'Factory Queue': ['Admin', 'Factory Team'],
