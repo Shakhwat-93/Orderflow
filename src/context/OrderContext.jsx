@@ -73,12 +73,18 @@ export const OrderProvider = ({ children }) => {
       setLoading(true);
     }
     try {
-      const { data, count } = await api.getOrdersWithCount(currentPage, ORDER_SNAPSHOT_SIZE, {});
+      const currentFilters = filtersRef.current;
+      const apiFilters = {};
+      if (currentFilters.status && currentFilters.status !== 'All') {
+        apiFilters.status = currentFilters.status;
+      }
+      
+      const { data, count } = await api.getOrdersWithCount(currentPage, ORDER_SNAPSHOT_SIZE, apiFilters);
       if (id === fetchIdRef.current) { 
         setOrders(data);
         setTotalCount(count);
         // Cache the working snapshot so route changes never show a blank shell before Supabase responds.
-        if (currentPage === 1) {
+        if (currentPage === 1 && (!currentFilters.status || currentFilters.status === 'All')) {
           localStorage.setItem('of_recent_orders', JSON.stringify(data.slice(0, ORDER_SNAPSHOT_SIZE)));
         }
       }
@@ -211,6 +217,11 @@ export const OrderProvider = ({ children }) => {
     window.addEventListener('app:resume', handleResume);
     return () => window.removeEventListener('app:resume', handleResume);
   }, [initializeData, userId]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    fetchOrders(1);
+  }, [filters.status, fetchOrders, isInitialized]);
 
   // Fraud & Automation Detection Effect
   useEffect(() => {
