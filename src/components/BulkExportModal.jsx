@@ -159,41 +159,69 @@ const buildRow = (order) => {
   row['PHONE'] = typeof formatPhone === 'function' ? formatPhone(order.phone) : (order.phone || '');
   row['ORDER ID'] = order.id || '';
   
-  const items = Array.isArray(order?.order_lines_payload) && order.order_lines_payload.length > 0
-    ? order.order_lines_payload.map(item => ({
-        name: item.product_name || 'Unknown Product',
-        variant: item.size || item.color || '',
-        quantity: Number(item.quantity) || 1
-      }))
+  // Parse item details exactly like OrderDetailsModal.jsx
+  const productDetails = Array.isArray(order?.order_lines_payload) && order.order_lines_payload.length > 0
+    ? order.order_lines_payload.map((item) => {
+        const qty = Number(item.quantity) || 1;
+        const total = Number(item.line_total ?? ((item.unit_price || 0) * qty)) || 0;
+        const unit = Number(item.unit_price ?? (total / qty)) || 0;
+        return {
+          name: item.product_name || 'Unknown Product',
+          quantity: qty,
+          size: item.size || item.color || '',
+          unitPrice: unit,
+          totalPrice: total,
+          price: total
+        };
+      })
     : Array.isArray(order?.ordered_items) && order.ordered_items.length > 0
       ? (typeof order.ordered_items[0] !== 'object'
-          ? order.ordered_items.map(serial => ({
-              name: order.product_name || 'TOY BOX',
-              variant: order.size || '',
-              quantity: 1
-            }))
-          : order.ordered_items.map(item => ({
-              name: item.name || item.product_name || 'Unknown Product',
-              variant: item.size || item.color || '',
-              quantity: Number(item.quantity) || 1
-            }))
+          ? order.ordered_items.map((serial) => {
+              const totalAmount = Number(order.amount) || 0;
+              const count = order.ordered_items.length;
+              const unit = count > 0 ? totalAmount / count : 0;
+              return {
+                name: order.product_name || 'TOY BOX',
+                quantity: 1,
+                size: order.size || '',
+                unitPrice: unit,
+                totalPrice: unit,
+                price: unit
+              };
+            })
+          : order.ordered_items.map((item) => {
+              const qty = Number(item.quantity) || 1;
+              const unit = Number(item.price || 0);
+              const total = unit * qty;
+              return {
+                name: item.name || item.product_name || 'Unknown Product',
+                quantity: qty,
+                size: item.size || item.color || '',
+                unitPrice: unit,
+                totalPrice: total,
+                price: total
+              };
+            })
         )
       : [{
           name: order?.product_name || 'Unknown Product',
-          variant: order?.size || '',
-          quantity: Number(order?.quantity) || 1
+          quantity: Number(order?.quantity) || 1,
+          size: order?.size || '',
+          unitPrice: Number(order?.amount) || 0,
+          totalPrice: Number(order?.amount) || 0,
+          price: Number(order?.amount) || 0
         }];
       
-  const shorts = items.map(i => {
-     const combinedName = `${i.name || ''} ${i.variant || ''}`;
+  const shorts = productDetails.map(i => {
+     const combinedName = `${i.name || ''} ${i.size || ''}`;
      return getShortNameWithColor(combinedName);
   });
   row['ORDER SHORT'] = [...new Set(shorts.filter(Boolean))].join(', ');
   
   const colors = [
     order?.size,
-    ...items.map(i => i.variant || ''),
-    ...items.map(i => {
+    ...productDetails.map(i => i.size || ''),
+    ...productDetails.map(i => {
       const nameLower = String(i.name || '').toLowerCase();
       const foundColor = ['black', 'beige', 'blue', 'red', 'golden', 'white', 'green', 'pink', 'grey', 'gray', 'silver', 'brown'].find(c => nameLower.includes(c));
       return foundColor || '';
@@ -205,16 +233,41 @@ const buildRow = (order) => {
   
   row['SOURCE'] = typeof formatSource === 'function' ? formatSource(order.source) : (order.source || '');
   
-  const totalQty = items.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
+  const totalQty = productDetails.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
   row['QUANTITY'] = totalQty || Number(order.quantity) || 1;
   
-  let dc = Number(order?.delivery_charge);
-  if (isNaN(dc) || order?.delivery_charge === null || order?.delivery_charge === '') {
+  // Resolve Delivery Charge (dc) exactly like OrderDetailsModal.jsx
+  let dc = 0;
+  const directCharge = Number(order?.delivery_charge);
+  const summaryCharge = Number(order?.pricing_summary?.delivery_charge);
+  
+  if (order?.delivery_charge !== undefined && order?.delivery_charge !== null && order?.delivery_charge !== '' && Number.isFinite(directCharge)) {
+    dc = directCharge;
+  } else if (order?.pricing_summary?.delivery_charge !== undefined && order?.pricing_summary?.delivery_charge !== null && order?.pricing_summary?.delivery_charge !== '' && Number.isFinite(summaryCharge)) {
+    dc = summaryCharge;
+  } else {
     dc = lowerZone.includes('inside') ? 60 : 130;
   }
-  const amt = Number(order.amount) || 0;
   
-  const productPrice = Math.max(0, amt - dc);
+  // Resolve Total Amount (amt) exactly like OrderDetailsModal.jsx
+  let amt = Number(order?.amount);
+  if (!Number.isFinite(amt) || amt <= 0) {
+    const summaryTotal = Number(order?.pricing_summary?.total);
+    if (Number.isFinite(summaryTotal) && summaryTotal > 0) {
+      amt = summaryTotal;
+    } else {
+      const subtotal = productDetails.reduce((sum, item) => sum + (Number(item.totalPrice) || 0), 0);
+      amt = subtotal + dc;
+    }
+  }
+  
+  // Calculate product price ensuring mathematical consistency
+  const subtotal = productDetails.reduce((sum, item) => sum + (Number(item.totalPrice) || 0), 0);
+  let productPrice = subtotal;
+  if (productPrice <= 0 || productPrice + dc !== amt) {
+    productPrice = Math.max(0, amt - dc);
+  }
+  
   row['PRODUCT PRICE'] = productPrice % 1 === 0 ? productPrice : parseFloat(productPrice.toFixed(2));
   row['DELIVERY CHARGE'] = dc;
   row['TOTAL AMOUNT'] = amt % 1 === 0 ? amt : parseFloat(amt.toFixed(2));
