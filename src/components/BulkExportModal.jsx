@@ -249,24 +249,11 @@ const buildRow = (order) => {
     dc = lowerZone.includes('inside') ? 60 : 130;
   }
   
-  // Resolve Total Amount (amt) exactly like OrderDetailsModal.jsx
-  let amt = Number(order?.amount);
-  if (!Number.isFinite(amt) || amt <= 0) {
-    const summaryTotal = Number(order?.pricing_summary?.total);
-    if (Number.isFinite(summaryTotal) && summaryTotal > 0) {
-      amt = summaryTotal;
-    } else {
-      const subtotal = productDetails.reduce((sum, item) => sum + (Number(item.totalPrice) || 0), 0);
-      amt = subtotal + dc;
-    }
-  }
+  // Resolve Total Amount (amt) strictly from order.amount without fallback calculations
+  const amt = order?.amount !== undefined && order?.amount !== null && order?.amount !== '' ? Number(order.amount) : 0;
   
-  // Calculate product price ensuring mathematical consistency
-  const subtotal = productDetails.reduce((sum, item) => sum + (Number(item.totalPrice) || 0), 0);
-  let productPrice = subtotal;
-  if (productPrice <= 0 || productPrice + dc !== amt) {
-    productPrice = Math.max(0, amt - dc);
-  }
+  // Calculate product price ensuring mathematical consistency (TOTAL AMOUNT - DELIVERY CHARGE)
+  const productPrice = Math.max(0, amt - dc);
   
   row['PRODUCT PRICE'] = productPrice % 1 === 0 ? productPrice : parseFloat(productPrice.toFixed(2));
   row['DELIVERY CHARGE'] = dc;
