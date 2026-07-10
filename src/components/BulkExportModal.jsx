@@ -5,6 +5,7 @@ import {
   Zap, TrendingUp, Users
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { getFormattedProductName } from '../utils/productCatalog';
 import './BulkExportModal.css';
 
 // ── Constants ────────────────────────────────────────────────
@@ -158,23 +159,54 @@ const buildRow = (order) => {
   row['PHONE'] = typeof formatPhone === 'function' ? formatPhone(order.phone) : (order.phone || '');
   row['ORDER ID'] = order.id || '';
   
-  const items = Array.isArray(order?.ordered_items) && order.ordered_items.length > 0 
-      ? order.ordered_items 
-      : [{ name: order?.product_name, variant: order?.size }];
+  const items = Array.isArray(order?.order_lines_payload) && order.order_lines_payload.length > 0
+    ? order.order_lines_payload.map(item => ({
+        name: item.product_name || 'Unknown Product',
+        variant: item.size || item.color || '',
+        quantity: Number(item.quantity) || 1
+      }))
+    : Array.isArray(order?.ordered_items) && order.ordered_items.length > 0
+      ? (typeof order.ordered_items[0] !== 'object'
+          ? order.ordered_items.map(serial => ({
+              name: order.product_name || 'TOY BOX',
+              variant: order.size || '',
+              quantity: 1
+            }))
+          : order.ordered_items.map(item => ({
+              name: item.name || item.product_name || 'Unknown Product',
+              variant: item.size || item.color || '',
+              quantity: Number(item.quantity) || 1
+            }))
+        )
+      : [{
+          name: order?.product_name || 'Unknown Product',
+          variant: order?.size || '',
+          quantity: Number(order?.quantity) || 1
+        }];
       
   const shorts = items.map(i => {
-     const combinedName = `${i.name || order?.product_name || ''} ${i.variant || order?.size || ''}`;
+     const combinedName = `${i.name || ''} ${i.variant || ''}`;
      return getShortNameWithColor(combinedName);
   });
-  row['ORDER SHORT'] = [...new Set(shorts)].join(', ');
+  row['ORDER SHORT'] = [...new Set(shorts.filter(Boolean))].join(', ');
   
-  const colors = [order?.size, ...items.map(i => i?.name || '')]
+  const colors = [
+    order?.size,
+    ...items.map(i => i.variant || ''),
+    ...items.map(i => {
+      const nameLower = String(i.name || '').toLowerCase();
+      const foundColor = ['black', 'beige', 'blue', 'red', 'golden', 'white', 'green', 'pink', 'grey', 'gray', 'silver', 'brown'].find(c => nameLower.includes(c));
+      return foundColor || '';
+    })
+  ]
     .filter(Boolean)
     .map(s => String(s).trim());
   row['COLOR CODE'] = [...new Set(colors)].join(', ');
   
   row['SOURCE'] = typeof formatSource === 'function' ? formatSource(order.source) : (order.source || '');
-  row['QUANTITY'] = Number(order.quantity) || 1;
+  
+  const totalQty = items.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
+  row['QUANTITY'] = totalQty || Number(order.quantity) || 1;
   
   let dc = Number(order?.delivery_charge);
   if (isNaN(dc) || order?.delivery_charge === null || order?.delivery_charge === '') {
@@ -182,9 +214,10 @@ const buildRow = (order) => {
   }
   const amt = Number(order.amount) || 0;
   
-  row['PRODUCT PRICE'] = Math.max(0, amt - dc).toFixed(2);
+  const productPrice = Math.max(0, amt - dc);
+  row['PRODUCT PRICE'] = productPrice % 1 === 0 ? productPrice : parseFloat(productPrice.toFixed(2));
   row['DELIVERY CHARGE'] = dc;
-  row['TOTAL AMOUNT'] = amt.toFixed(2);
+  row['TOTAL AMOUNT'] = amt % 1 === 0 ? amt : parseFloat(amt.toFixed(2));
   
   return row;
 };
@@ -571,7 +604,7 @@ export const BulkExportModal = ({
                         <td style={{color:'#94a3b8', fontSize:'0.75rem'}}>{idx+1}</td>
                         <td><span className="bem-order-id-badge">#{(o.id||'').replace('ORD-','')}</span></td>
                         <td>{o.customer_name}</td>
-                        <td style={{maxWidth:160, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{o.product_name}</td>
+                        <td style={{maxWidth:160, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{getFormattedProductName(o)}</td>
                         <td style={{fontWeight:600}}>৳{Number(o.amount||0).toLocaleString()}</td>
                         <td style={{color:'#64748b', fontSize:'0.76rem'}}>{fmtShort(o.created_at)}</td>
                       </tr>
