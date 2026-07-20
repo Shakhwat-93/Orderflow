@@ -420,9 +420,279 @@
 [data-theme='dark'] .courier-pill { background: #2563eb; }
 [data-theme='dark'] .steadfast-panel .customer-address-row { color: var(--sl-text-muted); }
 
-/* ── Responsiveness ──────────────────────────────────────────────────────── */
+/* ── Filter Controls Cluster ────────────────────────────────────────────── */
+.filter-controls-cluster {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.status-filter-group {
+  display: flex;
+  background: var(--sl-btn-bg);
+  padding: 5px;
+  border-radius: 99px;
+  border: 1px solid var(--sl-border);
+  gap: 4px;
+}
+
+/* ── Responsive Displays ─────────────────────────────────────────────────── */
+.desktop-only { display: block; }
+.mobile-only { display: none; }
+
+.courier-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.order-table {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: collapse;
+}
+
+/* ── Pagination Styling ─────────────────────────────────────────────────── */
+.steadfast-pagination {
+  padding: 16px 28px;
+  border-top: 1px solid var(--sl-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: var(--sl-card);
+  border-bottom-left-radius: var(--sl-radius);
+  border-bottom-right-radius: var(--sl-radius);
+}
+
+.pagination-info {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--sl-text-sub);
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.items-per-page-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--sl-text-sub);
+}
+
+.page-select {
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--sl-border);
+  background: var(--sl-btn-bg);
+  color: var(--sl-text);
+  font-size: 0.82rem;
+  font-weight: 700;
+  outline: none;
+  cursor: pointer;
+}
+
+.page-buttons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.page-nav-btn, .page-num-btn {
+  height: 34px;
+  min-width: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--sl-border);
+  background: var(--sl-btn-bg);
+  color: var(--sl-text-sub);
+  font-size: 0.82rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.page-nav-btn:hover:not(:disabled), .page-num-btn:hover:not(.active) {
+  background: var(--sl-card-hover);
+  color: var(--sl-text);
+  border-color: var(--sl-accent-bdr);
+}
+
+.page-num-btn.active {
+  background: var(--sl-accent);
+  color: #fff;
+  border-color: var(--sl-accent);
+}
+
+.page-nav-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Mobile Cards View ───────────────────────────────────────────────────── */
+.steadfast-mobile-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+
+.steadfast-mobile-card {
+  background: var(--sl-card);
+  border: 1px solid var(--sl-border);
+  border-radius: var(--sl-radius-sm);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+  transition: all 0.2s ease;
+}
+
+.steadfast-mobile-card.card-selected {
+  border-color: var(--sl-accent);
+  background: var(--sl-accent-bg);
+}
+
+.card-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-left-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-left-meta input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--sl-accent);
+}
+
+.card-left-meta .order-id {
+  font-size: 0.9rem;
+  font-weight: 900;
+  color: var(--sl-text);
+}
+
+.customer-info-box {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.customer-info-box .customer-name {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--sl-text);
+}
+
+.customer-info-box .customer-phone {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--sl-accent);
+}
+
+.customer-info-box .customer-address {
+  font-size: 0.78rem;
+  color: var(--sl-text-sub);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.card-logistics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  background: var(--sl-btn-bg);
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+.card-logistics-grid .meta-box {
+  display: flex;
+  flex-direction: column;
+}
+
+.card-logistics-grid .meta-label {
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: var(--sl-text-muted);
+  text-transform: uppercase;
+}
+
+.card-logistics-grid .meta-val {
+  font-size: 0.8rem;
+  font-weight: 750;
+  color: var(--sl-text);
+}
+
+.card-bottom-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+
+.card-bottom-actions .time-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--sl-text-sub);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.action-buttons-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.track-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: var(--sl-accent-bg);
+  color: var(--sl-accent);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-decoration: none;
+  border: 1px solid var(--sl-accent-bdr);
+}
+
+/* ── Responsiveness Media Queries ───────────────────────────────────────── */
 @media (max-width: 1024px) {
-  .steadfast-panel .stats-grid { grid-template-columns: 1fr; }
+  .steadfast-panel .stats-grid { grid-template-columns: repeat(3, 1fr); }
   .table-search-bar { flex-direction: column; align-items: stretch; }
   .elite-search-wrapper { width: 100%; }
+}
+
+@media (max-width: 768px) {
+  .desktop-only { display: none !important; }
+  .mobile-only { display: flex !important; }
+  .steadfast-panel .stats-grid { grid-template-columns: 1fr; }
+  .filter-controls-cluster { width: 100%; flex-direction: column; align-items: stretch; }
+  .date-filter-group, .status-filter-group { overflow-x: auto; width: 100%; white-space: nowrap; }
+  .steadfast-pagination { flex-direction: column; align-items: center; text-align: center; }
+  .pagination-controls { flex-direction: column; width: 100%; }
 }

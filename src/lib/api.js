@@ -2781,25 +2781,127 @@ export const api = {
    * Dispatch an order to the integrated courier (Steadfast)
    */
   async dispatchToCourier(orderId) {
-    const { data: { session } } = await supabase.auth.getSession();
-    const { data, error } = await supabase.functions.invoke('courier-api', {
-      body: { orderId }
-    });
+    let edgeError = null;
+    let data = null;
 
-    if (error) {
-      console.error('Courier Dispatch Error:', error);
-      throw error;
+    // 1. Try invoking Edge Function first
+    try {
+      const res = await supabase.functions.invoke('courier-api', {
+        body: { orderId }
+      });
+      data = res.data;
+      if (res.error) edgeError = res.error;
+    } catch (err) {
+      edgeError = err;
     }
 
-    // Capture metadata on success
-    // The Edge Function returns { success, trackingCode, consignmentId, details }
-    const consignmentId = data?.consignmentId || data?.details?.consignment?.consignment_id || data?.details?.id;
-    const trackingCode = data?.trackingCode || data?.details?.consignment?.tracking_code || data?.details?.tracking_code;
-    const courierStatus = data?.details?.consignment?.status || data?.details?.status || 'pending';
-    
-    // The Edge Function already updates the database, but we perform a 
-    // client-side sync update here to be absolutely sure and handle any race conditions.
-    const { error: updateError } = await supabase
+    // If Edge Function succeeded, return data
+    if (!edgeError && data?.success) {
+      const consignmentId = data?.consignmentId || data?.details?.consignment?.consignment_id || data?.details?.id;
+      const trackingCode = data?.trackingCode || data?.details?.consignment?.tracking_code || data?.details?.tracking_code;
+      const courierStatus = data?.details?.consignment?.status || data?.details?.status || 'in_review';
+      
+      await supabase
+        .from('orders')
+        .update({
+          dispatched_at: new Date().toISOString(),
+          courier_name: 'Steadfast',
+          tracking_id: trackingCode || null,
+          courier_assigned_id: consignmentId ? String(consignmentId) : null,
+          courier_status: courierStatus,
+          status: 'Courier Submitted',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', orderId);
+
+      return data;
+    }
+
+    // 2. Direct Fallback call to Steadfast API from client if Edge Function fails or returns error
+    console.warn('Edge Function bypassed/failed. Executing direct Steadfast client dispatch fallback...', edgeError || data?.error);
+
+    // Fetch order details from DB
+    const { data: order, error: orderErr } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('id', orderId)
+      .single();
+
+    if (orderErr || !order) {
+      throw new Error(`Order #${orderId} not found: ${orderErr?.message || edgeError?.message || 'Unknown error'}`);
+    }
+
+    // Fetch Steadfast credentials from system_configs
+    const { data: configData } = await supabase
+      .from('system_configs')
+      .select('value')
+      .eq('key', 'courier_steadfast')
+      .maybeSingle();
+
+    const config = configData?.value || {};
+    const apiKey = (config.api_key || '').trim();
+    const secretKey = (config.secret_key || '').trim();
+
+    if (!apiKey || !secretKey) {
+      throw new Error(data?.error || (edgeError ? edgeError.message : 'Steadfast API Key or Secret Key is missing in Settings.'));
+    }
+
+    // Format phone to 11 digits BD number
+    let rawPhone = String(order.phone || '').replace(/\D/g, '');
+    if (rawPhone.length > 11 && rawPhone.startsWith('880')) rawPhone = rawPhone.slice(2);
+    else if (rawPhone.length > 11 && rawPhone.startsWith('88')) rawPhone = rawPhone.slice(2);
+    if (rawPhone.length === 10 && !rawPhone.startsWith('0')) rawPhone = '0' + rawPhone;
+    if (rawPhone.length !== 11 || !rawPhone.startsWith('01')) {
+      const match = rawPhone.match(/01\d{9}/);
+      if (match) rawPhone = match[0];
+    }
+
+    const codAmount = Math.max(0, Math.round(Number(order.total_amount ?? order.total_price ?? order.amount ?? 0)));
+    const cleanAddress = (order.address || order.shipping_address || 'Dhaka, Bangladesh').trim();
+    const cleanName = (order.customer_name || 'Customer').trim().slice(0, 100);
+    const noteContent = `${order.product_name || ''} ${order.size ? `(Size: ${order.size})` : ''}`.trim().slice(0, 250);
+
+    const payload = {
+      invoice: String(order.id).trim(),
+      recipient_name: cleanName,
+      recipient_phone: rawPhone,
+      recipient_address: cleanAddress.length >= 5 ? cleanAddress : `${cleanAddress}, Dhaka`,
+      cod_amount: codAmount,
+      note: noteContent || 'Standard Delivery'
+    };
+
+    const sfRes = await fetch('https://portal.packzy.com/api/v1/create_order', {
+      method: 'POST',
+      headers: {
+        'Api-Key': apiKey,
+        'Secret-Key': secretKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const sfResult = await sfRes.json();
+    console.log('Direct Steadfast API Response:', sfResult);
+
+    const isSuccess = (sfRes.ok && (sfResult.status === 200 || sfResult.status === '200')) || Boolean(sfResult.consignment?.tracking_code);
+
+    if (!isSuccess) {
+      let errorMsg = sfResult.message || 'Steadfast API rejected order submission.';
+      if (sfResult.errors && typeof sfResult.errors === 'object') {
+        const errorDetails = Object.entries(sfResult.errors)
+          .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
+          .join('; ');
+        errorMsg += ` (${errorDetails})`;
+      }
+      throw new Error(errorMsg);
+    }
+
+    const consignment = sfResult.consignment || sfResult;
+    const trackingCode = consignment.tracking_code || sfResult.tracking_code;
+    const consignmentId = consignment.consignment_id || consignment.id || sfResult.consignment_id;
+    const courierStatus = consignment.status || sfResult.status || 'in_review';
+
+    await supabase
       .from('orders')
       .update({
         dispatched_at: new Date().toISOString(),
@@ -2807,15 +2909,19 @@ export const api = {
         tracking_id: trackingCode || null,
         courier_assigned_id: consignmentId ? String(consignmentId) : null,
         courier_status: courierStatus,
-        status: 'Courier Submitted'
+        status: 'Courier Submitted',
+        updated_at: new Date().toISOString()
       })
       .eq('id', orderId);
 
-    if (updateError) {
-      console.error('Failed to update dispatch metadata:', updateError);
-    }
+    await supabase.from('order_activity_logs').insert({
+      order_id: orderId,
+      action_type: 'COURIER_DISPATCH',
+      action_description: `Order submitted directly to Steadfast. Consignment ID: ${consignmentId}, Tracking: ${trackingCode}`,
+      changed_by_user_name: 'Steadfast Direct Integration'
+    });
 
-    return data;
+    return { success: true, trackingCode, consignmentId, details: sfResult };
   },
 
   /**

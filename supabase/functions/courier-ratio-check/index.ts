@@ -162,7 +162,7 @@ Deno.serve(async (req: Request) => {
 
         if (config && config.is_enabled && config.api_key && config.secret_key) {
           console.log(`[Courier Check] Querying Steadfast API for phone: ${phone}`);
-          response = await fetchWithTimeout(`https://portal.steadfast.com.bd/api/v1/fraud_check/${phone}`, {
+          response = await fetchWithTimeout(`https://portal.packzy.com/api/v1/fraud_check/${phone}`, {
             method: 'GET',
             headers: {
               'Api-Key': config.api_key,

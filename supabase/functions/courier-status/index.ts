@@ -43,8 +43,8 @@ Deno.serve(async (req: Request) => {
     const config = configData.value as CourierConfig;
 
     // 2. Call Steadfast Status API
-    // Endpoint for single order tracking: https://portal.steadfast.com.bd/api/v1/status_by_tracking/{tracking_code}
-    const response = await fetch(`https://portal.steadfast.com.bd/api/v1/status_by_tracking/${trackingCode}`, {
+    // Endpoint for single order tracking: https://portal.packzy.com/api/v1/status_by_tracking/{tracking_code}
+    const response = await fetch(`https://portal.packzy.com/api/v1/status_by_tracking/${trackingCode}`, {
       method: 'GET',
       headers: {
         'Api-Key': config.api_key,

@@ -157,7 +157,7 @@ export const CourierRatioProvider = ({ children }) => {
             
             let steadfastRes;
             try {
-              steadfastRes = await fetch(`https://portal.steadfast.com.bd/api/v1/fraud_check/${phone}`, {
+              steadfastRes = await fetch(`https://portal.packzy.com/api/v1/fraud_check/${phone}`, {
                 method: 'GET',
                 headers: {
                   'Api-Key': configSteadfast.api_key,

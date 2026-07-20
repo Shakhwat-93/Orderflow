@@ -5,6 +5,25 @@ interface CourierConfig {
   api_key: string;
   secret_key: string;
   is_enabled: boolean;
+  auto_dispatch?: boolean;
+}
+
+function formatBdPhone(phone: string | null | undefined): string {
+  if (!phone) return '01700000000';
+  let clean = String(phone).replace(/\D/g, '');
+  if (clean.length > 11 && clean.startsWith('880')) {
+    clean = clean.slice(2);
+  } else if (clean.length > 11 && clean.startsWith('88')) {
+    clean = clean.slice(2);
+  }
+  if (clean.length === 10 && !clean.startsWith('0')) {
+    clean = '0' + clean;
+  }
+  if (clean.length !== 11 || !clean.startsWith('01')) {
+    const match = clean.match(/01\d{9}/);
+    if (match) return match[0];
+  }
+  return clean;
 }
 
 Deno.serve(async (req: Request) => {
@@ -37,7 +56,7 @@ Deno.serve(async (req: Request) => {
       .single();
 
     if (orderError || !order) {
-      throw new Error(`Order not found: ${orderError?.message}`);
+      throw new Error(`Order not found: ${orderError?.message || 'Unknown error'}`);
     }
 
     // 2. Fetch Courier Config
@@ -47,44 +66,58 @@ Deno.serve(async (req: Request) => {
       .eq('key', 'courier_steadfast')
       .single();
 
-    if (configError || !configData) {
-      throw new Error('Courier configuration not found');
+    if (configError || !configData || !configData.value) {
+      throw new Error('Steadfast courier configuration not found in Settings.');
     }
 
     const config = configData.value as CourierConfig;
-    if (!config.is_enabled) {
-      throw new Error('Steadfast integration is disabled');
+    if (!config.api_key || !config.secret_key) {
+      throw new Error('Steadfast API Key or Secret Key is missing in Settings.');
     }
 
-    // 3. Prepare Payload for Steadfast
+    if (config.is_enabled === false) {
+      throw new Error('Steadfast integration is currently disabled in Settings.');
+    }
+
+    // 3. Prepare Sanitized Payload for Steadfast API
+    const formattedPhone = formatBdPhone(order.phone);
+    const codAmount = Math.max(0, Math.round(Number(order.total_amount ?? order.total_price ?? order.amount ?? 0)));
+    const cleanAddress = (order.address || order.shipping_address || 'Dhaka, Bangladesh').trim();
+    const cleanName = (order.customer_name || 'Customer').trim().slice(0, 100);
+    const noteContent = `${order.product_name || ''} ${order.size ? `(Size: ${order.size})` : ''}`.trim().slice(0, 250);
+
     const payload = {
-      invoice: order.id,
-      recipient_name: order.customer_name,
-      recipient_phone: order.phone,
-      recipient_address: order.address || 'Dhaka, Bangladesh',
-      cod_amount: parseFloat(String(order.amount || 0)),
-      note: `${order.product_name || ''} ${order.size ? `(Size: ${order.size})` : ''}`.slice(0, 250)
+      invoice: String(order.id).trim(),
+      recipient_name: cleanName,
+      recipient_phone: formattedPhone,
+      recipient_address: cleanAddress.length >= 5 ? cleanAddress : `${cleanAddress}, Dhaka`,
+      cod_amount: codAmount,
+      note: noteContent || 'Standard Delivery'
     };
 
-    console.log(`Submitting order ${orderId} to Steadfast...`);
+    console.log(`Submitting order ${orderId} to Steadfast API:`, payload);
 
     // 4. Call Steadfast API
-    const response = await fetch('https://portal.steadfast.com.bd/api/v1/create_order', {
+    const response = await fetch('https://portal.packzy.com/api/v1/create_order', {
       method: 'POST',
       headers: {
-        'Api-Key': config.api_key,
-        'Secret-Key': config.secret_key,
+        'Api-Key': config.api_key.trim(),
+        'Secret-Key': config.secret_key.trim(),
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(payload)
     });
 
     const result = await response.json();
+    console.log(`Steadfast API Response for order ${orderId}:`, result);
 
-    if (response.ok && result.status === 200) {
+    const isSuccess = (response.ok && (result.status === 200 || result.status === '200')) || Boolean(result.consignment?.tracking_code);
+
+    if (isSuccess) {
       const consignment = result.consignment || result;
-      const trackingCode = consignment.tracking_code;
-      const consignmentId = consignment.consignment_id || consignment.id;
+      const trackingCode = consignment.tracking_code || result.tracking_code;
+      const consignmentId = consignment.consignment_id || consignment.id || result.consignment_id;
+      const courierStatus = consignment.status || result.status || 'in_review';
       
       // 5. Update Order with Tracking ID and Consignment ID
       await supabaseClient
@@ -93,7 +126,9 @@ Deno.serve(async (req: Request) => {
           tracking_id: trackingCode,
           courier_assigned_id: consignmentId ? String(consignmentId) : null,
           courier_name: 'Steadfast',
+          courier_status: courierStatus,
           status: 'Courier Submitted',
+          dispatched_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
         .eq('id', orderId);
@@ -102,8 +137,8 @@ Deno.serve(async (req: Request) => {
       await supabaseClient.from('order_activity_logs').insert({
         order_id: orderId,
         action_type: 'COURIER_DISPATCH',
-        action_description: `Order successfully submitted to Steadfast. Consignment ID: ${consignmentId}, Tracking: ${trackingCode}`,
-        changed_by_user_name: 'Steadfast Automation'
+        action_description: `Order submitted to Steadfast. Consignment ID: ${consignmentId}, Tracking: ${trackingCode}`,
+        changed_by_user_name: 'Steadfast Integration'
       });
 
       return new Response(JSON.stringify({ 
@@ -115,7 +150,13 @@ Deno.serve(async (req: Request) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     } else {
-      const errorMsg = result.errors ? JSON.stringify(result.errors) : (result.message || 'Unknown Courier Error');
+      let errorMsg = result.message || 'Courier API Rejected Request';
+      if (result.errors && typeof result.errors === 'object') {
+        const errorDetails = Object.entries(result.errors)
+          .map(([key, val]) => `${key}: ${Array.isArray(val) ? val.join(', ') : val}`)
+          .join('; ');
+        errorMsg += ` (${errorDetails})`;
+      }
       console.error('Steadfast API Error:', errorMsg);
       
       // Log failure
@@ -123,7 +164,7 @@ Deno.serve(async (req: Request) => {
         order_id: orderId,
         action_type: 'COURIER_ERROR',
         action_description: `Failed to submit to Steadfast: ${errorMsg}`,
-        changed_by_user_name: 'Steadfast Automation'
+        changed_by_user_name: 'Steadfast Integration'
       });
 
       return new Response(JSON.stringify({ 
@@ -136,9 +177,9 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Courier Junction Error:', error.message);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ success: false, error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500
     });

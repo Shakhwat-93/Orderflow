@@ -50,7 +50,13 @@ export const CourierPanel = () => {
   const [selectedProduct, setSelectedProduct] = useState('All');
   const [selectedVariant, setSelectedVariant] = useState('All');
   const [selectedStockStatus, setSelectedStockStatus] = useState('All');
+  const [selectedShippingZone, setSelectedShippingZone] = useState('All');
+  const [selectedSource, setSelectedSource] = useState('All');
   const [rowLoading, setRowLoading] = useState({});
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   /**
    * Universal Client-Side Stock Verification Helper
@@ -185,10 +191,25 @@ export const CourierPanel = () => {
 
   const matchesDate = (order) => {
     if (dateFilter === 'All') return true;
+    const orderDate = new Date(order.updated_at || order.created_at);
+    if (isNaN(orderDate.getTime())) return true;
+    const today = new Date();
+    
     if (dateFilter === 'Today') {
-      const today = new Date().toDateString();
-      const orderDate = new Date(order.updated_at || order.created_at).toDateString();
-      return today === orderDate;
+      return today.toDateString() === orderDate.toDateString();
+    }
+    if (dateFilter === 'Yesterday') {
+      const yest = new Date();
+      yest.setDate(today.getDate() - 1);
+      return yest.toDateString() === orderDate.toDateString();
+    }
+    if (dateFilter === 'Last7Days') {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(today.getDate() - 7);
+      return orderDate >= sevenDaysAgo;
+    }
+    if (dateFilter === 'ThisMonth') {
+      return orderDate.getMonth() === today.getMonth() && orderDate.getFullYear() === today.getFullYear();
     }
     return true;
   };
@@ -219,14 +240,28 @@ export const CourierPanel = () => {
       });
     }
 
-    // Stock Status Filter (using computed local status)
+    // Stock Status Filter
     let matchesStock = true;
     if (selectedStockStatus !== 'All') {
       const { inStock } = checkStockForUI(order);
       matchesStock = selectedStockStatus === 'InStock' ? inStock : !inStock;
     }
 
-    return matchesSearchVal && matchesDateVal && matchesProduct && matchesVariant && matchesStock;
+    // Delivery Zone Filter
+    let matchesShipping = true;
+    if (selectedShippingZone !== 'All') {
+      const zone = (order.shipping_zone || '').toLowerCase();
+      const targetZone = selectedShippingZone.toLowerCase();
+      matchesShipping = zone.includes(targetZone) || targetZone.includes(zone);
+    }
+
+    // Order Source Filter
+    let matchesSourceVal = true;
+    if (selectedSource !== 'All') {
+      matchesSourceVal = (order.source || '').toLowerCase().includes(selectedSource.toLowerCase());
+    }
+
+    return matchesSearchVal && matchesDateVal && matchesProduct && matchesVariant && matchesStock && matchesShipping && matchesSourceVal;
   };
 
   const bulkExportedAll = orders.filter((order) => order.status === 'Bulk Exported');
@@ -244,9 +279,58 @@ export const CourierPanel = () => {
       }).filter(Boolean);
     })
   ));
+  const uniqueSources = Array.from(new Set(orders.map(o => o.source).filter(Boolean)));
+
+  const isFilterActive = Boolean(
+    searchTerm ||
+    dateFilter !== 'All' ||
+    selectedProduct !== 'All' ||
+    selectedVariant !== 'All' ||
+    selectedStockStatus !== 'All' ||
+    selectedShippingZone !== 'All' ||
+    selectedSource !== 'All'
+  );
+
+  const resetAllFilters = () => {
+    setSearchTerm('');
+    setDateFilter('All');
+    setSelectedProduct('All');
+    setSelectedVariant('All');
+    setSelectedStockStatus('All');
+    setSelectedShippingZone('All');
+    setSelectedSource('All');
+    setCurrentPage(1);
+  };
+
   const bulkExportedQueue = bulkExportedAll.filter(filterOrder);
   const courierReadyQueue = courierReadyAll.filter(filterOrder);
   const courierQueue = activeTab === 'bulk' ? bulkExportedQueue : courierReadyQueue;
+
+  // Reset page whenever filters or active tab change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, dateFilter, selectedProduct, selectedVariant, selectedStockStatus, selectedShippingZone, selectedSource, activeTab, pageSize]);
+
+  // Pagination Calculations
+  const totalPages = Math.max(1, Math.ceil(courierQueue.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, courierQueue.length);
+  const pagedCourierQueue = courierQueue.slice(startIndex, endIndex);
+
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisible = 5;
+    let start = Math.max(1, safePage - Math.floor(maxVisible / 2));
+    let end = Math.min(totalPages, start + maxVisible - 1);
+    if (end - start + 1 < maxVisible) {
+      start = Math.max(1, end - maxVisible + 1);
+    }
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+    }
+    return pages;
+  };
   
   const todayCount = (activeTab === 'bulk' ? bulkExportedAll : courierReadyAll).filter(o => {
     const today = new Date().toDateString();
@@ -292,12 +376,19 @@ export const CourierPanel = () => {
     setIsModalOpen(false);
   };
 
-  const handleSubmitToCourier = (orderId) => {
-    updateOrderStatus(orderId, 'Courier Submitted');
+  const handleSubmitToCourier = async (orderOrId) => {
+    const targetOrder = typeof orderOrId === 'object' ? orderOrId : orders.find(o => o.id === orderOrId);
+    if (!targetOrder) return;
+
+    if (!targetOrder.tracking_id && !targetOrder.courier_assigned_id) {
+      await handleSteadfastDispatch(null, targetOrder);
+    } else {
+      updateOrderStatus(targetOrder.id, 'Courier Submitted');
+    }
   };
 
   const handleSteadfastDispatch = async (e, order) => {
-    e.stopPropagation();
+    if (e && e.stopPropagation) e.stopPropagation();
 
     const orderId = order.id;
     if (steadfastPending[orderId] || steadfastSubmitted[orderId]) {
@@ -307,10 +398,11 @@ export const CourierPanel = () => {
     setSteadfastPending((prev) => ({ ...prev, [orderId]: true }));
 
     try {
-      await dispatchToCourier(orderId);
+      const res = await dispatchToCourier(orderId);
       setSteadfastSubmitted((prev) => ({ ...prev, [orderId]: true }));
     } catch (err) {
-      alert('Steadfast Dispatch Failed: ' + err.message);
+      console.error('Steadfast Dispatch error:', err);
+      alert('Steadfast Dispatch Failed: ' + (err.message || 'Unknown error'));
     } finally {
       setSteadfastPending((prev) => {
         const next = { ...prev };
@@ -427,7 +519,7 @@ export const CourierPanel = () => {
       <Card className="table-card" noPadding>
         {/* Ultimate Premium Filters Row */}
         <div className="courier-filters-row">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: '4px' }}>
             <Filter size={16} style={{ color: 'var(--cp-text-muted)' }} />
             <span style={{ fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--cp-text-muted)' }}>Filters</span>
           </div>
@@ -463,6 +555,47 @@ export const CourierPanel = () => {
             <option value="InStock">In Stock Only</option>
             <option value="StockOut">Stock Out Only</option>
           </select>
+
+          <select 
+            className="premium-filter-select"
+            value={selectedShippingZone}
+            onChange={(e) => setSelectedShippingZone(e.target.value)}
+          >
+            <option value="All">All Delivery Zones</option>
+            <option value="Inside Dhaka">Inside Dhaka</option>
+            <option value="Sub Dhaka">Sub Dhaka</option>
+            <option value="Outside Dhaka">Outside Dhaka</option>
+          </select>
+
+          {uniqueSources.length > 0 && (
+            <select 
+              className="premium-filter-select"
+              value={selectedSource}
+              onChange={(e) => setSelectedSource(e.target.value)}
+            >
+              <option value="All">All Sources</option>
+              {uniqueSources.map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          )}
+
+          {isFilterActive && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={resetAllFilters}
+              style={{
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                color: '#ef4444',
+                padding: '4px 10px',
+                height: '32px'
+              }}
+            >
+              Reset Filters
+            </Button>
+          )}
 
           {activeTab === 'bulk' && bulkExportedQueue.length > 0 && (
             <Button
@@ -501,15 +634,15 @@ export const CourierPanel = () => {
               className="elite-search-input"
             />
           </div>
-          <div className="courier-date-filter" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <div className="courier-date-filter" style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
             <button
               type="button"
               className={`pill-btn ${dateFilter === 'All' ? 'active' : ''}`}
               onClick={() => setDateFilter('All')}
               style={{
-                padding: '4px 14px',
+                padding: '4px 12px',
                 borderRadius: '20px',
-                fontSize: '0.8rem',
+                fontSize: '0.78rem',
                 border: '1px solid var(--border-color)',
                 background: dateFilter === 'All' ? '#6366f1' : 'transparent',
                 color: dateFilter === 'All' ? '#fff' : 'inherit',
@@ -525,9 +658,9 @@ export const CourierPanel = () => {
               className={`pill-btn ${dateFilter === 'Today' ? 'active' : ''}`}
               onClick={() => setDateFilter('Today')}
               style={{
-                padding: '4px 14px',
+                padding: '4px 12px',
                 borderRadius: '20px',
-                fontSize: '0.8rem',
+                fontSize: '0.78rem',
                 border: '1px solid var(--border-color)',
                 background: dateFilter === 'Today' ? '#6366f1' : 'transparent',
                 color: dateFilter === 'Today' ? '#fff' : 'inherit',
@@ -537,6 +670,60 @@ export const CourierPanel = () => {
               }}
             >
               Today ({todayCount})
+            </button>
+            <button
+              type="button"
+              className={`pill-btn ${dateFilter === 'Yesterday' ? 'active' : ''}`}
+              onClick={() => setDateFilter('Yesterday')}
+              style={{
+                padding: '4px 12px',
+                borderRadius: '20px',
+                fontSize: '0.78rem',
+                border: '1px solid var(--border-color)',
+                background: dateFilter === 'Yesterday' ? '#6366f1' : 'transparent',
+                color: dateFilter === 'Yesterday' ? '#fff' : 'inherit',
+                cursor: 'pointer',
+                fontWeight: dateFilter === 'Yesterday' ? '600' : '400',
+                transition: 'all 0.2s'
+              }}
+            >
+              Yesterday
+            </button>
+            <button
+              type="button"
+              className={`pill-btn ${dateFilter === 'Last7Days' ? 'active' : ''}`}
+              onClick={() => setDateFilter('Last7Days')}
+              style={{
+                padding: '4px 12px',
+                borderRadius: '20px',
+                fontSize: '0.78rem',
+                border: '1px solid var(--border-color)',
+                background: dateFilter === 'Last7Days' ? '#6366f1' : 'transparent',
+                color: dateFilter === 'Last7Days' ? '#fff' : 'inherit',
+                cursor: 'pointer',
+                fontWeight: dateFilter === 'Last7Days' ? '600' : '400',
+                transition: 'all 0.2s'
+              }}
+            >
+              7 Days
+            </button>
+            <button
+              type="button"
+              className={`pill-btn ${dateFilter === 'ThisMonth' ? 'active' : ''}`}
+              onClick={() => setDateFilter('ThisMonth')}
+              style={{
+                padding: '4px 12px',
+                borderRadius: '20px',
+                fontSize: '0.78rem',
+                border: '1px solid var(--border-color)',
+                background: dateFilter === 'ThisMonth' ? '#6366f1' : 'transparent',
+                color: dateFilter === 'ThisMonth' ? '#fff' : 'inherit',
+                cursor: 'pointer',
+                fontWeight: dateFilter === 'ThisMonth' ? '600' : '400',
+                transition: 'all 0.2s'
+              }}
+            >
+              This Month
             </button>
           </div>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -575,7 +762,7 @@ export const CourierPanel = () => {
             </thead>
             <tbody>
               <AnimatePresence mode="popLayout">
-                {courierQueue.map(order => {
+                {pagedCourierQueue.map(order => {
                   const isBulkExported = order.status === 'Bulk Exported';
                   const isSteadfastSending = Boolean(steadfastPending[order.id]);
                   const isSteadfastSubmitted = Boolean(steadfastSubmitted[order.id]);
@@ -598,35 +785,35 @@ export const CourierPanel = () => {
                       className={`courier-order-row cursor-pointer ${isOrderUnread(order) ? 'route-unread-row' : ''}`}
                       onClick={() => handleRowClick(order)}
                     >
-                      <td className="order-id-cell">
+                      <td className="ref-col order-id-cell">
                         <div className="route-read-card-header">
                           {isOrderUnread(order) && <span className="route-unread-dot" aria-label="Unread order" />}
                           <span className="saas-id">#{(order.id || '').replace('ORD-', '')}</span>
                           {isOrderUnread(order) && <span className="route-unread-chip">New</span>}
                         </div>
                       </td>
-                      <td>
+                      <td className="recipient-col">
                         <div className="courier-customer-stack">
-                          <span className="saas-text-dark">{order.customer_name}</span>
+                          <span className="saas-text-dark" title={order.customer_name}>{order.customer_name}</span>
                           <span className="saas-text">{order.phone}</span>
                         </div>
                       </td>
-                      <td>
+                      <td className="product-col">
                         <div className="courier-product-stack">
-                          <span className="saas-text-dark">{order.product_name}</span>
+                          <span className="saas-text-dark" title={order.product_name}>{order.product_name}</span>
                           {order.size && <span className="product-size-pill">T-{order.size}</span>}
                         </div>
                       </td>
-                      <td>
+                      <td className="tracking-col">
                         {order.tracking_id ? (
-                          <span className="tracking-badge">
+                          <span className="tracking-badge" title={order.tracking_id}>
                             <Truck size={12} /> {order.tracking_id}
                           </span>
                         ) : (
                           <span className="text-tertiary text-xs italic">Awaiting...</span>
                         )}
                       </td>
-                      <td>
+                      <td className="stock-col">
                         {isBulkExported ? (
                           <div 
                             className={`stock-badge ${inStock ? 'in-stock' : 'stock-out'}`}
@@ -642,12 +829,12 @@ export const CourierPanel = () => {
                           </div>
                         )}
                       </td>
-                      <td>
+                      <td className="phase-col">
                         <Badge variant={isBulkExported ? 'bulk-exported' : 'courier-ready'} className="courier-status-pill">
                           {isBulkExported ? 'Bulk Exported' : 'Ready'}
                         </Badge>
                       </td>
-                      <td className="courier-actions-cell">
+                      <td className="courier-actions-col courier-actions-cell">
                         <div className="dispatch-action-grid">
                           {isBulkExported && (
                             <button
@@ -687,9 +874,9 @@ export const CourierPanel = () => {
                               </button>
                               <button
                                 className="courier-action-btn submit"
-                                onClick={(e) => { e.stopPropagation(); handleSubmitToCourier(order.id); }}
-                                disabled={!order.tracking_id || isSteadfastSending}
-                                title="Mark as Dispatched"
+                                onClick={(e) => { e.stopPropagation(); handleSubmitToCourier(order); }}
+                                disabled={isSteadfastSending}
+                                title="Submit to Courier"
                               >
                                 <CheckCircle size={14} /> <span>Submit</span>
                               </button>
@@ -703,7 +890,7 @@ export const CourierPanel = () => {
               </AnimatePresence>
               {courierQueue.length === 0 && (
                 <tr>
-                  <td colSpan="6" className="empty-state-cell">
+                  <td colSpan="7" className="empty-state-cell">
                     <div className="empty-state-content">
                       <Truck size={40} style={{ opacity: 0.2, marginBottom: '12px' }} />
                       <p>{activeTab === 'bulk' ? 'No bulk exported orders waiting for distribution.' : 'No verified orders ready for dispatch.'}</p>
@@ -717,8 +904,18 @@ export const CourierPanel = () => {
 
         <div className="courier-mobile-list mobile-only">
           <AnimatePresence>
-            {courierQueue.map(order => {
+            {pagedCourierQueue.map(order => {
               const isBulkExported = order.status === 'Bulk Exported';
+              const isSteadfastSending = Boolean(steadfastPending[order.id]);
+              const isSteadfastSubmitted = Boolean(steadfastSubmitted[order.id]);
+              const isSteadfastLocked =
+                isBulkExported ||
+                isSteadfastSending ||
+                isSteadfastSubmitted ||
+                order.status === 'Courier Submitted' ||
+                Boolean(order.courier_assigned_id) ||
+                order.courier_name === 'Steadfast';
+
               const { inStock, details } = checkStockForUI(order);
 
               return (
@@ -790,9 +987,18 @@ export const CourierPanel = () => {
                           <Truck size={16} /> <span>Track</span>
                         </button>
                         <button
+                          className={`courier-action-btn steadfast ${isSteadfastSending ? 'is-loading' : ''} ${isSteadfastSubmitted ? 'is-submitted' : ''}`}
+                          onClick={(e) => handleSteadfastDispatch(e, order)}
+                          disabled={isSteadfastLocked}
+                          title="Direct API Dispatch"
+                        >
+                          {isSteadfastSending ? <Clock size={16} className="spin" /> : <Zap size={16} />}
+                          <span>{isSteadfastSending ? '...' : isSteadfastSubmitted ? 'Sent' : 'S-Fast'}</span>
+                        </button>
+                        <button
                           className="courier-action-btn submit"
-                          onClick={() => handleSubmitToCourier(order.id)}
-                          disabled={!order.tracking_id}
+                          onClick={() => handleSubmitToCourier(order)}
+                          disabled={isSteadfastSending}
                         >
                           <CheckCircle size={16} /> <span>Submit</span>
                         </button>
@@ -808,6 +1014,63 @@ export const CourierPanel = () => {
               <p>{activeTab === 'bulk' ? 'No bulk exported orders waiting for distribution.' : 'No verified orders ready for dispatch.'}</p>
             </div>
           )}
+        </div>
+
+        {/* Pagination Footer */}
+        <div className="pagination-footer">
+          <div className="pagination-info">
+            Showing {courierQueue.length > 0 ? startIndex + 1 : 0} to {endIndex} of {courierQueue.length} orders
+            {totalPages > 1 && ` (Page ${safePage} of ${totalPages})`}
+          </div>
+          <div className="pagination-actions">
+            <div className="page-size-selector">
+              <span>Show per page:</span>
+              <select
+                className="page-size-select"
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+            {totalPages > 1 && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={safePage === 1}
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                >
+                  Previous
+                </Button>
+                <div className="page-numbers">
+                  {getPageNumbers().map(p => (
+                    <button
+                      key={p}
+                      className={`page-num ${safePage === p ? 'active' : ''}`}
+                      onClick={() => setCurrentPage(p)}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={safePage === totalPages}
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                >
+                  Next
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       </Card>
 
