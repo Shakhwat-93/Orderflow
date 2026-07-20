@@ -312,8 +312,8 @@ export const SteadfastPanel = () => {
           )}
         </div>
 
-        {/* Desktop / Laptop Table View */}
-        <div className="courier-table-wrapper desktop-only">
+        {/* Unified Responsive Table View */}
+        <div className="courier-table-wrapper">
           <table className="order-table">
             <thead>
               <tr>
@@ -422,88 +422,6 @@ export const SteadfastPanel = () => {
               )}
             </tbody>
           </table>
-        </div>
-
-        {/* Mobile View Cards */}
-        <div className="steadfast-mobile-list mobile-only">
-          <AnimatePresence>
-            {pagedOrders.map(order => (
-              <motion.div
-                key={order.id}
-                layout
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className={`steadfast-mobile-card ${selectedIds.has(order.id) ? 'card-selected' : ''} ${isOrderUnread(order) ? 'route-unread-card' : ''}`}
-                onClick={() => handleRowClick(order)}
-              >
-                <div className="card-top-row">
-                  <div className="card-left-meta">
-                    <input 
-                      type="checkbox" 
-                      checked={selectedIds.has(order.id)} 
-                      onChange={(e) => toggleSelect(e, order.id)} 
-                      onClick={(e) => e.stopPropagation()} 
-                    />
-                    <span className="order-id">#{order.id.replace('ORD-', '')}</span>
-                    {isOrderUnread(order) && <span className="route-unread-chip">New</span>}
-                  </div>
-                  <Badge variant={getStatusVariant(order.courier_status)} style={{ scale: 0.9 }}>
-                    {order.courier_status || 'Handover'}
-                  </Badge>
-                </div>
-
-                <div className="customer-info-box">
-                  <div className="customer-name">{order.customer_name}</div>
-                  <div className="customer-phone">{order.phone}</div>
-                  <div className="customer-address">{order.address}</div>
-                </div>
-
-                <div className="card-logistics-grid">
-                  <div className="meta-box">
-                    <span className="meta-label">Consignment</span>
-                    <span className="meta-val">{order.courier_assigned_id || 'Waiting'}</span>
-                  </div>
-                  <div className="meta-box">
-                    <span className="meta-label">Tracking</span>
-                    <span className="meta-val">{order.tracking_id || 'Awaiting'}</span>
-                  </div>
-                </div>
-
-                <div className="card-bottom-actions">
-                  <div className="time-badge">
-                    <Truck size={12} /> {getTimeSinceDispatch(order.dispatched_at) || 'Recent'}
-                  </div>
-                  <div className="action-buttons-group" onClick={(e) => e.stopPropagation()}>
-                    {order.tracking_id && (
-                      <a 
-                        href={`https://portal.packzy.com/tracking/${order.tracking_id}`} 
-                        target="_blank" 
-                        rel="noreferrer" 
-                        className="track-link-btn"
-                      >
-                        <ExternalLink size={14} /> <span>Track</span>
-                      </a>
-                    )}
-                    <button 
-                      className={`item-sync-btn ${syncStatus[order.id] || ''}`}
-                      onClick={() => handleSyncStatus(order.id, order.tracking_id)}
-                      disabled={syncStatus[order.id] === 'syncing' || !order.tracking_id}
-                    >
-                      <RefreshCw size={14} className={syncStatus[order.id] === 'syncing' ? 'animate-spin' : ''} />
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-
-          {pagedOrders.length === 0 && (
-            <div className="empty-state-mobile">
-              <Package size={36} style={{ opacity: 0.3, marginBottom: '8px' }} />
-              <p>No logistics records found.</p>
-            </div>
-          )}
         </div>
 
         {/* Responsive Pagination Bar */}
