@@ -110,7 +110,7 @@ export const ContentDetailDrawer = ({ item, activityLogs, onClose, onStatusChang
 
   return (
     <AnimatePresence>
-      <div className="cdd-overlay" onClick={onClose}>
+      <div className="cdd-overlay">
         <motion.div
           className="cdd-panel"
           initial={{ x: '100%', opacity: 0 }}

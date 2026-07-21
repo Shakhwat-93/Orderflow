@@ -217,7 +217,7 @@ export const CampaignEntryModal = ({ isOpen, onClose, onSave, initialData = null
   const selectedCount = form.platforms.length;
 
   const modal = (
-    <div className="cem-overlay" onClick={handleClose}>
+    <div className="cem-overlay">
       <motion.div
         className="cem-sheet"
         onClick={e => e.stopPropagation()}

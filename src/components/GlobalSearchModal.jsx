@@ -89,7 +89,7 @@ export const GlobalSearchModal = ({ isOpen, onClose }) => {
   };
 
   return (
-    <div className="global-search-overlay" onClick={onClose}>
+    <div className="global-search-overlay">
       <div className="global-search-modal" onClick={e => e.stopPropagation()}>
         
         <div className="global-search-header">

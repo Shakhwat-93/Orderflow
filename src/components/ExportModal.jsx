@@ -310,7 +310,7 @@ export const ExportModal = ({
 
   return (
     <>
-      <div className="export-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="export-modal-overlay">
         <div className="export-modal" role="dialog" aria-modal="true" aria-label="Export Orders">
 
           {/* Header */}

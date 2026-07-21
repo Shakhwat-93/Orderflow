@@ -632,6 +632,7 @@ export const FactoryPanel = () => {
   const [productFilter, setProductFilter] = usePersistentState('panel:factory:product-filter', 'All');
   const [colorFilter, setColorFilter] = usePersistentState('panel:factory:color-filter', 'All');
   const [variantFilter, setVariantFilter] = usePersistentState('panel:factory:variant-filter', 'All');
+  const [zoneFilter, setZoneFilter] = usePersistentState('panel:factory:zone-filter', 'All');
   const [sortOrder, setSortOrder] = usePersistentState('panel:factory:sort-order', 'newest');
   const [pageSize, setPageSize] = usePersistentState('panel:factory:page-size', 10);
   const [currentPage, setCurrentPage] = useState(1);
@@ -847,6 +848,28 @@ export const FactoryPanel = () => {
         hasVariant = true;
       }
       if (!hasVariant) return false;
+    }
+
+    // Zone / Location Filter
+    if (zoneFilter !== 'All') {
+      const zoneStr = String(order.shipping_zone || '').trim().toLowerCase();
+      const addrStr = String(order.address || '').trim().toLowerCase();
+      const deliveryCharge = Number(order.delivery_charge || order.pricing_summary?.delivery_charge || 0);
+
+      const isInside = 
+        zoneStr.includes('inside') || 
+        zoneStr === 'dhaka' || 
+        (addrStr.includes('dhaka') && !addrStr.includes('outside dhaka') && !addrStr.includes('outside')) ||
+        (deliveryCharge > 0 && deliveryCharge <= 80 && !zoneStr.includes('outside') && !addrStr.includes('outside'));
+
+      const isOutside = 
+        zoneStr.includes('outside') || 
+        (addrStr && !addrStr.includes('dhaka')) || 
+        addrStr.includes('outside dhaka') || 
+        deliveryCharge > 80;
+
+      if (zoneFilter === 'Inside Dhaka' && (!isInside || zoneStr.includes('outside'))) return false;
+      if (zoneFilter === 'Outside Dhaka' && !isOutside) return false;
     }
 
     return matchesActiveDateFilter(order.created_at);
@@ -1573,6 +1596,21 @@ export const FactoryPanel = () => {
                 </select>
               </div>
 
+              {/* Location / Zone Filter */}
+              <div className="factory-filter-select-wrapper">
+                <MapPin size={14} className="factory-select-icon" />
+                <select
+                  className="factory-filter-select"
+                  value={zoneFilter}
+                  onChange={(e) => setZoneFilter(e.target.value)}
+                  aria-label="Filter by location zone"
+                >
+                  <option value="All">All Locations</option>
+                  <option value="Inside Dhaka">Inside Dhaka</option>
+                  <option value="Outside Dhaka">Outside Dhaka</option>
+                </select>
+              </div>
+
               {/* Source Filter */}
               <div className="factory-filter-select-wrapper">
                 <Globe size={14} className="factory-select-icon" />
@@ -1603,7 +1641,7 @@ export const FactoryPanel = () => {
                 </select>
               </div>
 
-              {(productFilter !== 'All' || colorFilter !== 'All' || variantFilter !== 'All' || sourceFilter !== 'All') && (
+              {(productFilter !== 'All' || colorFilter !== 'All' || variantFilter !== 'All' || sourceFilter !== 'All' || zoneFilter !== 'All') && (
                 <button
                   type="button"
                   className="factory-range-clear-btn"
@@ -1612,8 +1650,9 @@ export const FactoryPanel = () => {
                     setColorFilter('All');
                     setVariantFilter('All');
                     setSourceFilter('All');
+                    setZoneFilter('All');
                   }}
-                  title="Clear product & variant filters"
+                  title="Clear location, product & variant filters"
                 >
                   Clear Filters
                 </button>

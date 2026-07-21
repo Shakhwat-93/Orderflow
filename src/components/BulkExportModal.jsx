@@ -480,7 +480,7 @@ export const BulkExportModal = ({
     : '';
 
   return (
-    <div className="bem-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="bem-overlay">
       <div className="bem-modal" role="dialog" aria-modal="true">
 
         {/* Header */}

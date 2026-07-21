@@ -1152,7 +1152,7 @@ const BulkOrderCreator = ({
   if (!isOpen) return null;
 
   return (
-    <div className="boc-overlay" onClick={(e) => e.target === e.currentTarget && !isSubmitting && onClose()}>
+    <div className="boc-overlay">
       <div className="boc-panel">
         {/* ─── Header ─── */}
         <div className="boc-header">
