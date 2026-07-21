@@ -1383,3 +1383,49 @@
   font-weight: 800;
 }
 
+/* ── Select Filter Group ────────────────────────────────────────────── */
+.factory-select-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.factory-filter-select-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 135px;
+}
+
+.factory-select-icon {
+  position: absolute;
+  left: 12px;
+  pointer-events: none;
+  color: var(--fp-text-sub);
+  z-index: 1;
+}
+
+.factory-filter-select {
+  height: 38px;
+  padding: 0 14px 0 34px;
+  border-radius: 12px;
+  border: 1px solid var(--fp-btn-border);
+  background: var(--fp-input-bg);
+  color: var(--fp-text);
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.factory-filter-select:focus,
+.factory-filter-select:hover {
+  border-color: var(--fp-accent);
+  box-shadow: 0 0 0 3px var(--fp-accent-bg);
+}
+
+

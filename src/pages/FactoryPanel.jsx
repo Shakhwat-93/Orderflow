@@ -9,7 +9,7 @@ import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
 import { OrderEditModal } from '../components/OrderEditModal';
 import { OrderDetailsModal } from '../components/OrderDetailsModal';
-import { Loader2, CheckCircle, PackageSearch, Zap, AlertTriangle, Package, Edit2, Download, FileSpreadsheet, CalendarDays, Truck, History, ArrowUpDown, Filter, Globe, Calendar, MapPin, Phone, User, Clock, Copy, MessageCircle, FileText, ChevronDown } from 'lucide-react';
+import { Loader2, CheckCircle, PackageSearch, Zap, AlertTriangle, Package, Edit2, Download, FileSpreadsheet, CalendarDays, Truck, History, ArrowUpDown, Filter, Globe, Calendar, MapPin, Phone, User, Clock, Copy, MessageCircle, FileText, ChevronDown, Tag, Palette, Layers } from 'lucide-react';
 import { PremiumSearch } from '../components/PremiumSearch';
 import { usePersistentState } from '../utils/persistentState';
 import { getToyBoxStockKey } from '../utils/productCatalog';
@@ -629,6 +629,9 @@ export const FactoryPanel = () => {
   const [dateFrom, setDateFrom] = usePersistentState('panel:factory:date-from', '');
   const [dateTo, setDateTo] = usePersistentState('panel:factory:date-to', '');
   const [sourceFilter, setSourceFilter] = usePersistentState('panel:factory:source-filter', 'All');
+  const [productFilter, setProductFilter] = usePersistentState('panel:factory:product-filter', 'All');
+  const [colorFilter, setColorFilter] = usePersistentState('panel:factory:color-filter', 'All');
+  const [variantFilter, setVariantFilter] = usePersistentState('panel:factory:variant-filter', 'All');
   const [sortOrder, setSortOrder] = usePersistentState('panel:factory:sort-order', 'newest');
   const [pageSize, setPageSize] = usePersistentState('panel:factory:page-size', 10);
   const [currentPage, setCurrentPage] = useState(1);
@@ -691,6 +694,83 @@ export const FactoryPanel = () => {
     setIsDetailsModalOpen(true);
   };
 
+  // Extract Unique Products, Colors & Variants for Filter Dropdowns
+  const { uniqueProducts, uniqueColors, uniqueVariants } = useMemo(() => {
+    const products = new Set();
+    const colors = new Set();
+    const variants = new Set();
+
+    const commonColors = [
+      'red', 'blue', 'black', 'green', 'white', 'pink', 'yellow', 
+      'purple', 'orange', 'grey', 'gray', 'gold', 'silver', 'navy', 'brown'
+    ];
+
+    orders.forEach(order => {
+      // 1. Product Name extraction
+      const { cleanName } = getCleanProductDisplay(order);
+      if (cleanName) {
+        cleanName.split(',').forEach(p => {
+          const clean = p.replace(/\(x\d+\)/gi, '').trim();
+          if (clean && !/^\d+\s*items?$/i.test(clean)) {
+            products.add(clean);
+          }
+        });
+      }
+      if (order.product_name && !/^\d+\s*items?$/i.test(order.product_name)) {
+        products.add(order.product_name.trim());
+      }
+
+      // 2. Items - Color & Variant extraction
+      const items = order.ordered_items || [];
+      items.forEach(item => {
+        let itemName = '';
+        if (typeof item === 'object') {
+          itemName = item.name || item.product_name || item.title || '';
+          if (item.color) colors.add(item.color.trim());
+          if (item.variant) variants.add(item.variant.trim());
+          if (item.toyBoxNumber != null) variants.add(`Box #${item.toyBoxNumber}`);
+        } else {
+          itemName = String(item);
+        }
+
+        const lowerItem = itemName.toLowerCase();
+        commonColors.forEach(c => {
+          if (lowerItem.includes(c)) {
+            colors.add(c.charAt(0).toUpperCase() + c.slice(1));
+          }
+        });
+
+        if (itemName.includes('-')) {
+          const parts = itemName.split('-').map(s => s.trim());
+          if (parts.length > 1) {
+            parts.slice(1).forEach(part => {
+              const lowerPart = part.toLowerCase();
+              if (commonColors.some(c => lowerPart.includes(c))) {
+                colors.add(part.charAt(0).toUpperCase() + part.slice(1));
+              } else if (part.length > 0) {
+                variants.add(part);
+              }
+            });
+          }
+        }
+      });
+
+      // Also check order.product_name for color
+      const lowerProd = (order.product_name || '').toLowerCase();
+      commonColors.forEach(c => {
+        if (lowerProd.includes(c)) {
+          colors.add(c.charAt(0).toUpperCase() + c.slice(1));
+        }
+      });
+    });
+
+    return {
+      uniqueProducts: Array.from(products).sort(),
+      uniqueColors: Array.from(colors).sort(),
+      uniqueVariants: Array.from(variants).sort()
+    };
+  }, [orders]);
+
   // Confirmed = incoming, Factory Queue = waiting for stock
   const normalizedSearchTerm = searchTerm.toLowerCase();
   const rangeStartDate = useMemo(() => getRangeBoundary(dateFrom, 'start'), [dateFrom]);
@@ -723,6 +803,50 @@ export const FactoryPanel = () => {
 
     if (sourceFilter !== 'All' && (order.source || 'Direct') !== sourceFilter) {
       return false;
+    }
+
+    // Product Filter
+    if (productFilter !== 'All') {
+      const { cleanName } = getCleanProductDisplay(order);
+      const prodStr = `${cleanName} ${order.product_name || ''}`.toLowerCase();
+      if (!prodStr.includes(productFilter.toLowerCase())) {
+        return false;
+      }
+    }
+
+    // Color Filter
+    if (colorFilter !== 'All') {
+      const targetColor = colorFilter.toLowerCase();
+      const items = order.ordered_items || [];
+      let hasColor = items.some(item => {
+        if (typeof item === 'object') {
+          if ((item.color || '').toLowerCase().includes(targetColor)) return true;
+          if ((item.name || '').toLowerCase().includes(targetColor)) return true;
+        }
+        return String(item).toLowerCase().includes(targetColor);
+      });
+      if (!hasColor && (order.product_name || '').toLowerCase().includes(targetColor)) {
+        hasColor = true;
+      }
+      if (!hasColor) return false;
+    }
+
+    // Variant Filter
+    if (variantFilter !== 'All') {
+      const targetVar = variantFilter.toLowerCase();
+      const items = order.ordered_items || [];
+      let hasVariant = items.some(item => {
+        if (typeof item === 'object') {
+          if ((item.variant || '').toLowerCase().includes(targetVar)) return true;
+          if (item.toyBoxNumber != null && `box #${item.toyBoxNumber}`.toLowerCase().includes(targetVar)) return true;
+          if ((item.name || '').toLowerCase().includes(targetVar)) return true;
+        }
+        return String(item).toLowerCase().includes(targetVar);
+      });
+      if (!hasVariant && (order.product_name || '').toLowerCase().includes(targetVar)) {
+        hasVariant = true;
+      }
+      if (!hasVariant) return false;
     }
 
     return matchesActiveDateFilter(order.created_at);
@@ -1401,6 +1525,55 @@ export const FactoryPanel = () => {
             </div>
 
             <div className="factory-select-filter-group">
+              {/* Product Filter */}
+              <div className="factory-filter-select-wrapper">
+                <Tag size={14} className="factory-select-icon" />
+                <select
+                  className="factory-filter-select"
+                  value={productFilter}
+                  onChange={(e) => setProductFilter(e.target.value)}
+                  aria-label="Filter by product"
+                >
+                  <option value="All">All Products</option>
+                  {uniqueProducts.map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Color Filter */}
+              <div className="factory-filter-select-wrapper">
+                <Palette size={14} className="factory-select-icon" />
+                <select
+                  className="factory-filter-select"
+                  value={colorFilter}
+                  onChange={(e) => setColorFilter(e.target.value)}
+                  aria-label="Filter by color"
+                >
+                  <option value="All">All Colors</option>
+                  {uniqueColors.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Variant Filter */}
+              <div className="factory-filter-select-wrapper">
+                <Layers size={14} className="factory-select-icon" />
+                <select
+                  className="factory-filter-select"
+                  value={variantFilter}
+                  onChange={(e) => setVariantFilter(e.target.value)}
+                  aria-label="Filter by variant"
+                >
+                  <option value="All">All Variants</option>
+                  {uniqueVariants.map((v) => (
+                    <option key={v} value={v}>{v}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Source Filter */}
               <div className="factory-filter-select-wrapper">
                 <Globe size={14} className="factory-select-icon" />
                 <select
@@ -1415,6 +1588,7 @@ export const FactoryPanel = () => {
                 </select>
               </div>
 
+              {/* Sort Order */}
               <div className="factory-filter-select-wrapper">
                 <ArrowUpDown size={14} className="factory-select-icon" />
                 <select
@@ -1428,6 +1602,22 @@ export const FactoryPanel = () => {
                   ))}
                 </select>
               </div>
+
+              {(productFilter !== 'All' || colorFilter !== 'All' || variantFilter !== 'All' || sourceFilter !== 'All') && (
+                <button
+                  type="button"
+                  className="factory-range-clear-btn"
+                  onClick={() => {
+                    setProductFilter('All');
+                    setColorFilter('All');
+                    setVariantFilter('All');
+                    setSourceFilter('All');
+                  }}
+                  title="Clear product & variant filters"
+                >
+                  Clear Filters
+                </button>
+              )}
             </div>
           </div>
 
