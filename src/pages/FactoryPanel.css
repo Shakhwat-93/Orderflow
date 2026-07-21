@@ -1312,3 +1312,74 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ── Product Name Multi-line & Quantity Badges ──────────────────────── */
+.management-table .product-col,
+.management-table .product-cell {
+  width: 140px !important;
+}
+
+.product-info-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.product-name-cell {
+  white-space: normal !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  line-height: 1.35 !important;
+  font-size: 0.83rem !important;
+  font-weight: 700 !important;
+  color: var(--fp-text) !important;
+  display: block !important;
+}
+
+.product-sub-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+.product-qty-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--fp-accent);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+[data-theme='dark'] .product-qty-badge {
+  background: rgba(129, 140, 248, 0.18);
+  color: #818cf8;
+  border-color: rgba(129, 140, 248, 0.3);
+}
+
+.product-mobile-value {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.product-qty-badge-mobile {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--fp-accent);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+

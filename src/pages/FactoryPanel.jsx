@@ -566,6 +566,53 @@ const buildConfirmedExportRow = (order) => {
   return row;
 };
 
+export const getCleanProductDisplay = (order) => {
+  const items = order?.ordered_items || [];
+  
+  // Total Qty calculation
+  let totalQty = Number(order?.quantity || 0);
+  if (items.length > 0) {
+    const sumQty = items.reduce((acc, item) => {
+      const q = typeof item === 'object' ? Number(item.quantity || item.qty || 1) : 1;
+      return acc + q;
+    }, 0);
+    if (sumQty > 0) totalQty = sumQty;
+  }
+  if (!totalQty || totalQty <= 0) totalQty = 1;
+
+  // Build clean product name string
+  let cleanName = '';
+
+  if (items.length > 0) {
+    const itemNames = items.map(item => {
+      if (typeof item === 'object') {
+        const name = (item.name || item.product_name || item.title || '').trim();
+        const qty = Number(item.quantity || item.qty || 1);
+        return qty > 1 ? `${name} (x${qty})` : name;
+      }
+      return String(item).trim();
+    }).filter(Boolean);
+
+    cleanName = itemNames.join(', ');
+  }
+
+  // Fallback check if cleanName is empty or if product_name contains actual product name
+  const origName = (order?.product_name || '').trim();
+
+  if (!cleanName || /^\d+\s*items?$/i.test(cleanName)) {
+    if (origName && !/^\d+\s*items?$/i.test(origName)) {
+      cleanName = origName;
+    } else if (items.length > 0) {
+      const fallbackItems = items.map(i => (typeof i === 'object' ? (i.name || i.product_name || i.title) : i)).filter(Boolean);
+      cleanName = fallbackItems.join(', ') || origName || 'Standard Product';
+    } else {
+      cleanName = origName || 'Standard Product';
+    }
+  }
+
+  return { cleanName, totalQty };
+};
+
 export const FactoryPanel = () => {
   const { orders, toyBoxes, autoDistributeOrders, updateOrderStatus, dispatchToCourier } = useOrders();
   const { updatePresenceContext, profile, user } = useAuth();
@@ -1462,7 +1509,8 @@ export const FactoryPanel = () => {
               <AnimatePresence mode="popLayout">
                 {paginatedOrders.map(order => {
                   const stock = getStockStatus(order);
-                  const isToyBox = (order.product_name || '').toUpperCase().includes('TOY BOX');
+                  const { cleanName, totalQty } = getCleanProductDisplay(order);
+                  const isToyBox = (cleanName || order.product_name || '').toUpperCase().includes('TOY BOX');
                   const orderTotal = Number(order.total_amount || order.amount || order.total || 0);
                   const rawPhone = String(order.phone || '').trim();
                   const normalizedPhone = rawPhone.replace(/\D/g, '');
@@ -1577,10 +1625,15 @@ export const FactoryPanel = () => {
                       </td>
 
                       <td className="product-cell">
-                        <span className="saas-text-dark product-name-cell" title={order.product_name}>
-                          {order.product_name || 'N/A'}
-                        </span>
-                        <SourceBadge traffic_source={order.traffic_source} source={order.source} />
+                        <div className="product-info-wrapper">
+                          <span className="saas-text-dark product-name-cell" title={cleanName}>
+                            {cleanName}
+                          </span>
+                          <div className="product-sub-meta">
+                            <span className="product-qty-badge">Qty: {totalQty}</span>
+                            <SourceBadge traffic_source={order.traffic_source} source={order.source} />
+                          </div>
+                        </div>
                       </td>
 
                       <td className="amount-cell">
@@ -1731,6 +1784,7 @@ export const FactoryPanel = () => {
         <div className="orders-mobile-list mobile-only">
           {paginatedOrders.map(order => {
             const stock = getStockStatus(order);
+            const { cleanName, totalQty } = getCleanProductDisplay(order);
             const orderTotal = Number(order.total_amount || order.amount || order.total || 0);
             const rawPhone = String(order.phone || '').trim();
 
@@ -1759,7 +1813,9 @@ export const FactoryPanel = () => {
                   </div>
                   <div className="info-row">
                     <span className="label">Product:</span>
-                    <span className="value">{order.product_name}</span>
+                    <span className="value product-mobile-value">
+                      {cleanName} <span className="product-qty-badge-mobile">Qty: {totalQty}</span>
+                    </span>
                   </div>
                   <div className="info-row">
                     <span className="label">Total Amount:</span>
