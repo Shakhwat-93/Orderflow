@@ -266,6 +266,7 @@ export const CourierPanel = () => {
 
   const bulkExportedAll = orders.filter((order) => order.status === 'Bulk Exported');
   const courierReadyAll = orders.filter((order) => order.status === 'Courier Ready');
+  const courierSubmittedAll = orders.filter((order) => order.status === 'Courier Submitted' || Boolean(order.dispatched_at) || Boolean(order.courier_name));
   
   // Premium Filter Options List
   const uniqueProducts = Array.from(new Set(orders.map(o => o.product_name).filter(Boolean)));
@@ -304,7 +305,8 @@ export const CourierPanel = () => {
 
   const bulkExportedQueue = bulkExportedAll.filter(filterOrder);
   const courierReadyQueue = courierReadyAll.filter(filterOrder);
-  const courierQueue = activeTab === 'bulk' ? bulkExportedQueue : courierReadyQueue;
+  const courierSubmittedQueue = courierSubmittedAll.filter(filterOrder);
+  const courierQueue = activeTab === 'bulk' ? bulkExportedQueue : activeTab === 'ready' ? courierReadyQueue : courierSubmittedQueue;
 
   // Reset page whenever filters or active tab change
   useEffect(() => {
@@ -513,6 +515,13 @@ export const CourierPanel = () => {
           onClick={() => setActiveTab('ready')}
         >
           <Truck size={15} /> Courier Ready ({courierReadyAll.length})
+        </button>
+        <button
+          type="button"
+          className={`courier-tab ${activeTab === 'submitted' ? 'active' : ''}`}
+          onClick={() => setActiveTab('submitted')}
+        >
+          <ClipboardCheck size={15} /> Courier Submitted ({courierSubmittedAll.length})
         </button>
       </div>
 

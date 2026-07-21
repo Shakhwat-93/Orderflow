@@ -2,20 +2,81 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
 import { OrderEditModal } from '../components/OrderEditModal';
 import { OrderDetailsModal } from '../components/OrderDetailsModal';
-import { Loader2, CheckCircle, PackageSearch, Zap, AlertTriangle, Package, Edit2, Download, FileSpreadsheet, CalendarDays, Truck, History } from 'lucide-react';
+import { Loader2, CheckCircle, PackageSearch, Zap, AlertTriangle, Package, Edit2, Download, FileSpreadsheet, CalendarDays, Truck, History, ArrowUpDown, Filter, Globe, Calendar, MapPin, Phone, User, Clock, Copy, MessageCircle, FileText, ChevronDown } from 'lucide-react';
 import { PremiumSearch } from '../components/PremiumSearch';
 import { usePersistentState } from '../utils/persistentState';
 import { getToyBoxStockKey } from '../utils/productCatalog';
 import { useRouteOrderReadState } from '../hooks/useRouteOrderReadState';
+import CurrencyIcon from '../components/CurrencyIcon';
 import * as XLSX from 'xlsx';
 import './FactoryPanel.css';
+import '../components/OrderRow.css';
 import { BulkExportModal } from '../components/BulkExportModal';
+
+const SourceBadge = ({ traffic_source, source }) => {
+  const raw = traffic_source || source;
+  if (!raw) return null;
+  const s = String(raw).toLowerCase();
+
+  let label = raw;
+  let cls = 'source-badge-default';
+
+  if (s.includes('messenger') || s === 'msg') {
+    cls = 'source-badge-messenger';
+    label = 'Messenger';
+  } else if (s.includes('facebook') || s === 'fb' || s.includes('l.facebook.com') || s.includes('m.facebook.com')) {
+    cls = 'source-badge-fb';
+    label = 'Facebook';
+  } else if (s.includes('tiktok') || s.includes('ttclid')) {
+    cls = 'source-badge-tiktok';
+    label = 'TikTok';
+  } else if (s.includes('instagram') || s === 'ig' || s.includes('l.instagram.com')) {
+    cls = 'source-badge-ig';
+    label = 'Instagram';
+  } else if (s.includes('youtube') || s === 'yt') {
+    cls = 'source-badge-yt';
+    label = 'YouTube';
+  } else if (s.includes('google') || s === 'cpc') {
+    cls = 'source-badge-google';
+    label = 'Google';
+  } else if (s.includes('website') || s.includes('web') || s.includes('new web') || s.includes('stb-landing') || s.includes('-landing')) {
+    cls = 'source-badge-web';
+    label = 'Website';
+  } else if (s.includes('direct')) {
+    cls = 'source-badge-direct';
+    label = 'Direct';
+  } else if (s.includes('whatsapp')) {
+    cls = 'source-badge-wa';
+    label = 'WhatsApp';
+  }
+
+  return <span className={`source-badge ${cls}`}>{label}</span>;
+};
+
+const getStatusBadgeVariant = (status) => {
+  switch (status) {
+    case 'New': return 'new';
+    case 'Pending Call': return 'pending-call';
+    case 'Final Call Pending': return 'final-call-pending';
+    case 'Confirmed': return 'confirmed';
+    case 'Bulk Exported': return 'bulk-exported';
+    case 'Fake Order': return 'fake-order';
+    case 'Cancelled': return 'cancelled';
+    case 'Incomplete': return 'incomplete';
+    case 'Courier Submitted': return 'courier';
+    case 'Factory Processing': return 'factory';
+    case 'Completed': return 'completed';
+    case 'Test': return 'test';
+    default: return 'default';
+  }
+};
 
 const containerVariants = {
   hidden: { opacity: 0, y: 15 },
@@ -65,7 +126,19 @@ const DATE_PRESETS = [
   { id: 'all', label: 'All Time' },
   { id: 'today', label: 'Today' },
   { id: 'yesterday', label: 'Yesterday' },
+  { id: '7days', label: '7 Days' },
+  { id: '30days', label: '30 Days' },
   { id: 'thisMonth', label: 'This Month' }
+];
+
+const SOURCES = ['All', 'Website', 'Facebook', 'Instagram', 'Direct', 'Messenger'];
+
+const SORT_OPTIONS = [
+  { value: 'newest', label: 'Newest First' },
+  { value: 'oldest', label: 'Oldest First' },
+  { value: 'amount-high', label: 'Amount: High to Low' },
+  { value: 'amount-low', label: 'Amount: Low to High' },
+  { value: 'name-asc', label: 'Customer: A-Z' }
 ];
 
 const EXPORT_PRESETS = [
@@ -134,6 +207,14 @@ const matchesDatePreset = (value, preset) => {
     const yesterdayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
     const yesterdayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     return orderDate >= yesterdayStart && orderDate < yesterdayEnd;
+  }
+
+  if (preset === '7days') {
+    return now.getTime() - orderDate.getTime() <= 7 * 24 * 60 * 60 * 1000;
+  }
+
+  if (preset === '30days') {
+    return now.getTime() - orderDate.getTime() <= 30 * 24 * 60 * 60 * 1000;
   }
 
   if (preset === 'thisMonth') {
@@ -486,7 +567,7 @@ const buildConfirmedExportRow = (order) => {
 };
 
 export const FactoryPanel = () => {
-  const { orders, toyBoxes, autoDistributeOrders, updateOrderStatus } = useOrders();
+  const { orders, toyBoxes, autoDistributeOrders, updateOrderStatus, dispatchToCourier } = useOrders();
   const { updatePresenceContext, profile, user } = useAuth();
 
   useEffect(() => {
@@ -500,7 +581,26 @@ export const FactoryPanel = () => {
   const [datePreset, setDatePreset] = usePersistentState('panel:factory:date-preset', 'all');
   const [dateFrom, setDateFrom] = usePersistentState('panel:factory:date-from', '');
   const [dateTo, setDateTo] = usePersistentState('panel:factory:date-to', '');
+  const [sourceFilter, setSourceFilter] = usePersistentState('panel:factory:source-filter', 'All');
+  const [sortOrder, setSortOrder] = usePersistentState('panel:factory:sort-order', 'newest');
+  const [pageSize, setPageSize] = usePersistentState('panel:factory:page-size', 10);
   const [currentPage, setCurrentPage] = useState(1);
+  const [copiedPhoneId, setCopiedPhoneId] = useState(null);
+  const [activeCourierDropdownId, setActiveCourierDropdownId] = useState(null);
+
+  useEffect(() => {
+    const handleGlobalClick = () => setActiveCourierDropdownId(null);
+    window.addEventListener('click', handleGlobalClick);
+    return () => window.removeEventListener('click', handleGlobalClick);
+  }, []);
+
+  const handleCopyPhone = (e, phone, orderId) => {
+    e.stopPropagation();
+    if (!phone) return;
+    navigator.clipboard.writeText(String(phone));
+    setCopiedPhoneId(orderId);
+    setTimeout(() => setCopiedPhoneId(null), 2000);
+  };
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
@@ -522,6 +622,8 @@ export const FactoryPanel = () => {
   const [isExportingBatch, setIsExportingBatch] = useState(false);
   const [selectedConfirmedIds, setSelectedConfirmedIds] = useState([]);
   const [isMovingSelectedConfirmed, setIsMovingSelectedConfirmed] = useState(false);
+  const [rowLoading, setRowLoading] = useState({});
+  const [isDispatchingSelected, setIsDispatchingSelected] = useState(false);
 
   useEffect(() => {
     try {
@@ -556,20 +658,28 @@ export const FactoryPanel = () => {
     return matchesDatePreset(value, datePreset);
   };
 
-  const matchesPanelFilters = (order) => (
-    (
-      order.id.toLowerCase().includes(normalizedSearchTerm) ||
-      (order.product_name || '').toLowerCase().includes(normalizedSearchTerm) ||
-      (order.customer_name || '').toLowerCase().includes(normalizedSearchTerm)
-    ) &&
-    matchesActiveDateFilter(order.created_at)
-  );
+  const matchesSearchFilter = (order) => {
+    if (!normalizedSearchTerm) return true;
+    const idMatch = (order.id || '').toLowerCase().includes(normalizedSearchTerm);
+    const productMatch = (order.product_name || '').toLowerCase().includes(normalizedSearchTerm);
+    const customerMatch = (order.customer_name || '').toLowerCase().includes(normalizedSearchTerm);
+    const phoneMatch = (order.phone || '').includes(normalizedSearchTerm);
+    const addressMatch = (order.address || '').toLowerCase().includes(normalizedSearchTerm);
+    const trackingMatch = (order.tracking_code || order.consignment_id || '').toLowerCase().includes(normalizedSearchTerm);
+    return idMatch || productMatch || customerMatch || phoneMatch || addressMatch || trackingMatch;
+  };
 
-  const matchesSearchFilter = (order) => (
-    order.id.toLowerCase().includes(normalizedSearchTerm) ||
-    (order.product_name || '').toLowerCase().includes(normalizedSearchTerm) ||
-    (order.customer_name || '').toLowerCase().includes(normalizedSearchTerm)
-  );
+  const matchesPanelFilters = (order) => {
+    if (!matchesSearchFilter(order)) {
+      return false;
+    }
+
+    if (sourceFilter !== 'All' && (order.source || 'Direct') !== sourceFilter) {
+      return false;
+    }
+
+    return matchesActiveDateFilter(order.created_at);
+  };
 
   const confirmedOrders = orders.filter(
     (order) => order.status === 'Confirmed' && matchesPanelFilters(order)
@@ -579,23 +689,50 @@ export const FactoryPanel = () => {
     (order) => order.status === 'Factory Queue' && matchesPanelFilters(order)
   );
 
-  const displayOrders = activeTab === 'confirmed' ? confirmedOrders : queuedOrders;
+  const rawDisplayOrders = activeTab === 'confirmed' ? confirmedOrders : queuedOrders;
+
+  const displayOrders = useMemo(() => {
+    const list = [...rawDisplayOrders];
+    return list.sort((a, b) => {
+      if (sortOrder === 'newest') {
+        return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+      }
+      if (sortOrder === 'oldest') {
+        return new Date(a.created_at || 0) - new Date(b.created_at || 0);
+      }
+      if (sortOrder === 'amount-high') {
+        const amtA = Number(a.total_amount || a.amount || a.total || 0);
+        const amtB = Number(b.total_amount || b.amount || b.total || 0);
+        return amtB - amtA;
+      }
+      if (sortOrder === 'amount-low') {
+        const amtA = Number(a.total_amount || a.amount || a.total || 0);
+        const amtB = Number(b.total_amount || b.amount || b.total || 0);
+        return amtA - amtB;
+      }
+      if (sortOrder === 'name-asc') {
+        return (a.customer_name || '').localeCompare(b.customer_name || '');
+      }
+      return 0;
+    });
+  }, [rawDisplayOrders, sortOrder]);
+
   const { isOrderUnread, markOrderRead, unreadCount } = useRouteOrderReadState(`confirmed-panel:${activeTab}`, displayOrders);
   const latestExportHistory = exportHistory[0] || null;
   const latestConfirmedExportHistory = exportHistory.find((item) => item.tab === 'confirmed') || null;
   const exportRangeStartDate = useMemo(() => parseDateTimeRangeBoundary(exportDateFrom, 'start'), [exportDateFrom]);
   const exportRangeEndDate = useMemo(() => parseDateTimeRangeBoundary(exportDateTo, 'end'), [exportDateTo]);
   const exportHasCustomRange = exportDatePreset !== 'sinceLast' && Boolean(exportDateFrom || exportDateTo);
-  const totalPages = Math.max(1, Math.ceil(displayOrders.length / FACTORY_PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(displayOrders.length / pageSize));
   const paginatedOrders = useMemo(() => {
-    const startIndex = (currentPage - 1) * FACTORY_PAGE_SIZE;
-    return displayOrders.slice(startIndex, startIndex + FACTORY_PAGE_SIZE);
-  }, [displayOrders, currentPage]);
+    const startIndex = (currentPage - 1) * pageSize;
+    return displayOrders.slice(startIndex, startIndex + pageSize);
+  }, [displayOrders, currentPage, pageSize]);
   const visiblePages = useMemo(() => getVisiblePageNumbers(currentPage, totalPages), [currentPage, totalPages]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, searchTerm, datePreset, dateFrom, dateTo]);
+  }, [activeTab, searchTerm, datePreset, dateFrom, dateTo, sourceFilter, sortOrder, pageSize]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -672,6 +809,108 @@ export const FactoryPanel = () => {
       alert(`Move failed: ${error.message}`);
     } finally {
       setIsMovingSelectedConfirmed(false);
+    }
+  };
+
+  const handleSingleSendToCourier = async (e, orderId) => {
+    e.stopPropagation();
+    setRowLoading((prev) => ({ ...prev, [orderId]: true }));
+    try {
+      await dispatchToCourier(orderId);
+      setDistributeResult({
+        distributed: 1,
+        queued: 0,
+        total: 1,
+        sourceStatus: `Order #${orderId.replace('ORD-', '')} successfully sent to Steadfast Courier!`
+      });
+      setTimeout(() => setDistributeResult(null), 6000);
+    } catch (err) {
+      console.error('Courier dispatch error:', err);
+      alert(`Courier dispatch failed for order #${orderId.replace('ORD-', '')}: ${err.message}`);
+    } finally {
+      setRowLoading((prev) => ({ ...prev, [orderId]: false }));
+    }
+  };
+
+  const handleSingleSendToPathao = async (e, orderId) => {
+    e.stopPropagation();
+    const loadingKey = `pathao-${orderId}`;
+    setRowLoading((prev) => ({ ...prev, [loadingKey]: true }));
+    try {
+      const trackingCode = window.prompt(`Enter Pathao Tracking/Consignment ID for Order #${String(orderId).replace('ORD-', '')} (Optional):`, '');
+      if (trackingCode === null) return;
+
+      const cleanTracking = trackingCode ? trackingCode.trim() : null;
+
+      const { error } = await supabase
+        .from('orders')
+        .update({
+          dispatched_at: new Date().toISOString(),
+          courier_name: 'Pathao',
+          tracking_id: cleanTracking,
+          status: 'Courier Submitted',
+          courier_status: 'pending'
+        })
+        .eq('id', orderId);
+
+      if (error) throw error;
+
+      if (updateOrderStatus) {
+        await updateOrderStatus(orderId, 'Courier Submitted', {
+          courier_name: 'Pathao',
+          tracking_id: cleanTracking
+        });
+      }
+
+      setDistributeResult({
+        distributed: 1,
+        queued: 0,
+        total: 1,
+        sourceStatus: `Order #${orderId.replace('ORD-', '')} successfully sent to Pathao Courier!`
+      });
+      setTimeout(() => setDistributeResult(null), 6000);
+    } catch (err) {
+      console.error('Pathao dispatch error:', err);
+      alert(`Pathao dispatch failed for order #${orderId.replace('ORD-', '')}: ${err.message}`);
+    } finally {
+      setRowLoading((prev) => ({ ...prev, [loadingKey]: false }));
+    }
+  };
+
+  const handleBulkSendToCourier = async () => {
+    if (selectedConfirmedOrders.length === 0) return;
+
+    const confirmed = window.confirm(`Dispatch ${selectedConfirmedOrders.length} selected confirmed order(s) directly to Steadfast Courier?`);
+    if (!confirmed) return;
+
+    setIsDispatchingSelected(true);
+    let successCount = 0;
+    let failCount = 0;
+    const errors = [];
+
+    for (const order of selectedConfirmedOrders) {
+      try {
+        await dispatchToCourier(order.id);
+        successCount++;
+      } catch (err) {
+        failCount++;
+        errors.push(`#${order.id.replace('ORD-', '')}: ${err.message}`);
+      }
+    }
+
+    setSelectedConfirmedIds([]);
+    setIsDispatchingSelected(false);
+
+    setDistributeResult({
+      distributed: successCount,
+      queued: failCount,
+      total: selectedConfirmedOrders.length,
+      sourceStatus: `Bulk Courier Dispatch: ${successCount} sent successfully${failCount > 0 ? `, ${failCount} failed` : ''}.`
+    });
+    setTimeout(() => setDistributeResult(null), 8000);
+
+    if (failCount > 0) {
+      alert(`Dispatched ${successCount} order(s) to Courier.\nFailed (${failCount}):\n${errors.slice(0, 10).join('\n')}`);
     }
   };
 
@@ -1036,18 +1275,18 @@ export const FactoryPanel = () => {
           </button>
         </div>
       </div>
-
       <Card className="table-card" noPadding>
         <div className="table-search-bar">
           <PremiumSearch
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search by ID, name or product..."
+            placeholder="Search by ID, name, phone, address or product..."
             suggestions={
               searchTerm ? orders.filter(o => 
-                o.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (o.id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (o.product_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (o.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase())
+                (o.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (o.phone || '').includes(searchTerm)
               ).slice(0, 5).map(o => ({
                 id: o.id,
                 label: o.customer_name,
@@ -1062,54 +1301,89 @@ export const FactoryPanel = () => {
               }
             }}
           />
-          <div className="factory-date-preset-bar">
-            <div className="factory-date-preset-label">
-              <CalendarDays size={15} />
-              <span>Premium Filter</span>
+
+          <div className="factory-filter-toolbar">
+            <div className="factory-date-preset-bar">
+              <div className="factory-date-preset-label">
+                <CalendarDays size={15} />
+                <span>Date Filter</span>
+              </div>
+              <div className="factory-date-preset-tabs">
+                {DATE_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    className={`factory-date-chip ${!hasCustomRange && datePreset === preset.id ? 'active' : ''}`}
+                    onClick={() => handlePresetChange(preset.id)}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="factory-date-preset-tabs">
-              {DATE_PRESETS.map((preset) => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  className={`factory-date-chip ${!hasCustomRange && datePreset === preset.id ? 'active' : ''}`}
-                  onClick={() => handlePresetChange(preset.id)}
+
+            <div className="factory-range-filter">
+              <div className="factory-range-input-group">
+                <label className="factory-range-label" htmlFor="factory-date-from">From</label>
+                <input
+                  id="factory-date-from"
+                  type="date"
+                  className="factory-range-input"
+                  value={dateFrom}
+                  onChange={(event) => handleDateRangeChange('from', event.target.value)}
+                />
+              </div>
+              <div className="factory-range-input-group">
+                <label className="factory-range-label" htmlFor="factory-date-to">To</label>
+                <input
+                  id="factory-date-to"
+                  type="date"
+                  className="factory-range-input"
+                  value={dateTo}
+                  onChange={(event) => handleDateRangeChange('to', event.target.value)}
+                />
+              </div>
+              <button
+                type="button"
+                className="factory-range-clear-btn"
+                onClick={handleClearDateRange}
+                disabled={!hasCustomRange && datePreset === 'all'}
+              >
+                Reset
+              </button>
+            </div>
+
+            <div className="factory-select-filter-group">
+              <div className="factory-filter-select-wrapper">
+                <Globe size={14} className="factory-select-icon" />
+                <select
+                  className="factory-filter-select"
+                  value={sourceFilter}
+                  onChange={(e) => setSourceFilter(e.target.value)}
+                  aria-label="Filter by order source"
                 >
-                  {preset.label}
-                </button>
-              ))}
+                  {SOURCES.map((src) => (
+                    <option key={src} value={src}>{src === 'All' ? 'All Sources' : src}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="factory-filter-select-wrapper">
+                <ArrowUpDown size={14} className="factory-select-icon" />
+                <select
+                  className="factory-filter-select"
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value)}
+                  aria-label="Sort orders"
+                >
+                  {SORT_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
-          <div className="factory-range-filter">
-            <div className="factory-range-input-group">
-              <label className="factory-range-label" htmlFor="factory-date-from">From</label>
-              <input
-                id="factory-date-from"
-                type="date"
-                className="factory-range-input"
-                value={dateFrom}
-                onChange={(event) => handleDateRangeChange('from', event.target.value)}
-              />
-            </div>
-            <div className="factory-range-input-group">
-              <label className="factory-range-label" htmlFor="factory-date-to">To</label>
-              <input
-                id="factory-date-to"
-                type="date"
-                className="factory-range-input"
-                value={dateTo}
-                onChange={(event) => handleDateRangeChange('to', event.target.value)}
-              />
-            </div>
-            <button
-              type="button"
-              className="factory-range-clear-btn"
-              onClick={handleClearDateRange}
-              disabled={!hasCustomRange && datePreset === 'all'}
-            >
-              Reset
-            </button>
-          </div>
+
           <div className="filter-actions-group">
             {unreadCount > 0 && (
               <span className="route-unread-count-pill" title="Orders not opened in this Confirmed panel tab">
@@ -1121,6 +1395,7 @@ export const FactoryPanel = () => {
             </span>
             <span className="order-count-badge">{displayOrders.length} records found</span>
           </div>
+
           {activeTab === 'confirmed' && selectedConfirmedIds.length > 0 && (
             <div className="factory-selection-toolbar">
               <div className="factory-selection-copy">
@@ -1131,92 +1406,199 @@ export const FactoryPanel = () => {
                 type="button"
                 className="factory-selection-clear"
                 onClick={() => setSelectedConfirmedIds([])}
-                disabled={isMovingSelectedConfirmed}
+                disabled={isMovingSelectedConfirmed || isDispatchingSelected}
               >
                 Clear
               </button>
               <Button
-                variant="primary"
+                variant="outline"
                 onClick={handleMoveSelectedToBulkExported}
-                disabled={isMovingSelectedConfirmed || selectedConfirmedOrders.length === 0}
+                disabled={isMovingSelectedConfirmed || isDispatchingSelected || selectedConfirmedOrders.length === 0}
               >
-                {isMovingSelectedConfirmed ? <Loader2 size={16} className="spin" /> : <Truck size={16} />}
+                {isMovingSelectedConfirmed ? <Loader2 size={16} className="spin" /> : <Package size={16} />}
                 <span>{isMovingSelectedConfirmed ? 'Moving...' : 'Move to Bulk Exported'}</span>
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleBulkSendToCourier}
+                disabled={isMovingSelectedConfirmed || isDispatchingSelected || selectedConfirmedOrders.length === 0}
+              >
+                {isDispatchingSelected ? <Loader2 size={16} className="spin" /> : <Truck size={16} />}
+                <span>{isDispatchingSelected ? 'Dispatching...' : 'Send to Courier'}</span>
               </Button>
             </div>
           )}
         </div>
         
-        <div className="factory-table-wrapper">
-          <table className="factory-management-table">
+      <Card className="table-card liquid-glass" noPadding>
+        <div className="orders-table-wrapper desktop-only">
+          <table className="management-table premium-table">
             <thead>
               <tr>
                 {activeTab === 'confirmed' && (
-                  <th className="factory-select-col">
+                  <th className="checkbox-col">
                     <input
                       type="checkbox"
-                      className="factory-checkbox"
+                      className="premium-checkbox"
                       checked={isCurrentPageSelected}
                       onChange={handleSelectConfirmedPage}
-                      disabled={paginatedConfirmedIds.length === 0 || isMovingSelectedConfirmed}
+                      disabled={paginatedConfirmedIds.length === 0 || isMovingSelectedConfirmed || isDispatchingSelected}
                       aria-label="Select visible confirmed orders"
                     />
                   </th>
                 )}
-                <th>Reference</th>
-                <th>Recipient</th>
-                <th>Focus Products</th>
-                <th>Stock Status</th>
-                <th>Actions</th>
+                <th className="id-col">Caller</th>
+                <th className="date-col">Timestamp</th>
+                <th className="customer-col">Customer</th>
+                <th className="product-col">Product</th>
+                <th className="amount-col">Total</th>
+                <th className="shipping-col">Delivery</th>
+                <th className="items-col">Stock / Items</th>
+                <th className="status-col">Fulfilment</th>
+                <th className="actions-col">Action</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="orders-table-body">
               <AnimatePresence mode="popLayout">
                 {paginatedOrders.map(order => {
                   const stock = getStockStatus(order);
                   const isToyBox = (order.product_name || '').toUpperCase().includes('TOY BOX');
-                  
+                  const orderTotal = Number(order.total_amount || order.amount || order.total || 0);
+                  const rawPhone = String(order.phone || '').trim();
+                  const normalizedPhone = rawPhone.replace(/\D/g, '');
+                  const whatsappPhone = normalizedPhone.startsWith('880')
+                    ? normalizedPhone
+                    : normalizedPhone.startsWith('0')
+                      ? `88${normalizedPhone}`
+                      : normalizedPhone;
+                  const whatsappLink = whatsappPhone ? `https://wa.me/${whatsappPhone}` : null;
+                  const orderTimestamp = order.created_at
+                    ? new Date(order.created_at).toLocaleString('en-GB', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true
+                      })
+                    : 'N/A';
+
                   return (
                     <motion.tr 
                       key={order.id} 
                       layout
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className={`factory-order-row cursor-pointer ${isOrderUnread(order) ? 'route-unread-row' : ''}`}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      className={`order-row clickable-row ${selectedConfirmedIds.includes(order.id) ? 'row-selected' : ''} ${isOrderUnread(order) ? 'route-unread-row' : 'route-read-row'}`}
                       onClick={() => handleRowClick(order)}
                     >
                       {activeTab === 'confirmed' && (
-                        <td className="factory-select-cell" onClick={(event) => event.stopPropagation()}>
+                        <td className="checkbox-cell" onClick={(event) => event.stopPropagation()}>
                           <input
                             type="checkbox"
-                            className="factory-checkbox"
+                            className="premium-checkbox"
                             checked={selectedConfirmedIds.includes(order.id)}
                             onChange={() => handleSelectConfirmedOrder(order.id)}
-                            disabled={isMovingSelectedConfirmed || order.status !== 'Confirmed'}
+                            disabled={isMovingSelectedConfirmed || isDispatchingSelected || order.status !== 'Confirmed'}
                             aria-label={`Select order ${order.id}`}
                           />
                         </td>
                       )}
-                      <td className="order-id-cell">
-                        <div className="route-read-card-header">
+                      
+                      <td className="id-cell">
+                        <div className="route-read-id-wrap">
                           {isOrderUnread(order) && <span className="route-unread-dot" aria-label="Unread order" />}
-                          <span className="saas-id">#{(order.id || '').replace('ORD-', '')}</span>
+                          {order.first_caller_name ? (
+                            <div className="first-caller-cell">
+                              <span className="first-caller-avatar">
+                                {order.first_caller_name.charAt(0).toUpperCase()}
+                              </span>
+                              <div className="first-caller-info">
+                                <span className="first-caller-name">{order.first_caller_name}</span>
+                                <span className="first-caller-id-sub">#{String(order.id).replace('ORD-', '').replace('STB-', '').replace('MGB-', '').slice(0, 8)}</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="first-caller-cell no-caller">
+                              <span className="first-caller-avatar no-caller-avatar">—</span>
+                              <div className="first-caller-info">
+                                <span className="first-caller-name no-caller-text">Not called</span>
+                                <span className="first-caller-id-sub">#{String(order.id).replace('ORD-', '').replace('STB-', '').replace('MGB-', '').slice(0, 8)}</span>
+                              </div>
+                            </div>
+                          )}
                           {isOrderUnread(order) && <span className="route-unread-chip">New</span>}
                         </div>
                       </td>
-                      <td>
-                        <div className="factory-customer-stack">
+
+                      <td className="date-cell">
+                        <span className="saas-text timestamp-text">{orderTimestamp}</span>
+                      </td>
+
+                      <td className="customer-cell">
+                        <div className="customer-cell-stack">
                           <span className="saas-text-dark">{order.customer_name}</span>
-                          <span className="saas-text">{order.phone}</span>
+                          <div className="customer-quick-row">
+                            <span className="customer-phone-text">{rawPhone || 'No phone'}</span>
+                            <div className="customer-quick-actions" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                type="button"
+                                className={`customer-quick-btn ${copiedPhoneId === order.id ? 'copied' : ''}`}
+                                title={copiedPhoneId === order.id ? 'Copied' : 'Copy phone'}
+                                onClick={(e) => handleCopyPhone(e, rawPhone, order.id)}
+                                disabled={!rawPhone}
+                              >
+                                <Copy size={12} />
+                              </button>
+                              <a
+                                href={rawPhone ? `tel:${rawPhone}` : undefined}
+                                className="customer-quick-btn"
+                                title="Call customer"
+                                onClick={(e) => e.stopPropagation()}
+                                aria-disabled={!rawPhone}
+                              >
+                                <Phone size={12} />
+                              </a>
+                              <a
+                                href={whatsappLink || undefined}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="customer-quick-btn whatsapp"
+                                title="Open WhatsApp"
+                                onClick={(e) => e.stopPropagation()}
+                                aria-disabled={!whatsappLink}
+                              >
+                                <MessageCircle size={12} />
+                              </a>
+                            </div>
+                          </div>
                         </div>
                       </td>
-                      <td>
-                        <div className="factory-product-stack">
-                          <div className="factory-product-line">
-                            <span className="saas-text-dark">{order.product_name}</span>
-                            {order.size && <span className="factory-size-pill">T-{order.size}</span>}
-                          </div>
+
+                      <td className="product-cell">
+                        <span className="saas-text-dark product-name-cell" title={order.product_name}>
+                          {order.product_name || 'N/A'}
+                        </span>
+                        <SourceBadge traffic_source={order.traffic_source} source={order.source} />
+                      </td>
+
+                      <td className="amount-cell">
+                        <span className="saas-text-dark">
+                          <CurrencyIcon size={12} className="currency-icon-elite" style={{ marginRight: '2px' }} />
+                          {Number(orderTotal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </td>
+
+                      <td className="shipping-cell">
+                        <span className="saas-text">{order.shipping_zone || order.delivery_zone || 'N/A'}</span>
+                      </td>
+
+                      <td className="items-cell">
+                        <div className="factory-stock-block">
+                          <Badge variant={stock.matched ? 'success' : 'warning'} className="factory-stock-pill">
+                            {stock.matched ? 'Full Stock' : `${stock.missing.length} Missing`}
+                          </Badge>
                           {isToyBox && (order.ordered_items || []).length > 0 && (
                             <div className="factory-item-pills">
                               {(order.ordered_items || []).map((item, idx) => {
@@ -1237,28 +1619,82 @@ export const FactoryPanel = () => {
                           )}
                         </div>
                       </td>
-                      <td>
-                        <div className="factory-stock-block">
-                          <Badge variant={stock.matched ? 'success' : 'warning'} className="factory-stock-pill">
-                            {stock.matched ? 'Full Stock' : `${stock.missing.length} Missing`}
-                          </Badge>
-                          {!stock.matched && (
-                             <div className="factory-meta-note">Awaiting replenishment</div>
-                          )}
-                        </div>
+
+                      <td className="status-cell" onClick={(e) => e.stopPropagation()}>
+                        <span className={`saas-badge saas-badge-${getStatusBadgeVariant(order.status)}`}>
+                          <span className="dot"></span>
+                          {order.status}
+                        </span>
                       </td>
-                      <td className="factory-actions-cell">
-                        <div className="factory-action-grid">
-                          <button className="factory-action-btn edit" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(order); }} title="Adjust Order">
-                            <Edit2 size={14} /> <span>Edit</span>
+
+                      <td className="actions-cell" onClick={(e) => e.stopPropagation()}>
+                        <div className="saas-actions">
+                          {order.status === 'Confirmed' && (
+                            <div className="courier-dropdown-wrapper">
+                              <button
+                                type="button"
+                                className="factory-action-btn courier-main-btn"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveCourierDropdownId(activeCourierDropdownId === order.id ? null : order.id);
+                                }}
+                                disabled={rowLoading[order.id] || rowLoading[`pathao-${order.id}`] || isDispatchingSelected || isMovingSelectedConfirmed}
+                                title="Dispatch order via Courier"
+                              >
+                                {rowLoading[order.id] || rowLoading[`pathao-${order.id}`] ? (
+                                  <Loader2 size={13} className="spin" />
+                                ) : (
+                                  <Truck size={13} />
+                                )}
+                                <span>Dispatch</span>
+                                <ChevronDown size={12} />
+                              </button>
+
+                              {activeCourierDropdownId === order.id && (
+                                <div className="courier-dropdown-menu" onClick={(e) => e.stopPropagation()}>
+                                  <button
+                                    type="button"
+                                    className="courier-menu-item sfast"
+                                    onClick={(e) => {
+                                      setActiveCourierDropdownId(null);
+                                      handleSingleSendToCourier(e, order.id);
+                                    }}
+                                  >
+                                    <Truck size={14} className="menu-icon" />
+                                    <div className="menu-text">
+                                      <strong>Steadfast (S-Fast)</strong>
+                                      <span>Direct API Dispatch</span>
+                                    </div>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    className="courier-menu-item pathao"
+                                    onClick={(e) => {
+                                      setActiveCourierDropdownId(null);
+                                      handleSingleSendToPathao(e, order.id);
+                                    }}
+                                  >
+                                    <Package size={14} className="menu-icon" />
+                                    <div className="menu-text">
+                                      <strong>Pathao Courier</strong>
+                                      <span>Tracking ID Entry</span>
+                                    </div>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          <button className="saas-icon-btn" title="Edit Order" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(order); }}>
+                            <Edit2 size={15} strokeWidth={1.5} />
+                          </button>
+                          <button className="saas-icon-btn" title="View Details" onClick={(e) => { e.stopPropagation(); handleRowClick(order); }}>
+                            <FileText size={15} strokeWidth={1.5} />
                           </button>
                           {order.status === 'Factory Queue' && (
                             <button className="factory-action-btn retry" onClick={(e) => { e.stopPropagation(); handleRetryDistribute(order.id); }} title="Recheck Inventory">
-                               <Zap size={14} /> <span>Recheck</span>
-                             </button>
-                          )}
-                          {!stock.matched && (
-                            <span className="factory-inline-note">{order.status === 'Confirmed' ? 'Blocked' : 'Insufficient'}</span>
+                              <Zap size={14} /> <span>Recheck</span>
+                            </button>
                           )}
                         </div>
                       </td>
@@ -1268,7 +1704,7 @@ export const FactoryPanel = () => {
               </AnimatePresence>
               {displayOrders.length === 0 && (
                 <tr>
-                  <td colSpan={activeTab === 'confirmed' ? 6 : 5} className="empty-state-cell">
+                  <td colSpan={activeTab === 'confirmed' ? 10 : 9} className="empty-state-cell">
                     <motion.div 
                       className="empty-state-content"
                       initial={{ opacity: 0, scale: 0.9 }}
@@ -1291,13 +1727,136 @@ export const FactoryPanel = () => {
           </table>
         </div>
 
+        {/* Mobile View Card List */}
+        <div className="orders-mobile-list mobile-only">
+          {paginatedOrders.map(order => {
+            const stock = getStockStatus(order);
+            const orderTotal = Number(order.total_amount || order.amount || order.total || 0);
+            const rawPhone = String(order.phone || '').trim();
+
+            return (
+              <div
+                key={order.id}
+                className={`order-mobile-card elite-card ${isOrderUnread(order) ? 'route-unread-card' : ''}`}
+                onClick={() => handleRowClick(order)}
+              >
+                <div className="card-header-elite">
+                  <div className="id-group">
+                    <div className="route-read-card-header">
+                      {isOrderUnread(order) && <span className="route-unread-dot" aria-label="Unread order" />}
+                      <span className="saas-id">#{(order.id || '').replace('ORD-', '')}</span>
+                    </div>
+                  </div>
+                  <span className={`saas-badge saas-badge-${getStatusBadgeVariant(order.status)}`}>
+                    <span className="dot"></span>
+                    {order.status}
+                  </span>
+                </div>
+                <div className="card-body-elite">
+                  <div className="info-row">
+                    <span className="label">Customer:</span>
+                    <span className="value">{order.customer_name} ({rawPhone})</span>
+                  </div>
+                  <div className="info-row">
+                    <span className="label">Product:</span>
+                    <span className="value">{order.product_name}</span>
+                  </div>
+                  <div className="info-row">
+                    <span className="label">Total Amount:</span>
+                    <span className="value price">৳{orderTotal.toLocaleString()}</span>
+                  </div>
+                  <div className="info-row">
+                    <span className="label">Stock:</span>
+                    <span className="value">{stock.matched ? 'Full Stock' : `${stock.missing.length} Missing`}</span>
+                  </div>
+                </div>
+                <div className="card-actions-elite" onClick={(e) => e.stopPropagation()}>
+                  {order.status === 'Confirmed' && (
+                    <div className="courier-dropdown-wrapper">
+                      <button
+                        type="button"
+                        className="factory-action-btn courier-main-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveCourierDropdownId(activeCourierDropdownId === order.id ? null : order.id);
+                        }}
+                        disabled={rowLoading[order.id] || rowLoading[`pathao-${order.id}`] || isDispatchingSelected || isMovingSelectedConfirmed}
+                      >
+                        {rowLoading[order.id] || rowLoading[`pathao-${order.id}`] ? (
+                          <Loader2 size={14} className="spin" />
+                        ) : (
+                          <Truck size={14} />
+                        )}
+                        <span>Dispatch</span>
+                        <ChevronDown size={12} />
+                      </button>
+
+                      {activeCourierDropdownId === order.id && (
+                        <div className="courier-dropdown-menu" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            className="courier-menu-item sfast"
+                            onClick={(e) => {
+                              setActiveCourierDropdownId(null);
+                              handleSingleSendToCourier(e, order.id);
+                            }}
+                          >
+                            <Truck size={14} className="menu-icon" />
+                            <div className="menu-text">
+                              <strong>Steadfast (S-Fast)</strong>
+                              <span>Direct API Dispatch</span>
+                            </div>
+                          </button>
+
+                          <button
+                            type="button"
+                            className="courier-menu-item pathao"
+                            onClick={(e) => {
+                              setActiveCourierDropdownId(null);
+                              handleSingleSendToPathao(e, order.id);
+                            }}
+                          >
+                            <Package size={14} className="menu-icon" />
+                            <div className="menu-text">
+                              <strong>Pathao Courier</strong>
+                              <span>Tracking ID Entry</span>
+                            </div>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <button className="saas-icon-btn" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(order); }}>
+                    <Edit2 size={16} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
         {displayOrders.length > 0 && (
           <div className="factory-pagination-footer">
             <div className="factory-pagination-info">
-              Showing {(currentPage - 1) * FACTORY_PAGE_SIZE + 1}-
-              {Math.min(currentPage * FACTORY_PAGE_SIZE, displayOrders.length)} of {displayOrders.length} records
+              Showing {(currentPage - 1) * pageSize + 1}-
+              {Math.min(currentPage * pageSize, displayOrders.length)} of {displayOrders.length} records
             </div>
             <div className="factory-pagination-actions">
+              <div className="factory-page-size-selector">
+                <span className="factory-page-size-label">Per page:</span>
+                <select
+                  className="factory-page-size-select"
+                  value={pageSize}
+                  onChange={(e) => setPageSize(Number(e.target.value))}
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+
               <button
                 className="factory-page-btn"
                 onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}

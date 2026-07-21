@@ -46,10 +46,12 @@ export const SteadfastPanel = () => {
   const [searchTerm, setSearchTerm] = usePersistentState('panel:steadfast:search', '');
   const [dateFilter, setDateFilter] = usePersistentState('panel:steadfast:dateFilter', 'today'); // 'today' | 'yesterday' | '7days' | '30days' | 'all'
   const [statusFilter, setStatusFilter] = usePersistentState('panel:steadfast:statusFilter', 'all'); // 'all' | 'transit' | 'delivered' | 'pending' | 'returned'
+  const [courierFilter, setCourierFilter] = usePersistentState('panel:steadfast:courierFilter', 'all'); // 'all' | 'steadfast' | 'pathao'
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = usePersistentState('panel:steadfast:pageSize', 20);
 
   const [syncStatus, setSyncStatus] = useState({});
+  const [isBulkSyncing, setIsBulkSyncing] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -96,11 +98,16 @@ export const SteadfastPanel = () => {
     return diffDays <= days;
   };
 
-  // Filter orders dispatched to Steadfast
+  // Filter orders dispatched to Steadfast & Pathao
   const filteredSteadfastOrders = useMemo(() => {
     return orders.filter(o => {
-      const hasDispatch = o.tracking_id || o.dispatched_at || o.courier_assigned_id || o.courier_name === 'Steadfast' || o.status === 'Courier Submitted';
+      const hasDispatch = o.tracking_id || o.dispatched_at || o.courier_assigned_id || o.courier_name === 'Steadfast' || o.courier_name === 'Pathao' || o.status === 'Courier Submitted';
       if (!hasDispatch) return false;
+
+      // Courier Service Filter
+      const cName = (o.courier_name || '').toLowerCase();
+      if (courierFilter === 'steadfast' && !(cName.includes('steadfast') || cName.includes('sfast') || !cName)) return false;
+      if (courierFilter === 'pathao' && !cName.includes('pathao')) return false;
 
       // Date Filtering
       const dispatchDate = o.dispatched_at || o.updated_at || o.created_at;
@@ -131,7 +138,7 @@ export const SteadfastPanel = () => {
 
       return true;
     }).sort((a, b) => new Date(b.dispatched_at || b.updated_at || b.created_at) - new Date(a.dispatched_at || a.updated_at || a.created_at));
-  }, [orders, dateFilter, statusFilter, searchTerm]);
+  }, [orders, dateFilter, statusFilter, courierFilter, searchTerm]);
 
   const { isOrderUnread, markOrderRead, unreadCount } = useRouteOrderReadState('steadfast-panel', filteredSteadfastOrders);
 
@@ -191,6 +198,29 @@ export const SteadfastPanel = () => {
     }
   };
 
+  const handleBulkSyncStatuses = async () => {
+    const activeOrders = filteredSteadfastOrders.filter(o => o.tracking_id || o.courier_assigned_id);
+    if (activeOrders.length === 0) {
+      alert("No active courier tracking codes found in current view.");
+      return;
+    }
+
+    setIsBulkSyncing(true);
+    let count = 0;
+
+    for (const order of activeOrders) {
+      try {
+        await api.getSteadfastStatus(order.id, order.tracking_id);
+        count++;
+      } catch (err) {
+        console.warn(`Bulk sync skipped for #${order.id}:`, err);
+      }
+    }
+
+    setIsBulkSyncing(false);
+    alert(`Live status sync complete for ${count} orders!`);
+  };
+
   const getTimeSinceDispatch = (dispatchedAt) => {
     if (!dispatchedAt) return null;
     const diff = Math.floor((currentTime - new Date(dispatchedAt)) / 1000);
@@ -223,9 +253,34 @@ export const SteadfastPanel = () => {
           <h1 className="premium-title">Steadfast Logistics Hub</h1>
           <p className="text-secondary">Mission-critical courier tracking, live parcel monitoring and automated delivery updates.</p>
         </div>
-        <div className="active-dispatch-stat">
-          <Zap size={18} />
-          <span>Steadfast API Live</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button
+            type="button"
+            className="sync-all-btn"
+            onClick={handleBulkSyncStatuses}
+            disabled={isBulkSyncing || filteredSteadfastOrders.length === 0}
+            title="Auto sync live courier status from API"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 16px',
+              borderRadius: '12px',
+              border: '1px solid rgba(99,102,241,0.3)',
+              background: 'rgba(99,102,241,0.1)',
+              color: 'var(--sl-accent)',
+              fontWeight: 600,
+              fontSize: '0.85rem',
+              cursor: 'pointer'
+            }}
+          >
+            <RefreshCw size={15} className={isBulkSyncing ? 'spin' : ''} />
+            <span>{isBulkSyncing ? 'Syncing...' : 'Live Sync Status'}</span>
+          </button>
+          <div className="active-dispatch-stat">
+            <Zap size={18} />
+            <span>Steadfast API Live</span>
+          </div>
         </div>
       </header>
 
@@ -286,6 +341,13 @@ export const SteadfastPanel = () => {
           </div>
 
           <div className="filter-controls-cluster">
+            {/* Courier Provider Filter Group */}
+            <div className="courier-filter-group" style={{ display: 'flex', gap: '6px' }}>
+              <button className={`filter-pill ${courierFilter === 'all' ? 'active' : ''}`} onClick={() => setCourierFilter('all')}>All Couriers</button>
+              <button className={`filter-pill ${courierFilter === 'steadfast' ? 'active' : ''}`} onClick={() => setCourierFilter('steadfast')}>Steadfast</button>
+              <button className={`filter-pill ${courierFilter === 'pathao' ? 'active' : ''}`} onClick={() => setCourierFilter('pathao')}>Pathao</button>
+            </div>
+
             {/* Date Range Filter Group */}
             <div className="date-filter-group">
               <button className={`filter-pill ${dateFilter === 'today' ? 'active' : ''}`} onClick={() => setDateFilter('today')}>Today</button>
