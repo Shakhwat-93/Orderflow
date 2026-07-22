@@ -84,6 +84,23 @@ export const ModeratorPanel = () => {
   // Track which order's status dropdown is open on mobile
   const [openStatusDropdownId, setOpenStatusDropdownId] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedOrderIds, setSelectedOrderIds] = useState([]);
+
+  const handleSelectOrder = (orderId) => {
+    setSelectedOrderIds(prev =>
+      prev.includes(orderId) ? prev.filter(id => id !== orderId) : [...prev, orderId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    const pagedIds = paginatedOrders.map(o => o.id);
+    const allSelected = pagedIds.length > 0 && pagedIds.every(id => selectedOrderIds.includes(id));
+    if (allSelected) {
+      setSelectedOrderIds(prev => prev.filter(id => !pagedIds.includes(id)));
+    } else {
+      setSelectedOrderIds(prev => [...new Set([...prev, ...pagedIds])]);
+    }
+  };
 
   const handleOpenEditModal = (order) => {
     setSelectedOrder(order);
@@ -426,10 +443,18 @@ export const ModeratorPanel = () => {
           <table className="management-table premium-table">
             <thead>
               <tr>
+                <th className="checkbox-col">
+                  <input 
+                    type="checkbox" 
+                    className="premium-checkbox" 
+                    checked={paginatedOrders.length > 0 && paginatedOrders.every(order => selectedOrderIds.includes(order.id))}
+                    onChange={handleSelectAll}
+                  />
+                </th>
                 <th className="id-col">Order</th>
                 <th className="date-col">Date</th>
                 <th className="customer-col">Customer</th>
-                <th className="payment-status-col">Payment</th>
+                <th className="product-col">Product</th>
                 <th className="amount-col">Total</th>
                 <th className="shipping-col">Delivery</th>
                 <th className="items-col">Items</th>
@@ -446,11 +471,13 @@ export const ModeratorPanel = () => {
                   onStatusChange={updateOrderStatus} 
                   onEdit={handleOpenEditModal} 
                   onDetails={handleRowClick}
+                  isSelected={selectedOrderIds.includes(order.id)}
+                  onSelect={handleSelectOrder}
                   isUnread={isOrderUnread(order)}
                 />
               ))}
               {filteredOrders.length === 0 && (
-                <tr><td colSpan="10" className="empty-state-cell">No orders found matching your filters.</td></tr>
+                <tr><td colSpan="11" className="empty-state-cell">No orders found matching your filters.</td></tr>
               )}
             </tbody>
           </table>
