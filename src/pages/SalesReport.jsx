@@ -140,6 +140,93 @@ const ChartTooltip = ({ active, payload, label }) => {
   );
 };
 
+const extractColor = (itemName, orderItem) => {
+  if (orderItem?.color) return orderItem.color.trim();
+  
+  const commonColors = [
+    'black', 'blue', 'beige', 'olive', 'pink', 'white', 'golden', 'gold', 
+    'silver', 'grey', 'gray', 'red', 'green', 'yellow', 'purple', 'orange', 'brown'
+  ];
+  
+  const nameLower = String(itemName || '').toLowerCase();
+  for (const c of commonColors) {
+    if (nameLower.includes(c)) {
+      return c.charAt(0).toUpperCase() + c.slice(1);
+    }
+  }
+  return null;
+};
+
+const getBaseProductName = (rawName) => {
+  if (!rawName) return 'Unknown Product';
+  let name = String(rawName).trim();
+
+  // 1. Remove bracketed specs like [Black x2, White x1], [Olive x1]
+  name = name.replace(/\[[^\]]+\]/g, '');
+
+  // 2. Remove parenthesized specs like (Color: Black), (Color: Black, Golden, Silver)
+  name = name.replace(/\([^)]+\)/g, '');
+
+  // 3. Remove "x\d+" or "x \d+" (multipliers) e.g., "Sunglass x2" -> "Sunglass"
+  name = name.replace(/\s+x\d+\b/gi, '');
+
+  // 4. Remove common color suffixes and descriptors after a hyphen, comma or space
+  const wordsToRemove = [
+    'black', 'blue', 'beige', 'standard', 'olive', 'pink', 'white', 'golden', 'gold', 
+    'silver', 'grey', 'gray', 'red', 'green', 'yellow', 'purple', 'orange', 'brown', 
+    'navy', 'maroon', 'teal', 'combo', '1 pcs', '2 pcs', '3 pcs', '1pcs', '2pcs', '3pcs'
+  ];
+
+  const parts = name.split(/\s*[-–—,]\s*/);
+  if (parts.length > 1) {
+    const lastPart = parts[parts.length - 1].toLowerCase().trim();
+    const isColorOrDescriptor = wordsToRemove.some(word => lastPart.includes(word)) || lastPart.match(/^\d+\s*pcs?$/i);
+    if (isColorOrDescriptor) {
+      parts.pop();
+      name = parts.join(' - ');
+    }
+  }
+
+  const parts2 = name.split(/\s*[-–—,]\s*/);
+  if (parts2.length > 1) {
+    const lastPart = parts2[parts2.length - 1].toLowerCase().trim();
+    const isColorOrDescriptor = wordsToRemove.some(word => lastPart.includes(word)) || lastPart.match(/^\d+\s*pcs?$/i);
+    if (isColorOrDescriptor) {
+      parts2.pop();
+      name = parts2.join(' - ');
+    }
+  }
+
+  name = name.replace(/\s*[-–—,]\s*$/, '').trim();
+
+  const lower = name.toLowerCase();
+  if (lower.includes('magnetic gym') || lower.includes('magentic gym')) {
+    return 'Magnetic Gym Crossbody Bag';
+  }
+  if (lower.includes('smart travel')) {
+    return 'Smart Travel Bag';
+  }
+  if (lower.includes('polarized sunglass')) {
+    return 'Adjustable Dimming Polarized Sunglass';
+  }
+  if (lower.includes('canvas family')) {
+    return 'Canvas Family Bag';
+  }
+  if (lower.includes('yoga stretch band')) {
+    return 'Professional Yoga Stretch Band';
+  }
+  if (lower.includes('healthy healing tea')) {
+    return 'Healthy Healing Tea';
+  }
+  if (lower.includes('ac sticker')) {
+    return 'Transparent AC Sticker';
+  }
+
+  return name.split(/\s+/)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+};
+
 // ── Main Component ────────────────────────────────────────────────
 export const SalesReport = () => {
   const { updatePresenceContext } = useAuth();
@@ -147,7 +234,8 @@ export const SalesReport = () => {
   const [preset, setPreset]     = useState('today');
   const [dateRange, setDateRange] = useState(getPresetRange('today'));
   const [chartType, setChartType] = useState('bar'); // 'bar' | 'area'
-  const [productSort, setProductSort] = useState('confirmed'); // sort column
+  const [productSort, setProductSort] = useState('confirmedQty'); // sort column, default to confirmedQty
+  const [colorFilter, setColorFilter] = useState('All');
   const [reportOrders, setReportOrders] = useState([]);
   const [fetching, setFetching] = useState(false);
 
@@ -214,6 +302,51 @@ export const SalesReport = () => {
     return reportOrders.filter(o => o.status !== 'Test');
   }, [reportOrders]);
 
+  // ── Unique Colors List ──
+  const uniqueColors = useMemo(() => {
+    const colors = new Set();
+    filtered.forEach(o => {
+      const items = Array.isArray(o.ordered_items) && o.ordered_items.length > 0
+        ? o.ordered_items
+        : [{ name: o.product_name }];
+      
+      items.forEach(item => {
+        const color = extractColor(item.name || o.product_name, item);
+        if (color) {
+          colors.add(color);
+        }
+      });
+    });
+    return ['All', ...Array.from(colors).sort()];
+  }, [filtered]);
+
+  // ── Color Filtered Data ──
+  const colorFilteredData = useMemo(() => {
+    if (colorFilter === 'All') return filtered;
+
+    return filtered.map(o => {
+      const items = Array.isArray(o.ordered_items) && o.ordered_items.length > 0
+        ? o.ordered_items
+        : [{ name: o.product_name, quantity: o.quantity||1, price: o.amount||0 }];
+
+      const matchingItems = items.filter(item => {
+        const itemColor = extractColor(item.name || o.product_name, item);
+        return itemColor === colorFilter;
+      });
+
+      if (matchingItems.length === 0) return null;
+
+      const matchingAmount = matchingItems.reduce((acc, item) => acc + (Number(item.price) || 0) * (Number(item.quantity) || 1), 0);
+
+      return {
+        ...o,
+        ordered_items: matchingItems,
+        amount: matchingAmount > 0 ? matchingAmount : o.amount,
+        quantity: matchingItems.reduce((acc, item) => acc + (Number(item.quantity) || 1), 0)
+      };
+    }).filter(Boolean);
+  }, [filtered, colorFilter]);
+
   // ── KPI Aggregates ──
   const kpi = useMemo(() => {
     const isConf  = o => isConfirmedStatus(o.status);
@@ -221,27 +354,27 @@ export const SalesReport = () => {
     const isFake  = o => o.status === 'Fake Order';
     const isPend  = o => ['New','Pending Call','Final Call Pending','Hold'].includes(o.status);
 
-    const confirmed = filtered.filter(isConf);
+    const confirmed = colorFilteredData.filter(isConf);
     const revenue   = confirmed.reduce((s,o) => s + (Number(o.amount)||0), 0);
     const avgVal    = confirmed.length > 0 ? revenue / confirmed.length : 0;
-    const confRate  = filtered.length > 0 ? ((confirmed.length / filtered.length)*100).toFixed(1) : 0;
+    const confRate  = colorFilteredData.length > 0 ? ((confirmed.length / colorFilteredData.length)*100).toFixed(1) : 0;
 
     return {
-      total: filtered.length,
+      total: colorFilteredData.length,
       confirmed: confirmed.length,
-      cancelled: filtered.filter(isCanc).length,
-      fake: filtered.filter(isFake).length,
-      pending: filtered.filter(isPend).length,
+      cancelled: colorFilteredData.filter(isCanc).length,
+      fake: colorFilteredData.filter(isFake).length,
+      pending: colorFilteredData.filter(isPend).length,
       revenue,
       avgVal,
       confRate,
     };
-  }, [filtered]);
+  }, [colorFilteredData]);
 
   // ── Daily Trend with proper timezone key mapping ──
   const dailyData = useMemo(() => {
     const map = {};
-    filtered.forEach(o => {
+    colorFilteredData.forEach(o => {
       const d = new Date(o.created_at);
       const year = d.getFullYear();
       const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -269,45 +402,72 @@ export const SalesReport = () => {
       else if (s==='Fake Order') map[dayKey].fake++;
     });
     return Object.values(map).sort((a,b) => a.date.localeCompare(b.date));
-  }, [filtered]);
+  }, [colorFilteredData]);
 
   // ── Product-wise stats ──
   const productData = useMemo(() => {
     const map = {};
-    filtered.forEach(o => {
+    colorFilteredData.forEach(o => {
       const items = Array.isArray(o.ordered_items) && o.ordered_items.length > 0
         ? o.ordered_items
         : [{ name: o.product_name, quantity: o.quantity||1, price: o.amount||0 }];
 
       items.forEach(item => {
-        const name = (item.name || o.product_name || 'Unknown').trim();
-        if (!map[name]) map[name] = { name, total:0, confirmed:0, cancelled:0, fake:0, revenue:0, qty:0 };
-        map[name].total++;
+        const baseName = getBaseProductName(item.name || o.product_name);
+        if (!map[baseName]) {
+          map[baseName] = { 
+            name: baseName, 
+            total: 0, 
+            totalQty: 0, 
+            confirmed: 0, 
+            confirmedQty: 0, 
+            cancelled: 0, 
+            cancelledQty: 0, 
+            fake: 0, 
+            fakeQty: 0, 
+            revenue: 0 
+          };
+        }
+        
+        const q = Number(item.quantity || 1);
+        map[baseName].total++;
+        map[baseName].totalQty += q;
+        
         const s = o.status;
         if (isConfirmedStatus(s)) {
-          map[name].confirmed++;
-          map[name].revenue += Number(item.price||o.amount||0);
-          map[name].qty     += Number(item.quantity||1);
-        } else if (s==='Cancelled') map[name].cancelled++;
-        else if (s==='Fake Order')  map[name].fake++;
+          map[baseName].confirmed++;
+          map[baseName].confirmedQty += q;
+          map[baseName].revenue += Number(item.price || o.amount || 0);
+        } else if (s === 'Cancelled') {
+          map[baseName].cancelled++;
+          map[baseName].cancelledQty += q;
+        } else if (s === 'Fake Order') {
+          map[baseName].fake++;
+          map[baseName].fakeQty += q;
+        }
       });
     });
+
     return Object.values(map)
-      .map(p => ({ ...p, confRate: p.total > 0 ? +((p.confirmed/p.total)*100).toFixed(1) : 0, fakeRate: p.total > 0 ? +((p.fake/p.total)*100).toFixed(1) : 0 }))
-      .sort((a,b) => b[productSort] - a[productSort]);
-  }, [filtered, productSort]);
+      .map(p => ({ 
+        ...p, 
+        confRate: p.total > 0 ? +((p.confirmed / p.total) * 100).toFixed(1) : 0, 
+        fakeRate: p.total > 0 ? +((p.fake / p.total) * 100).toFixed(1) : 0 
+      }))
+      .sort((a, b) => b[productSort] - a[productSort]);
+  }, [colorFilteredData, productSort]);
 
   // ── Status distribution for Pie ──
   const statusDist = useMemo(() => {
     const map = {};
-    filtered.forEach(o => { map[o.status] = (map[o.status]||0) + 1; });
+    colorFilteredData.forEach(o => { map[o.status] = (map[o.status]||0) + 1; });
     return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value);
-  }, [filtered]);
+  }, [colorFilteredData]);
 
   // ── Source breakdown ──
   const sourceData = useMemo(() => {
     const map = {};
-    filtered.forEach(o => {
+    colorFilteredData.forEach(o => {
       const src = o.source || 'Unknown';
       if (!map[src]) map[src] = { source: src, total:0, confirmed:0, revenue:0 };
       map[src].total++;
@@ -316,11 +476,16 @@ export const SalesReport = () => {
     return Object.values(map)
       .map(s => ({ ...s, confRate: s.total > 0 ? +((s.confirmed/s.total)*100).toFixed(1) : 0 }))
       .sort((a,b) => b.total - a.total);
-  }, [filtered]);
+  }, [colorFilteredData]);
 
   // ── Top Sellers & Top Fake ──
-  const topSellers = [...productData].sort((a,b) => b.confirmed - a.confirmed).slice(0,10);
-  const topFake    = [...productData].sort((a,b) => b.fake - a.fake).filter(p => p.fake > 0).slice(0,10);
+  const topSellers = useMemo(() => {
+    return [...productData].sort((a,b) => b.confirmedQty - a.confirmedQty).slice(0,10);
+  }, [productData]);
+
+  const topFake = useMemo(() => {
+    return [...productData].sort((a,b) => b.fakeQty - a.fakeQty).filter(p => p.fakeQty > 0).slice(0,10);
+  }, [productData]);
 
   const presetLabel = PRESETS.find(p => p.key === preset)?.label || 'Custom';
 
@@ -337,7 +502,7 @@ export const SalesReport = () => {
           </div>
         </div>
         <div className="sr-header-right">
-          <button className="sr-btn-export" onClick={() => exportCSV(filtered, presetLabel)}>
+          <button className="sr-btn-export" onClick={() => exportCSV(colorFilteredData, presetLabel)}>
             <FileDown size={15}/> Export CSV
           </button>
           <button className="sr-btn-print" onClick={() => window.print()}>
@@ -346,7 +511,7 @@ export const SalesReport = () => {
         </div>
       </div>
 
-      {/* ── Date Presets ── */}
+      {/* ── Date Presets & Filters Bar ── */}
       <div className="sr-presets-bar">
         <div className="sr-presets">
           {PRESETS.map(p => (
@@ -366,8 +531,24 @@ export const SalesReport = () => {
               onChange={e => { const d = new Date(e.target.value); d.setHours(23,59,59,999); setDateRange(r => ({...r, end:d})); }} />
           </div>
         )}
-        <span className="sr-order-count">
-          {fetching ? 'Syncing Accurate Data...' : `${fmtNum(filtered.length)} orders in range`}
+
+        {/* Color Filter Dropdown */}
+        <div className="sr-color-filter-wrapper" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
+          <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--sr-text-sub)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Color:</span>
+          <select 
+            className="sr-date-input" 
+            value={colorFilter} 
+            onChange={e => setColorFilter(e.target.value)}
+            style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--sr-btn-bdr)', background: 'var(--sr-btn-bg)', color: 'var(--sr-text)', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}
+          >
+            {uniqueColors.map(c => (
+              <option key={c} value={c}>{c === 'All' ? 'All Colors' : c}</option>
+            ))}
+          </select>
+        </div>
+
+        <span className="sr-order-count" style={{ marginLeft: '12px' }}>
+          {fetching ? 'Syncing Accurate Data...' : `${fmtNum(colorFilteredData.length)} orders`}
         </span>
       </div>
 
@@ -503,7 +684,7 @@ export const SalesReport = () => {
                 <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill:'var(--sr-text-muted)', fontSize:11 }} />
                 <YAxis dataKey="name" type="category" width={130} axisLine={false} tickLine={false} tick={{ fill:'var(--sr-text-sub)', fontSize:11, fontWeight:600 }} tickFormatter={(val) => val.length > 22 ? val.substring(0, 20) + '...' : val} />
                 <Tooltip content={<ChartTooltip />} />
-                <Bar dataKey="confirmed" name="Confirmed" fill="#10b981" radius={[0,6,6,0]} maxBarSize={20} />
+                <Bar dataKey="confirmedQty" name="Confirmed Qty" fill="#10b981" radius={[0,6,6,0]} maxBarSize={20} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -518,7 +699,7 @@ export const SalesReport = () => {
                 <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill:'var(--sr-text-muted)', fontSize:11 }} />
                 <YAxis dataKey="name" type="category" width={130} axisLine={false} tickLine={false} tick={{ fill:'var(--sr-text-sub)', fontSize:11, fontWeight:600 }} tickFormatter={(val) => val.length > 22 ? val.substring(0, 20) + '...' : val} />
                 <Tooltip content={<ChartTooltip />} />
-                <Bar dataKey="fake" name="Fake Orders" fill="#f59e0b" radius={[0,6,6,0]} maxBarSize={20} />
+                <Bar dataKey="fakeQty" name="Fake Qty" fill="#f59e0b" radius={[0,6,6,0]} maxBarSize={20} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -537,8 +718,9 @@ export const SalesReport = () => {
                 <tr>
                   <th>#</th>
                   <th>Product</th>
-                  <th className="sr-sortable" onClick={() => setProductSort('total')}>Total {productSort==='total'&&'↓'}</th>
-                  <th className="sr-sortable" onClick={() => setProductSort('confirmed')}>Confirmed {productSort==='confirmed'&&'↓'}</th>
+                  <th className="sr-sortable" onClick={() => setProductSort('total')}>Orders {productSort==='total'&&'↓'}</th>
+                  <th className="sr-sortable" onClick={() => setProductSort('totalQty')}>Total Qty {productSort==='totalQty'&&'↓'}</th>
+                  <th className="sr-sortable" onClick={() => setProductSort('confirmedQty')}>Confirmed Qty {productSort==='confirmedQty'&&'↓'}</th>
                   <th className="sr-sortable" onClick={() => setProductSort('cancelled')}>Cancelled {productSort==='cancelled'&&'↓'}</th>
                   <th className="sr-sortable" onClick={() => setProductSort('fake')}>Fake {productSort==='fake'&&'↓'}</th>
                   <th className="sr-sortable" onClick={() => setProductSort('revenue')}>Revenue {productSort==='revenue'&&'↓'}</th>
@@ -547,17 +729,18 @@ export const SalesReport = () => {
               </thead>
               <tbody>
                 {productData.map((p, i) => (
-                  <tr key={p.name} className={i===0 && productSort==='confirmed' ? 'sr-top-row' : ''}>
+                  <tr key={p.name} className={i===0 && productSort==='confirmedQty' ? 'sr-top-row' : ''}>
                     <td className="sr-rank">
-                      {productSort==='confirmed' ? (i===0 ? '🥇' : i===1 ? '🥈' : i===2 ? '🥉' : i+1) : i+1}
+                      {productSort==='confirmedQty' ? (i===0 ? '🥇' : i===1 ? '🥈' : i===2 ? '🥉' : i+1) : i+1}
                     </td>
                     <td className="sr-prod-name">
                       {p.name}
                       {p.fakeRate > 20 && <span className="sr-fake-warn">⚠️ High Fake</span>}
-                      {i===0 && productSort==='confirmed' && <span className="sr-top-badge">🔥 Top</span>}
+                      {i===0 && productSort==='confirmedQty' && <span className="sr-top-badge">🔥 Top</span>}
                     </td>
                     <td>{p.total}</td>
-                    <td className="sr-green">{p.confirmed}</td>
+                    <td style={{ fontWeight: 700 }}>{p.totalQty}</td>
+                    <td className="sr-green" style={{ fontWeight: 800 }}>{p.confirmedQty}</td>
                     <td className="sr-red">{p.cancelled}</td>
                     <td className="sr-orange">{p.fake}</td>
                     <td className="sr-green">{fmtTk(p.revenue)}</td>
