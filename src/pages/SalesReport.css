@@ -150,12 +150,21 @@
 /* ── KPI Grid ─────────────────────────────────── */
 .sr-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
 }
 
-@media (max-width: 1400px) { .sr-kpi-grid { grid-template-columns: repeat(4, 1fr); } }
-@media (max-width: 900px)  { .sr-kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 1024px) {
+  .sr-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .sr-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+}
 
 .sr-kpi-card {
   background: var(--sr-card);
