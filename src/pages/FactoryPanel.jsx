@@ -566,6 +566,76 @@ const buildConfirmedExportRow = (order) => {
   return row;
 };
 
+const getBaseProductName = (rawName) => {
+  if (!rawName) return 'Unknown Product';
+  let name = String(rawName).trim();
+
+  // 1. Remove bracketed specs like [Black x2, White x1], [Olive x1]
+  name = name.replace(/\[[^\]]+\]/g, '');
+
+  // 2. Remove parenthesized specs like (Color: Black), (Color: Black, Golden, Silver)
+  name = name.replace(/\([^)]+\)/g, '');
+
+  // 3. Remove "x\d+" or "x \d+" (multipliers) e.g., "Sunglass x2" -> "Sunglass"
+  name = name.replace(/\s+x\d+\b/gi, '');
+
+  // 4. Remove common color suffixes and descriptors after a hyphen, comma or space
+  const wordsToRemove = [
+    'black', 'blue', 'beige', 'standard', 'olive', 'pink', 'white', 'golden', 'gold', 
+    'silver', 'grey', 'gray', 'red', 'green', 'yellow', 'purple', 'orange', 'brown', 
+    'navy', 'maroon', 'teal', 'combo', '1 pcs', '2 pcs', '3 pcs', '1pcs', '2pcs', '3pcs'
+  ];
+
+  const parts = name.split(/\s*[-–—,]\s*/);
+  if (parts.length > 1) {
+    const lastPart = parts[parts.length - 1].toLowerCase().trim();
+    const isColorOrDescriptor = wordsToRemove.some(word => lastPart.includes(word)) || lastPart.match(/^\d+\s*pcs?$/i);
+    if (isColorOrDescriptor) {
+      parts.pop();
+      name = parts.join(' - ');
+    }
+  }
+
+  const parts2 = name.split(/\s*[-–—,]\s*/);
+  if (parts2.length > 1) {
+    const lastPart = parts2[parts2.length - 1].toLowerCase().trim();
+    const isColorOrDescriptor = wordsToRemove.some(word => lastPart.includes(word)) || lastPart.match(/^\d+\s*pcs?$/i);
+    if (isColorOrDescriptor) {
+      parts2.pop();
+      name = parts2.join(' - ');
+    }
+  }
+
+  name = name.replace(/\s*[-–—,]\s*$/, '').trim();
+
+  const lower = name.toLowerCase();
+  if (lower.includes('magnetic gym') || lower.includes('magentic gym')) {
+    return 'Magnetic Gym Crossbody Bag';
+  }
+  if (lower.includes('smart travel')) {
+    return 'Smart Travel Bag';
+  }
+  if (lower.includes('polarized sunglass')) {
+    return 'Adjustable Dimming Polarized Sunglass';
+  }
+  if (lower.includes('canvas family')) {
+    return 'Canvas Family Bag';
+  }
+  if (lower.includes('yoga stretch band')) {
+    return 'Professional Yoga Stretch Band';
+  }
+  if (lower.includes('healthy healing tea')) {
+    return 'Healthy Healing Tea';
+  }
+  if (lower.includes('ac sticker')) {
+    return 'Transparent AC Sticker';
+  }
+
+  return name.split(/\s+/)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+};
+
 export const getCleanProductDisplay = (order) => {
   const items = order?.ordered_items || [];
   
@@ -707,18 +777,24 @@ export const FactoryPanel = () => {
     ];
 
     orders.forEach(order => {
-      // 1. Product Name extraction
+      // 1. Product Name extraction using getBaseProductName
       const { cleanName } = getCleanProductDisplay(order);
       if (cleanName) {
         cleanName.split(',').forEach(p => {
           const clean = p.replace(/\(x\d+\)/gi, '').trim();
           if (clean && !/^\d+\s*items?$/i.test(clean)) {
-            products.add(clean);
+            const baseName = getBaseProductName(clean);
+            if (baseName && baseName !== 'Unknown Product') {
+              products.add(baseName);
+            }
           }
         });
       }
       if (order.product_name && !/^\d+\s*items?$/i.test(order.product_name)) {
-        products.add(order.product_name.trim());
+        const baseName = getBaseProductName(order.product_name);
+        if (baseName && baseName !== 'Unknown Product') {
+          products.add(baseName);
+        }
       }
 
       // 2. Items - Color & Variant extraction
@@ -809,9 +885,22 @@ export const FactoryPanel = () => {
     // Product Filter
     if (productFilter !== 'All') {
       const { cleanName } = getCleanProductDisplay(order);
-      const prodStr = `${cleanName} ${order.product_name || ''}`.toLowerCase();
-      if (!prodStr.includes(productFilter.toLowerCase())) {
-        return false;
+      const baseClean = getBaseProductName(cleanName);
+      const baseOrig = getBaseProductName(order.product_name);
+      
+      const isMatch = baseClean.toLowerCase() === productFilter.toLowerCase() || 
+                      baseOrig.toLowerCase() === productFilter.toLowerCase();
+                      
+      if (!isMatch) {
+        const items = order.ordered_items || [];
+        const hasSubProductMatch = items.some(item => {
+          const itemName = typeof item === 'object' ? (item.name || item.product_name || item.title || '') : String(item);
+          return getBaseProductName(itemName).toLowerCase() === productFilter.toLowerCase();
+        });
+        
+        if (!hasSubProductMatch) {
+          return false;
+        }
       }
     }
 
@@ -1705,6 +1794,107 @@ export const FactoryPanel = () => {
             </div>
           )}
         </div>
+
+        {(productFilter !== 'All' || colorFilter !== 'All' || variantFilter !== 'All' || sourceFilter !== 'All' || zoneFilter !== 'All' || searchTerm.trim() !== '' || hasCustomRange || datePreset !== 'all') && (
+          <div className="factory-active-filters-banner" style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: 'var(--bg-elevated, rgba(99, 102, 241, 0.04))',
+            border: '1.5px solid var(--glass-border, rgba(99, 102, 241, 0.08))',
+            borderRadius: '12px',
+            padding: '10px 16px',
+            marginBottom: '14px',
+            fontSize: '0.82rem',
+            color: 'var(--text-secondary)',
+            gap: '12px',
+            flexWrap: 'wrap',
+            animation: 'fadeIn 0.2s ease-out'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={{ 
+                background: '#6366f1', 
+                color: '#fff', 
+                borderRadius: '6px', 
+                padding: '2px 8px', 
+                fontWeight: 800,
+                fontSize: '0.78rem'
+              }}>
+                {displayOrders.length}
+              </span>
+              <strong style={{ color: 'var(--text-primary)' }}>matching records found</strong>
+              <span style={{ color: 'var(--text-tertiary)' }}>for:</span>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                {searchTerm.trim() && (
+                  <span className="filter-summary-pill" style={{ background: 'var(--bg-surface, #ffffff)', padding: '2px 8px', borderRadius: '6px', border: '1px solid var(--glass-border)', fontSize: '0.76rem' }}>
+                    Search: <strong>"{searchTerm}"</strong>
+                  </span>
+                )}
+                {productFilter !== 'All' && (
+                  <span className="filter-summary-pill" style={{ background: 'var(--bg-surface, #ffffff)', padding: '2px 8px', borderRadius: '6px', border: '1px solid var(--glass-border)', fontSize: '0.76rem' }}>
+                    Product: <strong>{productFilter}</strong>
+                  </span>
+                )}
+                {colorFilter !== 'All' && (
+                  <span className="filter-summary-pill" style={{ background: 'var(--bg-surface, #ffffff)', padding: '2px 8px', borderRadius: '6px', border: '1px solid var(--glass-border)', fontSize: '0.76rem' }}>
+                    Color: <strong>{colorFilter}</strong>
+                  </span>
+                )}
+                {variantFilter !== 'All' && (
+                  <span className="filter-summary-pill" style={{ background: 'var(--bg-surface, #ffffff)', padding: '2px 8px', borderRadius: '6px', border: '1px solid var(--glass-border)', fontSize: '0.76rem' }}>
+                    Variant: <strong>{variantFilter}</strong>
+                  </span>
+                )}
+                {zoneFilter !== 'All' && (
+                  <span className="filter-summary-pill" style={{ background: 'var(--bg-surface, #ffffff)', padding: '2px 8px', borderRadius: '6px', border: '1px solid var(--glass-border)', fontSize: '0.76rem' }}>
+                    Zone: <strong>{zoneFilter}</strong>
+                  </span>
+                )}
+                {sourceFilter !== 'All' && (
+                  <span className="filter-summary-pill" style={{ background: 'var(--bg-surface, #ffffff)', padding: '2px 8px', borderRadius: '6px', border: '1px solid var(--glass-border)', fontSize: '0.76rem' }}>
+                    Source: <strong>{sourceFilter}</strong>
+                  </span>
+                )}
+                {(hasCustomRange || datePreset !== 'all') && (
+                  <span className="filter-summary-pill" style={{ background: 'var(--bg-surface, #ffffff)', padding: '2px 8px', borderRadius: '6px', border: '1px solid var(--glass-border)', fontSize: '0.76rem' }}>
+                    Date: <strong>{hasCustomRange ? `${dateFrom} to ${dateTo}` : DATE_PRESETS.find(p => p.id === datePreset)?.label}</strong>
+                  </span>
+                )}
+              </div>
+            </div>
+            
+            <button 
+              type="button" 
+              onClick={() => {
+                setSearchTerm('');
+                setProductFilter('All');
+                setColorFilter('All');
+                setVariantFilter('All');
+                setSourceFilter('All');
+                setZoneFilter('All');
+                setDatePreset('all');
+                setDateFrom('');
+                setDateTo('');
+              }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#ef4444',
+                fontWeight: 700,
+                fontSize: '0.78rem',
+                cursor: 'pointer',
+                padding: '4px 8px',
+                borderRadius: '6px',
+                transition: 'background 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+            >
+              Clear All Filters
+            </button>
+          </div>
+        )}
         
       <Card className="table-card liquid-glass" noPadding>
         <div className="orders-table-wrapper desktop-only">

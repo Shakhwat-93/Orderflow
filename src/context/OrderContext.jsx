@@ -5,7 +5,9 @@ import { useAuth } from './AuthContext';
 import { fraudDetection } from '../utils/fraudDetection';
 import { automationRules } from '../utils/automationRules';
 import { fulfillmentVelocity } from '../utils/fulfillmentVelocity';
-import { getToyBoxStockKey } from '../utils/productCatalog';
+import { getToyBoxStockKey, findBestProductMatch } from '../utils/productCatalog';
+import { Modal } from '../components/Modal';
+import { AlertTriangle, User, MapPin, Phone, DollarSign, Sparkles } from 'lucide-react';
 
 const OrderContext = createContext(null);
 const ORDER_SNAPSHOT_SIZE = 500;
@@ -280,10 +282,87 @@ export const OrderProvider = ({ children }) => {
     setPage(1);
   }, []);
 
-  const updateOrderStatus = async (orderId, newStatus, noteText = '') => {
+  const [incompleteOrderToConfirm, setIncompleteOrderToConfirm] = useState(null);
+  const [incompleteName, setIncompleteName] = useState('');
+  const [incompletePhone, setIncompletePhone] = useState('');
+  const [incompleteAddress, setIncompleteAddress] = useState('');
+  const [incompleteAmount, setIncompleteAmount] = useState('');
+  const [isIncompleteSaving, setIsIncompleteSaving] = useState(false);
+
+  useEffect(() => {
+    if (incompleteOrderToConfirm?.order) {
+      const { customer_name, phone, address, amount } = incompleteOrderToConfirm.order;
+      setIncompleteName(customer_name || '');
+      setIncompletePhone(phone || '');
+      setIncompleteAddress(address || '');
+      setIncompleteAmount(amount || '');
+    }
+  }, [incompleteOrderToConfirm]);
+
+  const handleIncompleteConfirmSave = async () => {
+    if (!incompleteOrderToConfirm) return;
+    const { orderId, newStatus, noteText } = incompleteOrderToConfirm;
+
+    if (!incompleteName.trim()) {
+      alert('Please enter customer name.');
+      return;
+    }
+    if (!incompletePhone.trim()) {
+      alert('Please enter phone number.');
+      return;
+    }
+    if (!incompleteAddress.trim()) {
+      alert('Please enter delivery address.');
+      return;
+    }
+    if (Number(incompleteAmount) <= 0) {
+      alert('Please enter a valid amount.');
+      return;
+    }
+
+    setIsIncompleteSaving(true);
+    try {
+      const currentUserName = profile?.name || user?.user_metadata?.full_name || user?.email || 'Unknown User';
+
+      // 1. Update the order details first
+      const updatedOrder = await api.updateOrder(
+        orderId, 
+        {
+          customer_name: incompleteName.trim(),
+          phone: incompletePhone.trim(),
+          address: incompleteAddress.trim(),
+          amount: Number(incompleteAmount)
+        },
+        user?.id,
+        currentUserName,
+        userRoles
+      );
+
+      // Save locally so updateOrderStatus consumes the updated name/phone/amount
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...updatedOrder } : o));
+
+      // 2. Change status to Confirmed (forcing it bypasses interceptor)
+      await updateOrderStatus(orderId, newStatus, noteText, true);
+
+      // Close modal
+      setIncompleteOrderToConfirm(null);
+    } catch (err) {
+      console.error('Incomplete order confirmation failed:', err);
+      alert(`Failed to save and confirm order: ${err.message}`);
+    } finally {
+      setIsIncompleteSaving(false);
+    }
+  };
+
+  const updateOrderStatus = async (orderId, newStatus, noteText = '', forceConfirm = false) => {
     const currentUserName = profile?.name || user?.user_metadata?.full_name || user?.email || 'Unknown User';
     const order = orders.find(o => o.id === orderId);
     const oldStatus = order?.status;
+
+    if (newStatus === 'Confirmed' && oldStatus === 'Incomplete' && !forceConfirm) {
+      setIncompleteOrderToConfirm({ orderId, newStatus, noteText, order });
+      return;
+    }
 
     setOrders(prev => prev.map(order => order.id === orderId ? { ...order, status: newStatus } : order));
 
@@ -823,6 +902,289 @@ export const OrderProvider = ({ children }) => {
       dispatchToCourier,
     }}>
       {children}
+
+      {incompleteOrderToConfirm && (
+        <div className="incomplete-modal-overlay" onClick={() => setIncompleteOrderToConfirm(null)}>
+          <style>{`
+            .incomplete-modal-overlay {
+              position: fixed;
+              inset: 0;
+              background: rgba(0, 0, 0, 0.45);
+              backdrop-filter: blur(5px);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              z-index: 99999;
+              padding: 16px;
+              animation: incFadeIn 0.2s ease-out;
+            }
+            .incomplete-modal-content {
+              background: var(--bg-surface, #ffffff);
+              border: 1px solid var(--glass-border, rgba(0, 0, 0, 0.08));
+              border-radius: 16px;
+              width: 100%;
+              max-width: 450px;
+              box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+              overflow: hidden;
+              animation: incSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            }
+            [data-theme='dark'] .incomplete-modal-content {
+              background: #1c1c1e;
+              box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+              border-color: rgba(255, 255, 255, 0.08);
+            }
+            .incomplete-header {
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              padding: 14px 18px;
+              border-bottom: 1px solid var(--glass-border, rgba(0, 0, 0, 0.06));
+            }
+            .incomplete-title {
+              font-size: 0.95rem;
+              font-weight: 700;
+              color: var(--text-primary);
+              margin: 0;
+            }
+            .incomplete-close {
+              background: transparent;
+              border: none;
+              color: var(--text-tertiary);
+              cursor: pointer;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              padding: 4px;
+              border-radius: 6px;
+              transition: background 0.15s;
+            }
+            .incomplete-close:hover {
+              background: var(--bg-elevated, rgba(0, 0, 0, 0.05));
+              color: var(--text-primary);
+            }
+            .incomplete-body {
+              padding: 16px 18px;
+              display: flex;
+              flex-direction: column;
+              gap: 12px;
+            }
+            .incomplete-alert {
+              display: flex;
+              gap: 10px;
+              padding: 10px 12px;
+              background: rgba(245, 158, 11, 0.08);
+              border: 1px solid rgba(245, 158, 11, 0.2);
+              border-radius: 10px;
+              align-items: center;
+            }
+            .incomplete-alert-text {
+              font-size: 0.76rem;
+              color: var(--text-secondary);
+              line-height: 1.35;
+            }
+            .incomplete-form-group {
+              display: flex;
+              flex-direction: column;
+              gap: 4px;
+            }
+            .incomplete-label {
+              font-size: 0.7rem;
+              font-weight: 800;
+              text-transform: uppercase;
+              color: var(--text-tertiary);
+              letter-spacing: 0.04em;
+              display: flex;
+              align-items: center;
+              gap: 5px;
+            }
+            .incomplete-input {
+              width: 100%;
+              height: 34px;
+              padding: 0 10px;
+              border-radius: 8px;
+              border: 1px solid var(--glass-border, rgba(0, 0, 0, 0.12));
+              background: var(--bg-elevated, #f8fafc);
+              color: var(--text-primary);
+              font-size: 0.82rem;
+              font-weight: 600;
+              outline: none;
+              transition: border-color 0.15s;
+            }
+            .incomplete-input:focus {
+              border-color: var(--accent, #6366f1);
+            }
+            [data-theme='dark'] .incomplete-input {
+              background: #2a2a2c;
+            }
+            .incomplete-textarea {
+              width: 100%;
+              padding: 8px 10px;
+              border-radius: 8px;
+              border: 1px solid var(--glass-border, rgba(0, 0, 0, 0.12));
+              background: var(--bg-elevated, #f8fafc);
+              color: var(--text-primary);
+              font-size: 0.82rem;
+              font-weight: 600;
+              outline: none;
+              resize: none;
+              font-family: inherit;
+              transition: border-color 0.15s;
+            }
+            .incomplete-textarea:focus {
+              border-color: var(--accent, #6366f1);
+            }
+            [data-theme='dark'] .incomplete-textarea {
+              background: #2a2a2c;
+            }
+            .incomplete-footer {
+              display: flex;
+              justify-content: flex-end;
+              gap: 8px;
+              padding: 12px 18px;
+              border-top: 1px solid var(--glass-border, rgba(0, 0, 0, 0.06));
+              background: var(--bg-surface, #ffffff);
+            }
+            [data-theme='dark'] .incomplete-footer {
+              background: #1c1c1e;
+            }
+            .incomplete-btn-cancel {
+              padding: 7px 14px;
+              border-radius: 8px;
+              border: 1px solid var(--glass-border, rgba(0, 0, 0, 0.12));
+              background: transparent;
+              color: var(--text-secondary);
+              font-size: 0.78rem;
+              font-weight: 700;
+              cursor: pointer;
+              transition: all 0.15s;
+            }
+            .incomplete-btn-cancel:hover {
+              background: var(--bg-elevated, rgba(0, 0, 0, 0.04));
+              color: var(--text-primary);
+            }
+            .incomplete-btn-save {
+              display: flex;
+              align-items: center;
+              gap: 5px;
+              padding: 7px 16px;
+              border-radius: 8px;
+              border: none;
+              background: #10b981;
+              color: #fff;
+              font-size: 0.78rem;
+              font-weight: 800;
+              cursor: pointer;
+              box-shadow: 0 4px 10px rgba(16, 185, 129, 0.2);
+              transition: all 0.15s;
+            }
+            .incomplete-btn-save:hover {
+              opacity: 0.9;
+              transform: translateY(-0.5px);
+            }
+            @keyframes incFadeIn {
+              from { opacity: 0; }
+              to { opacity: 1; }
+            }
+            @keyframes incSlideUp {
+              from { opacity: 0; transform: translateY(12px) scale(0.98); }
+              to { opacity: 1; transform: translateY(0) scale(1); }
+            }
+          `}</style>
+          
+          <div className="incomplete-modal-content" onClick={e => e.stopPropagation()}>
+            <div className="incomplete-header">
+              <h3 className="incomplete-title">Confirm Incomplete Order</h3>
+              <button className="incomplete-close" onClick={() => setIncompleteOrderToConfirm(null)}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+            
+            <div className="incomplete-body">
+              <div className="incomplete-alert">
+                <AlertTriangle size={18} color="#f59e0b" style={{ flexShrink: 0 }} />
+                <span className="incomplete-alert-text">
+                  This order has missing details. Please complete them before confirming.
+                </span>
+              </div>
+              
+              <div className="incomplete-form-group">
+                <label className="incomplete-label">
+                  <User size={12} /> Customer Name
+                </label>
+                <input 
+                  type="text" 
+                  className="incomplete-input" 
+                  value={incompleteName}
+                  onChange={e => setIncompleteName(e.target.value)}
+                  placeholder="Enter customer name"
+                />
+              </div>
+
+              <div className="incomplete-form-group">
+                <label className="incomplete-label">
+                  <Phone size={12} /> Phone Number
+                </label>
+                <input 
+                  type="text" 
+                  className="incomplete-input" 
+                  value={incompletePhone}
+                  onChange={e => setIncompletePhone(e.target.value)}
+                  placeholder="Enter phone number"
+                />
+              </div>
+
+              <div className="incomplete-form-group">
+                <label className="incomplete-label">
+                  <MapPin size={12} /> Delivery Address
+                </label>
+                <textarea 
+                  className="incomplete-textarea" 
+                  value={incompleteAddress}
+                  onChange={e => setIncompleteAddress(e.target.value)}
+                  placeholder="Enter complete address"
+                  rows={2}
+                />
+              </div>
+
+              <div className="incomplete-form-group">
+                <label className="incomplete-label">
+                  <DollarSign size={12} /> Total Amount (৳)
+                </label>
+                <input 
+                  type="number" 
+                  className="incomplete-input" 
+                  value={incompleteAmount}
+                  onChange={e => setIncompleteAmount(e.target.value)}
+                  placeholder="Enter amount"
+                />
+              </div>
+            </div>
+
+            <div className="incomplete-footer">
+              <button 
+                type="button" 
+                className="incomplete-btn-cancel"
+                onClick={() => setIncompleteOrderToConfirm(null)}
+                disabled={isIncompleteSaving}
+              >
+                Cancel
+              </button>
+              <button 
+                type="button" 
+                className="incomplete-btn-save"
+                onClick={handleIncompleteConfirmSave}
+                disabled={isIncompleteSaving}
+              >
+                {isIncompleteSaving ? 'Saving...' : (
+                  <>
+                    <Sparkles size={13} /> Save & Confirm
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </OrderContext.Provider>
   );
 };
