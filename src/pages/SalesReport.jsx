@@ -18,6 +18,8 @@ const CONFIRMED_STATUSES = [
   'Confirmed & Printed',
   'Bulk Exported',
   'Courier Ready',
+  'Courier Submitted',
+  'Factory Processing',
   'Processing',
   'Shipped',
   'Completed'
@@ -30,6 +32,8 @@ const STATUS_COLORS = {
   'Confirmed & Printed': '#10b981',
   'Bulk Exported': '#10b981', 
   'Courier Ready': '#10b981', 
+  'Courier Submitted': '#06b6d4',
+  'Factory Processing': '#eab308',
   'Processing': '#06b6d4', 
   'Shipped': '#3b82f6', 
   'Completed': '#059669',
