@@ -8,7 +8,7 @@ import {
 import {
   TrendingUp, ShoppingCart, CheckCircle2, XCircle, AlertTriangle,
   Clock, DollarSign, FileDown, Printer, BarChart3, Package,
-  ArrowUpRight, ArrowDownRight, Trophy, Flame
+  ArrowUpRight, ArrowDownRight, Trophy, Flame, Gift
 } from 'lucide-react';
 import './SalesReport.css';
 
@@ -363,6 +363,10 @@ export const SalesReport = () => {
     const avgVal    = confirmed.length > 0 ? revenue / confirmed.length : 0;
     const confRate  = colorFilteredData.length > 0 ? ((confirmed.length / colorFilteredData.length)*100).toFixed(1) : 0;
 
+    const isBonus = o => isConfirmedStatus(o.status) && o.notes && o.notes.includes('[Was Incomplete]');
+    const bonusOrders = colorFilteredData.filter(isBonus);
+    const bonusRevenue = bonusOrders.reduce((s,o) => s + (Number(o.amount)||0), 0);
+
     return {
       total: colorFilteredData.length,
       confirmed: confirmed.length,
@@ -372,6 +376,8 @@ export const SalesReport = () => {
       revenue,
       avgVal,
       confRate,
+      bonus: bonusOrders.length,
+      bonusRevenue
     };
   }, [colorFilteredData]);
 
@@ -560,6 +566,7 @@ export const SalesReport = () => {
       <div className="sr-kpi-grid">
         <KpiCard icon={ShoppingCart}  label="Total Orders"       value={fmtNum(kpi.total)}       color="#6366f1" />
         <KpiCard icon={CheckCircle2}  label="Confirmed"          value={fmtNum(kpi.confirmed)}   color="#10b981" sub={`${kpi.confRate}% confirm rate`} />
+        <KpiCard icon={Gift}          label="Bonus Conversions"  value={fmtNum(kpi.bonus)}       color="#eab308" sub={`${fmtTk(kpi.bonusRevenue)} bonus rev`} />
         <KpiCard icon={XCircle}       label="Cancelled"          value={fmtNum(kpi.cancelled)}   color="#ef4444" />
         <KpiCard icon={AlertTriangle} label="Fake Orders"        value={fmtNum(kpi.fake)}         color="#f59e0b" />
         <KpiCard icon={Clock}         label="Pending"            value={fmtNum(kpi.pending)}     color="#3b82f6" />

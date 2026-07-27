@@ -273,68 +273,85 @@ export const ReportsPanel = () => {
         // Fetch STATUS_CHANGE logs from real agents (exclude System bulk ops)
         const { data: logs } = await supabase
           .from('order_activity_logs')
-          .select('changed_by_user_name, new_status, timestamp, action_type, order_id')
+          .select('changed_by_user_name, old_status, new_status, timestamp, action_type, order_id')
           .in('action_type', ['STATUS_CHANGE'])
           .gte('timestamp', startISO)
           .lte('timestamp', endISO)
           .neq('changed_by_user_name', 'System')
           .order('timestamp', { ascending: true });
-
+ 
         if (!logs || logs.length === 0) {
           setUserPerfData({ byUser: [], byDay: [], allUsers: [] });
           return;
         }
-
+ 
         // Collect all unique users
         const allUsers = [...new Set(logs.map(l => l.changed_by_user_name))].filter(Boolean).sort();
-
+ 
         // ── Aggregate by user ──
         const userMap = {};
         for (const l of logs) {
           const u = l.changed_by_user_name || 'Unknown';
-          if (!userMap[u]) userMap[u] = { name: u, attempted: 0, confirmed: 0, cancelled: 0, fake: 0, pending: 0, other: 0 };
+          if (!userMap[u]) userMap[u] = { name: u, attempted: 0, confirmed: 0, cancelled: 0, fake: 0, pending: 0, other: 0, incompleteConfirmed: 0 };
           userMap[u].attempted++;
           const s = (l.new_status || '').toLowerCase();
-          if (s === 'confirmed')        userMap[u].confirmed++;
+          const oldS = (l.old_status || '').toLowerCase();
+          
+          if (s === 'confirmed') {
+            if (oldS === 'incomplete') {
+              userMap[u].incompleteConfirmed++;
+            } else {
+              userMap[u].confirmed++;
+            }
+          }
           else if (s === 'cancelled')   userMap[u].cancelled++;
           else if (s === 'fake order')  userMap[u].fake++;
           else if (s.includes('pending')) userMap[u].pending++;
           else                          userMap[u].other++;
         }
-
+ 
         const byUser = Object.values(userMap).map(u => ({
           ...u,
           confirmRate: u.attempted > 0 ? +((u.confirmed / u.attempted) * 100).toFixed(1) : 0,
           cancelRate:  u.attempted > 0 ? +((u.cancelled / u.attempted) * 100).toFixed(1) : 0,
           fakeRate:    u.attempted > 0 ? +((u.fake      / u.attempted) * 100).toFixed(1) : 0,
         })).sort((a, b) => b.confirmed - a.confirmed);
-
+ 
         // ── Aggregate by day (for daily view) ──
         const dayMap = {};
         for (const l of logs) {
           const day  = l.timestamp.split('T')[0];
           const user = l.changed_by_user_name || 'Unknown';
           const key  = `${day}__${user}`;
-          if (!dayMap[key]) dayMap[key] = { date: day, user, attempted: 0, confirmed: 0, cancelled: 0, fake: 0, pending: 0 };
+          if (!dayMap[key]) dayMap[key] = { date: day, user, attempted: 0, confirmed: 0, cancelled: 0, fake: 0, pending: 0, incompleteConfirmed: 0 };
           dayMap[key].attempted++;
           const s = (l.new_status || '').toLowerCase();
-          if (s === 'confirmed')          dayMap[key].confirmed++;
+          const oldS = (l.old_status || '').toLowerCase();
+          
+          if (s === 'confirmed') {
+            if (oldS === 'incomplete') {
+              dayMap[key].incompleteConfirmed++;
+            } else {
+              dayMap[key].confirmed++;
+            }
+          }
           else if (s === 'cancelled')     dayMap[key].cancelled++;
           else if (s === 'fake order')    dayMap[key].fake++;
           else if (s.includes('pending')) dayMap[key].pending++;
         }
-
+ 
         // Group by day for chart (all users combined or filtered)
         const dayChartMap = {};
         for (const entry of Object.values(dayMap)) {
           const d = entry.date;
-          if (!dayChartMap[d]) dayChartMap[d] = { name: new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }), date: d, confirmed: 0, cancelled: 0, fake: 0, attempted: 0 };
+          if (!dayChartMap[d]) dayChartMap[d] = { name: new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }), date: d, confirmed: 0, cancelled: 0, fake: 0, attempted: 0, incompleteConfirmed: 0 };
           dayChartMap[d].attempted  += entry.attempted;
           dayChartMap[d].confirmed  += entry.confirmed;
           dayChartMap[d].cancelled  += entry.cancelled;
           dayChartMap[d].fake       += entry.fake;
+          dayChartMap[d].incompleteConfirmed += entry.incompleteConfirmed || 0;
         }
-
+ 
         const byDay = Object.values(dayChartMap).sort((a, b) => a.date.localeCompare(b.date));
 
         setUserPerfData({ byUser, byDay, allUsers, byDayPerUser: Object.values(dayMap) });
@@ -358,11 +375,12 @@ export const ReportsPanel = () => {
     // Group by date
     const m = {};
     for (const r of rows) {
-      if (!m[r.date]) m[r.date] = { name: new Date(r.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }), date: r.date, confirmed: 0, cancelled: 0, fake: 0, attempted: 0 };
+      if (!m[r.date]) m[r.date] = { name: new Date(r.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }), date: r.date, confirmed: 0, cancelled: 0, fake: 0, attempted: 0, incompleteConfirmed: 0 };
       m[r.date].attempted  += r.attempted;
       m[r.date].confirmed  += r.confirmed;
       m[r.date].cancelled  += r.cancelled;
       m[r.date].fake       += r.fake;
+      m[r.date].incompleteConfirmed += r.incompleteConfirmed || 0;
     }
     return Object.values(m).sort((a, b) => a.date.localeCompare(b.date));
   }, [userPerfData, selectedUser]);
@@ -430,6 +448,19 @@ export const ReportsPanel = () => {
       initial="hidden"
       animate="visible"
     >
+      <style>{`
+        .uperf-lb-head, .uperf-lb-row {
+          grid-template-columns: 50px 120px 80px 90px 90px 90px 90px 80px 80px 80px 70px !important;
+        }
+        .uperf-day-head, .uperf-day-row {
+          grid-template-columns: 80px 110px 80px 100px 100px 100px 70px 80px 80px !important;
+        }
+        .uperf-day-no-agent-head, .uperf-day-no-agent-row {
+          display: grid;
+          grid-template-columns: 80px 80px 100px 100px 100px 70px 80px 80px !important;
+        }
+      `}</style>
+
       <motion.div className="reports-control-hub-elite" variants={itemVariants}>
         <div className="hub-info">
           <div className="hub-title-group">
@@ -565,10 +596,14 @@ export const ReportsPanel = () => {
                         <span className="uperf-agent-name">{u.name}</span>
                         <span className="uperf-agent-total">{u.attempted} total actions</span>
                       </div>
-                      <div className="uperf-agent-stats">
+                      <div className="uperf-agent-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
                         <div className="uperf-mini-stat confirmed">
                           <span>{u.confirmed}</span>
                           <label>Confirmed</label>
+                        </div>
+                        <div className="uperf-mini-stat fake" style={{ color: '#eab308' }}>
+                          <span>{u.incompleteConfirmed || 0}</span>
+                          <label>Bonus</label>
                         </div>
                         <div className="uperf-mini-stat cancelled">
                           <span>{u.cancelled}</span>
@@ -583,7 +618,7 @@ export const ReportsPanel = () => {
                         <span className="uperf-rate-val">{u.confirmRate}%</span>
                         <label>Confirm Rate</label>
                         <div className="uperf-rate-bar">
-                          <div className="uperf-rate-fill confirmed" style={{ width: `${u.confirmRate}%` }} />
+                           <div className="uperf-rate-fill confirmed" style={{ width: `${u.confirmRate}%` }} />
                         </div>
                       </div>
                     </div>
@@ -597,6 +632,7 @@ export const ReportsPanel = () => {
                     <span>Agent</span>
                     <span>Attempted</span>
                     <span>✅ Confirmed</span>
+                    <span>🎁 Bonus</span>
                     <span>❌ Cancelled</span>
                     <span>🚫 Fake</span>
                     <span>⏳ Pending</span>
@@ -612,6 +648,7 @@ export const ReportsPanel = () => {
                       <span className="uperf-lb-name">{u.name}</span>
                       <span className="uperf-lb-num">{u.attempted}</span>
                       <span className="uperf-lb-num green">{u.confirmed}</span>
+                      <span className="uperf-lb-num orange" style={{ color: '#eab308' }}>{u.incompleteConfirmed || 0}</span>
                       <span className="uperf-lb-num red">{u.cancelled}</span>
                       <span className="uperf-lb-num orange">{u.fake}</span>
                       <span className="uperf-lb-num blue">{u.pending}</span>
@@ -667,11 +704,12 @@ export const ReportsPanel = () => {
 
                 {/* Day-wise detail table */}
                 <div className="uperf-day-table">
-                  <div className="uperf-day-head">
+                  <div className={selectedUser === 'all' ? 'uperf-day-head' : 'uperf-day-no-agent-head'}>
                     <span>Date</span>
                     {selectedUser === 'all' && <span>Agent</span>}
                     <span>Attempted</span>
                     <span>✅ Confirmed</span>
+                    <span>🎁 Bonus</span>
                     <span>❌ Cancelled</span>
                     <span>🚫 Fake</span>
                     <span>⏳ Pending</span>
@@ -687,7 +725,7 @@ export const ReportsPanel = () => {
                   ).map((row, i) => {
                     const rate = row.attempted > 0 ? +((row.confirmed / row.attempted) * 100).toFixed(1) : 0;
                     return (
-                      <div key={`${row.date}-${row.user}-${i}`} className="uperf-day-row">
+                      <div key={`${row.date}-${row.user}-${i}`} className={selectedUser === 'all' ? 'uperf-day-row' : 'uperf-day-no-agent-row'}>
                         <span className="uperf-day-date">
                           {new Date(row.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
                         </span>
@@ -696,6 +734,7 @@ export const ReportsPanel = () => {
                         )}
                         <span>{row.attempted}</span>
                         <span className="uperf-lb-num green">{row.confirmed}</span>
+                        <span className="uperf-lb-num orange" style={{ color: '#eab308' }}>{row.incompleteConfirmed || 0}</span>
                         <span className="uperf-lb-num red">{row.cancelled}</span>
                         <span className="uperf-lb-num orange">{row.fake}</span>
                         <span className="uperf-lb-num blue">{row.pending}</span>
