@@ -778,59 +778,61 @@ export const OrdersBoard = () => {
           }}
         />
 
-        <div 
-          className="elite-select-wrapper" 
-          ref={sourceDropdownRef}
-          onClick={() => setSourceDropdownOpen(!sourceDropdownOpen)}
-          style={{ position: 'relative', cursor: 'pointer' }}
-        >
-          <Globe size={16} className="elite-select-icon" />
-          <span className="elite-select-selected-value">
-            {filters.source === 'All' ? 'All Sources' : filters.source}
-          </span>
-          <ChevronDown size={14} className="ml-auto opacity-50" style={{ transform: sourceDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease', flexShrink: 0 }} />
-          
-          <AnimatePresence>
-            {sourceDropdownOpen && (
-              <motion.div 
-                className="premium-select-dropdown"
-                initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                transition={{ duration: 0.15, ease: 'easeOut' }}
-              >
-                <div 
-                  className={`select-dropdown-item ${filters.source === 'All' ? 'active' : ''}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleFilterChange('source', 'All');
-                    setSourceDropdownOpen(false);
-                  }}
+        <div className="filter-buttons-row">
+          <div 
+            className="elite-select-wrapper" 
+            ref={sourceDropdownRef}
+            onClick={() => setSourceDropdownOpen(!sourceDropdownOpen)}
+            style={{ position: 'relative', cursor: 'pointer' }}
+          >
+            <Globe size={16} className="elite-select-icon" />
+            <span className="elite-select-selected-value">
+              {filters.source === 'All' ? 'All Sources' : filters.source}
+            </span>
+            <ChevronDown size={14} className="elite-select-chevron" style={{ transform: sourceDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease', marginLeft: 'auto', flexShrink: 0 }} />
+            
+            <AnimatePresence>
+              {sourceDropdownOpen && (
+                <motion.div 
+                  className="premium-select-dropdown"
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  transition={{ duration: 0.15, ease: 'easeOut' }}
                 >
-                  All Sources
-                </div>
-                {SOURCES.map(s => (
                   <div 
-                    key={s} 
-                    className={`select-dropdown-item ${filters.source === s ? 'active' : ''}`}
+                    className={`select-dropdown-item ${filters.source === 'All' ? 'active' : ''}`}
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleFilterChange('source', s);
+                      handleFilterChange('source', 'All');
                       setSourceDropdownOpen(false);
                     }}
                   >
-                    {s}
+                    All Sources
                   </div>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+                  {SOURCES.map(s => (
+                    <div 
+                      key={s} 
+                      className={`select-dropdown-item ${filters.source === s ? 'active' : ''}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleFilterChange('source', s);
+                        setSourceDropdownOpen(false);
+                      }}
+                    >
+                      {s}
+                    </div>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
 
-        <DateRangePicker
-          value={filters.dateRange}
-          onChange={(range) => handleFilterChange('dateRange', range)}
-        />
+          <DateRangePicker
+            value={filters.dateRange}
+            onChange={(range) => handleFilterChange('dateRange', range)}
+          />
+        </div>
         {unreadCount > 0 && (
           <span className="route-unread-count-pill" title="Orders not opened in this route">
             {unreadCount} unread
