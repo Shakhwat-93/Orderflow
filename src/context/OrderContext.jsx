@@ -325,13 +325,19 @@ export const OrderProvider = ({ children }) => {
       const currentUserName = profile?.name || user?.user_metadata?.full_name || user?.email || 'Unknown User';
 
       // 1. Update the order details first
+      const currentNotes = incompleteOrderToConfirm?.order?.notes || '';
+      const newNotes = currentNotes.includes('[Was Incomplete]')
+        ? currentNotes
+        : (currentNotes ? `${currentNotes} [Was Incomplete]` : '[Was Incomplete]');
+
       const updatedOrder = await api.updateOrder(
         orderId, 
         {
           customer_name: incompleteName.trim(),
           phone: incompletePhone.trim(),
           address: incompleteAddress.trim(),
-          amount: Number(incompleteAmount)
+          amount: Number(incompleteAmount),
+          notes: newNotes
         },
         user?.id,
         currentUserName,
@@ -484,6 +490,14 @@ export const OrderProvider = ({ children }) => {
   const editOrder = async (orderId, updatedData) => {
     const currentUserName = profile?.name || user?.user_metadata?.full_name || user?.email || 'Unknown User';
     const oldOrder = orders.find(o => o.id === orderId);
+
+    // If changing from Incomplete to Confirmed, append [Was Incomplete] flag to notes
+    if (updatedData?.status === 'Confirmed' && oldOrder?.status === 'Incomplete') {
+      const currentNotes = updatedData.notes || '';
+      if (!currentNotes.includes('[Was Incomplete]')) {
+        updatedData.notes = currentNotes ? `${currentNotes} [Was Incomplete]` : '[Was Incomplete]';
+      }
+    }
 
     try {
       await api.updateOrder(orderId, updatedData, user?.id, currentUserName, userRoles);

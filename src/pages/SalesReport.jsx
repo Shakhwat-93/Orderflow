@@ -353,7 +353,7 @@ export const SalesReport = () => {
 
   // ── KPI Aggregates ──
   const kpi = useMemo(() => {
-    const isConf  = o => isConfirmedStatus(o.status);
+    const isConf  = o => isConfirmedStatus(o.status) && !(o.notes && o.notes.includes('[Was Incomplete]'));
     const isCanc  = o => o.status === 'Cancelled';
     const isFake  = o => o.status === 'Fake Order';
     const isPend  = o => ['New','Pending Call','Final Call Pending','Hold'].includes(o.status);
@@ -398,7 +398,7 @@ export const SalesReport = () => {
       }
       map[dayKey].total++;
       const s = o.status;
-      if (isConfirmedStatus(s)) {
+      if (isConfirmedStatus(s) && !(o.notes && o.notes.includes('[Was Incomplete]'))) {
         map[dayKey].confirmed++;
         map[dayKey].revenue += Number(o.amount||0);
       }
@@ -438,7 +438,7 @@ export const SalesReport = () => {
         map[baseName].totalQty += q;
         
         const s = o.status;
-        if (isConfirmedStatus(s)) {
+        if (isConfirmedStatus(s) && !(o.notes && o.notes.includes('[Was Incomplete]'))) {
           map[baseName].confirmed++;
           map[baseName].confirmedQty += q;
           map[baseName].revenue += Number(item.price || o.amount || 0);
@@ -475,7 +475,7 @@ export const SalesReport = () => {
       const src = o.source || 'Unknown';
       if (!map[src]) map[src] = { source: src, total:0, confirmed:0, revenue:0 };
       map[src].total++;
-      if (isConfirmedStatus(o.status)) { map[src].confirmed++; map[src].revenue += Number(o.amount||0); }
+      if (isConfirmedStatus(o.status) && !(o.notes && o.notes.includes('[Was Incomplete]'))) { map[src].confirmed++; map[src].revenue += Number(o.amount||0); }
     });
     return Object.values(map)
       .map(s => ({ ...s, confRate: s.total > 0 ? +((s.confirmed/s.total)*100).toFixed(1) : 0 }))
