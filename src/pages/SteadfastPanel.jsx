@@ -374,8 +374,8 @@ export const SteadfastPanel = () => {
           )}
         </div>
 
-        {/* Unified Responsive Table View */}
-        <div className="courier-table-wrapper">
+        {/* Unified Responsive Table View for Desktop */}
+        <div className="courier-table-wrapper desktop-only">
           <table className="order-table">
             <thead>
               <tr>
@@ -484,6 +484,76 @@ export const SteadfastPanel = () => {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Premium Mobile Card List View */}
+        <div className="courier-cards-mobile-view mobile-only">
+          <AnimatePresence mode="popLayout">
+            {pagedOrders.map(order => (
+              <motion.div
+                key={order.id}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                className={`mobile-order-card ${selectedIds.has(order.id) ? 'selected' : ''} ${isOrderUnread(order) ? 'unread' : ''}`}
+                onClick={() => handleRowClick(order)}
+              >
+                <div className="card-top-row">
+                  <div className="checkbox-wrap" onClick={e => e.stopPropagation()}>
+                    <input type="checkbox" checked={selectedIds.has(order.id)} onChange={(e) => toggleSelect(e, order.id)} />
+                  </div>
+                  <div className="order-meta">
+                    <span className="order-id">#{order.id.replace('ORD-', '')}</span>
+                    <span className="courier-badge">S-FAST</span>
+                  </div>
+                  <Badge variant={getStatusVariant(order.courier_status)}>
+                    {order.courier_status || 'Handover'}
+                  </Badge>
+                </div>
+
+                <div className="card-recipient-info">
+                  <div className="recipient-name"><User size={13} /> {order.customer_name}</div>
+                  <div className="recipient-phone"><Phone size={13} /> {order.phone}</div>
+                  <div className="recipient-address"><MapPin size={13} /> {order.address}</div>
+                </div>
+
+                <div className="card-logistics-ids">
+                  <div className="id-field">
+                    <span className="lbl">Consignment</span>
+                    <code>{order.courier_assigned_id || 'Waiting Sync'}</code>
+                  </div>
+                  <div className="id-field">
+                    <span className="lbl">Tracking</span>
+                    <span className="track-val">{order.tracking_id || 'Unassigned'}</span>
+                  </div>
+                </div>
+
+                <div className="card-bottom-actions">
+                  <div className="dispatch-time">
+                    <Calendar size={13} />
+                    <span>{order.dispatched_at ? new Date(order.dispatched_at).toLocaleDateString() : 'N/A'}</span>
+                    {order.dispatched_at && (
+                      <span className="relative-time">({getTimeSinceDispatch(order.dispatched_at)})</span>
+                    )}
+                  </div>
+
+                  <button
+                    className={`mobile-sync-btn ${syncStatus[order.id] || ''}`}
+                    onClick={(e) => { e.stopPropagation(); handleSyncStatus(order.id, order.tracking_id); }}
+                    disabled={syncStatus[order.id] === 'syncing' || !order.tracking_id}
+                  >
+                    <RefreshCw size={14} className={syncStatus[order.id] === 'syncing' ? 'spin' : ''} />
+                  </button>
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+          {pagedOrders.length === 0 && (
+            <div className="mobile-empty-state">
+              <Package size={32} />
+              <p>No logistics records match the current filters.</p>
+            </div>
+          )}
         </div>
 
         {/* Responsive Pagination Bar */}
