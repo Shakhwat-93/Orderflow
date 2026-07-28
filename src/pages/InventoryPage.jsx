@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useOrders } from '../context/OrderContext';
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
@@ -9,11 +9,12 @@ import CurrencyIcon from '../components/CurrencyIcon';
 import {
   Search, Plus, Package, AlertTriangle, ArrowUpRight, ArrowDownRight,
   Edit2, Trash2, Tag, Bot, Loader2, CheckCircle2, CircleAlert, ChevronDown, Sparkles,
-  TrendingUp, TrendingDown, DollarSign, BarChart2
+  TrendingUp, TrendingDown, DollarSign, BarChart2, Layers, Filter, Clock, Calendar, Globe
 } from 'lucide-react';
 import { PremiumSearch } from '../components/PremiumSearch';
 import { usePersistentState } from '../utils/persistentState';
 import { getSerialTrackedProducts } from '../utils/productCatalog';
+import { supabase } from '../lib/supabase';
 import './InventoryPage.css';
 
 const CATEGORIES = ['All', 'TOY BOX', 'ORGANIZER', 'Bags', 'Accessories', 'Religious', 'Other'];
@@ -34,6 +35,353 @@ export const InventoryPage = () => {
   } = useOrders();
   const [searchTerm, setSearchTerm] = usePersistentState('panel:inventory:search', '');
   const [categoryFilter, setCategoryFilter] = usePersistentState('panel:inventory:category', 'All');
+  const [activeTab, setActiveTab] = usePersistentState('panel:inventory:activeTab', 'catalog');
+
+  // ── Production & Ledger States (for Inventory view) ──
+  const [productionLogs, setProductionLogs] = useState([]);
+  const [isLogsLoading, setIsLogsLoading] = useState(false);
+  const [logSearchTerm, setLogSearchTerm] = useState('');
+  const [logDatePreset, setLogDatePreset] = useState('all');
+  const [logDateFrom, setLogDateFrom] = useState('');
+  const [logDateTo, setLogDateTo] = useState('');
+  const [logProductFilter, setLogProductFilter] = useState('All');
+  const [logPaymentFilter, setLogPaymentFilter] = useState('All');
+  const [logSortOrder, setLogSortOrder] = useState('newest');
+  const [logPage, setLogPage] = useState(1);
+  const [logPageSize, setLogPageSize] = useState(10);
+  const [totalLogRecords, setTotalLogRecords] = useState(0);
+
+  const [productionStats, setProductionStats] = useState({
+    totalQty: 0,
+    totalCost: 0,
+    totalPaid: 0,
+    totalDue: 0,
+    breakdown: []
+  });
+
+  const getTodayDateString = () => {
+    const today = new Date();
+    const offsetMs = today.getTimezoneOffset() * 60 * 1000;
+    return new Date(today.getTime() - offsetMs).toISOString().slice(0, 10);
+  };
+
+  const [logFormData, setLogFormData] = useState({
+    production_date: getTodayDateString(),
+    product_name: '',
+    color: '',
+    variant: '',
+    quantity_ready: '',
+    unit_cost: '',
+    notes: '',
+    payment_status: 'Due'
+  });
+  const [isCustomProduct, setIsCustomProduct] = useState(false);
+  const [isSubmittingLog, setIsSubmittingLog] = useState(false);
+  const [logFormError, setLogFormError] = useState('');
+  const [editingLogId, setEditingLogId] = useState(null);
+
+  const uniqueProducts = Array.from(new Set(inventory.map(item => item.name))).sort();
+
+  const fetchProductionLogs = async () => {
+    setIsLogsLoading(true);
+    try {
+      let query = supabase
+        .from('factory_production_logs')
+        .select('*', { count: 'exact' });
+
+      if (logSearchTerm.trim()) {
+        query = query.or(`product_name.ilike.%${logSearchTerm}%,color.ilike.%${logSearchTerm}%,variant.ilike.%${logSearchTerm}%,notes.ilike.%${logSearchTerm}%`);
+      }
+
+      if (logProductFilter !== 'All') {
+        query = query.eq('product_name', logProductFilter);
+      }
+
+      if (logPaymentFilter !== 'All') {
+        query = query.eq('payment_status', logPaymentFilter);
+      }
+
+      if (logDatePreset !== 'all') {
+        const now = new Date();
+        const todayStr = now.toISOString().slice(0, 10);
+        
+        if (logDatePreset === 'today') {
+          query = query.eq('production_date', todayStr);
+        } else if (logDatePreset === 'yesterday') {
+          const yesterday = new Date(now);
+          yesterday.setDate(now.getDate() - 1);
+          const yesterdayStr = yesterday.toISOString().slice(0, 10);
+          query = query.eq('production_date', yesterdayStr);
+        } else if (logDatePreset === '7days') {
+          const start = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+          query = query.gte('production_date', start).lte('production_date', todayStr);
+        } else if (logDatePreset === '30days') {
+          const start = new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+          query = query.gte('production_date', start).lte('production_date', todayStr);
+        } else if (logDatePreset === 'thisMonth') {
+          const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+          query = query.gte('production_date', start).lte('production_date', todayStr);
+        }
+      } else {
+        if (logDateFrom) {
+          query = query.gte('production_date', logDateFrom);
+        }
+        if (logDateTo) {
+          query = query.lte('production_date', logDateTo);
+        }
+      }
+
+      if (logSortOrder === 'newest') {
+        query = query.order('production_date', { ascending: false }).order('created_at', { ascending: false });
+      } else if (logSortOrder === 'oldest') {
+        query = query.order('production_date', { ascending: true }).order('created_at', { ascending: true });
+      } else if (logSortOrder === 'cost-high') {
+        query = query.order('total_cost', { ascending: false });
+      } else if (logSortOrder === 'cost-low') {
+        query = query.order('total_cost', { ascending: true });
+      } else if (logSortOrder === 'qty-high') {
+        query = query.order('quantity_ready', { ascending: false });
+      }
+
+      const from = (logPage - 1) * logPageSize;
+      const to = from + logPageSize - 1;
+      query = query.range(from, to);
+
+      const { data, error, count } = await query;
+      if (error) throw error;
+
+      setProductionLogs(data || []);
+      setTotalLogRecords(count || 0);
+    } catch (err) {
+      console.error('Error fetching production logs:', err);
+    } finally {
+      setIsLogsLoading(false);
+    }
+  };
+
+  const fetchProductionStats = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('factory_production_logs')
+        .select('product_name, quantity_ready, total_cost, payment_status');
+      if (error) throw error;
+
+      let totalQty = 0;
+      let totalCost = 0;
+      let totalPaid = 0;
+      let totalDue = 0;
+      const breakdownMap = {};
+
+      (data || []).forEach(log => {
+        const qty = Number(log.quantity_ready) || 0;
+        const cost = Number(log.total_cost) || 0;
+        const isPaid = log.payment_status === 'Paid';
+
+        totalQty += qty;
+        totalCost += cost;
+        if (isPaid) {
+          totalPaid += cost;
+        } else {
+          totalDue += cost;
+        }
+
+        const name = log.product_name || 'Unknown Product';
+        if (!breakdownMap[name]) {
+          breakdownMap[name] = { name, qty: 0, cost: 0, paid: 0, due: 0 };
+        }
+        breakdownMap[name].qty += qty;
+        breakdownMap[name].cost += cost;
+        if (isPaid) {
+          breakdownMap[name].paid += cost;
+        } else {
+          breakdownMap[name].due += cost;
+        }
+      });
+
+      setProductionStats({
+        totalQty,
+        totalCost,
+        totalPaid,
+        totalDue,
+        breakdown: Object.values(breakdownMap).sort((a, b) => b.cost - a.cost)
+      });
+    } catch (err) {
+      console.error('Error fetching production stats:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'production') {
+      fetchProductionLogs();
+      fetchProductionStats();
+    }
+  }, [
+    activeTab,
+    logSearchTerm,
+    logDatePreset,
+    logDateFrom,
+    logDateTo,
+    logProductFilter,
+    logPaymentFilter,
+    logSortOrder,
+    logPage,
+    logPageSize
+  ]);
+
+  const handleSaveProductionLog = async (e) => {
+    e.preventDefault();
+    setLogFormError('');
+    setIsSubmittingLog(true);
+
+    const qty = parseInt(logFormData.quantity_ready, 10);
+    const ucost = parseFloat(logFormData.unit_cost);
+
+    if (!logFormData.product_name.trim()) {
+      setLogFormError('Product Name is required.');
+      setIsSubmittingLog(false);
+      return;
+    }
+    if (Number.isNaN(qty) || qty <= 0) {
+      setLogFormError('Quantity must be greater than 0.');
+      setIsSubmittingLog(false);
+      return;
+    }
+    if (Number.isNaN(ucost) || ucost < 0) {
+      setLogFormError('Unit cost must be at least 0.');
+      setIsSubmittingLog(false);
+      return;
+    }
+
+    const totalCost = qty * ucost;
+
+    try {
+      const payload = {
+        production_date: logFormData.production_date,
+        product_name: logFormData.product_name.trim(),
+        color: logFormData.color.trim() || null,
+        variant: logFormData.variant.trim() || null,
+        quantity_ready: qty,
+        unit_cost: ucost,
+        total_cost: totalCost,
+        payment_status: logFormData.payment_status,
+        notes: logFormData.notes.trim() || null
+      };
+
+      let error;
+      if (editingLogId) {
+        const res = await supabase
+          .from('factory_production_logs')
+          .update(payload)
+          .eq('id', editingLogId);
+        error = res.error;
+      } else {
+        const res = await supabase
+          .from('factory_production_logs')
+          .insert([payload]);
+        error = res.error;
+      }
+
+      if (error) throw error;
+
+      setLogFormData({
+        production_date: getTodayDateString(),
+        product_name: '',
+        color: '',
+        variant: '',
+        quantity_ready: '',
+        unit_cost: '',
+        notes: '',
+        payment_status: 'Due'
+      });
+      setIsCustomProduct(false);
+      setEditingLogId(null);
+      fetchProductionLogs();
+      fetchProductionStats();
+    } catch (err) {
+      console.error('Error saving production log:', err);
+      setLogFormError(err.message || 'An error occurred while saving the log.');
+    } finally {
+      setIsSubmittingLog(false);
+    }
+  };
+
+  const handleTogglePaymentStatus = async (log) => {
+    const nextStatus = log.payment_status === 'Paid' ? 'Due' : 'Paid';
+    try {
+      const { error } = await supabase
+        .from('factory_production_logs')
+        .update({ payment_status: nextStatus })
+        .eq('id', log.id);
+
+      if (error) throw error;
+      fetchProductionLogs();
+      fetchProductionStats();
+    } catch (err) {
+      console.error('Error toggling payment status:', err);
+    }
+  };
+
+  const handleDeleteProductionLog = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this production log entry?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('factory_production_logs')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      fetchProductionLogs();
+      fetchProductionStats();
+    } catch (err) {
+      console.error('Error deleting production log:', err);
+    }
+  };
+
+  const handleStartEditLog = (log) => {
+    setEditingLogId(log.id);
+    const hasProductInDropdown = uniqueProducts.includes(log.product_name);
+    
+    setLogFormData({
+      production_date: log.production_date,
+      product_name: log.product_name,
+      color: log.color || '',
+      variant: log.variant || '',
+      quantity_ready: String(log.quantity_ready),
+      unit_cost: String(log.unit_cost),
+      notes: log.notes || '',
+      payment_status: log.payment_status
+    });
+    setIsCustomProduct(!hasProductInDropdown);
+  };
+
+  const formatSheetDate = (dateStr) => {
+    if (!dateStr) return '';
+    try {
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+      }
+      return dateStr;
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const getVisiblePageNumbers = (curr, total) => {
+    const pages = [];
+    const maxVisible = 5;
+    let start = Math.max(1, curr - Math.floor(maxVisible / 2));
+    let end = Math.min(total, start + maxVisible - 1);
+    
+    if (end - start + 1 < maxVisible) {
+      start = Math.max(1, end - maxVisible + 1);
+    }
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+    }
+    return pages;
+  };
 
   // Modal states
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -262,14 +610,16 @@ export const InventoryPage = () => {
           <h1 className="premium-title">Inventory Management</h1>
           <p className="page-subtitle">Monitor stock levels, manage products, and track warehouse movements.</p>
         </div>
-        <div className="inventory-header-actions">
-          <Button variant="ghost" onClick={handleOpenInvoiceModal} className="ai-sync-btn">
-            <Bot size={18} /> <span>AI Invoice Sync</span>
-          </Button>
-          <Button variant="primary" onClick={() => handleOpenProductModal()} className="add-product-btn">
-            <Plus size={18} /> <span>Add New Product</span>
-          </Button>
-        </div>
+        {activeTab === 'catalog' && (
+          <div className="inventory-header-actions">
+            <Button variant="ghost" onClick={handleOpenInvoiceModal} className="ai-sync-btn">
+              <Bot size={18} /> <span>AI Invoice Sync</span>
+            </Button>
+            <Button variant="primary" onClick={() => handleOpenProductModal()} className="add-product-btn">
+              <Plus size={18} /> <span>Add New Product</span>
+            </Button>
+          </div>
+        )}
       </div>
 
       {invoiceSuccess && (
@@ -279,56 +629,104 @@ export const InventoryPage = () => {
         </div>
       )}
 
-      <div className="inventory-stats">
-        <Card className="stat-card glass-card">
-          <div className="stat-icon-box blue">
-            <Package size={22} />
-          </div>
-          <div className="stat-info">
-            <span className="label">Total Products</span>
-            <span className="value">{inventory.length}</span>
-          </div>
-        </Card>
-        <Card className="stat-card glass-card">
-          <div className="stat-icon-box orange">
-            <AlertTriangle size={22} />
-          </div>
-          <div className="stat-info">
-            <span className="label">Low Stock Items</span>
-            <span className="value">{lowStockItems.length}</span>
-          </div>
-        </Card>
-        <Card className="stat-card glass-card">
-          <div className="stat-icon-box red">
-            <Package size={22} />
-          </div>
-          <div className="stat-info">
-            <span className="label">Out of Stock</span>
-            <span className="value">{outOfStockItems.length}</span>
-          </div>
-        </Card>
-        <Card className="stat-card glass-card">
-          <div className="stat-icon-box green">
-            <TrendingUp size={22} />
-          </div>
-          <div className="stat-info">
-            <span className="label">Stock Value (Retail)</span>
-            <span className="value">৳{totalInventoryValue.toLocaleString()}</span>
-          </div>
-        </Card>
-        <Card className="stat-card glass-card">
-          <div className="stat-icon-box purple">
-            <BarChart2 size={22} />
-          </div>
-          <div className="stat-info">
-            <span className="label">Stock COGS (Cost)</span>
-            <span className="value">৳{totalCOGSValue.toLocaleString()}</span>
-          </div>
-        </Card>
+      {/* Tab Toggle */}
+      <div className="factory-tabs-container" style={{ marginBottom: '24px' }}>
+        <div className="factory-tabs">
+          <button className={`factory-tab ${activeTab === 'catalog' ? 'active' : ''}`} onClick={() => setActiveTab('catalog')}>
+            <Package size={16} /> Stock & Catalog ({inventory.length})
+          </button>
+          <button className={`factory-tab ${activeTab === 'production' ? 'active' : ''}`} onClick={() => setActiveTab('production')}>
+            <Layers size={16} /> Production & Ledger
+          </button>
+        </div>
       </div>
 
-      <div className="inventory-controls-strip">
-        <div className="unified-filter-bar glass">
+      {/* Stats Row */}
+      {activeTab === 'catalog' ? (
+        <div className="inventory-stats">
+          <Card className="stat-card glass-card">
+            <div className="stat-icon-box blue">
+              <Package size={22} />
+            </div>
+            <div className="stat-info">
+              <span className="label">Total Products</span>
+              <span className="value">{inventory.length}</span>
+            </div>
+          </Card>
+          <Card className="stat-card glass-card">
+            <div className="stat-icon-box orange">
+              <AlertTriangle size={22} />
+            </div>
+            <div className="stat-info">
+              <span className="label">Low Stock Items</span>
+              <span className="value">{lowStockItems.length}</span>
+            </div>
+          </Card>
+          <Card className="stat-card glass-card">
+            <div className="stat-icon-box red">
+              <Package size={22} />
+            </div>
+            <div className="stat-info">
+              <span className="label">Out of Stock</span>
+              <span className="value">{outOfStockItems.length}</span>
+            </div>
+          </Card>
+          <Card className="stat-card glass-card">
+            <div className="stat-icon-box green">
+              <TrendingUp size={22} />
+            </div>
+            <div className="stat-info">
+              <span className="label">Stock Value (Retail)</span>
+              <span className="value">৳{totalInventoryValue.toLocaleString()}</span>
+            </div>
+          </Card>
+          <Card className="stat-card glass-card">
+            <div className="stat-icon-box purple">
+              <BarChart2 size={22} />
+            </div>
+            <div className="stat-info">
+              <span className="label">Stock COGS (Cost)</span>
+              <span className="value">৳{totalCOGSValue.toLocaleString()}</span>
+            </div>
+          </Card>
+        </div>
+      ) : (
+        <div className="inventory-stats factory-stats-row">
+          <Card className="stat-card glass-card factory-stat-card">
+            <div className="stat-icon-box blue"><Layers size={22} /></div>
+            <div className="stat-info">
+              <span className="label">Total Qty Produced</span>
+              <span className="value">{productionStats.totalQty}</span>
+            </div>
+          </Card>
+          <Card className="stat-card glass-card factory-stat-card">
+            <div className="stat-icon-box orange"><Tag size={22} /></div>
+            <div className="stat-info">
+              <span className="label">Total Cost</span>
+              <span className="value">৳{productionStats.totalCost.toLocaleString('en-BD')}</span>
+            </div>
+          </Card>
+          <Card className="stat-card glass-card factory-stat-card">
+            <div className="stat-icon-box green"><CheckCircle2 size={22} /></div>
+            <div className="stat-info">
+              <span className="label">Total Paid</span>
+              <span className="value">৳{productionStats.totalPaid.toLocaleString('en-BD')}</span>
+            </div>
+          </Card>
+          <Card className="stat-card glass-card factory-stat-card">
+            <div className="stat-icon-box red" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}><AlertTriangle size={22} /></div>
+            <div className="stat-info">
+              <span className="label">Total Due</span>
+              <span className="value" style={{ color: '#ef4444' }}>৳{productionStats.totalDue.toLocaleString('en-BD')}</span>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {activeTab === 'catalog' ? (
+        <>
+          <div className="inventory-controls-strip">
+            <div className="unified-filter-bar glass">
           <PremiumSearch
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -549,6 +947,427 @@ export const InventoryPage = () => {
             ))}
         </div>
       </div>
+      </>
+      ) : (
+        <div className="production-grid">
+          <div className="production-sidebar-col">
+            {/* Form Card */}
+            <Card className="production-form-card">
+              <h3 className="card-title">Log Production</h3>
+              <form onSubmit={handleSaveProductionLog} className="production-form">
+                {logFormError && <div className="form-error-toast">{logFormError}</div>}
+                
+                <div className="form-group">
+                  <label>Date</label>
+                  <input
+                    type="date"
+                    value={logFormData.production_date}
+                    onChange={(e) => setLogFormData(prev => ({ ...prev, production_date: e.target.value }))}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Product Name</label>
+                  {!isCustomProduct ? (
+                    <div className="select-input-container">
+                      <select
+                        value={logFormData.product_name}
+                        onChange={(e) => {
+                          if (e.target.value === '__custom__') {
+                            setIsCustomProduct(true);
+                            setLogFormData(prev => ({ ...prev, product_name: '' }));
+                          } else {
+                            setLogFormData(prev => ({ ...prev, product_name: e.target.value }));
+                          }
+                        }}
+                        required
+                      >
+                        <option value="">Select a Product</option>
+                        {uniqueProducts.map(p => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                        <option value="__custom__" style={{ fontStyle: 'italic', color: 'var(--fp-accent)' }}>+ Enter Custom Product...</option>
+                      </select>
+                    </div>
+                  ) : (
+                    <div className="custom-input-wrapper" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <input
+                        type="text"
+                        placeholder="Enter custom product name"
+                        value={logFormData.product_name}
+                        onChange={(e) => setLogFormData(prev => ({ ...prev, product_name: e.target.value }))}
+                        required
+                        style={{ flex: 1 }}
+                      />
+                      <button 
+                        type="button" 
+                        className="btn-text-link" 
+                        onClick={() => {
+                          setIsCustomProduct(false);
+                          setLogFormData(prev => ({ ...prev, product_name: '' }));
+                        }}
+                        style={{ fontSize: '0.8rem', whiteSpace: 'nowrap', border: 'none', background: 'transparent', color: 'var(--fp-accent)', cursor: 'pointer' }}
+                      >
+                        Dropdown
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="form-row-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="form-group">
+                    <label>Variant</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Standard"
+                      value={logFormData.variant}
+                      onChange={(e) => setLogFormData(prev => ({ ...prev, variant: e.target.value }))}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Color</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Black"
+                      value={logFormData.color}
+                      onChange={(e) => setLogFormData(prev => ({ ...prev, color: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-row-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="form-group">
+                    <label>Quantity Ready</label>
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="0"
+                      value={logFormData.quantity_ready}
+                      onChange={(e) => setLogFormData(prev => ({ ...prev, quantity_ready: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Unit Cost (৳)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={logFormData.unit_cost}
+                      onChange={(e) => setLogFormData(prev => ({ ...prev, unit_cost: e.target.value }))}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Payment Status</label>
+                  <div className="payment-status-radio-group" style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+                    <label className={`radio-label-pill ${logFormData.payment_status === 'Due' ? 'active due' : ''}`} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px', border: '1px solid var(--fp-border)', borderRadius: '8px', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600 }}>
+                      <input
+                        type="radio"
+                        name="payment_status"
+                        value="Due"
+                        checked={logFormData.payment_status === 'Due'}
+                        onChange={(e) => setLogFormData(prev => ({ ...prev, payment_status: e.target.value }))}
+                        style={{ display: 'none' }}
+                      />
+                      Due
+                    </label>
+                    <label className={`radio-label-pill ${logFormData.payment_status === 'Paid' ? 'active paid' : ''}`} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px', border: '1px solid var(--fp-border)', borderRadius: '8px', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600 }}>
+                      <input
+                        type="radio"
+                        name="payment_status"
+                        value="Paid"
+                        checked={logFormData.payment_status === 'Paid'}
+                        onChange={(e) => setLogFormData(prev => ({ ...prev, payment_status: e.target.value }))}
+                        style={{ display: 'none' }}
+                      />
+                      Paid
+                    </label>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Notes</label>
+                  <textarea
+                    rows="2"
+                    placeholder="Optional notes..."
+                    value={logFormData.notes}
+                    onChange={(e) => setLogFormData(prev => ({ ...prev, notes: e.target.value }))}
+                  />
+                </div>
+
+                <Button type="submit" variant="primary" className="btn-full-width" disabled={isSubmittingLog}>
+                  {isSubmittingLog ? <Loader2 size={16} className="spin" /> : <Layers size={16} />}
+                  <span>{editingLogId ? 'Update Entry' : 'Log Production'}</span>
+                </Button>
+                {editingLogId && (
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="btn-full-width" 
+                    style={{ marginTop: '8px' }}
+                    onClick={() => {
+                      setEditingLogId(null);
+                      setLogFormData({
+                        production_date: getTodayDateString(),
+                        product_name: '',
+                        color: '',
+                        variant: '',
+                        quantity_ready: '',
+                        unit_cost: '',
+                        notes: '',
+                        payment_status: 'Due'
+                      });
+                      setIsCustomProduct(false);
+                    }}
+                  >
+                    Cancel Edit
+                  </Button>
+                )}
+              </form>
+            </Card>
+
+            {/* Product Cost Breakdown Card */}
+            <Card className="product-breakdown-card">
+              <h3 className="card-title">Cost Breakdown</h3>
+              <div className="breakdown-table-wrapper">
+                <table className="breakdown-table">
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th className="num-col">Qty</th>
+                      <th className="num-col">Total Cost</th>
+                      <th className="num-col">Paid</th>
+                      <th className="num-col">Due</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {productionStats.breakdown.map(item => (
+                      <tr key={item.name}>
+                        <td className="prod-name-col" title={item.name}>{item.name}</td>
+                        <td className="num-col bold">{item.qty}</td>
+                        <td className="num-col">৳{item.cost.toLocaleString('en-BD')}</td>
+                        <td className="num-col green">৳{item.paid.toLocaleString('en-BD')}</td>
+                        <td className="num-col red">৳{item.due.toLocaleString('en-BD')}</td>
+                      </tr>
+                    ))}
+                    {productionStats.breakdown.length === 0 && (
+                      <tr>
+                        <td colSpan="5" className="empty-state-cell">No logs entered yet.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </div>
+
+          <div className="production-main-col">
+            {/* Ledger Table & Filters Card */}
+            <Card className="ledger-card" noPadding>
+              <div className="table-search-bar">
+                <div className="elite-search-wrapper">
+                  <Filter size={18} className="elite-search-icon" />
+                  <input
+                    type="text"
+                    className="elite-search-input"
+                    placeholder="Search by product, variant, color or notes..."
+                    value={logSearchTerm}
+                    onChange={(e) => { setLogSearchTerm(e.target.value); setLogPage(1); }}
+                  />
+                </div>
+
+                <div className="filter-actions-group">
+                  <select
+                    className="factory-page-size-select"
+                    style={{ minWidth: '130px' }}
+                    value={logProductFilter}
+                    onChange={(e) => { setLogProductFilter(e.target.value); setLogPage(1); }}
+                  >
+                    <option value="All">All Products</option>
+                    {uniqueProducts.map(p => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    className="factory-page-size-select"
+                    style={{ minWidth: '110px' }}
+                    value={logPaymentFilter}
+                    onChange={(e) => { setLogPaymentFilter(e.target.value); setLogPage(1); }}
+                  >
+                    <option value="All">All Statuses</option>
+                    <option value="Paid">Paid</option>
+                    <option value="Due">Due</option>
+                  </select>
+
+                  <select
+                    className="factory-page-size-select"
+                    style={{ minWidth: '130px' }}
+                    value={logDatePreset}
+                    onChange={(e) => { setLogDatePreset(e.target.value); setLogPage(1); }}
+                  >
+                    <option value="all">All Time</option>
+                    <option value="today">Today</option>
+                    <option value="yesterday">Yesterday</option>
+                    <option value="7days">Last 7 Days</option>
+                    <option value="30days">Last 30 Days</option>
+                    <option value="thisMonth">This Month</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Custom Date Picker Fields */}
+              {logDatePreset === 'all' && (
+                <div className="custom-date-row" style={{ display: 'flex', gap: '12px', padding: '10px 20px', borderBottom: '1px solid var(--fp-border-row)', background: 'var(--fp-input-bg)' }}>
+                  <div className="date-field" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--fp-text-sub)' }}>From:</span>
+                    <input
+                      type="date"
+                      style={{ padding: '4px 8px', fontSize: '0.8rem', borderRadius: '6px', border: '1px solid var(--fp-border)', background: 'var(--fp-card)', color: 'var(--fp-text)' }}
+                      value={logDateFrom}
+                      onChange={(e) => { setLogDateFrom(e.target.value); setLogPage(1); }}
+                    />
+                  </div>
+                  <div className="date-field" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--fp-text-sub)' }}>To:</span>
+                    <input
+                      type="date"
+                      style={{ padding: '4px 8px', fontSize: '0.8rem', borderRadius: '6px', border: '1px solid var(--fp-border)', background: 'var(--fp-card)', color: 'var(--fp-text)' }}
+                      value={logDateTo}
+                      onChange={(e) => { setLogDateTo(e.target.value); setLogPage(1); }}
+                    />
+                  </div>
+                  {(logDateFrom || logDateTo) && (
+                    <button
+                      className="btn-text-link"
+                      style={{ fontSize: '0.75rem', color: '#ef4444', border: 'none', background: 'transparent', cursor: 'pointer' }}
+                      onClick={() => { setLogDateFrom(''); setLogDateTo(''); setLogPage(1); }}
+                    >
+                      Clear Range
+                    </button>
+                  )}
+                </div>
+              )}
+
+              <div className="table-container">
+                <table className="management-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '100px' }}>Date</th>
+                      <th>Product</th>
+                      <th>Variant/Color</th>
+                      <th style={{ width: '80px', textAlign: 'right' }}>Qty</th>
+                      <th style={{ width: '100px', textAlign: 'right' }}>Unit Cost</th>
+                      <th style={{ width: '110px', textAlign: 'right' }}>Total Cost</th>
+                      <th style={{ width: '100px' }}>Status</th>
+                      <th style={{ width: '110px' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {isLogsLoading ? (
+                      <tr>
+                        <td colSpan="8" className="empty-state-cell">
+                          <Loader2 className="spin" size={24} style={{ margin: 'auto' }} />
+                          <p style={{ marginTop: '8px' }}>Loading production ledger...</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      productionLogs.map(log => (
+                        <tr key={log.id}>
+                          <td>{formatSheetDate(log.production_date)}</td>
+                          <td className="bold" style={{ color: 'var(--fp-text)' }}>{log.product_name}</td>
+                          <td>
+                            <div className="variant-color-badge-stack" style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                              {log.variant && <span className="text-tag variant" style={{ fontSize: '0.72rem', padding: '2px 6px', background: 'var(--fp-btn-bg)', color: 'var(--fp-text-sub)', borderRadius: '4px' }}>{log.variant}</span>}
+                              {log.color && <span className="text-tag color" style={{ fontSize: '0.72rem', padding: '2px 6px', background: 'var(--fp-accent-bg)', color: 'var(--fp-accent)', borderRadius: '4px' }}>{log.color}</span>}
+                              {!log.variant && !log.color && <span style={{ color: 'var(--fp-text-muted)', fontSize: '0.75rem' }}>—</span>}
+                            </div>
+                          </td>
+                          <td className="bold" style={{ textAlign: 'right' }}>{log.quantity_ready}</td>
+                          <td style={{ textAlign: 'right' }}>৳{log.unit_cost.toLocaleString('en-BD')}</td>
+                          <td className="bold" style={{ textAlign: 'right', color: 'var(--fp-accent)' }}>৳{log.total_cost.toLocaleString('en-BD')}</td>
+                          <td>
+                            <button
+                              type="button"
+                              className={`payment-status-pill ${log.payment_status.toLowerCase()}`}
+                              onClick={() => handleTogglePaymentStatus(log)}
+                              title="Click to toggle payment status"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px', borderRadius: '12px', border: '1px solid transparent', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                              {log.payment_status === 'Paid' ? <CheckCircle2 size={12} /> : <Clock size={12} />}
+                              <span>{log.payment_status}</span>
+                            </button>
+                          </td>
+                          <td>
+                            <div className="saas-row-actions" style={{ display: 'flex', gap: '6px' }}>
+                              <button className="saas-icon-btn" title="Edit Log Entry" onClick={() => handleStartEditLog(log)} style={{ padding: '6px', borderRadius: '6px', border: '1px solid var(--fp-border)', background: 'var(--fp-card)', color: 'var(--fp-text-sub)', cursor: 'pointer' }}>
+                                <Edit2 size={13} />
+                              </button>
+                              <button className="saas-icon-btn danger" title="Delete Log Entry" onClick={() => handleDeleteProductionLog(log.id)} style={{ padding: '6px', borderRadius: '6px', border: '1px solid rgba(239, 68, 68, 0.15)', background: 'rgba(239, 68, 68, 0.05)', color: '#ef4444', cursor: 'pointer' }}>
+                                <AlertTriangle size={13} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                    {!isLogsLoading && productionLogs.length === 0 && (
+                      <tr>
+                        <td colSpan="8" className="empty-state-cell">No matching production logs found.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Ledger Pagination */}
+              {!isLogsLoading && totalLogRecords > logPageSize && (
+                <div className="factory-pagination-footer" style={{ borderTop: '1px solid var(--fp-border-row)', padding: '14px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--fp-card)' }}>
+                  <div className="factory-pagination-info" style={{ fontSize: '0.8rem', color: 'var(--fp-text-muted)', fontWeight: 500 }}>
+                    Showing {(logPage - 1) * logPageSize + 1}-
+                    {Math.min(logPage * logPageSize, totalLogRecords)} of {totalLogRecords} records
+                  </div>
+                  <div className="factory-pagination-actions" style={{ display: 'flex', gap: '6px' }}>
+                    <button
+                      className="factory-page-btn"
+                      onClick={() => setLogPage(prev => Math.max(1, prev - 1))}
+                      disabled={logPage === 1}
+                      style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '6px', border: '1px solid var(--fp-btn-border)', background: 'var(--fp-btn-bg)', color: 'var(--fp-text-sub)', cursor: 'pointer' }}
+                    >
+                      Previous
+                    </button>
+                    <div className="factory-page-numbers" style={{ display: 'flex', gap: '4px' }}>
+                      {getVisiblePageNumbers(logPage, Math.ceil(totalLogRecords / logPageSize)).map((pageNumber) => (
+                        <button
+                          key={pageNumber}
+                          className={`factory-page-btn factory-page-num ${logPage === pageNumber ? 'active' : ''}`}
+                          onClick={() => setLogPage(pageNumber)}
+                          style={{ minWidth: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 600, borderRadius: '6px', border: '1px solid var(--fp-btn-border)', background: logPage === pageNumber ? 'var(--fp-accent)' : 'transparent', color: logPage === pageNumber ? '#fff' : 'var(--fp-text-sub)', cursor: 'pointer' }}
+                        >
+                          {pageNumber}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      className="factory-page-btn"
+                      onClick={() => setLogPage(prev => Math.min(Math.ceil(totalLogRecords / logPageSize), prev + 1))}
+                      disabled={logPage === Math.ceil(totalLogRecords / logPageSize)}
+                      style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '6px', border: '1px solid var(--fp-btn-border)', background: 'var(--fp-btn-bg)', color: 'var(--fp-text-sub)', cursor: 'pointer' }}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+            </Card>
+          </div>
+        </div>
+      )}
 
       {/* Product Modals remain functional but will look better with updated CSS */}
       <Modal
