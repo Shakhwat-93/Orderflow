@@ -1428,4 +1428,229 @@
   box-shadow: 0 0 0 3px var(--fp-accent-bg);
 }
 
+/* ── Production Tab Styles ── */
+.production-grid {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .production-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.production-sidebar-col {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.production-main-col {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+/* Card titles */
+.production-form-card .card-title,
+.product-breakdown-card .card-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0 0 16px;
+  color: var(--fp-text);
+  border-bottom: 1px solid var(--fp-border-row);
+  padding-bottom: 12px;
+}
+
+/* Forms */
+.production-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.production-form .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.production-form .form-group label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--fp-text-sub);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.production-form input,
+.production-form select,
+.production-form textarea {
+  background: var(--fp-input-bg);
+  border: 1px solid var(--fp-btn-border);
+  border-radius: var(--fp-radius-sm);
+  padding: 10px 12px;
+  color: var(--fp-text);
+  font-size: 0.875rem;
+  font-weight: 500;
+  outline: none;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.production-form input:focus,
+.production-form select:focus,
+.production-form textarea:focus {
+  border-color: var(--fp-accent);
+  box-shadow: 0 0 0 3px var(--fp-accent-bg);
+}
+
+.form-error-toast {
+  background: rgba(239, 68, 68, 0.08);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.btn-full-width {
+  width: 100% !important;
+  justify-content: center !important;
+}
+
+/* Radio button styles */
+.radio-label-pill {
+  transition: all 0.2s ease;
+  background: var(--fp-input-bg);
+  color: var(--fp-text-sub);
+}
+
+.radio-label-pill:hover {
+  background: var(--fp-btn-bg);
+  color: var(--fp-text);
+}
+
+.radio-label-pill.active.due {
+  background: rgba(239, 68, 68, 0.1) !important;
+  color: #ef4444 !important;
+  border-color: rgba(239, 68, 68, 0.3) !important;
+}
+
+.radio-label-pill.active.paid {
+  background: rgba(16, 185, 129, 0.1) !important;
+  color: #059669 !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+}
+
+/* Product breakdown table */
+.breakdown-table-wrapper {
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--fp-border);
+  border-radius: 8px;
+}
+
+.breakdown-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.breakdown-table th {
+  background: var(--fp-input-bg);
+  color: var(--fp-text-sub);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--fp-border-row);
+  text-align: left;
+}
+
+.breakdown-table td {
+  padding: 10px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--fp-text-sub);
+  border-bottom: 1px solid var(--fp-border-row);
+}
+
+.breakdown-table tr:last-child td {
+  border-bottom: none;
+}
+
+.breakdown-table th.num-col,
+.breakdown-table td.num-col {
+  text-align: right;
+}
+
+.breakdown-table td.prod-name-col {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 650;
+  color: var(--fp-text);
+}
+
+.breakdown-table td.green {
+  color: #059669;
+  font-weight: 600;
+}
+
+.breakdown-table td.red {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.breakdown-table td.bold {
+  font-weight: 700;
+  color: var(--fp-text);
+}
+
+/* Ledger payment status pills */
+.payment-status-pill {
+  transition: all 0.2s ease;
+}
+
+.payment-status-pill.paid {
+  background: rgba(16, 185, 129, 0.1) !important;
+  color: #059669 !important;
+}
+
+.payment-status-pill.paid:hover {
+  background: rgba(16, 185, 129, 0.18) !important;
+}
+
+.payment-status-pill.due {
+  background: rgba(239, 68, 68, 0.1) !important;
+  color: #ef4444 !important;
+}
+
+.payment-status-pill.due:hover {
+  background: rgba(239, 68, 68, 0.18) !important;
+}
+
+.text-tag {
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.btn-text-link {
+  font-weight: 600;
+  font-family: inherit;
+  transition: opacity 0.2s ease;
+}
+
+.btn-text-link:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
 
