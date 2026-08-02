@@ -1,0 +1,21 @@
+{
+  "name": "orderflow-mcp-server",
+  "version": "1.0.0",
+  "description": "Secure enterprise MCP server for Orderflow database analytics",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.6.0",
+    "@supabase/supabase-js": "^2.45.4",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "typescript": "^5.3.3"
+  }
+}
