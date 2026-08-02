@@ -41,14 +41,14 @@ Add the server under `mcpServers`:
       "command": "node",
       "args": ["C:/projects/order management system/Order-management/orderflow-mcp-server/dist/index.js"],
       "env": {
-        "SUPABASE_URL": "YOUR_SUPABASE_URL",
-        "SUPABASE_SERVICE_ROLE_KEY": "YOUR_SUPABASE_SERVICE_ROLE_KEY"
+        "SUPABASE_URL": "https://drbpysumezfjbudxzxzj.supabase.co",
+        "SUPABASE_SERVICE_ROLE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRyYnB5c3VtZXpmamJ1ZHh6eHpqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5NzE0MzQsImV4cCI6MjA4ODU0NzQzNH0.Ki7U_uXoTxZ4B9x1ExBuYOnTBZwXS9acMkx7CzlT2sA"
       }
     }
   }
 }
 ```
-*(Make sure to replace `C:/projects/order management system/Order-management/orderflow-mcp-server/dist/index.js` with the actual absolute path to your compiled script, and fill in your Supabase credentials).*
+*(Make sure to double check the absolute path `C:/projects/order management system/Order-management/orderflow-mcp-server/dist/index.js` matches your local workspace directory).*
 
 ### 2. Cursor Editor
 To connect this to Cursor:
@@ -59,8 +59,8 @@ To connect this to Cursor:
    - **Type**: `stdio`
    - **Command**: `node "C:/projects/order management system/Order-management/orderflow-mcp-server/dist/index.js"`
 4. Set Environment Variables:
-   - Name: `SUPABASE_URL`, Value: `YOUR_SUPABASE_URL`
-   - Name: `SUPABASE_SERVICE_ROLE_KEY`, Value: `YOUR_SUPABASE_SERVICE_ROLE_KEY`
+   - Name: `SUPABASE_URL`, Value: `https://drbpysumezfjbudxzxzj.supabase.co`
+   - Name: `SUPABASE_SERVICE_ROLE_KEY`, Value: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRyYnB5c3VtZXpmamJ1ZHh6eHpqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5NzE0MzQsImV4cCI6MjA4ODU0NzQzNH0.Ki7U_uXoTxZ4B9x1ExBuYOnTBZwXS9acMkx7CzlT2sA`
 5. Click **Save**.
 
 ---
