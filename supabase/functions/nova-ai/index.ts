@@ -90,14 +90,14 @@ You have full read access to a live database snapshot for the authenticated busi
 Use the provided snapshots and 100% accurate pre-computed sales analytics to answer customer and admin queries.
 
 CRITICAL RULES:
-- When the user asks for sales reports, metrics, agent rankings, traffic conversions, or product sales for a specific period (e.g. today, yesterday, this month), you MUST use the "LIVE DATABASE ANALYTICS" pre-computed sections under that period (e.g., analytics.salesPeriods.today or analytics.salesPeriods.yesterday). It contains 100% exact numbers calculated directly from the database.
-- Do NOT try to manually count or sum up stats from the "ORDERS" sample list, as that is only a recent sample of the latest 120 orders.
-- If the user asks "only today" or "today's report", use the analytics.salesPeriods.today object.
-- If the user asks "yesterday's report", use the analytics.salesPeriods.yesterday object.
+- When the user asks for sales reports, metrics, agent rankings, traffic conversions, or product sales for a specific period (e.g. today, yesterday, this month), you MUST use the corresponding pre-computed flat keys in the "LIVE DATABASE ANALYTICS" section (e.g. analytics.today_metrics, analytics.today_products, analytics.yesterday_metrics, analytics.yesterday_products).
+- Output the actual numbers, product names, quantities, and BDT/Taka values directly from these objects.
+- Do NOT output template paths, JavaScript expressions, or placeholder strings like "{analytics.today_products...}" or "{analytics.today_metrics.revenue}". You must read the actual values from the JSON and format them nicely for the user.
+- If a list (like today_products) is empty, say "No products were sold today."
 - Reply in the same language the user uses (Default to Bengali if they use Bengali).
 - Keep answers concise, structured, and accurate. Use tables or bullet points for reports.
 - Use BDT/Taka formatting (e.g., ৳10,500) when monetary values are discussed.
-- Never invent missing data. If the analytics doesn't contain a specific date range, explain that the dashboard computes live analytics for the past 30 days.
+- Never invent missing data.
 
 === LIVE DATABASE ANALYTICS (Last 30 Days) ===
 ${JSON.stringify(dbContext.analytics, null, 2)}
@@ -341,18 +341,11 @@ async function gatherDatabaseContext(supabaseAdmin: ReturnType<typeof createClie
     applyStats(periodStats.last30Days);
   });
 
-  const formatPeriod = (p: any) => ({
-    metrics: p.metrics,
-    products: Object.values(p.products).sort((a: any, b: any) => b.qty - a.qty).slice(0, 15),
-    agents: Object.values(p.agents).sort((a: any, b: any) => b.confirmed - a.confirmed),
-    sources: Object.values(p.sources).sort((a: any, b: any) => b.confirmed - a.confirmed)
-  });
-
-  const formattedPeriods = {
-    today: formatPeriod(periodStats.today),
-    yesterday: formatPeriod(periodStats.yesterday),
-    thisMonth: formatPeriod(periodStats.thisMonth),
-    last30Days: formatPeriod(periodStats.last30Days)
+  const sortValues = (p: any, key: string, limit = 10) => {
+    return Object.values(p[key]).sort((a: any, b: any) => {
+      if (key === 'products') return b.qty - a.qty;
+      return b.confirmed - a.confirmed;
+    }).slice(0, limit);
   };
 
   // Factory Production Calculations
@@ -382,13 +375,31 @@ async function gatherDatabaseContext(supabaseAdmin: ReturnType<typeof createClie
   const context = {
     timestamp: new Date().toISOString(),
     analytics: {
-      note: "Pre-computed 100% accurate sales and factory stats grouped by period (Today, Yesterday, This Month, Last 30 Days)",
-      salesPeriods: formattedPeriods,
-      factorySummary: {
-        totalQuantityProduced: factQty,
-        totalManufacturingCost: factCost,
-        totalPaid: factPaid,
-        totalDue: factDue,
+      note: "Pre-computed 100% accurate sales and factory stats. Use these keys directly.",
+      
+      today_metrics: periodStats.today.metrics,
+      today_products: sortValues(periodStats.today, 'products', 15),
+      today_agents: sortValues(periodStats.today, 'agents', 10),
+      today_sources: sortValues(periodStats.today, 'sources', 10),
+
+      yesterday_metrics: periodStats.yesterday.metrics,
+      yesterday_products: sortValues(periodStats.yesterday, 'products', 15),
+      yesterday_agents: sortValues(periodStats.yesterday, 'agents', 10),
+      yesterday_sources: sortValues(periodStats.yesterday, 'sources', 10),
+
+      this_month_metrics: periodStats.thisMonth.metrics,
+      this_month_products: sortValues(periodStats.thisMonth, 'products', 15),
+      this_month_agents: sortValues(periodStats.thisMonth, 'agents', 10),
+
+      last_30_days_metrics: periodStats.last30Days.metrics,
+      last_30_days_products: sortValues(periodStats.last30Days, 'products', 15),
+      last_30_days_agents: sortValues(periodStats.last30Days, 'agents', 10),
+
+      factory_summary: {
+        total_quantity_produced: factQty,
+        total_manufacturing_cost: factCost,
+        total_paid: factPaid,
+        total_due: factDue,
         breakdown: factBreakdown
       }
     },
