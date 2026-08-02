@@ -108,7 +108,6 @@ export const Sidebar = ({ isOpen, onClose }) => {
       <div className="sidebar-header">
         <div className="sidebar-logo-container">
           <img src={orderflowLogo} alt={appName} className="sidebar-logo-img" />
-          <span className="logo-text">{appName}</span>
         </div>
 
         <div className="sidebar-header-actions">
