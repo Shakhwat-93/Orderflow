@@ -69,7 +69,7 @@
 
 /* Header */
 .sidebar-header {
-  padding: 24px 20px 20px;
+  padding: 16px 20px 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -80,20 +80,21 @@
   display: flex;
   align-items: center;
   text-decoration: none;
-  max-width: 175px;
+  flex: 1;
 }
 
 .sidebar-logo-img {
-  height: 48px;
-  max-width: 165px;
+  height: 72px;
+  max-height: 85px;
   width: auto;
+  max-width: 200px;
   object-fit: contain;
   object-position: left center;
   transition: transform 0.2s ease;
 }
 
 .sidebar-logo-img:hover {
-  transform: scale(1.02);
+  transform: scale(1.04);
 }
 
 .logo-icon {
