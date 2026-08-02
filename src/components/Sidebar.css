@@ -79,8 +79,16 @@
 .sidebar-logo-container {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   text-decoration: none;
+}
+
+.sidebar-logo-img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  border-radius: 8px;
+  flex-shrink: 0;
 }
 
 .logo-icon {

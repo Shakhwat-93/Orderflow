@@ -28,6 +28,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useBranding } from '../hooks/useBranding';
 import { useTheme } from '../context/ThemeContext';
+import orderflowLogo from '../assets/orderflow-logo.png';
 import './Sidebar.css';
 
 const menuItems = [
@@ -106,7 +107,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
       {/* ── Header ── */}
       <div className="sidebar-header">
         <div className="sidebar-logo-container">
-          <div className="logo-icon">{appName.charAt(0).toUpperCase() || 'O'}</div>
+          <img src={orderflowLogo} alt={appName} className="sidebar-logo-img" />
           <span className="logo-text">{appName}</span>
         </div>
 
