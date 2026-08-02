@@ -229,42 +229,48 @@
 /* ── Source & Date filter pill wrapper ── */
 .filter-buttons-row {
   display: flex;
+  flex-direction: row;        /* FORCE horizontal — never wrap */
   align-items: center;
   gap: 0;
   flex-shrink: 0;
+  flex-wrap: nowrap;
 }
 
 /* ── Source dropdown pill ── */
 .elite-select-wrapper {
   display: flex;
+  flex-direction: row;        /* icon + text + chevron always in one row */
   align-items: center;
   gap: 8px;
   padding: 0 18px;
   height: 52px;
   cursor: pointer;
   flex-shrink: 0;
-  min-width: 140px;
+  min-width: 0;               /* don't force width — let content decide */
+  white-space: nowrap;
   transition: background 0.15s ease;
   position: relative;
 }
 
 .elite-select-wrapper:hover {
   background: rgba(99,102,241,0.04);
-  border-radius: 0 16px 16px 0;
+  border-radius: 0;
 }
 
 .elite-select-icon {
   color: var(--ob-accent);
   flex-shrink: 0;
   opacity: 0.85;
+  display: flex;              /* keeps SVG from breaking layout */
+  align-items: center;
 }
 
 .elite-select-selected-value {
   font-size: 0.82rem;
-  font-weight: 650;
+  font-weight: 600;
   color: var(--ob-text);
   white-space: nowrap;
-  flex: 1;
+  /* NO flex:1 — let it be its natural width */
 }
 
 .elite-select-field {
@@ -371,6 +377,70 @@
 .checkpoint-pill.active .dot { background-color: #fff !important; }
 .checkpoint-pill.active .checkpoint-count { background: rgba(255, 255, 255, 0.18); }
 .product-breakdown-status { margin-top: -4px; font-size: 0.78rem; font-weight: 600; color: var(--ob-text-muted); }
+
+/* \u2500\u2500 DateRangePicker inside filter bar \u2014 desktop flush style \u2500\u2500 */
+.unified-filter-bar .date-range-picker-container {
+  width: auto;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.unified-filter-bar .date-picker-trigger {
+  /* Strip its own standalone card styles */
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  /* Match the elite-select-wrapper height & padding */
+  height: 52px !important;
+  padding: 0 18px 0 16px !important;
+  width: auto !important;
+  min-width: 0 !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 8px !important;
+  white-space: nowrap !important;
+  cursor: pointer !important;
+  transition: background 0.15s ease !important;
+}
+
+.unified-filter-bar .date-picker-trigger:hover {
+  background: rgba(99,102,241,0.04) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.unified-filter-bar .date-picker-trigger.active {
+  background: rgba(99,102,241,0.06) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.unified-filter-bar .trigger-content {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.unified-filter-bar .trigger-icon {
+  color: var(--ob-accent) !important;
+  opacity: 0.85;
+  flex-shrink: 0;
+}
+
+.unified-filter-bar .trigger-label {
+  font-size: 0.82rem !important;
+  font-weight: 600 !important;
+  color: var(--ob-text) !important;
+  white-space: nowrap !important;
+}
+
+.unified-filter-bar .date-picker-trigger .chevron {
+  color: var(--ob-text-muted) !important;
+  flex-shrink: 0;
+}
 
 /* Table card */
 .table-card { flex: 1; min-width: 0; background: var(--ob-card) !important; border: 1px solid var(--ob-border) !important; border-radius: 14px !important; box-shadow: var(--ob-shadow) !important; overflow: clip !important; }
