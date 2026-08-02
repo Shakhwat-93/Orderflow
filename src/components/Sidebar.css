@@ -69,11 +69,12 @@
 
 /* Header */
 .sidebar-header {
-  padding: 16px 20px 12px;
+  padding: 12px 18px 8px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-shrink: 0;
+  min-height: 80px;
 }
 
 .sidebar-logo-container {
@@ -81,20 +82,24 @@
   align-items: center;
   text-decoration: none;
   flex: 1;
+  overflow: visible;
 }
 
 .sidebar-logo-img {
-  height: 72px;
-  max-height: 85px;
+  height: 110px;
+  max-height: 120px;
   width: auto;
-  max-width: 200px;
+  max-width: 210px;
   object-fit: contain;
   object-position: left center;
+  transform: scale(1.4);
+  transform-origin: left center;
+  margin: -12px 0 -12px -5px;
   transition: transform 0.2s ease;
 }
 
 .sidebar-logo-img:hover {
-  transform: scale(1.04);
+  transform: scale(1.45);
 }
 
 .logo-icon {
