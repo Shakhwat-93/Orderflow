@@ -17,7 +17,6 @@ const ORDER_STATUS_NAMES = [
   "Final Call Pending",
   "Confirmed",
   "Bulk Exported",
-  "Factory Queue",
   "Courier Ready",
   "Courier Submitted",
   "Factory Processing",
@@ -91,8 +90,10 @@ You have full read access to a live database snapshot for the authenticated busi
 Use the provided snapshots and 100% accurate pre-computed sales analytics to answer customer and admin queries.
 
 CRITICAL RULES:
-- When the user asks for sales reports, metrics, agent rankings, traffic conversions, or factory costs, you MUST use the "LIVE DATABASE ANALYTICS (Last 30 Days)" pre-computed section. It contains 100% exact numbers calculated directly from the database.
+- When the user asks for sales reports, metrics, agent rankings, traffic conversions, or product sales for a specific period (e.g. today, yesterday, this month), you MUST use the "LIVE DATABASE ANALYTICS" pre-computed sections under that period (e.g., analytics.salesPeriods.today or analytics.salesPeriods.yesterday). It contains 100% exact numbers calculated directly from the database.
 - Do NOT try to manually count or sum up stats from the "ORDERS" sample list, as that is only a recent sample of the latest 120 orders.
+- If the user asks "only today" or "today's report", use the analytics.salesPeriods.today object.
+- If the user asks "yesterday's report", use the analytics.salesPeriods.yesterday object.
 - Reply in the same language the user uses (Default to Bengali if they use Bengali).
 - Keep answers concise, structured, and accurate. Use tables or bullet points for reports.
 - Use BDT/Taka formatting (e.g., ৳10,500) when monetary values are discussed.
@@ -225,9 +226,6 @@ async function gatherDatabaseContext(supabaseAdmin: ReturnType<typeof createClie
       .gte("production_date", thirtyDaysAgo.toISOString().slice(0, 10))
   ]);
 
-  const safe = (result: PromiseSettledResult<any[]>) =>
-    result.status === "fulfilled" && !result.value?.error ? result.value.data : [];
-
   // Core base lists
   const baseDataList = results.status === "fulfilled" ? results.value : [];
   const orders = baseDataList[0]?.data || [];
@@ -249,23 +247,25 @@ async function gatherDatabaseContext(supabaseAdmin: ReturnType<typeof createClie
   }, {});
 
   // Pre-calculate 100% accurate sales reports
-  const isConf = (status: string, notes: string) => CONFIRMED_STATUSES.includes(status) && !(notes && notes.includes('[Was Incomplete]'));
   const CONFIRMED_STATUSES = [
     'Confirmed', 'Confirmed & Printed', 'Bulk Exported', 'Courier Ready', 'Courier Submitted',
     'Factory Processing', 'Processing', 'Shipped', 'Completed'
   ];
+  const isConf = (status: string, notes: string) => CONFIRMED_STATUSES.includes(status) && !(notes && notes.includes('[Was Incomplete]'));
 
-  const emptyMetric = () => ({ total: 0, confirmed: 0, revenue: 0, cancelled: 0, fake: 0, bonusConversions: 0, bonusRevenue: 0 });
+  const emptyPeriod = () => ({
+    metrics: { total: 0, confirmed: 0, revenue: 0, cancelled: 0, fake: 0, bonusConversions: 0, bonusRevenue: 0 },
+    products: {} as Record<string, { name: string; qty: number; revenue: number }>,
+    agents: {} as Record<string, { name: string; total: number; confirmed: number; revenue: number; bonus: number }>,
+    sources: {} as Record<string, { source: string; total: number; confirmed: number; revenue: number }>
+  });
+
   const periodStats = {
-    today: emptyMetric(),
-    yesterday: emptyMetric(),
-    thisMonth: emptyMetric(),
-    last30Days: emptyMetric()
+    today: emptyPeriod(),
+    yesterday: emptyPeriod(),
+    thisMonth: emptyPeriod(),
+    last30Days: emptyPeriod()
   };
-
-  const productStats: Record<string, { name: string; qty: number; revenue: number }> = {};
-  const sourceStats: Record<string, { source: string; total: number; confirmed: number; revenue: number }> = {};
-  const agentStats: Record<string, { name: string; total: number; confirmed: number; revenue: number; bonus: number }> = {};
 
   const userMap = users.reduce((acc: any, u: any) => {
     acc[u.id] = u.name;
@@ -279,18 +279,58 @@ async function gatherDatabaseContext(supabaseAdmin: ReturnType<typeof createClie
     const confirmed = isConf(o.status, o.notes);
     const isBonus = CONFIRMED_STATUSES.includes(o.status) && o.notes && o.notes.includes('[Was Incomplete]');
 
-    const applyStats = (statObj: any) => {
-      statObj.total++;
+    const applyStats = (period: any) => {
+      period.metrics.total++;
       if (confirmed) {
-        statObj.confirmed++;
-        statObj.revenue += amt;
+        period.metrics.confirmed++;
+        period.metrics.revenue += amt;
+
+        // Product calculations inside period
+        const items = Array.isArray(o.ordered_items) && o.ordered_items.length > 0 
+          ? o.ordered_items 
+          : [{ name: o.product_name, quantity: qty, price: amt }];
+        
+        items.forEach((item: any) => {
+          const pName = item.name || o.product_name || "Unknown Product";
+          if (!period.products[pName]) {
+            period.products[pName] = { name: pName, qty: 0, revenue: 0 };
+          }
+          period.products[pName].qty += Number(item.quantity || 1);
+          period.products[pName].revenue += Number(item.price || 0) * Number(item.quantity || 1);
+        });
       } else if (o.status === "Cancelled") {
-        statObj.cancelled++;
+        period.metrics.cancelled++;
       } else if (o.status === "Fake Order") {
-        statObj.fake++;
+        period.metrics.fake++;
       } else if (isBonus) {
-        statObj.bonusConversions++;
-        statObj.bonusRevenue += amt;
+        period.metrics.bonusConversions++;
+        period.metrics.bonusRevenue += amt;
+      }
+
+      // Agent calculations inside period
+      const agentId = o.created_by || "system";
+      const agentName = userMap[agentId] || "System/Unassigned";
+      if (!period.agents[agentId]) {
+        period.agents[agentId] = { name: agentName, total: 0, confirmed: 0, revenue: 0, bonus: 0 };
+      }
+      period.agents[agentId].total++;
+      if (confirmed) {
+        period.agents[agentId].confirmed++;
+        period.agents[agentId].revenue += amt;
+      }
+      if (isBonus) {
+        period.agents[agentId].bonus++;
+      }
+
+      // Source calculations inside period
+      const src = o.source || "Unknown";
+      if (!period.sources[src]) {
+        period.sources[src] = { source: src, total: 0, confirmed: 0, revenue: 0 };
+      }
+      period.sources[src].total++;
+      if (confirmed) {
+        period.sources[src].confirmed++;
+        period.sources[src].revenue += amt;
       }
     };
 
@@ -299,46 +339,21 @@ async function gatherDatabaseContext(supabaseAdmin: ReturnType<typeof createClie
     if (oDate >= yesterdayStart && oDate < todayStart) applyStats(periodStats.yesterday);
     if (oDate >= startOfMonth) applyStats(periodStats.thisMonth);
     applyStats(periodStats.last30Days);
-
-    // Product calculations (Last 30 Days)
-    if (confirmed) {
-      const items = Array.isArray(o.ordered_items) && o.ordered_items.length > 0 ? o.ordered_items : [{ name: o.product_name, quantity: qty, price: amt }];
-      items.forEach((item: any) => {
-        const pName = item.name || o.product_name || "Unknown Product";
-        if (!productStats[pName]) {
-          productStats[pName] = { name: pName, qty: 0, revenue: 0 };
-        }
-        productStats[pName].qty += Number(item.quantity || 1);
-        productStats[pName].revenue += Number(item.price || 0) * Number(item.quantity || 1);
-      });
-    }
-
-    // Source calculations
-    const src = o.source || "Unknown";
-    if (!sourceStats[src]) {
-      sourceStats[src] = { source: src, total: 0, confirmed: 0, revenue: 0 };
-    }
-    sourceStats[src].total++;
-    if (confirmed) {
-      sourceStats[src].confirmed++;
-      sourceStats[src].revenue += amt;
-    }
-
-    // Agent calculations
-    const agentId = o.created_by || "system";
-    const agentName = userMap[agentId] || "System/Unassigned";
-    if (!agentStats[agentId]) {
-      agentStats[agentId] = { name: agentName, total: 0, confirmed: 0, revenue: 0, bonus: 0 };
-    }
-    agentStats[agentId].total++;
-    if (confirmed) {
-      agentStats[agentId].confirmed++;
-      agentStats[agentId].revenue += amt;
-    }
-    if (isBonus) {
-      agentStats[agentId].bonus++;
-    }
   });
+
+  const formatPeriod = (p: any) => ({
+    metrics: p.metrics,
+    products: Object.values(p.products).sort((a: any, b: any) => b.qty - a.qty).slice(0, 15),
+    agents: Object.values(p.agents).sort((a: any, b: any) => b.confirmed - a.confirmed),
+    sources: Object.values(p.sources).sort((a: any, b: any) => b.confirmed - a.confirmed)
+  });
+
+  const formattedPeriods = {
+    today: formatPeriod(periodStats.today),
+    yesterday: formatPeriod(periodStats.yesterday),
+    thisMonth: formatPeriod(periodStats.thisMonth),
+    last30Days: formatPeriod(periodStats.last30Days)
+  };
 
   // Factory Production Calculations
   let factQty = 0, factCost = 0, factPaid = 0, factDue = 0;
@@ -367,11 +382,8 @@ async function gatherDatabaseContext(supabaseAdmin: ReturnType<typeof createClie
   const context = {
     timestamp: new Date().toISOString(),
     analytics: {
-      note: "Pre-computed 100% accurate sales and factory stats for the past 30 days",
-      salesPeriods: periodStats,
-      topProducts: Object.values(productStats).sort((a,b) => b.qty - a.qty).slice(0, 10),
-      trafficSources: Object.values(sourceStats).sort((a,b) => b.confirmed - a.confirmed),
-      agentLeaderboard: Object.values(agentStats).sort((a,b) => b.confirmed - a.confirmed),
+      note: "Pre-computed 100% accurate sales and factory stats grouped by period (Today, Yesterday, This Month, Last 30 Days)",
+      salesPeriods: formattedPeriods,
       factorySummary: {
         totalQuantityProduced: factQty,
         totalManufacturingCost: factCost,
@@ -526,7 +538,7 @@ serve(async (req) => {
       return jsonResponse({ order: normalizeOrderPayload(parsed) });
     }
 
-    throw new Error(`Unsupported action: ${action}`);
+    throw new Error("Unsupported action");
   } catch (error) {
     return jsonResponse({ error: error instanceof Error ? error.message : "Unknown error" }, 400);
   }
