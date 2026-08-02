@@ -435,6 +435,8 @@ export const SalesReport = () => {
             cancelledQty: 0, 
             fake: 0, 
             fakeQty: 0, 
+            pending: 0,
+            pendingQty: 0,
             revenue: 0 
           };
         }
@@ -454,6 +456,10 @@ export const SalesReport = () => {
         } else if (s === 'Fake Order') {
           map[baseName].fake++;
           map[baseName].fakeQty += q;
+        } else if (['New', 'Pending Call', 'Final Call Pending'].includes(s)) {
+          // Pending orders — not yet confirmed or cancelled
+          map[baseName].pending++;
+          map[baseName].pendingQty += q;
         }
       });
     });
@@ -732,6 +738,7 @@ export const SalesReport = () => {
                   <th className="sr-sortable" onClick={() => setProductSort('total')}>Orders {productSort==='total'&&'↓'}</th>
                   <th className="sr-sortable" onClick={() => setProductSort('totalQty')}>Total Qty {productSort==='totalQty'&&'↓'}</th>
                   <th className="sr-sortable" onClick={() => setProductSort('confirmedQty')}>Confirmed Qty {productSort==='confirmedQty'&&'↓'}</th>
+                  <th className="sr-sortable" onClick={() => setProductSort('pendingQty')}>Pending {productSort==='pendingQty'&&'↓'}</th>
                   <th className="sr-sortable" onClick={() => setProductSort('cancelled')}>Cancelled {productSort==='cancelled'&&'↓'}</th>
                   <th className="sr-sortable" onClick={() => setProductSort('fake')}>Fake {productSort==='fake'&&'↓'}</th>
                   <th className="sr-sortable" onClick={() => setProductSort('revenue')}>Revenue {productSort==='revenue'&&'↓'}</th>
@@ -752,6 +759,7 @@ export const SalesReport = () => {
                     <td>{p.total}</td>
                     <td style={{ fontWeight: 700 }}>{p.totalQty}</td>
                     <td className="sr-green" style={{ fontWeight: 800 }}>{p.confirmedQty}</td>
+                    <td className="sr-pending" style={{ fontWeight: 700 }}>{p.pendingQty || 0}</td>
                     <td className="sr-red">{p.cancelled}</td>
                     <td className="sr-orange">{p.fake}</td>
                     <td className="sr-green">{fmtTk(p.revenue)}</td>
