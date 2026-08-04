@@ -257,7 +257,7 @@ export const ModeratorPanel = () => {
         <Card className="metric-card liquid-glass chart-card" noPadding style={{ padding: '24px' }}>
           <h3 className="chart-title" style={{ marginBottom: '8px', fontSize: '1.2rem', fontWeight: 800 }}>By Source</h3>
           <div className="chart-wrapper pie-chart-wrapper" style={{ minHeight: 250, position: 'relative' }}>
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <PieChart>
                 <defs>
                   <filter id="premium-glow-mod" x="-20%" y="-20%" width="140%" height="140%">

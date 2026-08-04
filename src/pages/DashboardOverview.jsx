@@ -488,7 +488,7 @@ export const DashboardOverview = () => {
               <h3>Daily Orders Trend</h3>
             </div>
             <div className="chart-container" style={{ minHeight: '300px' }}>
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <LineChart data={stats.orderTrend}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.04)" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'var(--text-tertiary)', fontSize: 12}} />
@@ -509,7 +509,7 @@ export const DashboardOverview = () => {
               </div>
               <div className="chart-container centered source-chart-layout">
                 <div className="source-chart-canvas">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <PieChart>
                     <defs>
                       <filter id="premium-glow" x="-20%" y="-20%" width="140%" height="140%">
@@ -566,7 +566,7 @@ export const DashboardOverview = () => {
                 <h3>Confirmation Rate (%)</h3>
               </div>
               <div className="chart-container" style={{ minHeight: '300px' }}>
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <BarChart data={stats.confirmationData}>
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'var(--text-tertiary)', fontSize: 12}} />
                     <Tooltip 

@@ -593,7 +593,7 @@ export const SalesReport = () => {
         {dailyData.length === 0 ? (
           <div className="sr-empty">No orders in this period</div>
         ) : (
-          <ResponsiveContainer width="100%" height={280}>
+          <ResponsiveContainer width="100%" height={280} minWidth={0} minHeight={0}>
             {chartType === 'bar' ? (
               <BarChart data={dailyData} margin={{ top:10, right:10, left:-10, bottom:0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(99,102,241,0.06)" />
@@ -641,7 +641,7 @@ export const SalesReport = () => {
           </div>
           {statusDist.length === 0 ? <div className="sr-empty">No data</div> : (
             <>
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={220} minWidth={0} minHeight={0}>
                 <PieChart>
                   <Pie data={statusDist} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={3}>
                     {statusDist.map((entry, i) => (
@@ -696,7 +696,7 @@ export const SalesReport = () => {
             <SectionTitle icon={Trophy} title="Top Selling Products" sub="By confirmed orders" />
           </div>
           {topSellers.length === 0 ? <div className="sr-empty">No confirmed orders</div> : (
-            <ResponsiveContainer width="100%" height={380}>
+            <ResponsiveContainer width="100%" height={380} minWidth={0} minHeight={0}>
               <BarChart data={topSellers} layout="vertical" margin={{ top:0, right:16, left:0, bottom:0 }}>
                 <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill:'var(--sr-text-muted)', fontSize:11 }} />
                 <YAxis dataKey="name" type="category" width={130} axisLine={false} tickLine={false} tick={{ fill:'var(--sr-text-sub)', fontSize:11, fontWeight:600 }} tickFormatter={(val) => val.length > 22 ? val.substring(0, 20) + '...' : val} />
@@ -711,7 +711,7 @@ export const SalesReport = () => {
             <SectionTitle icon={Flame} title="Top Fake Order Products" sub="Products with most fake orders" />
           </div>
           {topFake.length === 0 ? <div className="sr-empty">No fake orders — great! 🎉</div> : (
-            <ResponsiveContainer width="100%" height={380}>
+            <ResponsiveContainer width="100%" height={380} minWidth={0} minHeight={0}>
               <BarChart data={topFake} layout="vertical" margin={{ top:0, right:16, left:0, bottom:0 }}>
                 <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill:'var(--sr-text-muted)', fontSize:11 }} />
                 <YAxis dataKey="name" type="category" width={130} axisLine={false} tickLine={false} tick={{ fill:'var(--sr-text-sub)', fontSize:11, fontWeight:600 }} tickFormatter={(val) => val.length > 22 ? val.substring(0, 20) + '...' : val} />

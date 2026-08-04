@@ -666,7 +666,7 @@ export const ReportsPanel = () => {
               <>
                 {/* Stacked bar chart */}
                 <div className="uperf-chart-wrap">
-                  <ResponsiveContainer width="100%" height={300}>
+                  <ResponsiveContainer width="100%" height={300} minWidth={0} minHeight={0}>
                     <BarChart data={filteredDayData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(99,102,241,0.05)" />
                       <XAxis dataKey="name" axisLine={false} tickLine={false}
@@ -848,7 +848,7 @@ export const ReportsPanel = () => {
             </div>
           </div>
           <div className="report-chart-container-elite">
-            <ResponsiveContainer width="100%" height={400}>
+            <ResponsiveContainer width="100%" height={400} minWidth={0} minHeight={0}>
               <AreaChart data={trendData} margin={{ top: 20, right: 30, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorOrdersElite" x1="0" y1="0" x2="0" y2="1">
@@ -892,7 +892,7 @@ export const ReportsPanel = () => {
               <h3>Source Acquisition</h3>
             </div>
             <div className="report-chart-container centered">
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={220} minWidth={0} minHeight={0}>
                 <PieChart>
                   <Pie
                     data={sourceData}
@@ -928,7 +928,7 @@ export const ReportsPanel = () => {
               <h3>Confirmation Logic</h3>
             </div>
             <div className="report-chart-container">
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={220} minWidth={0} minHeight={0}>
                 <BarChart data={confirmationData} margin={{top: 10, right: 10, left: -25, bottom: 0}}>
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'var(--text-tertiary)', fontSize: 10}} dy={10} />
                   <Tooltip content={<CustomTooltip />} cursor={{fill: 'rgba(255,255,255,0.05)'}} />
@@ -948,7 +948,7 @@ export const ReportsPanel = () => {
               <h3>Logistics Success</h3>
             </div>
             <div className="report-chart-container">
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={220} minWidth={0} minHeight={0}>
                 <BarChart data={logisticsData} margin={{top: 10, right: 10, left: -25, bottom: 0}}>
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'var(--text-tertiary)', fontSize: 10}} dy={10} />
                   <Tooltip content={<CustomTooltip />} cursor={{fill: 'rgba(255,255,255,0.05)'}} />
@@ -992,7 +992,7 @@ export const ReportsPanel = () => {
         </div>
 
         <div className="ads-chart-container" style={{ padding: '20px' }}>
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={300} minWidth={0} minHeight={0}>
             <BarChart data={productFunnelData} margin={{ top: 10, right: 20, left: -10, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(99,102,241,0.06)" />
               <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} />
@@ -1078,7 +1078,7 @@ export const ReportsPanel = () => {
 
             {/* Day-wise Bar Chart */}
             <div className="ads-chart-container">
-              <ResponsiveContainer width="100%" height={280}>
+              <ResponsiveContainer width="100%" height={280} minWidth={0} minHeight={0}>
                 <BarChart data={adsData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(99,102,241,0.06)" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} dy={10} />
