@@ -267,6 +267,14 @@ export const Settings = () => {
         if (data?.value) setFraudCheckerConfig(data.value);
       } catch (e) { console.warn(e); }
       finally { setFraudCheckerLoading(false); }
+
+      try {
+        const { data } = await supabase.from('system_configs').select('value').eq('key', 'alert_timers').maybeSingle();
+        if (data?.value) {
+          setAlerts(prev => ({ ...prev, ...data.value }));
+          saveLS(LS_ALERTS, data.value);
+        }
+      } catch (e) { console.warn(e); }
     })();
   }, []);
 
@@ -295,10 +303,21 @@ export const Settings = () => {
     setTimeout(() => { setInvSaving(false); setInvSaved(true); setTimeout(() => setInvSaved(false), 2500); }, 400);
   };
 
-  const saveAlerts = () => {
+  const saveAlerts = async () => {
     setAlertSaving(true);
     saveLS(LS_ALERTS, alerts);
-    setTimeout(() => { setAlertSaving(false); setAlertSaved(true); setTimeout(() => setAlertSaved(false), 2500); }, 400);
+    window.dispatchEvent(new Event('of_alerts_config_updated'));
+    try {
+      await supabase.from('system_configs').upsert({ key: 'alert_timers', value: alerts }, { onConflict: 'key' });
+      setAlertSaved(true);
+      setTimeout(() => setAlertSaved(false), 2500);
+    } catch (e) {
+      console.warn('DB alert_timers sync failed:', e);
+      setAlertSaved(true);
+      setTimeout(() => setAlertSaved(false), 2500);
+    } finally {
+      setAlertSaving(false);
+    }
   };
 
   const saveCourier = async () => {
@@ -535,31 +554,53 @@ export const Settings = () => {
       // ── ALERTS ──
       case 'alerts': return (
         <div className="st-section-body">
-          <SectionHead icon={Bell} title="Alert Timers" desc="Configure timing rules for admin alerts, response warnings, and notification sounds." />
-          <div className="st-toggle-row">
-            <div><span className="st-toggle-label">No-Call Admin Alert</span><span className="st-toggle-desc">Alert admin when no agent calls an order within the set time.</span></div>
-            <Toggle checked={alerts.no_call_alert_enabled} onChange={v => setAlerts(a => ({ ...a, no_call_alert_enabled: v }))} />
+          <SectionHead icon={Bell} title="Alert & Critical Warning System" desc="Configure timing rules for critical alert modal popups, response warnings, and notification audio alarms." />
+          
+          {/* Critical Alert Modal Control Card */}
+          <div className="st-info-card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '16px', background: alerts.no_call_alert_enabled ? 'rgba(239, 68, 68, 0.04)' : 'var(--st-card-bg)', border: alerts.no_call_alert_enabled ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid var(--st-border)', borderRadius: '16px', padding: '20px' }}>
+            <div className="st-toggle-row" style={{ border: 'none', padding: 0 }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                  <ShieldAlert size={18} style={{ color: alerts.no_call_alert_enabled ? '#ef4444' : 'var(--st-text-sub)' }} />
+                  <span className="st-toggle-label" style={{ fontSize: '1rem', fontWeight: 800 }}>Critical Alert Modal (Unattended Orders Popup)</span>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '3px 8px', borderRadius: '20px', background: alerts.no_call_alert_enabled ? 'rgba(239, 68, 68, 0.12)' : 'rgba(148, 163, 184, 0.12)', color: alerts.no_call_alert_enabled ? '#ef4444' : '#64748b' }}>
+                    {alerts.no_call_alert_enabled ? '🔴 ON / সক্রিয়' : '⚪ OFF / বন্ধ'}
+                  </span>
+                </div>
+                <span className="st-toggle-desc" style={{ fontSize: '0.82rem', lineHeight: '1.4' }}>
+                  Enable real-time popup modal & sound alarm when new orders sit without call attempts beyond threshold time.
+                </span>
+              </div>
+              <Toggle checked={alerts.no_call_alert_enabled} onChange={v => setAlerts(a => ({ ...a, no_call_alert_enabled: v }))} />
+            </div>
+
+            <div className={`st-sliders-block ${!alerts.no_call_alert_enabled ? 'disabled' : ''}`} style={{ marginTop: '8px' }}>
+              <SliderRow
+                label="Unattended Alert Threshold (Minutes)"
+                desc="Popup modal fires when order has no call attempt for this many minutes."
+                value={alerts.no_call_alert_mins}
+                min={5} max={120} unit=" min"
+                onChange={v => setAlerts(a => ({ ...a, no_call_alert_mins: v }))}
+              />
+            </div>
           </div>
-          <div className={`st-sliders-block ${!alerts.no_call_alert_enabled ? 'disabled' : ''}`}>
-            <SliderRow
-              label="No-Call Alert Threshold"
-              desc="Alert fires when order is uncalled for this long."
-              value={alerts.no_call_alert_mins}
-              min={5} max={120} unit=" min"
-              onChange={v => setAlerts(a => ({ ...a, no_call_alert_mins: v }))}
-            />
-          </div>
+
           <div className="st-toggle-row">
-            <div><span className="st-toggle-label">Notification Sounds</span><span className="st-toggle-desc">Play audio when new orders or alerts arrive.</span></div>
+            <div>
+              <span className="st-toggle-label">Notification Sound Alarm</span>
+              <span className="st-toggle-desc">Synthesize audio chimes when critical alerts or new orders arrive.</span>
+            </div>
             <Toggle checked={alerts.sound_enabled} onChange={v => setAlerts(a => ({ ...a, sound_enabled: v }))} />
           </div>
+
           <SliderRow
             label="Response Time Warning"
-            desc="Warn agents when order response time exceeds this."
+            desc="Warn agents when order response time exceeds this limit."
             value={alerts.response_warn_mins}
             min={5} max={60} unit=" min"
             onChange={v => setAlerts(a => ({ ...a, response_warn_mins: v }))}
           />
+
           <div className="st-actions">
             <SaveBtn onClick={saveAlerts} saving={alertSaving} saved={alertSaved} />
           </div>

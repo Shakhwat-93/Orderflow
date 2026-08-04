@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 import api from '../lib/api';
 import { 
   AlertTriangle, Phone, Clock, Play, CheckCircle, 
@@ -85,22 +86,64 @@ export const UnattendedOrdersAlertModal = () => {
   const [actionNote, setActionNote] = useState('');
   const [loadingId, setLoadingId] = useState(null);
   const [timerTick, setTimerTick] = useState(0);
+  const [alertsConfig, setAlertsConfig] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('of_alerts_config') || '{"no_call_alert_enabled":true,"no_call_alert_mins":20}');
+    } catch {
+      return { no_call_alert_enabled: true, no_call_alert_mins: 20 };
+    }
+  });
 
   // Audio trigger ref to prevent sound spamming
   const lastSoundTimeRef = useRef(0);
 
-  // Read config from Settings or fall back to 20 minutes
+  // Sync config from localStorage, custom event, and Supabase system_configs
+  useEffect(() => {
+    const reloadConfig = () => {
+      try {
+        const stored = JSON.parse(localStorage.getItem('of_alerts_config') || '{}');
+        setAlertsConfig(prev => ({ ...prev, ...stored }));
+      } catch (e) {
+        console.warn('Failed to parse of_alerts_config:', e);
+      }
+    };
+
+    reloadConfig();
+
+    // Fetch from Supabase for cross-device sync
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('system_configs')
+          .select('value')
+          .eq('key', 'alert_timers')
+          .maybeSingle();
+
+        if (data?.value) {
+          setAlertsConfig(prev => ({ ...prev, ...data.value }));
+          localStorage.setItem('of_alerts_config', JSON.stringify(data.value));
+        }
+      } catch (err) {
+        console.warn('Could not fetch alert_timers config from DB:', err);
+      }
+    })();
+
+    const handleConfigUpdate = () => reloadConfig();
+    window.addEventListener('of_alerts_config_updated', handleConfigUpdate);
+    window.addEventListener('storage', handleConfigUpdate);
+
+    return () => {
+      window.removeEventListener('of_alerts_config_updated', handleConfigUpdate);
+      window.removeEventListener('storage', handleConfigUpdate);
+    };
+  }, []);
+
   const getThresholdMinutes = () => {
-    try {
-      const cfg = JSON.parse(localStorage.getItem('of_alerts_config') || '{}');
-      if (cfg.no_call_alert_enabled === false) return Infinity; // disabled
-      return Number(cfg.no_call_alert_mins) || 20;
-    } catch {
-      return 20;
-    }
+    if (alertsConfig.no_call_alert_enabled === false) return Infinity; // disabled from admin settings
+    return Number(alertsConfig.no_call_alert_mins) || 20;
   };
 
-  // Determine which orders are unattended (> 20 mins, no attempts)
+  // Determine which orders are unattended (> threshold mins, no attempts)
   useEffect(() => {
     if (!orders || orders.length === 0) {
       setUnattendedItems([]);
@@ -131,7 +174,7 @@ export const UnattendedOrdersAlertModal = () => {
     });
 
     setUnattendedItems(filtered);
-  }, [orders, timerTick]);
+  }, [orders, timerTick, alertsConfig]);
 
   // Tick timer every second to update elapsed time & sound triggers
   useEffect(() => {
