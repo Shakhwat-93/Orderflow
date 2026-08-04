@@ -10,7 +10,7 @@ import {
   Settings as SettingsIcon, Trash2, AlertTriangle, CheckCircle, Loader2,
   ShieldAlert, Database, Truck, Zap, Key, Save, Type, Bell, Package,
   Clock, Shield, Sliders, Eye, EyeOff, ChevronRight, ChevronLeft, Activity,
-  ToggleLeft, ToggleRight, RefreshCw, Lock, Palette, Download
+  ToggleLeft, ToggleRight, RefreshCw, Lock, Palette, Download, FileText
 } from 'lucide-react';
 
 // ── Sidebar nav sections ──
