@@ -205,13 +205,15 @@ export const OrderEditModal = ({ isOpen, onClose, order = null }) => {
     try {
       const extracted = await api.extractOrderWithAI(aiText);
       if (extracted) {
-        const mappedProducts = extracted.products.map(p => {
-          const matchedProduct = findBestProductMatch(p.name, inventory) || findProductRecordByName(inventory, 'TOY BOX');
-          const boxMatch = p.name.match(/#(\d+)/);
+        const productsList = Array.isArray(extracted.products) ? extracted.products : [];
+        const mappedProducts = productsList.map(p => {
+          const pName = p?.name || '';
+          const matchedProduct = findBestProductMatch(pName, inventory) || findProductRecordByName(inventory, 'TOY BOX');
+          const boxMatch = pName.match(/#(\d+)/);
           const boxNum = boxMatch ? parseInt(boxMatch[1]) : null;
           return createProductLine(inventory, matchedProduct?.name || 'TOY BOX', {
-            quantity: p.quantity,
-            size: p.size || '',
+            quantity: Math.max(1, p?.quantity || 1),
+            size: p?.size || '',
             toyBoxNumber: boxNum
           });
         });
@@ -225,7 +227,7 @@ export const OrderEditModal = ({ isOpen, onClose, order = null }) => {
           notes: extracted.notes || prev.notes,
           products: mappedProducts.length > 0 ? mappedProducts : prev.products
         }));
-        if (extracted.extracted_subtotal !== null) {
+        if (extracted.extracted_subtotal !== null && extracted.extracted_subtotal !== undefined) {
           setIsManualAmount(true);
           setManualSubtotal(extracted.extracted_subtotal);
         }
@@ -233,7 +235,7 @@ export const OrderEditModal = ({ isOpen, onClose, order = null }) => {
       }
     } catch (err) {
       console.error(err);
-      alert('AI extraction failed.');
+      alert('AI extraction failed: ' + (err?.message || 'Unknown error'));
     } finally {
       setIsExtracting(false);
     }

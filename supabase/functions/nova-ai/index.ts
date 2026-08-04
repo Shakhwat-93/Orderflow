@@ -50,7 +50,7 @@ async function getAuthenticatedUser(req: Request, supabaseAdmin: ReturnType<type
   return data.user;
 }
 
-async function callGroq(messages: Array<{ role: string; content: string }>) {
+async function callGroq(messages: Array<{ role: string; content: string }>, temperature = 0.2) {
   const apiKey = Deno.env.get("GROQ_API_KEY");
   if (!apiKey) {
     throw new Error("GROQ_API_KEY is not configured.");
@@ -66,7 +66,7 @@ async function callGroq(messages: Array<{ role: string; content: string }>) {
       max_tokens: 2048,
       messages,
       model: GROQ_MODEL,
-      temperature: 0.2,
+      temperature,
     }),
   });
 
@@ -126,11 +126,22 @@ ${JSON.stringify(dbContext.notifications)}
 }
 
 function parseStrictJson(content: string) {
-  const cleaned = content
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
-    .replace(/```\s*$/i, "")
-    .trim();
+  let cleaned = String(content || "").trim();
+
+  // Strip markdown codeblock fences
+  cleaned = cleaned.replace(/```json/gi, "").replace(/```/g, "").trim();
+
+  // Locate outermost JSON object {...} or array [...]
+  const firstObj = cleaned.indexOf("{");
+  const lastObj = cleaned.lastIndexOf("}");
+  const firstArr = cleaned.indexOf("[");
+  const lastArr = cleaned.lastIndexOf("]");
+
+  if (firstObj !== -1 && lastObj > firstObj && (firstArr === -1 || firstObj < firstArr)) {
+    cleaned = cleaned.substring(firstObj, lastObj + 1);
+  } else if (firstArr !== -1 && lastArr > firstArr) {
+    cleaned = cleaned.substring(firstArr, lastArr + 1);
+  }
 
   return JSON.parse(cleaned);
 }
@@ -527,7 +538,7 @@ serve(async (req) => {
       const response = await callGroq([
         { role: "system", content: "Return strict JSON only. No prose. No markdown." },
         { role: "user", content: invoicePrompt(invoiceText) },
-      ]);
+      ], 0);
 
       const parsed = parseStrictJson(response);
       const items = normalizeInvoiceItems(Array.isArray(parsed?.items) ? parsed.items : []);
@@ -543,7 +554,7 @@ serve(async (req) => {
       const response = await callGroq([
         { role: "system", content: "Return strict JSON only. No prose. No markdown." },
         { role: "user", content: orderPrompt(rawText) },
-      ]);
+      ], 0);
 
       const parsed = parseStrictJson(response);
       return jsonResponse({ order: normalizeOrderPayload(parsed) });
