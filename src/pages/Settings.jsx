@@ -223,7 +223,9 @@ export const Settings = () => {
   // ── Alert Timers ──
   const [alerts, setAlerts] = useState(() => loadLS(LS_ALERTS, {
     no_call_alert_mins: 20, no_call_alert_enabled: true,
-    response_warn_mins: 15, sound_enabled: true
+    response_warn_mins: 15, sound_enabled: true,
+    daily_report_alert_enabled: true,
+    task_assignment_alert_enabled: true
   }));
   const [alertSaving, setAlertSaving] = useState(false);
   const [alertSaved, setAlertSaved] = useState(false);
@@ -582,6 +584,25 @@ export const Settings = () => {
                 min={5} max={120} unit=" min"
                 onChange={v => setAlerts(a => ({ ...a, no_call_alert_mins: v }))}
               />
+            </div>
+          </div>
+
+          {/* Daily Report Submission Modal Control Card */}
+          <div className="st-info-card" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '16px', background: alerts.daily_report_alert_enabled !== false ? 'rgba(99, 102, 241, 0.04)' : 'var(--st-card-bg)', border: alerts.daily_report_alert_enabled !== false ? '1px solid rgba(99, 102, 241, 0.2)' : '1px solid var(--st-border)', borderRadius: '16px', padding: '20px' }}>
+            <div className="st-toggle-row" style={{ border: 'none', padding: 0 }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                  <FileText size={18} style={{ color: alerts.daily_report_alert_enabled !== false ? 'var(--st-accent)' : 'var(--st-text-sub)' }} />
+                  <span className="st-toggle-label" style={{ fontSize: '1rem', fontWeight: 800 }}>Daily Report Submitted Modal Popup</span>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 800, padding: '3px 8px', borderRadius: '20px', background: alerts.daily_report_alert_enabled !== false ? 'rgba(99, 102, 241, 0.12)' : 'rgba(148, 163, 184, 0.12)', color: alerts.daily_report_alert_enabled !== false ? 'var(--st-accent)' : '#64748b' }}>
+                    {alerts.daily_report_alert_enabled !== false ? '🟣 ON / সক্রিয়' : '⚪ OFF / বন্ধ'}
+                  </span>
+                </div>
+                <span className="st-toggle-desc" style={{ fontSize: '0.82rem', lineHeight: '1.4' }}>
+                  Show pop-up modal (Daily Submission / Daily Highlights Summary) whenever a user submits their daily work report.
+                </span>
+              </div>
+              <Toggle checked={alerts.daily_report_alert_enabled !== false} onChange={v => setAlerts(a => ({ ...a, daily_report_alert_enabled: v }))} />
             </div>
           </div>
 

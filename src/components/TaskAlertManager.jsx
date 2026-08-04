@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTasks } from '../context/TaskContext';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 import { Bell, AlertTriangle, Calendar, User, Check, Zap, Sparkles, X, FileText } from 'lucide-react';
 import './TaskAlertManager.css';
 
@@ -11,6 +12,54 @@ export const TaskAlertManager = () => {
   
   const [activeAlerts, setActiveAlerts] = useState([]);
   const [currentAlertIndex, setCurrentAlertIndex] = useState(0);
+  const [alertsConfig, setAlertsConfig] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('of_alerts_config') || '{}');
+    } catch {
+      return {};
+    }
+  });
+
+  // Sync config from localStorage, custom event, and Supabase system_configs
+  useEffect(() => {
+    const reloadConfig = () => {
+      try {
+        const stored = JSON.parse(localStorage.getItem('of_alerts_config') || '{}');
+        setAlertsConfig(prev => ({ ...prev, ...stored }));
+      } catch (e) {
+        console.warn('Failed to parse of_alerts_config in TaskAlertManager:', e);
+      }
+    };
+
+    reloadConfig();
+
+    // Fetch from Supabase for cross-device sync
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('system_configs')
+          .select('value')
+          .eq('key', 'alert_timers')
+          .maybeSingle();
+
+        if (data?.value) {
+          setAlertsConfig(prev => ({ ...prev, ...data.value }));
+          localStorage.setItem('of_alerts_config', JSON.stringify(data.value));
+        }
+      } catch (err) {
+        console.warn('Could not fetch alert_timers config in TaskAlertManager:', err);
+      }
+    })();
+
+    const handleConfigUpdate = () => reloadConfig();
+    window.addEventListener('of_alerts_config_updated', handleConfigUpdate);
+    window.addEventListener('storage', handleConfigUpdate);
+
+    return () => {
+      window.removeEventListener('of_alerts_config_updated', handleConfigUpdate);
+      window.removeEventListener('storage', handleConfigUpdate);
+    };
+  }, []);
 
   useEffect(() => {
     if (!user || loading || !assignedTasks) return;
@@ -41,9 +90,20 @@ export const TaskAlertManager = () => {
     );
 
     myTasks.forEach(task => {
-      // 1. Check for New Assignment Alerts
+      // 1. Check for New Assignment / Daily Submission Alerts
       if (!ackTasks.includes(task.id)) {
         const isDailyReport = task.title?.startsWith('[Daily Report]');
+
+        // Skip Daily Report modal popup if disabled in Admin Settings
+        if (isDailyReport && alertsConfig.daily_report_alert_enabled === false) {
+          return;
+        }
+
+        // Skip New Task Assignment modal popup if disabled in Admin Settings
+        if (!isDailyReport && alertsConfig.task_assignment_alert_enabled === false) {
+          return;
+        }
+
         pendingAlerts.push({
           id: `new_${task.id}`,
           taskId: task.id,
@@ -82,7 +142,7 @@ export const TaskAlertManager = () => {
 
     // Update active alerts queue
     setActiveAlerts(pendingAlerts);
-  }, [assignedTasks, loading, user]);
+  }, [assignedTasks, loading, user, alertsConfig]);
 
   const handleAcknowledge = (alert) => {
     if (!user) return;
