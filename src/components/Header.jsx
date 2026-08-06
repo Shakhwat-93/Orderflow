@@ -228,7 +228,18 @@ export const Header = ({ onMenuToggle }) => {
 
   return (
     <header className={`header ${isOverviewPage ? 'mobile-overview-header' : ''}`}>
-      {/* Hamburger — mobile only */}
+
+      {/* ── Hamburger Menu — Mobile Only, All Pages ── */}
+      {onMenuToggle && (
+        <button
+          className="mobile-menu-toggle"
+          onClick={onMenuToggle}
+          aria-label="Open navigation menu"
+          aria-expanded={false}
+        >
+          <Menu size={20} strokeWidth={2} />
+        </button>
+      )}
 
       {/* 🔍 Elite Inline Search Hub */}
       <div className={`header-search ${isSearchDropdownOpen ? 'active' : ''}`} ref={searchRef}>

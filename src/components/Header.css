@@ -49,11 +49,12 @@
   border-radius: 12px;
   color: var(--text-primary);
   cursor: pointer;
-  display: flex;
+  display: none;              /* hidden by default (desktop) */
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
   flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
 }
 
 [data-theme='dark'] .mobile-menu-toggle {
@@ -64,6 +65,14 @@
 .mobile-menu-toggle:active {
   transform: scale(0.93);
 }
+
+/* Show on ALL mobile screens */
+@media (max-width: 767px) {
+  .mobile-menu-toggle {
+    display: flex;
+  }
+}
+
 
 /* ===== SEARCH ===== */
 .header-search {
@@ -399,10 +408,10 @@
     padding-left: max(var(--sp-3), var(--safe-left));
   }
 
-  .header.mobile-overview-header .header-search,
-  .header.mobile-overview-header .mobile-menu-toggle {
+  .header.mobile-overview-header .header-search {
     display: none;
   }
+
 
   .header.mobile-overview-header .header-spacer {
     flex: 1;
