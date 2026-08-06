@@ -22,6 +22,7 @@ import api from '../lib/api';
 import { getProductCheckpoints, getFormattedProductName } from '../utils/productCatalog';
 import { useRouteOrderReadState } from '../hooks/useRouteOrderReadState';
 import { ExportModal } from '../components/ExportModal';
+import { PrintPreviewModal } from '../components/PrintSystem';
 
 const ORDER_STATUSES = [
   'New',
@@ -185,6 +186,7 @@ export const OrdersBoard = () => {
   const [selectedOrderForEdit, setSelectedOrderForEdit] = useState(null);
   const [selectedOrderIds, setSelectedOrderIds] = useState([]);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false); // Enterprise Print System
 
   // Deep Link Observer: Handle direct order modal triggers
   useEffect(() => {
@@ -1149,6 +1151,27 @@ export const OrdersBoard = () => {
               <div className="selection-count">{selectedOrderIds.length}</div>
               <div className="selection-text">Selected</div>
             </div>
+
+            {/* ── Print Button ── */}
+            <button
+              className="bulk-action-btn"
+              onClick={() => setIsPrintModalOpen(true)}
+              title={`Print ${selectedOrderIds.length} order(s)`}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '6px',
+                padding: '8px 14px', borderRadius: '8px',
+                border: '1px solid rgba(99,102,241,0.35)',
+                background: 'rgba(99,102,241,0.12)',
+                color: '#818cf8', fontSize: '12.5px', fontWeight: 700,
+                cursor: 'pointer', transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background='rgba(99,102,241,0.22)'; e.currentTarget.style.boxShadow='0 2px 10px rgba(99,102,241,0.25)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background='rgba(99,102,241,0.12)'; e.currentTarget.style.boxShadow='none'; }}
+            >
+              <Printer size={14} />
+              Print ({selectedOrderIds.length})
+            </button>
+
             <button className="bulk-close" onClick={handleClearSelection}>
               <X size={16} />
             </button>
@@ -1201,8 +1224,13 @@ export const OrdersBoard = () => {
         selectedOrderIds={selectedOrderIds}
         currentFilters={filters}
       />
+
+      {/* Enterprise Print System Modal */}
+      <PrintPreviewModal
+        isOpen={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+        orders={orders.filter(o => selectedOrderIds.includes(o.id))}
+      />
     </div>
   );
 };
-
-

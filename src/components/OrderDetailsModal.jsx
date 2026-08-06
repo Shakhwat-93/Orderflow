@@ -6,11 +6,12 @@ import { useAuth } from '../context/AuthContext';
 import { 
   User, Phone, MapPin, Package, Calendar, Clock, 
   History, Edit2, X, Clipboard, Copy, ExternalLink, 
-  Truck, CheckCircle2, AlertCircle, Info, RotateCcw, Loader2
+  Truck, CheckCircle2, AlertCircle, Info, RotateCcw, Loader2, Printer
 } from 'lucide-react';
 import CurrencyIcon from './CurrencyIcon';
 import api from '../lib/api';
 import { useCourierRatio } from '../context/CourierRatioContext';
+import { PrintPreviewModal } from './PrintSystem';
 import './OrderDetailsModal.css';
 
 export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
@@ -21,6 +22,7 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
   const [savedNotesOverride, setSavedNotesOverride] = useState(null);
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [activeTab, setActiveTab] = useState('details'); // 'details' | 'history'
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false); // Print system
   
   // Note Quick Templates States
   const [customTemplates, setCustomTemplates] = useState(() => {
@@ -447,6 +449,7 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
   };
 
   return (
+    <>
     <Modal
       isOpen={isOpen}
       onClose={onClose}
@@ -502,6 +505,34 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
             onClick={() => setActiveTab('history')}
           >
             <History size={15} /> History / Audit Trail ({activityLogs.length})
+          </button>
+
+          {/* ── Print Button ── */}
+          <button
+            type="button"
+            onClick={() => setIsPrintModalOpen(true)}
+            style={{
+              marginLeft: 'auto',
+              padding: '7px 14px',
+              borderRadius: '8px',
+              border: '1px solid rgba(99,102,241,0.3)',
+              background: 'rgba(99,102,241,0.08)',
+              color: '#6366f1',
+              fontSize: '12.5px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.18s ease',
+              flexShrink: 0,
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(99,102,241,0.16)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(99,102,241,0.2)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(99,102,241,0.08)'; e.currentTarget.style.boxShadow = 'none'; }}
+            title="Print Invoice or Thermal Label"
+          >
+            <Printer size={14} />
+            Print / Invoice
           </button>
         </div>
 
@@ -1053,5 +1084,13 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
         </div>
       </div>
     </Modal>
+
+    {/* ── Enterprise Print System Modal ── */}
+    <PrintPreviewModal
+      isOpen={isPrintModalOpen}
+      onClose={() => setIsPrintModalOpen(false)}
+      orders={effectiveOrder ? [effectiveOrder] : []}
+    />
+    </>
   );
 };
