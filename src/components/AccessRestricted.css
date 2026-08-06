@@ -74,14 +74,15 @@
   justify-content: center;
 }
 
-.logout-btn {
+.restricted-footer .logout-btn {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
   color: rgba(255, 255, 255, 0.6) !important;
 }
 
-.logout-btn:hover {
+.restricted-footer .logout-btn:hover {
   color: #ffffff !important;
   background: rgba(255, 255, 255, 0.1) !important;
 }
+
