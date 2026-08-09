@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOrders } from '../context/OrderContext';
 import { useAuth } from '../context/AuthContext';
@@ -9,7 +9,7 @@ import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
 import { OrderEditModal } from '../components/OrderEditModal';
 import { OrderDetailsModal } from '../components/OrderDetailsModal';
-import { Loader2, CheckCircle, PackageSearch, Zap, AlertTriangle, Package, Edit2, Download, FileSpreadsheet, CalendarDays, Truck, History, ArrowUpDown, Filter, Globe, Calendar, MapPin, Phone, User, Clock, Copy, MessageCircle, FileText, ChevronDown, Tag, Palette, Layers } from 'lucide-react';
+import { Loader2, CheckCircle, PackageSearch, Zap, AlertTriangle, Package, Edit2, Download, FileSpreadsheet, CalendarDays, Truck, History, ArrowUpDown, Filter, Globe, Calendar, MapPin, Phone, User, Clock, Copy, MessageCircle, FileText, ChevronDown, Tag, Palette, Layers, Sparkles, X } from 'lucide-react';
 import { PremiumSearch } from '../components/PremiumSearch';
 import { usePersistentState } from '../utils/persistentState';
 import { getToyBoxStockKey } from '../utils/productCatalog';
@@ -19,6 +19,7 @@ import * as XLSX from 'xlsx';
 import './FactoryPanel.css';
 import '../components/OrderRow.css';
 import { BulkExportModal } from '../components/BulkExportModal';
+import { parseProductionText } from '../services/productionAI';
 
 const SourceBadge = ({ traffic_source, source }) => {
   const raw = traffic_source || source;
@@ -789,6 +790,35 @@ export const FactoryPanel = () => {
   const [logFormError, setLogFormError] = useState('');
   const [editingLogId, setEditingLogId] = useState(null);
 
+  // ── AI Autofill States ──
+  const [aiInputText, setAiInputText] = useState('');
+  const [isAILoading, setIsAILoading] = useState(false);
+  const [aiConfidence, setAiConfidence] = useState(null); // 'high'|'medium'|'low'|null
+  const [aiFilledFields, setAiFilledFields] = useState([]); // which fields were filled by AI
+  const [aiSource, setAiSource] = useState(null); // 'ai' | 'local'
+  const aiInputRef = useRef(null);
+
+  // ── Inventory Items for auto-sync ──
+  const [inventoryItems, setInventoryItems] = useState([]);
+
+  // ── Production success/warning toast ──
+  const [productionToast, setProductionToast] = useState(null); // { type, message }
+
+  // Fetch inventory for product matching
+  useEffect(() => {
+    const fetchInventory = async () => {
+      try {
+        const { data } = await supabase
+          .from('inventory')
+          .select('id, name, sku, current_stock, category');
+        setInventoryItems(data || []);
+      } catch (err) {
+        console.warn('Failed to fetch inventory for production sync:', err.message);
+      }
+    };
+    fetchInventory();
+  }, []);
+
   const fetchProductionLogs = async () => {
     setIsLogsLoading(true);
     try {
@@ -935,6 +965,99 @@ export const FactoryPanel = () => {
     logPageSize
   ]);
 
+  /**
+   * Sync newly produced items to inventory stock.
+   * Finds the best matching inventory item and increments its current_stock.
+   * Also logs the transaction in inventory_transactions.
+   *
+   * @param {string} productName - produced product name
+   * @param {number} qty - quantity produced
+   * @param {string|null} color - color (for notes)
+   * @param {string|null} variant - variant (for notes)
+   * @param {string} userId - logged-in user UUID
+   * @returns {Promise<{ synced: boolean, inventoryItem: object|null, warning: string|null }>}
+   */
+  const syncToInventory = async (productName, qty, color, variant, userId) => {
+    try {
+      // 1. Find best matching inventory item
+      const normalizeStr = (s = '') =>
+        String(s).toLowerCase().replace(/[_\-\s]+/g, ' ').trim();
+
+      const targetNorm = normalizeStr(productName);
+
+      let bestMatch = null;
+      let bestScore = 0;
+
+      for (const item of inventoryItems) {
+        const itemNorm = normalizeStr(item.name);
+        // Exact match
+        if (itemNorm === targetNorm) { bestMatch = item; break; }
+        // Substring
+        if (itemNorm.includes(targetNorm) || targetNorm.includes(itemNorm)) {
+          const score = 0.85;
+          if (score > bestScore) { bestScore = score; bestMatch = item; }
+          continue;
+        }
+        // Token overlap
+        const targetTokens = new Set(targetNorm.split(' ').filter(t => t.length > 1));
+        const itemTokens   = new Set(itemNorm.split(' ').filter(t => t.length > 1));
+        const overlap = [...targetTokens].filter(t => itemTokens.has(t)).length;
+        const score = overlap / Math.max(targetTokens.size, itemTokens.size, 1);
+        if (score > bestScore) { bestScore = score; bestMatch = item; }
+      }
+
+      // Require at least 35% token overlap
+      if (!bestMatch || bestScore < 0.35) {
+        return {
+          synced: false,
+          inventoryItem: null,
+          warning: `No matching inventory item found for "${productName}". Stock NOT updated — please add it manually in Inventory.`
+        };
+      }
+
+      // 2. Increment current_stock
+      const { error: updateError } = await supabase
+        .from('inventory')
+        .update({ current_stock: (bestMatch.current_stock || 0) + qty })
+        .eq('id', bestMatch.id);
+
+      if (updateError) throw updateError;
+
+      // 3. Log the inventory transaction
+      const parts = [productName];
+      if (color) parts.push(color);
+      if (variant) parts.push(variant);
+      const noteStr = `Factory production: ${parts.join(' ')} × ${qty} pcs`;
+
+      await supabase.from('inventory_transactions').insert([{
+        inventory_id: bestMatch.id,
+        type: 'production_in',
+        quantity: qty,
+        note: noteStr,
+        order_id: null,
+        created_by: userId || null,
+      }]);
+
+      // Update local inventory state for next match
+      setInventoryItems(prev =>
+        prev.map(item =>
+          item.id === bestMatch.id
+            ? { ...item, current_stock: (item.current_stock || 0) + qty }
+            : item
+        )
+      );
+
+      return { synced: true, inventoryItem: bestMatch, warning: null };
+    } catch (err) {
+      console.error('Inventory sync error:', err);
+      return {
+        synced: false,
+        inventoryItem: null,
+        warning: `Inventory sync failed: ${err.message}`
+      };
+    }
+  };
+
   const handleSaveProductionLog = async (e) => {
     e.preventDefault();
     setLogFormError('');
@@ -960,13 +1083,16 @@ export const FactoryPanel = () => {
     }
 
     const totalCost = qty * ucost;
+    const productName = logFormData.product_name.trim();
+    const colorVal = logFormData.color.trim() || null;
+    const variantVal = logFormData.variant.trim() || null;
 
     try {
       const payload = {
         production_date: logFormData.production_date,
-        product_name: logFormData.product_name.trim(),
-        color: logFormData.color.trim() || null,
-        variant: logFormData.variant.trim() || null,
+        product_name: productName,
+        color: colorVal,
+        variant: variantVal,
         quantity_ready: qty,
         unit_cost: ucost,
         total_cost: totalCost,
@@ -990,6 +1116,29 @@ export const FactoryPanel = () => {
 
       if (error) throw error;
 
+      // ── Auto-sync to inventory (only for new entries, not edits) ──
+      let toastMsg = null;
+      let toastType = 'success';
+
+      if (!editingLogId) {
+        const syncResult = await syncToInventory(
+          productName, qty, colorVal, variantVal, user?.id
+        );
+
+        if (syncResult.synced) {
+          const itemLabel = [productName, colorVal].filter(Boolean).join(' ');
+          toastMsg = `✅ ${qty} pcs of "${itemLabel}" added to ${syncResult.inventoryItem.name} inventory!`;
+          toastType = 'success';
+        } else if (syncResult.warning) {
+          toastMsg = `⚠️ Log saved. ${syncResult.warning}`;
+          toastType = 'warning';
+        }
+      } else {
+        toastMsg = '✅ Production log updated successfully!';
+        toastType = 'success';
+      }
+
+      // Reset form
       setLogFormData({
         production_date: getTodayDateString(),
         product_name: '',
@@ -1002,6 +1151,16 @@ export const FactoryPanel = () => {
       });
       setIsCustomProduct(false);
       setEditingLogId(null);
+      setAiInputText('');
+      setAiConfidence(null);
+      setAiFilledFields([]);
+      setAiSource(null);
+
+      if (toastMsg) {
+        setProductionToast({ type: toastType, message: toastMsg });
+        setTimeout(() => setProductionToast(null), 6000);
+      }
+
       fetchProductionLogs();
       fetchProductionStats();
     } catch (err) {
@@ -1009,6 +1168,76 @@ export const FactoryPanel = () => {
       setLogFormError(err.message || 'An error occurred while saving the log.');
     } finally {
       setIsSubmittingLog(false);
+    }
+  };
+
+  /**
+   * AI Autofill handler — parses the magic textarea and fills form fields.
+   */
+  const handleAIAutofill = async () => {
+    const text = aiInputText.trim();
+    if (!text) return;
+
+    setIsAILoading(true);
+    setAiConfidence(null);
+    setAiFilledFields([]);
+
+    try {
+      // Build product name list from inventory + unique order products
+      const productNamesFromInventory = inventoryItems.map(i => i.name);
+      const productNamesFromOrders = Array.from(uniqueProducts);
+      const allProductNames = [...new Set([
+        ...productNamesFromInventory,
+        ...productNamesFromOrders
+      ])];
+
+      const result = await parseProductionText(text, allProductNames);
+
+      const filled = [];
+      const updates = {};
+
+      if (result.product_name) {
+        updates.product_name = result.product_name;
+        filled.push('product_name');
+        // If it's not in the dropdown, switch to custom mode
+        const inDropdown = Array.from(uniqueProducts).includes(result.product_name);
+        if (!inDropdown) setIsCustomProduct(true);
+        else setIsCustomProduct(false);
+      }
+      if (result.quantity_ready) {
+        updates.quantity_ready = String(result.quantity_ready);
+        filled.push('quantity_ready');
+      }
+      if (result.color) {
+        updates.color = result.color;
+        filled.push('color');
+      }
+      if (result.variant) {
+        updates.variant = result.variant;
+        filled.push('variant');
+      }
+      if (result.unit_cost) {
+        updates.unit_cost = String(result.unit_cost);
+        filled.push('unit_cost');
+      }
+      if (result.notes) {
+        updates.notes = result.notes;
+        filled.push('notes');
+      }
+
+      if (Object.keys(updates).length > 0) {
+        setLogFormData(prev => ({ ...prev, ...updates }));
+        setAiFilledFields(filled);
+        setAiConfidence(result.confidence || 'medium');
+        setAiSource(result.source || 'ai');
+      } else {
+        setAiConfidence('low');
+      }
+    } catch (err) {
+      console.error('AI autofill error:', err);
+      setAiConfidence('low');
+    } finally {
+      setIsAILoading(false);
     }
   };
 
@@ -2729,6 +2958,75 @@ export const FactoryPanel = () => {
             {/* Form Card */}
             <Card className="production-form-card">
               <h3 className="card-title">Log Production</h3>
+
+              {/* ── Production Toast ── */}
+              <AnimatePresence>
+                {productionToast && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                    className={`production-toast production-toast--${productionToast.type}`}
+                  >
+                    {productionToast.type === 'success' ? <CheckCircle size={15} /> : <AlertTriangle size={15} />}
+                    <span>{productionToast.message}</span>
+                    <button type="button" onClick={() => setProductionToast(null)} className="production-toast-close">
+                      <X size={12} />
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* ── AI Magic Autofill Input ── */}
+              <div className={`ai-autofill-block ${isAILoading ? 'ai-loading' : ''}`}>
+                <div className="ai-autofill-header">
+                  <div className="ai-autofill-label">
+                    <Sparkles size={15} className="ai-spark-icon" />
+                    <span>AI Smart Autofill</span>
+                    {aiConfidence && (
+                      <span className={`ai-confidence-badge confidence-${aiConfidence}`}>
+                        {aiSource === 'local' ? 'Local' : 'AI'} · {aiConfidence}
+                      </span>
+                    )}
+                  </div>
+                  {aiFilledFields.length > 0 && (
+                    <span className="ai-filled-hint">
+                      Filled: {aiFilledFields.map(f => f.replace('_', ' ')).join(', ')}
+                    </span>
+                  )}
+                </div>
+                <div className="ai-autofill-input-row">
+                  <textarea
+                    ref={aiInputRef}
+                    className="ai-autofill-textarea"
+                    rows={2}
+                    placeholder="Describe in any language… e.g. 'smart travel bag 5 black banano hoyece' or '5 pcs Smart Travel Bag Black manufactured'"
+                    value={aiInputText}
+                    onChange={(e) => setAiInputText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                        e.preventDefault();
+                        handleAIAutofill();
+                      }
+                    }}
+                    disabled={isAILoading}
+                  />
+                  <button
+                    type="button"
+                    className={`ai-autofill-btn ${isAILoading ? 'loading' : ''}`}
+                    onClick={handleAIAutofill}
+                    disabled={isAILoading || !aiInputText.trim()}
+                    title="Parse with AI (Ctrl+Enter)"
+                  >
+                    {isAILoading
+                      ? <Loader2 size={16} className="spin" />
+                      : <Sparkles size={16} />}
+                    <span>{isAILoading ? 'Parsing...' : 'Autofill'}</span>
+                  </button>
+                </div>
+                <p className="ai-autofill-hint">Press Ctrl+Enter or click Autofill — AI will fill all fields automatically.</p>
+              </div>
+
               <form onSubmit={handleSaveProductionLog} className="production-form">
                 {logFormError && <div className="form-error-toast">{logFormError}</div>}
                 
