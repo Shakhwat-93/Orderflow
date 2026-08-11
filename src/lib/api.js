@@ -2120,11 +2120,45 @@ export const api = {
    */
   async deleteUser(userId, isAdmin) {
     if (!isAdmin) throw new Error('Unauthorized: Only Admins can delete users.');
+    if (!userId) throw new Error('User ID is required for deletion.');
 
-    // Delete roles first
-    await supabase.from('user_roles').delete().eq('user_id', userId);
+    // 1. Delete assigned roles
+    try {
+      await supabase.from('user_roles').delete().eq('user_id', userId);
+    } catch (e) {
+      console.warn('Could not cleanup user_roles:', e);
+    }
 
-    // Delete profile
+    // 2. Disassociate user references in ads_reports
+    try {
+      await supabase.from('ads_reports').update({ submitted_by: null }).eq('submitted_by', userId);
+    } catch (e) {
+      console.warn('Could not cleanup ads_reports:', e);
+    }
+
+    // 3. Disassociate user references in daily_tasks
+    try {
+      await supabase.from('daily_tasks').update({ assigned_to: null }).eq('assigned_to', userId);
+      await supabase.from('daily_tasks').update({ created_by: null }).eq('created_by', userId);
+    } catch (e) {
+      console.warn('Could not cleanup daily_tasks:', e);
+    }
+
+    // 4. Disassociate user references in orders
+    try {
+      await supabase.from('orders').update({ created_by: null }).eq('created_by', userId);
+    } catch (e) {
+      console.warn('Could not cleanup orders:', e);
+    }
+
+    // 5. Cleanup user_push_subscriptions if exists
+    try {
+      await supabase.from('user_push_subscriptions').delete().eq('user_id', userId);
+    } catch (e) {
+      console.warn('Could not cleanup user_push_subscriptions:', e);
+    }
+
+    // 6. Delete user profile from public.users
     const { error } = await supabase
       .from('users')
       .delete()
