@@ -12,6 +12,7 @@ import CurrencyIcon from './CurrencyIcon';
 import api from '../lib/api';
 import { useCourierRatio } from '../context/CourierRatioContext';
 import { PrintPreviewModal } from './PrintSystem';
+import { isIncompleteConversion, getDisplayStatusLabel } from '../utils/orderStatusHelper';
 import './OrderDetailsModal.css';
 
 export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
@@ -547,8 +548,12 @@ export const OrderDetailsModal = ({ isOpen, onClose, order, onEdit }) => {
                   <Clipboard size={14} className="copy-icon" />
                 </div>
               </div>
-              <Badge variant={getStatusVariant(order.status)} className="status-badge-elite">
-                {order.status}
+              <Badge
+                variant={getStatusVariant(order.status)}
+                className={`status-badge-elite${isIncompleteConversion(order) ? ' is-inco-converted' : ''}`}
+                title={isIncompleteConversion(order) ? 'Converted from Incomplete Checkout' : ''}
+              >
+                {getDisplayStatusLabel(order)}
               </Badge>
             </div>
             

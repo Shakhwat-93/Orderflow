@@ -1329,6 +1329,13 @@ export const api = {
       ...updatedData
     };
 
+    if (oldOrder?.status === 'Incomplete' && normalizedUpdates.status && normalizedUpdates.status !== 'Incomplete') {
+      const currentNotes = String(normalizedUpdates.notes ?? oldOrder?.notes ?? '').trim();
+      if (!currentNotes.includes('[Was Incomplete]')) {
+        normalizedUpdates.notes = currentNotes ? `${currentNotes} [Was Incomplete]` : '[Was Incomplete]';
+      }
+    }
+
     if (Object.prototype.hasOwnProperty.call(updatedData, 'delivery_charge')) {
       normalizedUpdates.delivery_charge = Number(updatedData.delivery_charge) || 0;
     }
@@ -1427,7 +1434,7 @@ export const api = {
     // Get old status first for logging
     const { data: oldData } = await supabase
       .from('orders')
-      .select('status, first_call_time, ip_address, customer_name, phone')
+      .select('status, notes, first_call_time, ip_address, customer_name, phone')
       .eq('id', orderId)
       .single();
 
@@ -1436,6 +1443,14 @@ export const api = {
     // Auto-set first_call_time if a call team or admin confirms/cancels an untouched order
     if (!oldData?.first_call_time && ['Confirmed', 'Cancelled', 'Fake Order'].includes(newStatus)) {
        updatePayload.first_call_time = new Date().toISOString();
+    }
+
+    // Preserve [Was Incomplete] marker if changing status from Incomplete
+    if (oldData?.status === 'Incomplete' && newStatus !== 'Incomplete') {
+      const currentNotes = String(oldData?.notes || '').trim();
+      if (!currentNotes.includes('[Was Incomplete]')) {
+        updatePayload.notes = currentNotes ? `${currentNotes} [Was Incomplete]` : '[Was Incomplete]';
+      }
     }
 
     const { data, error } = await supabase

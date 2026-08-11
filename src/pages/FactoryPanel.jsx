@@ -20,6 +20,7 @@ import './FactoryPanel.css';
 import '../components/OrderRow.css';
 import { BulkExportModal } from '../components/BulkExportModal';
 import { parseProductionText } from '../services/productionAI';
+import { isIncompleteConversion, getDisplayStatusLabel } from '../utils/orderStatusHelper';
 
 const SourceBadge = ({ traffic_source, source }) => {
   const raw = traffic_source || source;
@@ -2684,9 +2685,12 @@ export const FactoryPanel = () => {
                       </td>
 
                       <td className="status-cell" onClick={(e) => e.stopPropagation()}>
-                        <span className={`saas-badge saas-badge-${getStatusBadgeVariant(order.status)}`}>
-                          <span className="dot"></span>
-                          {order.status}
+                        <span
+                          className={`saas-badge saas-badge-${getStatusBadgeVariant(order.status)} ${isIncompleteConversion(order) ? 'is-inco-converted' : ''}`}
+                          title={isIncompleteConversion(order) ? 'Converted from Incomplete Checkout' : ''}
+                        >
+                          <span className={`dot ${isIncompleteConversion(order) ? 'inco-pulse-dot' : ''}`}></span>
+                          {getDisplayStatusLabel(order)}
                         </span>
                       </td>
 
@@ -2811,9 +2815,12 @@ export const FactoryPanel = () => {
                       <span className="saas-id">#{(order.id || '').replace('ORD-', '')}</span>
                     </div>
                   </div>
-                  <span className={`saas-badge saas-badge-${getStatusBadgeVariant(order.status)}`}>
-                    <span className="dot"></span>
-                    {order.status}
+                  <span
+                    className={`saas-badge saas-badge-${getStatusBadgeVariant(order.status)} ${isIncompleteConversion(order) ? 'is-inco-converted' : ''}`}
+                    title={isIncompleteConversion(order) ? 'Converted from Incomplete Checkout' : ''}
+                  >
+                    <span className={`dot ${isIncompleteConversion(order) ? 'inco-pulse-dot' : ''}`}></span>
+                    {getDisplayStatusLabel(order)}
                   </span>
                 </div>
                 <div className="card-body-elite">

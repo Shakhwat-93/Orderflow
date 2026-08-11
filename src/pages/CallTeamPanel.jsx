@@ -17,6 +17,7 @@ import CurrencyIcon from '../components/CurrencyIcon';
 import { Modal } from '../components/Modal';
 import { useRouteOrderReadState } from '../hooks/useRouteOrderReadState';
 import { ResponseTimer } from '../components/ResponseTimer';
+import { isIncompleteConversion, getDisplayStatusLabel } from '../utils/orderStatusHelper';
 import './CallTeamPanel.css';
 
 const STATUS_OPTIONS = ['ACTIVE', 'NEW', 'PENDING', 'FINAL'];
@@ -651,7 +652,13 @@ export const CallTeamPanel = () => {
 
                 <div className="elite-col-status status-col">
                   <div className="elite-status-stack">
-                    <span className={`elite-status-pill ${statusPill}`}>{order.status}</span>
+                    <span
+                      className={`elite-status-pill ${statusPill}${isIncompleteConversion(order) ? ' is-inco-converted' : ''}`}
+                      title={isIncompleteConversion(order) ? 'Converted from Incomplete Checkout' : ''}
+                    >
+                      {isIncompleteConversion(order) && <span style={{fontSize:'9px', letterSpacing:'0.08em', opacity:0.85, marginRight:'2px'}}>INCO·</span>}
+                      {order.status}
+                    </span>
                     {order.last_call_status && ['Confirmed', 'Cancelled'].includes(order.status) === false && (
                       <span className={`elite-call-pill ${getCallStatusTone(order.last_call_status)}`}>
                         {order.last_call_status}
@@ -727,7 +734,13 @@ export const CallTeamPanel = () => {
                       </span>
                     </div>
                     <div className="mob-card-status-row">
-                      <span className={`elite-status-pill ${statusPill} compact`}>{order.status}</span>
+                      <span
+                        className={`elite-status-pill ${statusPill} compact${isIncompleteConversion(order) ? ' is-inco-converted' : ''}`}
+                        title={isIncompleteConversion(order) ? 'Converted from Incomplete Checkout' : ''}
+                      >
+                        {isIncompleteConversion(order) && <span style={{fontSize:'8px', letterSpacing:'0.08em', opacity:0.85, marginRight:'2px'}}>INCO·</span>}
+                        {order.status}
+                      </span>
                       {order.last_call_status && !['Confirmed', 'Cancelled'].includes(order.status) && (
                         <span className={`elite-call-pill ${getCallStatusTone(order.last_call_status)}`}>
                           {order.last_call_status}

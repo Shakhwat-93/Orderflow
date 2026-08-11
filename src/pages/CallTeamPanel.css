@@ -705,6 +705,13 @@
 .dark-mode .elite-status-pill.urgent { background: rgba(185, 28, 28, 0.2); }
 .dark-mode .elite-status-pill.fake { background: rgba(127, 29, 29, 0.72); color: #fecaca; }
 
+/* Incomplete Conversion pill override */
+.elite-status-pill.is-inco-converted {
+  border: 1.5px solid rgba(236, 72, 153, 0.45) !important;
+  box-shadow: 0 0 8px rgba(236, 72, 153, 0.18) !important;
+  text-shadow: none;
+}
+
 .elite-call-pill {
   padding: 5px 10px;
   border-radius: 999px;

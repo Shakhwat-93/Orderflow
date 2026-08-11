@@ -695,3 +695,22 @@
     font-size: 9px;
   }
 }
+
+/* ── INCOMPLETE CONVERSION BADGE STYLING (inco- prefix) ── */
+.saas-badge.is-inco-converted {
+  border-color: rgba(236, 72, 153, 0.45) !important;
+  box-shadow: 0 0 10px rgba(236, 72, 153, 0.18) !important;
+  font-weight: 700 !important;
+}
+
+.dot.inco-pulse-dot {
+  background-color: #ec4899 !important;
+  box-shadow: 0 0 6px #ec4899 !important;
+  animation: incoPulse 1.8s infinite ease-in-out;
+}
+
+@keyframes incoPulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.35); opacity: 0.75; }
+  100% { transform: scale(1); opacity: 1; }
+}

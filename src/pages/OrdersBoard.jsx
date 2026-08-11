@@ -23,6 +23,7 @@ import { getProductCheckpoints, getFormattedProductName } from '../utils/product
 import { useRouteOrderReadState } from '../hooks/useRouteOrderReadState';
 import { ExportModal } from '../components/ExportModal';
 import { PrintPreviewModal } from '../components/PrintSystem';
+import { isIncompleteConversion, getDisplayStatusLabel } from '../utils/orderStatusHelper';
 
 const ORDER_STATUSES = [
   'New',
@@ -972,8 +973,12 @@ export const OrdersBoard = () => {
                     )}
                   </div>
                 </div>
-                <Badge variant={getStatusBadgeVariant(order.status)}>
-                  {order.status}
+                <Badge
+                  variant={getStatusBadgeVariant(order.status)}
+                  className={isIncompleteConversion(order) ? 'is-inco-converted' : ''}
+                  title={isIncompleteConversion(order) ? 'Converted from Incomplete Checkout' : ''}
+                >
+                  {getDisplayStatusLabel(order)}
                 </Badge>
               </div>
 

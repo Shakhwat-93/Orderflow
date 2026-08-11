@@ -5,6 +5,7 @@ import { FileText, Clock, AlertTriangle, Phone, Copy, MessageCircle, Edit2, Glob
 import CurrencyIcon from './CurrencyIcon';
 import { ResponseTimer } from './ResponseTimer';
 import { getFormattedProductName, getOrderTotalQuantity } from '../utils/productCatalog';
+import { isIncompleteConversion, getDisplayStatusLabel } from '../utils/orderStatusHelper';
 import './OrderRow.css';
 
 /**
@@ -259,11 +260,12 @@ export const OrderRow = ({ order, onDetails, onStatusChange, onEdit, isSelected,
       <td className="status-cell" onClick={(e) => e.stopPropagation()}>
         <div className="status-dropdown-container" ref={statusBtnRef}>
           <button 
-            className={`saas-badge saas-badge-${getStatusBadgeVariant(order.status)} clickable`}
+            className={`saas-badge saas-badge-${getStatusBadgeVariant(order.status)} ${isIncompleteConversion(order) ? 'is-inco-converted' : ''} clickable`}
             onClick={toggleStatusMenu}
+            title={isIncompleteConversion(order) ? 'Converted from Incomplete Checkout' : ''}
           >
-            <span className="dot"></span>
-            {order.status}
+            <span className={`dot ${isIncompleteConversion(order) ? 'inco-pulse-dot' : ''}`}></span>
+            {getDisplayStatusLabel(order)}
           </button>
           
           {showStatusMenu && ReactDOM.createPortal(
