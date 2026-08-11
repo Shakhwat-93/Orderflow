@@ -449,7 +449,8 @@ export const SalesReport = () => {
         if (isConfirmedStatus(s) && !(o.notes && o.notes.includes('[Was Incomplete]'))) {
           map[baseName].confirmed++;
           map[baseName].confirmedQty += q;
-          map[baseName].revenue += Number(item.price || o.amount || 0);
+          const itemRevenue = Number(item.line_total ?? (item.price ? Number(item.price) * q : o.amount)) || 0;
+          map[baseName].revenue += itemRevenue;
         } else if (s === 'Cancelled') {
           map[baseName].cancelled++;
           map[baseName].cancelledQty += q;
