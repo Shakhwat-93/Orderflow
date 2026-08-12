@@ -88,12 +88,20 @@
 
 .sr-header-right { display: flex; gap: 8px; flex-wrap: wrap; }
 
-.sr-btn-export, .sr-btn-print {
+.sr-btn-export, .sr-btn-print, .sr-btn-cost {
   display: flex; align-items: center; gap: 6px;
   padding: 9px 16px; border-radius: 10px;
   font-size: 0.82rem; font-weight: 700;
   cursor: pointer; font-family: inherit;
   transition: all 0.18s ease; border: 1px solid;
+}
+.sr-btn-cost {
+  background: rgba(99,102,241,0.08); color: var(--sr-accent);
+  border-color: rgba(99,102,241,0.25);
+}
+.sr-btn-cost:hover {
+  background: var(--sr-accent); color: white;
+  border-color: var(--sr-accent);
 }
 .sr-btn-export {
   background: var(--sr-btn-bg); color: var(--sr-text-sub);
@@ -468,4 +476,49 @@
   .sr-kpi-value {
     font-size: 1.15rem;
   }
+}
+
+/* ── Unit Cost Table Input & Modal Styles ── */
+.sr-unit-cost-input {
+  width: 90px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--sr-btn-bdr);
+  background: var(--sr-btn-bg);
+  color: var(--sr-text);
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-family: inherit;
+  outline: none;
+  transition: all 0.15s ease;
+}
+.sr-unit-cost-input:focus {
+  border-color: var(--sr-accent);
+  background: var(--sr-card);
+  box-shadow: 0 0 0 2px var(--sr-accent-bg);
+}
+
+.sr-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 99998;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.sr-modal-shell {
+  background: var(--sr-card);
+  border-radius: 20px;
+  width: 100%;
+  max-width: 580px;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.3);
+  border: 1px solid var(--sr-border);
 }
