@@ -544,18 +544,20 @@ export const SalesReport = () => {
 
     return Object.values(map)
       .map(p => {
-        const revenueQty   = p.confirmedQty + p.pendingQty; // Total Revenue Qty (Confirmed + Pending)
-        const unitCost     = Number(productUnitCosts[p.name]) || 0;
-        const totalCost    = unitCost * revenueQty; // COGS
-        const netProfit    = p.revenue - totalCost;
-        const profitMargin = p.revenue > 0 ? +((netProfit / p.revenue) * 100).toFixed(1) : 0;
-        const confRate     = p.total > 0 ? +((p.confirmed / p.total) * 100).toFixed(1) : 0;
-        const fakeRate     = p.total > 0 ? +((p.fake / p.total) * 100).toFixed(1) : 0;
+        const revenueQty     = p.confirmedQty + p.pendingQty; // Total Revenue Qty (Confirmed + Pending)
+        const unitCost       = Number(productUnitCosts[p.name]) || 0;
+        const totalOrderCost = unitCost * p.totalQty; // Unit Cost * Total Order Qty per user request
+        const totalCost      = unitCost * revenueQty; // COGS for Revenue Qty
+        const netProfit      = p.revenue - totalCost;
+        const profitMargin   = p.revenue > 0 ? +((netProfit / p.revenue) * 100).toFixed(1) : 0;
+        const confRate       = p.total > 0 ? +((p.confirmed / p.total) * 100).toFixed(1) : 0;
+        const fakeRate       = p.total > 0 ? +((p.fake / p.total) * 100).toFixed(1) : 0;
 
         return {
           ...p,
           revenueQty,
           unitCost,
+          totalOrderCost,
           totalCost,
           netProfit,
           profitMargin,
@@ -844,6 +846,9 @@ export const SalesReport = () => {
                   <th>#</th>
                   <th>Product</th>
                   <th className="sr-sortable" onClick={() => setProductSort('unitCost')}>Unit Cost (৳) {productSort==='unitCost'&&'↓'}</th>
+                  <th className="sr-sortable" onClick={() => setProductSort('total')}>Total Orders {productSort==='total'&&'↓'}</th>
+                  <th className="sr-sortable" onClick={() => setProductSort('totalQty')}>Total Order Qty {productSort==='totalQty'&&'↓'}</th>
+                  <th className="sr-sortable" onClick={() => setProductSort('totalOrderCost')}>Total Order Cost {productSort==='totalOrderCost'&&'↓'}</th>
                   <th className="sr-sortable" onClick={() => setProductSort('confirmedQty')}>Confirmed {productSort==='confirmedQty'&&'↓'}</th>
                   <th className="sr-sortable" onClick={() => setProductSort('pendingQty')}>Pending {productSort==='pendingQty'&&'↓'}</th>
                   <th className="sr-sortable" onClick={() => setProductSort('revenueQty')}>Rev Qty {productSort==='revenueQty'&&'↓'}</th>
@@ -876,6 +881,9 @@ export const SalesReport = () => {
                         title="Set unit making cost for this product"
                       />
                     </td>
+                    <td style={{ fontWeight: 700 }}>{p.total}</td>
+                    <td style={{ fontWeight: 800, color: 'var(--sr-text)' }}>{p.totalQty}</td>
+                    <td style={{ fontWeight: 700, color: '#eab308' }} title="Unit Cost × Total Order Qty">{fmtTk(p.totalOrderCost)}</td>
                     <td className="sr-green" style={{ fontWeight: 700 }}>{p.confirmedQty}</td>
                     <td className="sr-pending" style={{ fontWeight: 700 }}>{p.pendingQty || 0}</td>
                     <td style={{ fontWeight: 800, color: 'var(--sr-text)' }}>{p.revenueQty}</td>
