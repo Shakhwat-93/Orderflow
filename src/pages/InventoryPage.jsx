@@ -18,6 +18,7 @@ import { getSerialTrackedProducts } from '../utils/productCatalog';
 import { supabase } from '../lib/supabase';
 import { parseProductionText } from '../services/productionAI';
 import { ProductionPaymentModal } from '../components/ProductionPaymentModal';
+import { GlobalProductionPaymentModal } from '../components/GlobalProductionPaymentModal';
 import './InventoryPage.css';
 
 const CATEGORIES = ['All', 'TOY BOX', 'ORGANIZER', 'Bags', 'Accessories', 'Religious', 'Other'];
@@ -96,6 +97,7 @@ export const InventoryPage = () => {
 
   // ── Payment Modal ──
   const [paymentModalLog, setPaymentModalLog] = useState(null); // log being paid
+  const [isGlobalPaymentModalOpen, setIsGlobalPaymentModalOpen] = useState(false);
 
   const uniqueProducts = Array.from(new Set(inventory.map(item => item.name))).sort();
 
@@ -876,10 +878,20 @@ export const InventoryPage = () => {
               <span className="value">৳{productionStats.totalPaid.toLocaleString('en-BD')}</span>
             </div>
           </Card>
-          <Card className="stat-card glass-card factory-stat-card">
+          <Card
+            className="stat-card glass-card factory-stat-card"
+            style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}
+            onClick={() => setIsGlobalPaymentModalOpen(true)}
+            title="Click to manage & pay global dues"
+          >
             <div className="stat-icon-box red" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}><AlertTriangle size={22} /></div>
-            <div className="stat-info">
-              <span className="label">Total Due</span>
+            <div className="stat-info" style={{ width: '100%' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span className="label">Total Due</span>
+                <span style={{ fontSize: '0.7rem', fontWeight: 800, padding: '2px 6px', borderRadius: '6px', background: 'rgba(99,102,241,0.12)', color: '#6366f1' }}>
+                  Pay Global
+                </span>
+              </div>
               <span className="value" style={{ color: '#ef4444' }}>৳{productionStats.totalDue.toLocaleString('en-BD')}</span>
             </div>
           </Card>
@@ -1450,6 +1462,21 @@ export const InventoryPage = () => {
                     <option value="30days">Last 30 Days</option>
                     <option value="thisMonth">This Month</option>
                   </select>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsGlobalPaymentModalOpen(true)}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '6px',
+                      padding: '8px 14px', borderRadius: '8px', border: 'none',
+                      background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                      color: '#fff', fontSize: '0.8rem', fontWeight: 800,
+                      cursor: 'pointer', boxShadow: '0 4px 14px rgba(99,102,241,0.28)',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    <DollarSign size={14} /> Global Pay & History
+                  </button>
                 </div>
               </div>
 
@@ -1980,6 +2007,17 @@ export const InventoryPage = () => {
         <ProductionPaymentModal
           log={paymentModalLog}
           onClose={() => setPaymentModalLog(null)}
+          onRefresh={() => {
+            fetchProductionLogs();
+            fetchProductionStats();
+          }}
+        />
+      )}
+
+      {/* ══ Global Production Payment Modal ══ */}
+      {isGlobalPaymentModalOpen && (
+        <GlobalProductionPaymentModal
+          onClose={() => setIsGlobalPaymentModalOpen(false)}
           onRefresh={() => {
             fetchProductionLogs();
             fetchProductionStats();
