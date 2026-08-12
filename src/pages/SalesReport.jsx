@@ -846,19 +846,19 @@ export const SalesReport = () => {
             <table className="sr-product-table">
               <thead>
                 <tr>
-                  <th>#</th>
+                  <th style={{ width: '22px', textAlign: 'center' }}>#</th>
                   <th>Product</th>
-                  <th className="sr-sortable" onClick={() => setProductSort('unitCost')}>Unit Cost (৳) {productSort==='unitCost'&&'↓'}</th>
-                  <th className="sr-sortable" onClick={() => setProductSort('total')}>Total Orders {productSort==='total'&&'↓'}</th>
-                  <th className="sr-sortable" onClick={() => setProductSort('totalQty')}>Total Order Qty {productSort==='totalQty'&&'↓'}</th>
-                  <th className="sr-sortable" onClick={() => setProductSort('totalOrderCost')}>Total Order Cost {productSort==='totalOrderCost'&&'↓'}</th>
-                  <th className="sr-sortable" onClick={() => setProductSort('confirmedQty')}>Confirmed {productSort==='confirmedQty'&&'↓'}</th>
-                  <th className="sr-sortable" onClick={() => setProductSort('pendingQty')}>Pending {productSort==='pendingQty'&&'↓'}</th>
+                  <th className="sr-sortable" onClick={() => setProductSort('unitCost')}>Unit Cost {productSort==='unitCost'&&'↓'}</th>
+                  <th className="sr-sortable" onClick={() => setProductSort('total')}>Orders {productSort==='total'&&'↓'}</th>
+                  <th className="sr-sortable" onClick={() => setProductSort('totalQty')}>Ord Qty {productSort==='totalQty'&&'↓'}</th>
+                  <th className="sr-sortable" onClick={() => setProductSort('totalOrderCost')}>Ord Cost {productSort==='totalOrderCost'&&'↓'}</th>
+                  <th className="sr-sortable" onClick={() => setProductSort('confirmedQty')}>Conf Qty {productSort==='confirmedQty'&&'↓'}</th>
+                  <th className="sr-sortable" onClick={() => setProductSort('pendingQty')}>Pend Qty {productSort==='pendingQty'&&'↓'}</th>
                   <th className="sr-sortable" onClick={() => setProductSort('revenueQty')}>Rev Qty {productSort==='revenueQty'&&'↓'}</th>
-                  <th className="sr-sortable" onClick={() => setProductSort('revenue')}>Gross Revenue {productSort==='revenue'&&'↓'}</th>
-                  <th className="sr-sortable" onClick={() => setProductSort('totalCost')}>COGS (Cost) {productSort==='totalCost'&&'↓'}</th>
+                  <th className="sr-sortable" onClick={() => setProductSort('revenue')}>Revenue {productSort==='revenue'&&'↓'}</th>
+                  <th className="sr-sortable" onClick={() => setProductSort('totalCost')}>COGS {productSort==='totalCost'&&'↓'}</th>
                   <th className="sr-sortable" onClick={() => setProductSort('netProfit')}>Net Profit {productSort==='netProfit'&&'↓'}</th>
-                  <th className="sr-sortable" onClick={() => setProductSort('profitMargin')}>Margin % {productSort==='profitMargin'&&'↓'}</th>
+                  <th className="sr-sortable" onClick={() => setProductSort('profitMargin')}>Margin {productSort==='profitMargin'&&'↓'}</th>
                   <th className="sr-sortable" onClick={() => setProductSort('confRate')}>Conf% {productSort==='confRate'&&'↓'}</th>
                 </tr>
               </thead>
