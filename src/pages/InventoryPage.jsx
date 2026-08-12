@@ -17,6 +17,7 @@ import { usePersistentState } from '../utils/persistentState';
 import { getSerialTrackedProducts } from '../utils/productCatalog';
 import { supabase } from '../lib/supabase';
 import { parseProductionText } from '../services/productionAI';
+import { ProductionPaymentModal } from '../components/ProductionPaymentModal';
 import './InventoryPage.css';
 
 const CATEGORIES = ['All', 'TOY BOX', 'ORGANIZER', 'Bags', 'Accessories', 'Religious', 'Other'];
@@ -92,6 +93,9 @@ export const InventoryPage = () => {
 
   // ── Production Toast ──
   const [productionToast, setProductionToast] = useState(null);
+
+  // ── Payment Modal ──
+  const [paymentModalLog, setPaymentModalLog] = useState(null); // log being paid
 
   const uniqueProducts = Array.from(new Set(inventory.map(item => item.name))).sort();
 
@@ -176,7 +180,7 @@ export const InventoryPage = () => {
     try {
       const { data, error } = await supabase
         .from('factory_production_logs')
-        .select('product_name, quantity_ready, total_cost, payment_status');
+        .select('product_name, quantity_ready, total_cost, payment_status, paid_amount');
       if (error) throw error;
 
       let totalQty = 0;
@@ -188,15 +192,13 @@ export const InventoryPage = () => {
       (data || []).forEach(log => {
         const qty = Number(log.quantity_ready) || 0;
         const cost = Number(log.total_cost) || 0;
-        const isPaid = log.payment_status === 'Paid';
+        const paid = Number(log.paid_amount || 0);
+        const due = Math.max(0, cost - paid);
 
         totalQty += qty;
         totalCost += cost;
-        if (isPaid) {
-          totalPaid += cost;
-        } else {
-          totalDue += cost;
-        }
+        totalPaid += paid;
+        totalDue += due;
 
         const name = log.product_name || 'Unknown Product';
         if (!breakdownMap[name]) {
@@ -204,11 +206,8 @@ export const InventoryPage = () => {
         }
         breakdownMap[name].qty += qty;
         breakdownMap[name].cost += cost;
-        if (isPaid) {
-          breakdownMap[name].paid += cost;
-        } else {
-          breakdownMap[name].due += cost;
-        }
+        breakdownMap[name].paid += paid;
+        breakdownMap[name].due += due;
       });
 
       setProductionStats({
@@ -461,18 +460,27 @@ export const InventoryPage = () => {
   };
 
   const handleTogglePaymentStatus = async (log) => {
-    const nextStatus = log.payment_status === 'Paid' ? 'Due' : 'Paid';
+    // If 'Due' or 'Partial', open the payment modal instead of toggling
+    if (log.payment_status !== 'Paid') {
+      setPaymentModalLog(log);
+      return;
+    }
+    // If already 'Paid', allow toggle back to Due (reset paid_amount)
+    if (!window.confirm('Mark this entry as Due again? This will reset the paid amount.')) return;
     try {
       const { error } = await supabase
         .from('factory_production_logs')
-        .update({ payment_status: nextStatus })
+        .update({ payment_status: 'Due', paid_amount: 0, updated_at: new Date().toISOString() })
         .eq('id', log.id);
+
+      // Also remove all payment records
+      await supabase.from('production_payments').delete().eq('production_log_id', log.id);
 
       if (error) throw error;
       fetchProductionLogs();
       fetchProductionStats();
     } catch (err) {
-      console.error('Error toggling payment status:', err);
+      console.error('Error resetting payment status:', err);
     }
   };
 
@@ -1488,6 +1496,7 @@ export const InventoryPage = () => {
                       <th style={{ width: '80px', textAlign: 'right' }}>Qty</th>
                       <th style={{ width: '100px', textAlign: 'right' }}>Unit Cost</th>
                       <th style={{ width: '110px', textAlign: 'right' }}>Total Cost</th>
+                      <th style={{ width: '120px', textAlign: 'right' }}>Paid / Due</th>
                       <th style={{ width: '100px' }}>Status</th>
                       <th style={{ width: '110px' }}>Actions</th>
                     </tr>
@@ -1515,20 +1524,45 @@ export const InventoryPage = () => {
                           <td className="bold" style={{ textAlign: 'right' }}>{log.quantity_ready}</td>
                           <td style={{ textAlign: 'right' }}>৳{log.unit_cost.toLocaleString('en-BD')}</td>
                           <td className="bold" style={{ textAlign: 'right', color: 'var(--fp-accent)' }}>৳{log.total_cost.toLocaleString('en-BD')}</td>
+                          {/* Paid / Due column */}
+                          <td style={{ textAlign: 'right' }}>
+                            {(() => {
+                              const paid = Number(log.paid_amount || 0);
+                              const due = Math.max(0, Number(log.total_cost) - paid);
+                              return (
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                                  {paid > 0 && <span style={{ fontSize: '11px', fontWeight: 700, color: '#10b981' }}>৳{paid.toLocaleString('en-BD')} paid</span>}
+                                  {due > 0 && <span style={{ fontSize: '11px', fontWeight: 700, color: '#ef4444' }}>৳{due.toLocaleString('en-BD')} due</span>}
+                                  {paid === 0 && due === 0 && <span style={{ fontSize: '11px', color: 'var(--fp-text-muted)' }}>—</span>}
+                                </div>
+                              );
+                            })()}
+                          </td>
                           <td>
                             <button
                               type="button"
-                              className={`payment-status-pill ${log.payment_status.toLowerCase()}`}
+                              className={`payment-status-pill ${(log.payment_status || 'due').toLowerCase().replace(' ', '-')}`}
                               onClick={() => handleTogglePaymentStatus(log)}
-                              title="Click to toggle payment status"
+                              title={log.payment_status === 'Paid' ? 'Fully paid — click to reset' : 'Click to record payment'}
                               style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px', borderRadius: '12px', border: '1px solid transparent', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer' }}
                             >
-                              {log.payment_status === 'Paid' ? <CheckCircle2 size={12} /> : <Clock size={12} />}
-                              <span>{log.payment_status}</span>
+                              {log.payment_status === 'Paid' ? <CheckCircle2 size={12} /> : log.payment_status === 'Partial' ? <DollarSign size={12} /> : <Clock size={12} />}
+                              <span>{log.payment_status || 'Due'}</span>
                             </button>
                           </td>
                           <td>
                             <div className="saas-row-actions" style={{ display: 'flex', gap: '6px' }}>
+                              {/* Pay button — only if not fully paid */}
+                              {log.payment_status !== 'Paid' && (
+                                <button
+                                  className="saas-icon-btn"
+                                  title="Record Payment"
+                                  onClick={() => setPaymentModalLog(log)}
+                                  style={{ padding: '6px', borderRadius: '6px', border: '1px solid rgba(99,102,241,0.3)', background: 'rgba(99,102,241,0.08)', color: '#6366f1', cursor: 'pointer', fontWeight: 700, fontSize: '10px', display: 'flex', alignItems: 'center', gap: '3px' }}
+                                >
+                                  <DollarSign size={12} /> Pay
+                                </button>
+                              )}
                               <button className="saas-icon-btn" title="Edit Log Entry" onClick={() => handleStartEditLog(log)} style={{ padding: '6px', borderRadius: '6px', border: '1px solid var(--fp-border)', background: 'var(--fp-card)', color: 'var(--fp-text-sub)', cursor: 'pointer' }}>
                                 <Edit2 size={13} />
                               </button>
@@ -1940,6 +1974,18 @@ export const InventoryPage = () => {
           </div>
         </div>
       </Modal>
+
+      {/* ══ Production Payment Modal ══ */}
+      {paymentModalLog && (
+        <ProductionPaymentModal
+          log={paymentModalLog}
+          onClose={() => setPaymentModalLog(null)}
+          onRefresh={() => {
+            fetchProductionLogs();
+            fetchProductionStats();
+          }}
+        />
+      )}
     </div>
   );
 };

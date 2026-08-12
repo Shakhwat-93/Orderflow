@@ -1158,6 +1158,20 @@
   background: rgba(239, 68, 68, 0.18) !important;
 }
 
+.payment-status-pill.partial {
+  background: rgba(245, 158, 11, 0.1) !important;
+  color: #d97706 !important;
+}
+
+.payment-status-pill.partial:hover {
+  background: rgba(245, 158, 11, 0.18) !important;
+}
+
+[data-theme='dark'] .payment-status-pill.partial {
+  background: rgba(245, 158, 11, 0.15) !important;
+  color: #fbbf24 !important;
+}
+
 .text-tag {
   font-size: 0.72rem;
   font-weight: 600;
