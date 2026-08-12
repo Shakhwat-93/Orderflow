@@ -207,17 +207,20 @@ const getBaseProductName = (rawName) => {
   if (lower.includes('magnetic gym') || lower.includes('magentic gym')) {
     return 'Magnetic Gym Crossbody Bag';
   }
-  if (lower.includes('smart travel')) {
+  if (lower.includes('smart travel') || lower.includes('canvas travel')) {
     return 'Smart Travel Bag';
   }
-  if (lower.includes('polarized sunglass')) {
+  if (lower.includes('polarized sunglass') || lower.includes('sunglass')) {
     return 'Adjustable Dimming Polarized Sunglass';
   }
   if (lower.includes('canvas family')) {
     return 'Canvas Family Bag';
   }
-  if (lower.includes('yoga stretch band')) {
+  if (lower.includes('yoga') || lower.includes('stretch') || lower.includes('strech') || lower.includes('leg strech') || lower.includes('leg stretch')) {
     return 'Professional Yoga Stretch Band';
+  }
+  if (lower.includes('money management') || lower.includes('mmb')) {
+    return 'Smart Money Management Bag';
   }
   if (lower.includes('healthy healing tea')) {
     return 'Healthy Healing Tea';
