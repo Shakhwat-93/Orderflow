@@ -66,30 +66,72 @@ export const GlobalProductionPaymentModal = ({ onClose, onRefresh }) => {
     paid_by: ''
   });
 
+  /* Sync row-level paid_amount and payment_status on factory_production_logs */
+  const syncProductionLogsPaymentStatuses = async () => {
+    try {
+      const { data: payData } = await supabase.from('production_payments').select('amount');
+      let totalAvailablePaid = (payData || []).reduce((s, p) => s + Number(p.amount || 0), 0);
+
+      const { data: logs } = await supabase
+        .from('factory_production_logs')
+        .select('id, total_cost, paid_amount, payment_status')
+        .order('production_date', { ascending: true })
+        .order('created_at', { ascending: true });
+
+      if (!logs) return;
+
+      for (const log of logs) {
+        const cost = Number(log.total_cost) || 0;
+        const allocatedPaid = Math.min(totalAvailablePaid, cost);
+        totalAvailablePaid -= allocatedPaid;
+
+        const newStatus = (allocatedPaid >= cost - 0.01) ? 'Paid' : (allocatedPaid > 0 ? 'Partial' : 'Due');
+
+        if (Number(log.paid_amount) !== allocatedPaid || log.payment_status !== newStatus) {
+          await supabase
+            .from('factory_production_logs')
+            .update({
+              paid_amount: allocatedPaid,
+              payment_status: newStatus,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', log.id);
+        }
+      }
+    } catch (err) {
+      console.error('Error syncing production logs payment statuses:', err);
+    }
+  };
+
   /* Load stats of all due production logs */
   const fetchGlobalStats = useCallback(async () => {
     setIsLoadingStats(true);
     try {
-      const { data, error: err } = await supabase
+      const { data: logsData, error: logsErr } = await supabase
         .from('factory_production_logs')
         .select('id, total_cost, paid_amount, payment_status');
-      if (err) throw err;
+      if (logsErr) throw logsErr;
 
       let totalCost = 0;
-      let totalPaid = 0;
-      let totalDue  = 0;
       let countDue  = 0;
 
-      (data || []).forEach(log => {
+      (logsData || []).forEach(log => {
         const cost = Number(log.total_cost) || 0;
         const paid = Number(log.paid_amount) || 0;
         const due  = Math.max(0, cost - paid);
 
         totalCost += cost;
-        totalPaid += paid;
-        totalDue  += due;
         if (due > 0.01) countDue++;
       });
+
+      // Sum all payment transactions from production_payments directly
+      const { data: paymentsData, error: payErr } = await supabase
+        .from('production_payments')
+        .select('amount');
+      if (payErr) throw payErr;
+
+      const totalPaid = (paymentsData || []).reduce((sum, p) => sum + Number(p.amount || 0), 0);
+      const totalDue = Math.max(0, totalCost - totalPaid);
 
       setStats({ totalCost, totalPaid, totalDue, countDueLogs: countDue });
       setForm(prev => ({
@@ -135,7 +177,7 @@ export const GlobalProductionPaymentModal = ({ onClose, onRefresh }) => {
     fetchAllPaymentsHistory();
   }, [fetchGlobalStats, fetchAllPaymentsHistory]);
 
-  /* Handle Global FIFO Payment Submission */
+  /* Handle Direct Global Payment Submission */
   const handleGlobalPaymentSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -153,107 +195,27 @@ export const GlobalProductionPaymentModal = ({ onClose, onRefresh }) => {
       return;
     }
 
-    if (paymentAmount > stats.totalDue + 0.01) {
-      setError(`Payment amount ৳${fmt(paymentAmount)} exceeds total outstanding dues of ৳${fmt(stats.totalDue)}.`);
-      return;
-    }
-
     setIsSubmitting(true);
     try {
-      /* 1. Fetch all due logs (oldest first: production_date ASC, created_at ASC) */
-      const { data: dueLogs, error: dueErr } = await supabase
-        .from('factory_production_logs')
-        .select('*')
-        .order('production_date', { ascending: true })
-        .order('created_at', { ascending: true });
-      if (dueErr) throw dueErr;
+      const customNote = form.note.trim() || 'Global Ledger Payment';
 
-      /* Filter only logs with positive due amount */
-      const unpaidLogs = (dueLogs || []).filter(log => {
-        const cost = Number(log.total_cost) || 0;
-        const paid = Number(log.paid_amount) || 0;
-        return (cost - paid) > 0.01;
-      });
-
-      if (unpaidLogs.length === 0) {
-        setError('All production logs are already fully paid.');
-        setIsSubmitting(false);
-        return;
-      }
-
-      /* 2. Distribute payment across unpaid logs */
-      let remainingToPay = paymentAmount;
-      const affectedLogs = [];
-      const paymentInserts = [];
-
-      for (const log of unpaidLogs) {
-        if (remainingToPay <= 0.001) break;
-
-        const cost = Number(log.total_cost) || 0;
-        const currentPaid = Number(log.paid_amount) || 0;
-        const dueForThisLog = Math.max(0, cost - currentPaid);
-
-        if (dueForThisLog <= 0.001) continue;
-
-        const allocatedAmt = Math.min(remainingToPay, dueForThisLog);
-        const newPaidAmount = currentPaid + allocatedAmt;
-        const newStatus = (newPaidAmount >= cost - 0.01) ? 'Paid' : 'Partial';
-
-        const customNote = form.note.trim()
-          ? `[Global Payment] ${form.note.trim()}`
-          : `[Global Payment] Settlement of ৳${fmt(allocatedAmt)}`;
-
-        paymentInserts.push({
-          production_log_id: log.id,
-          amount: allocatedAmt,
+      // Insert 1 SINGLE transaction record into production_payments with production_log_id = null
+      const { error: insErr } = await supabase
+        .from('production_payments')
+        .insert([{
+          production_log_id: null,
+          amount: paymentAmount,
           payment_method: form.payment_method,
           payment_date: form.payment_date,
           note: customNote,
           paid_by: form.paid_by.trim() || null
-        });
-
-        affectedLogs.push({
-          logId: log.id,
-          product_name: log.product_name,
-          allocatedAmt,
-          newPaidAmount,
-          newStatus
-        });
-
-        remainingToPay -= allocatedAmt;
-      }
-
-      /* 3. Insert payment transactions into DB */
-      const { error: insErr } = await supabase
-        .from('production_payments')
-        .insert(paymentInserts);
+        }]);
       if (insErr) throw insErr;
 
-      /* 4. Update factory_production_logs */
-      for (const item of affectedLogs) {
-        const { error: upErr } = await supabase
-          .from('factory_production_logs')
-          .update({
-            paid_amount: item.newPaidAmount,
-            payment_status: item.newStatus,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', item.logId);
-        if (upErr) console.error(`Error updating log ${item.logId}:`, upErr);
-      }
+      // Sync row-level paid_amount and payment_status on factory_production_logs
+      await syncProductionLogsPaymentStatuses();
 
-      const fullySettledCount = affectedLogs.filter(a => a.newStatus === 'Paid').length;
-      const partialCount = affectedLogs.filter(a => a.newStatus === 'Partial').length;
-
-      setSuccessMsg(`✅ ৳${fmt(paymentAmount)} payment recorded & distributed across ${affectedLogs.length} production entries!`);
-      setDistributionResult({
-        totalAmount: paymentAmount,
-        logsCount: affectedLogs.length,
-        fullySettledCount,
-        partialCount,
-        details: affectedLogs
-      });
-
+      setSuccessMsg(`✅ ৳${fmt(paymentAmount)} direct global payment recorded successfully!`);
       setForm(prev => ({ ...prev, amount: '', note: '', paid_by: '' }));
       await fetchGlobalStats();
       await fetchAllPaymentsHistory();
@@ -268,38 +230,22 @@ export const GlobalProductionPaymentModal = ({ onClose, onRefresh }) => {
 
   /* Delete transaction from audit history */
   const handleDeleteTransaction = async (payment) => {
-    if (!window.confirm(`Delete payment transaction of ৳${fmt(payment.amount)} for "${payment.factory_production_logs?.product_name || 'Production Entry'}"?`)) return;
+    const label = payment.factory_production_logs?.product_name
+      ? `"${payment.factory_production_logs.product_name}"`
+      : 'Global Ledger Payment';
+
+    if (!window.confirm(`Delete payment transaction of ৳${fmt(payment.amount)} for ${label}?`)) return;
 
     setIsDeletingId(payment.id);
     try {
-      const logId = payment.production_log_id;
       const { error: delErr } = await supabase
         .from('production_payments')
         .delete()
         .eq('id', payment.id);
       if (delErr) throw delErr;
 
-      /* Recalculate paid_amount for this specific log */
-      const { data: remainingPayments } = await supabase
-        .from('production_payments')
-        .select('amount')
-        .eq('production_log_id', logId);
-
-      const newPaidAmount = (remainingPayments || []).reduce((s, p) => s + Number(p.amount), 0);
-
-      const { data: targetLog } = await supabase
-        .from('factory_production_logs')
-        .select('total_cost')
-        .eq('id', logId)
-        .single();
-
-      const cost = Number(targetLog?.total_cost || 0);
-      const newStatus = newPaidAmount >= cost - 0.01 ? 'Paid' : newPaidAmount > 0 ? 'Partial' : 'Due';
-
-      await supabase
-        .from('factory_production_logs')
-        .update({ paid_amount: newPaidAmount, payment_status: newStatus, updated_at: new Date().toISOString() })
-        .eq('id', logId);
+      // Resync logs status after deletion
+      await syncProductionLogsPaymentStatuses();
 
       await fetchGlobalStats();
       await fetchAllPaymentsHistory();
@@ -321,7 +267,7 @@ export const GlobalProductionPaymentModal = ({ onClose, onRefresh }) => {
     const paidBy = String(p.paid_by || '').toLowerCase();
     const method = String(p.payment_method || '');
 
-    const matchesSearch = !term || prodName.includes(term) || color.includes(term) || variant.includes(term) || note.includes(term) || paidBy.includes(term);
+    const matchesSearch = !term || prodName.includes(term) || color.includes(term) || variant.includes(term) || note.includes(term) || paidBy.includes(term) || term.includes('global');
     const matchesMethod = historyMethodFilter === 'All' || method === historyMethodFilter;
 
     return matchesSearch && matchesMethod;
@@ -761,7 +707,11 @@ export const GlobalProductionPaymentModal = ({ onClose, onRefresh }) => {
                           )}
                         </div>
 
-                        {logItem && (
+                        {!p.production_log_id || !logItem ? (
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '2px 8px', borderRadius: '6px', background: 'rgba(139,92,246,0.1)', color: '#8b5cf6', fontSize: '11px', fontWeight: 800, marginTop: '2px', border: '1px solid rgba(139,92,246,0.2)' }}>
+                            🌐 Global Ledger Direct Payment
+                          </div>
+                        ) : (
                           <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)' }}>
                             Product: {logItem.product_name}
                             {logItem.color ? ` (${logItem.color})` : ''}

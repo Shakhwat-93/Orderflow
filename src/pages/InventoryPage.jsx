@@ -187,8 +187,6 @@ export const InventoryPage = () => {
 
       let totalQty = 0;
       let totalCost = 0;
-      let totalPaid = 0;
-      let totalDue = 0;
       const breakdownMap = {};
 
       (data || []).forEach(log => {
@@ -199,8 +197,6 @@ export const InventoryPage = () => {
 
         totalQty += qty;
         totalCost += cost;
-        totalPaid += paid;
-        totalDue += due;
 
         const name = log.product_name || 'Unknown Product';
         if (!breakdownMap[name]) {
@@ -211,6 +207,14 @@ export const InventoryPage = () => {
         breakdownMap[name].paid += paid;
         breakdownMap[name].due += due;
       });
+
+      // Sum all payment transactions from production_payments directly
+      const { data: payments } = await supabase
+        .from('production_payments')
+        .select('amount');
+
+      const totalPaid = (payments || []).reduce((sum, p) => sum + Number(p.amount || 0), 0);
+      const totalDue = Math.max(0, totalCost - totalPaid);
 
       setProductionStats({
         totalQty,
