@@ -885,10 +885,10 @@ export const InventoryPage = () => {
             title="Click to manage & pay global dues"
           >
             <div className="stat-icon-box red" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}><AlertTriangle size={22} /></div>
-            <div className="stat-info" style={{ width: '100%' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="stat-info" style={{ minWidth: 0, width: '100%' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
                 <span className="label">Total Due</span>
-                <span style={{ fontSize: '0.7rem', fontWeight: 800, padding: '2px 6px', borderRadius: '6px', background: 'rgba(99,102,241,0.12)', color: '#6366f1' }}>
+                <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '2px 5px', borderRadius: '6px', background: 'rgba(99,102,241,0.12)', color: '#6366f1', whiteSpace: 'nowrap', flexShrink: 0 }}>
                   Pay Global
                 </span>
               </div>
