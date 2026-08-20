@@ -8,7 +8,7 @@ import {
 import {
   TrendingUp, ShoppingCart, CheckCircle2, XCircle, AlertTriangle,
   Clock, DollarSign, FileDown, Printer, BarChart3, Package,
-  ArrowUpRight, ArrowDownRight, Trophy, Flame, Gift, Settings, Save, X, Edit3
+  ArrowUpRight, ArrowDownRight, Trophy, Flame, Gift, Settings, Save, X, Edit3, HelpCircle
 } from 'lucide-react';
 import './SalesReport.css';
 
@@ -422,9 +422,11 @@ export const SalesReport = () => {
     const isCanc  = o => o.status === 'Cancelled';
     const isFake  = o => o.status === 'Fake Order';
     const isPend  = o => ['New','Pending Call','Final Call Pending','Hold'].includes(o.status);
+    const isInco  = o => o.status === 'Incomplete';
 
     const confirmed = colorFilteredData.filter(isConf);
     const pending   = colorFilteredData.filter(isPend);
+    const incomplete = colorFilteredData.filter(isInco);
 
     // Revenue includes BOTH Confirmed + Pending orders per user specification
     const confRevenue = confirmed.reduce((s,o) => s + (Number(o.amount)||0), 0);
@@ -445,6 +447,7 @@ export const SalesReport = () => {
       cancelled: colorFilteredData.filter(isCanc).length,
       fake: colorFilteredData.filter(isFake).length,
       pending: pending.length,
+      incomplete: incomplete.length,
       totalRevenue,
       confRevenue,
       pendRevenue,
@@ -686,9 +689,9 @@ export const SalesReport = () => {
         <KpiCard icon={Package}       label="COGS (Total Cost)"   value={fmtTk(totalCOGS)}        color="#eab308" sub="Unit Cost × Rev Qty" />
         <KpiCard icon={TrendingUp}    label="Net Profit"         value={fmtTk(netProfit)}        color={netProfit >= 0 ? '#10b981' : '#ef4444'} sub={`Margin: ${overallMargin}%`} />
         <KpiCard icon={BarChart3}     label="Avg Order Value"    value={fmtTk(Math.round(kpi.avgVal))} color="#8b5cf6" />
-        <KpiCard icon={Gift}          label="Bonus Conversions"  value={fmtNum(kpi.bonus)}       color="#eab308" sub={`${fmtTk(kpi.bonusRevenue)} bonus rev`} />
         <KpiCard icon={XCircle}       label="Cancelled"          value={fmtNum(kpi.cancelled)}   color="#ef4444" />
         <KpiCard icon={AlertTriangle} label="Fake Orders"        value={fmtNum(kpi.fake)}         color="#f59e0b" />
+        <KpiCard icon={HelpCircle}    label="Incomplete Orders"  value={fmtNum(kpi.incomplete)}   color="#ec4899" sub="Checkout Auto-save" />
       </div>
 
       {/* ── Daily Trend Chart ── */}
