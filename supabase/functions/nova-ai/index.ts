@@ -50,38 +50,63 @@ async function getAuthenticatedUser(req: Request, supabaseAdmin: ReturnType<type
   return data.user;
 }
 
+const GROQ_FALLBACK_MODELS = [
+  "llama-3.3-70b-versatile",
+  "llama-3.1-8b-instant",
+  "mixtral-8x7b-32768",
+  "gemma2-9b-it",
+  "llama3-70b-8192",
+  "llama3-8b-8192"
+];
+
 async function callGroq(messages: Array<{ role: string; content: string }>, temperature = 0.2) {
   const apiKey = Deno.env.get("GROQ_API_KEY");
   if (!apiKey) {
     throw new Error("GROQ_API_KEY is not configured.");
   }
 
-  const response = await fetch(GROQ_API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      max_tokens: 2048,
-      messages,
-      model: GROQ_MODEL,
-      temperature,
-    }),
-  });
+  const envModel = Deno.env.get("GROQ_MODEL");
+  const modelsToTry = [
+    envModel,
+    ...GROQ_FALLBACK_MODELS
+  ].filter((m, i, arr): m is string => Boolean(m) && arr.indexOf(m) === i);
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Groq API error (${response.status}): ${errorText}`);
+  let lastError: Error | null = null;
+
+  for (const model of modelsToTry) {
+    try {
+      const response = await fetch(GROQ_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          max_tokens: 2048,
+          messages,
+          model,
+          temperature,
+        }),
+      });
+
+      if (response.ok) {
+        const payload = await response.json();
+        const content = payload?.choices?.[0]?.message?.content;
+        if (content) {
+          return String(content).trim();
+        }
+      } else {
+        const errorText = await response.text();
+        lastError = new Error(`Groq API error (${response.status}) on model ${model}: ${errorText}`);
+        continue;
+      }
+    } catch (err: any) {
+      lastError = err;
+      continue;
+    }
   }
 
-  const payload = await response.json();
-  const content = payload?.choices?.[0]?.message?.content;
-  if (!content) {
-    throw new Error("No AI response generated.");
-  }
-
-  return String(content).trim();
+  throw lastError || new Error("Failed to call Groq API on all candidate models.");
 }
 
 function buildChatPrompt(dbContext: Record<string, any>) {
