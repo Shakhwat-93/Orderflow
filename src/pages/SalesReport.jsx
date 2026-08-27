@@ -7,8 +7,8 @@ import {
 } from 'recharts';
 import {
   TrendingUp, ShoppingCart, CheckCircle2, XCircle, DollarSign,
-  FileDown, Printer, BarChart3, Package, Trophy, Flame,
-  Settings, X, ChevronDown, MoreHorizontal, Calendar, SlidersHorizontal, ArrowUpDown
+  FileDown, Printer, BarChart3, Package, Trophy,
+  Settings, X, ChevronDown, MoreHorizontal, Calendar, SlidersHorizontal, Search
 } from 'lucide-react';
 import './SalesReport.css';
 
@@ -233,9 +233,10 @@ export const SalesReport = () => {
   const [isDateSheetOpen, setIsDateSheetOpen]   = useState(false);
   const [isColorSheetOpen, setIsColorSheetOpen] = useState(false);
   const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
-  const [isUnitCostModalOpen, setIsUnitCostModalOpen] = useState(false);
+  const [isPricingModalOpen, setIsPricingModalOpen] = useState(false);
+  const [pricingSearchQuery, setPricingSearchQuery] = useState('');
 
-  // Unit Cost Management (persistent in localStorage & synced with inventory table)
+  // 1. Unit Cost State (Internal Cost per Unit)
   const [productUnitCosts, setProductUnitCosts] = useState(() => {
     try {
       const cached = localStorage.getItem('sr_product_unit_costs');
@@ -245,9 +246,19 @@ export const SalesReport = () => {
     }
   });
 
-  // Sync default unit costs from inventory table on mount
+  // 2. Selling Price State (Default Customer Selling Price per Unit)
+  const [productSellingPrices, setProductSellingPrices] = useState(() => {
+    try {
+      const cached = localStorage.getItem('sr_product_selling_prices');
+      return cached ? JSON.parse(cached) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  // Sync default Unit Costs & Selling Prices from inventory table on mount
   useEffect(() => {
-    const fetchInventoryCosts = async () => {
+    const fetchInventoryPricing = async () => {
       try {
         const { data } = await supabase.from('inventory').select('name, making_cost, unit_price');
         if (data && data.length > 0) {
@@ -256,25 +267,39 @@ export const SalesReport = () => {
             let updated = false;
             data.forEach(item => {
               const baseName = getBaseProductName(item.name);
-              const cost = Number(item.making_cost) || Number(item.unit_price) || 0;
+              const cost = Number(item.making_cost) || 0;
               if (cost > 0 && (next[baseName] === undefined || next[baseName] === 0)) {
                 next[baseName] = cost;
                 updated = true;
               }
             });
-            if (updated) {
-              localStorage.setItem('sr_product_unit_costs', JSON.stringify(next));
-            }
+            if (updated) localStorage.setItem('sr_product_unit_costs', JSON.stringify(next));
+            return next;
+          });
+
+          setProductSellingPrices(prev => {
+            const next = { ...prev };
+            let updated = false;
+            data.forEach(item => {
+              const baseName = getBaseProductName(item.name);
+              const price = Number(item.unit_price) || 0;
+              if (price > 0 && (next[baseName] === undefined || next[baseName] === 0)) {
+                next[baseName] = price;
+                updated = true;
+              }
+            });
+            if (updated) localStorage.setItem('sr_product_selling_prices', JSON.stringify(next));
             return next;
           });
         }
       } catch (err) {
-        console.error('Error fetching inventory unit costs:', err);
+        console.error('Error fetching inventory pricing:', err);
       }
     };
-    fetchInventoryCosts();
+    fetchInventoryPricing();
   }, []);
 
+  // Update Unit Cost independently
   const handleUnitCostChange = async (productName, val) => {
     const cost = Math.max(0, parseFloat(val) || 0);
     const next = { ...productUnitCosts, [productName]: cost };
@@ -292,6 +317,27 @@ export const SalesReport = () => {
       }
     } catch (e) {
       console.error('Error syncing unit cost to inventory:', e);
+    }
+  };
+
+  // Update Selling Price independently
+  const handleSellingPriceChange = async (productName, val) => {
+    const price = Math.max(0, parseFloat(val) || 0);
+    const next = { ...productSellingPrices, [productName]: price };
+    setProductSellingPrices(next);
+    localStorage.setItem('sr_product_selling_prices', JSON.stringify(next));
+
+    try {
+      const { data: invItems } = await supabase.from('inventory').select('id, name');
+      if (invItems) {
+        const normName = productName.toLowerCase().replace(/\s+/g, '');
+        const match = invItems.find(i => i.name.toLowerCase().replace(/\s+/g, '') === normName || i.name.toLowerCase().includes(productName.toLowerCase()));
+        if (match) {
+          await supabase.from('inventory').update({ unit_price: price }).eq('id', match.id);
+        }
+      }
+    } catch (e) {
+      console.error('Error syncing selling price to inventory:', e);
     }
   };
 
@@ -403,31 +449,8 @@ export const SalesReport = () => {
     }).filter(Boolean);
   }, [filtered, colorFilter]);
 
-  // ── 1. Top Summary KPIs (Total Orders, Confirmed, Cancelled, Total Order Amount) ──
-  const summaryKpi = useMemo(() => {
-    const isConf = o => isConfirmedStatus(o.status) && !(o.notes && o.notes.includes('[Was Incomplete]'));
-    const isCanc = o => o.status === 'Cancelled';
-    const isPend = o => ['New','Pending Call','Final Call Pending','Hold'].includes(o.status);
-
-    const totalOrders = colorFilteredData.length;
-    const confirmedOrders = colorFilteredData.filter(isConf).length;
-    const cancelledOrders = colorFilteredData.filter(isCanc).length;
-
-    // Total Order Amount = Actual selling/revenue amount generated by active orders (confirmed + pending)
-    const totalOrderAmount = colorFilteredData
-      .filter(o => isConf(o) || isPend(o))
-      .reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
-
-    return {
-      totalOrders,
-      confirmedOrders,
-      cancelledOrders,
-      totalOrderAmount
-    };
-  }, [colorFilteredData]);
-
-  // ── 2. Product-wise Sales Summary ──
-  // Columns: Product | Unit Cost | Total Qty | Total Order Amount | Orders | Confirmed | Cancelled
+  // ── 1. Product-wise Sales Summary Data ──
+  // Columns: Product | Unit Cost | Selling Price | Total Qty | Total Order Selling Amount | Orders | Confirmed | Cancelled
   const productData = useMemo(() => {
     const map = {};
 
@@ -454,16 +477,17 @@ export const SalesReport = () => {
             totalQty: 0,
             confirmed: 0,
             cancelled: 0,
-            revenue: 0, // Actual Total Order Selling Amount
+            historicalRevenue: 0, // Fallback from historical order lines
           };
         }
 
         const q = Number(item.quantity || 1);
-        map[baseName].totalQty += q;
 
-        const itemRevenue = Number(item.line_total ?? (item.price ? Number(item.price) * q : o.amount)) || 0;
+        // Eligible sales quantity = Confirmed + Pending orders (cancelled orders excluded from sales quantity)
         if (isConf || isPend) {
-          map[baseName].revenue += itemRevenue;
+          map[baseName].totalQty += q;
+          const itemRevenue = Number(item.line_total ?? (item.price ? Number(item.price) * q : o.amount)) || 0;
+          map[baseName].historicalRevenue += itemRevenue;
         }
       });
 
@@ -477,10 +501,17 @@ export const SalesReport = () => {
 
     const result = Object.values(map).map(p => {
       const unitCost = Number(productUnitCosts[p.name]) || 0;
+      const sellingPrice = Number(productSellingPrices[p.name]) || 0;
+
+      // Total Order Selling Amount = Configured Selling Price × Total Qty (fallback to historical revenue if selling price not configured)
+      const revenue = sellingPrice > 0 ? sellingPrice * p.totalQty : p.historicalRevenue;
       const totalCost = unitCost * p.totalQty; // Internal cost calculation (Unit Cost × Total Qty)
+
       return {
         ...p,
         unitCost,
+        sellingPrice,
+        revenue,
         totalCost
       };
     });
@@ -497,7 +528,7 @@ export const SalesReport = () => {
       valB = Number(valB) || 0;
       return sortDirection === 'asc' ? valA - valB : valB - valA;
     });
-  }, [colorFilteredData, productSort, sortDirection, productUnitCosts]);
+  }, [colorFilteredData, productSort, sortDirection, productUnitCosts, productSellingPrices]);
 
   const handleSort = (field) => {
     if (productSort === field) {
@@ -507,6 +538,26 @@ export const SalesReport = () => {
       setSortDirection('desc');
     }
   };
+
+  // ── 2. Top Summary KPIs (Total Orders, Confirmed, Cancelled, Total Order Amount) ──
+  const summaryKpi = useMemo(() => {
+    const isConf = o => isConfirmedStatus(o.status) && !(o.notes && o.notes.includes('[Was Incomplete]'));
+    const isCanc = o => o.status === 'Cancelled';
+
+    const totalOrders = colorFilteredData.length;
+    const confirmedOrders = colorFilteredData.filter(isConf).length;
+    const cancelledOrders = colorFilteredData.filter(isCanc).length;
+
+    // Overall Total Order Amount = Sum of product selling amounts
+    const totalOrderAmount = productData.reduce((sum, p) => sum + (p.revenue || 0), 0);
+
+    return {
+      totalOrders,
+      confirmedOrders,
+      cancelledOrders,
+      totalOrderAmount
+    };
+  }, [colorFilteredData, productData]);
 
   // ── Daily Sales Trend Chart Data ──
   const dailyData = useMemo(() => {
@@ -567,6 +618,13 @@ export const SalesReport = () => {
     return [...productData].sort((a,b) => b.confirmed - a.confirmed).slice(0, 8);
   }, [productData]);
 
+  // Filtered list for Pricing & Cost Modal
+  const modalFilteredProducts = useMemo(() => {
+    if (!pricingSearchQuery.trim()) return productData;
+    const q = pricingSearchQuery.toLowerCase();
+    return productData.filter(p => p.name.toLowerCase().includes(q));
+  }, [productData, pricingSearchQuery]);
+
   const presetLabel = PRESETS.find(p => p.key === preset)?.label || 'Custom';
 
   return (
@@ -582,8 +640,8 @@ export const SalesReport = () => {
           </div>
         </div>
         <div className="sr-header-right desktop-only-actions">
-          <button className="sr-btn-cost" onClick={() => setIsUnitCostModalOpen(true)} title="Configure Unit Costs">
-            <Settings size={14}/> Unit Cost Config
+          <button className="sr-btn-cost" onClick={() => setIsPricingModalOpen(true)} title="Configure Unit Costs & Selling Prices">
+            <Settings size={14}/> Unit Cost & Price Config
           </button>
           <button className="sr-btn-export" onClick={() => exportCSV(colorFilteredData, presetLabel)}>
             <FileDown size={14}/> Export CSV
@@ -595,8 +653,8 @@ export const SalesReport = () => {
 
         {/* Mobile Header Actions */}
         <div className="sr-header-right mobile-only-actions">
-          <button className="sr-btn-cost" onClick={() => setIsUnitCostModalOpen(true)}>
-            <Settings size={14}/> Unit Costs
+          <button className="sr-btn-cost" onClick={() => setIsPricingModalOpen(true)}>
+            <Settings size={14}/> Pricing & Costs
           </button>
           <button className="sr-btn-more-menu" onClick={() => setIsHeaderMenuOpen(true)} aria-label="More options">
             <MoreHorizontal size={16} />
@@ -691,20 +749,20 @@ export const SalesReport = () => {
         />
       </div>
 
-      {/* ── PRODUCT SALES SUMMARY ── */}
+      {/* ── PRODUCT SALES SUMMARY (Table & Mobile Cards) ── */}
       <div className="sr-card">
         <div className="sr-card-header">
           <SectionTitle
             icon={Package}
             title="Product Sales Summary"
-            sub="Revenue and order performance by product"
+            sub="Selling price, quantity and order performance by product."
           />
           <button
             className="sr-btn-cost desktop-only-actions"
-            onClick={() => setIsUnitCostModalOpen(true)}
+            onClick={() => setIsPricingModalOpen(true)}
             style={{ fontSize: '0.78rem', padding: '6px 12px' }}
           >
-            <Settings size={14}/> Unit Cost Config
+            <Settings size={14}/> Pricing & Cost Config
           </button>
         </div>
 
@@ -725,26 +783,31 @@ export const SalesReport = () => {
                     <span className="sr-prod-sc-meta">{p.totalQty} units · {p.orders} orders</span>
                   </div>
 
+                  <div className="sr-prod-sc-prices">
+                    <span>Selling Price: <strong className="text-accent">{p.sellingPrice > 0 ? fmtTk(p.sellingPrice) : 'Not Set'}</strong></span>
+                    <span>Unit Cost: <strong className="text-muted">{p.unitCost > 0 ? fmtTk(p.unitCost) : 'Not Set'}</strong></span>
+                  </div>
+
                   <div className="sr-prod-sc-counts">
                     <span className="sr-green">Confirmed: <strong>{p.confirmed}</strong></span>
                     <span className="sr-red">Cancelled: <strong>{p.cancelled}</strong></span>
                   </div>
 
                   <div className="sr-prod-sc-cost-row">
-                    <span className="cost-lbl">Unit Cost:</span>
                     <button
-                      className="sr-prod-sc-cost-btn"
-                      onClick={() => setIsUnitCostModalOpen(true)}
-                      title="Edit Unit Cost"
+                      className="sr-prod-sc-edit-btn"
+                      onClick={() => setIsPricingModalOpen(true)}
+                      title="Edit Selling Price & Unit Cost"
                     >
-                      {p.unitCost > 0 ? fmtTk(p.unitCost) : <span className="text-muted">Not Set</span>}
+                      <Settings size={12} />
+                      <span>Edit Price & Cost</span>
                     </button>
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* Desktop Clean Table (≥640px) */}
+            {/* Desktop Clean Table (≥640px) - 8 Columns */}
             <div className="sr-product-table-wrap desktop-only-table-wrap">
               <table className="sr-product-table">
                 <thead>
@@ -755,11 +818,14 @@ export const SalesReport = () => {
                     <th className="sr-sortable text-center" onClick={() => handleSort('unitCost')}>
                       Unit Cost {productSort === 'unitCost' && (sortDirection === 'asc' ? '↑' : '↓')}
                     </th>
+                    <th className="sr-sortable text-center" onClick={() => handleSort('sellingPrice')}>
+                      Selling Price {productSort === 'sellingPrice' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
                     <th className="sr-sortable text-center" onClick={() => handleSort('totalQty')}>
                       Total Qty {productSort === 'totalQty' && (sortDirection === 'asc' ? '↑' : '↓')}
                     </th>
                     <th className="sr-sortable text-right" onClick={() => handleSort('revenue')}>
-                      Total Order Amount {productSort === 'revenue' && (sortDirection === 'asc' ? '↑' : '↓')}
+                      Total Order Selling Amount {productSort === 'revenue' && (sortDirection === 'asc' ? '↑' : '↓')}
                     </th>
                     <th className="sr-sortable text-center" onClick={() => handleSort('orders')}>
                       Orders {productSort === 'orders' && (sortDirection === 'asc' ? '↑' : '↓')}
@@ -781,10 +847,19 @@ export const SalesReport = () => {
                       <td className="text-center">
                         <span
                           className={`sr-unit-cost-badge ${p.unitCost > 0 ? 'set' : 'unset'}`}
-                          onClick={() => setIsUnitCostModalOpen(true)}
+                          onClick={() => setIsPricingModalOpen(true)}
                           title="Click to edit Unit Cost"
                         >
                           {p.unitCost > 0 ? fmtTk(p.unitCost) : 'Not Set'}
+                        </span>
+                      </td>
+                      <td className="text-center">
+                        <span
+                          className={`sr-selling-price-badge ${p.sellingPrice > 0 ? 'set' : 'unset'}`}
+                          onClick={() => setIsPricingModalOpen(true)}
+                          title="Click to edit Selling Price"
+                        >
+                          {p.sellingPrice > 0 ? fmtTk(p.sellingPrice) : 'Not Set'}
                         </span>
                       </td>
                       <td className="text-center font-bold">{p.totalQty}</td>
@@ -1056,43 +1131,85 @@ export const SalesReport = () => {
         </div>
       )}
 
-      {/* ── Unit Cost Configuration Modal ── */}
-      {isUnitCostModalOpen && (
-        <div className="sr-modal-backdrop" onClick={() => setIsUnitCostModalOpen(false)}>
+      {/* ── Unit Cost & Selling Price Configuration Modal ── */}
+      {isPricingModalOpen && (
+        <div className="sr-modal-backdrop" onClick={() => setIsPricingModalOpen(false)}>
           <div className="sr-modal-shell" onClick={e => e.stopPropagation()}>
             <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid var(--sr-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '34px', height: '34px', borderRadius: '8px', background: 'var(--sr-accent-bg)', color: 'var(--sr-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'var(--sr-accent-bg)', color: 'var(--sr-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Settings size={18} />
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: 'var(--sr-text)' }}>Product Unit Cost Config</h3>
-                  <p style={{ margin: 0, fontSize: '11.5px', color: 'var(--sr-text-muted)' }}>Configure internal unit production/making cost per product</p>
+                  <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: 'var(--sr-text)' }}>Unit Cost & Selling Price Config</h3>
+                  <p style={{ margin: 0, fontSize: '11.5px', color: 'var(--sr-text-muted)' }}>Configure internal unit cost and customer selling price independently</p>
                 </div>
               </div>
-              <button onClick={() => setIsUnitCostModalOpen(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--sr-text-muted)' }}>
+              <button onClick={() => setIsPricingModalOpen(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--sr-text-muted)' }}>
                 <X size={18} />
               </button>
             </div>
 
-            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {productData.map(p => (
-                <div key={p.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: '10px', background: 'var(--sr-btn-bg)', border: '1px solid var(--sr-btn-bdr)' }}>
-                  <div style={{ flex: 1, paddingRight: '12px' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--sr-text)' }}>{p.name}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--sr-text-muted)' }}>{p.totalQty} total units ordered</div>
+            {/* Search filter in modal */}
+            <div style={{ padding: '12px 20px 4px' }}>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <Search size={14} style={{ position: 'absolute', left: '10px', color: 'var(--sr-text-muted)' }} />
+                <input
+                  type="text"
+                  placeholder="Search product..."
+                  value={pricingSearchQuery}
+                  onChange={e => setPricingSearchQuery(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px 8px 32px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--sr-btn-bdr)',
+                    background: 'var(--sr-btn-bg)',
+                    color: 'var(--sr-text)',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    outline: 'none'
+                  }}
+                />
+              </div>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {modalFilteredProducts.map(p => (
+                <div key={p.name} className="sr-pricing-config-row">
+                  <div className="sr-pricing-config-info">
+                    <span className="sr-pricing-config-name">{p.name}</span>
+                    <span className="sr-pricing-config-qty">{p.totalQty} units ordered</span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--sr-text-sub)' }}>৳</span>
-                    <input
-                      type="number"
-                      min="0"
-                      className="sr-unit-cost-input"
-                      value={p.unitCost || ''}
-                      onChange={e => handleUnitCostChange(p.name, e.target.value)}
-                      placeholder="0"
-                      style={{ width: '90px', fontSize: '13px', padding: '6px 8px' }}
-                    />
+                  
+                  <div className="sr-pricing-config-inputs">
+                    <div className="sr-pricing-input-group">
+                      <label>Unit Cost</label>
+                      <div className="sr-currency-input-box">
+                        <span>৳</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={p.unitCost || ''}
+                          onChange={e => handleUnitCostChange(p.name, e.target.value)}
+                          placeholder="Cost"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="sr-pricing-input-group">
+                      <label>Selling Price</label>
+                      <div className="sr-currency-input-box highlight">
+                        <span>৳</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={p.sellingPrice || ''}
+                          onChange={e => handleSellingPriceChange(p.name, e.target.value)}
+                          placeholder="Price"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -1100,10 +1217,10 @@ export const SalesReport = () => {
 
             <div style={{ padding: '14px 20px', borderTop: '1px solid var(--sr-border)', display: 'flex', justifyContent: 'flex-end' }}>
               <button
-                onClick={() => setIsUnitCostModalOpen(false)}
-                style={{ padding: '8px 20px', borderRadius: '8px', background: 'var(--sr-accent)', color: '#fff', border: 'none', fontWeight: 800, fontSize: '13px', cursor: 'pointer' }}
+                onClick={() => setIsPricingModalOpen(false)}
+                style={{ padding: '8px 22px', borderRadius: '8px', background: 'var(--sr-accent)', color: '#fff', border: 'none', fontWeight: 800, fontSize: '13px', cursor: 'pointer' }}
               >
-                Done
+                Save & Close
               </button>
             </div>
           </div>

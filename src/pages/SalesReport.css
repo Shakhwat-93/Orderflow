@@ -1,6 +1,6 @@
 /* ================================================================
    SALES REPORT — SIMPLIFIED SALES + ORDER PERFORMANCE SYSTEM
-   Clean, Minimal, Fast, and Focused
+   With Independent Unit Cost & Selling Price Configuration
    ================================================================ */
 
 :root {
@@ -580,7 +580,7 @@
   font-size: 0.84rem;
 }
 
-.sr-unit-cost-badge {
+.sr-unit-cost-badge, .sr-selling-price-badge {
   display: inline-block;
   padding: 3px 8px;
   border-radius: 6px;
@@ -593,7 +593,7 @@
 .sr-unit-cost-badge.set {
   background: var(--sr-btn-bg);
   border: 1px solid var(--sr-btn-bdr);
-  color: var(--sr-text);
+  color: var(--sr-text-sub);
 }
 
 .sr-unit-cost-badge.unset {
@@ -602,7 +602,19 @@
   color: var(--sr-text-muted);
 }
 
-.sr-unit-cost-badge:hover {
+.sr-selling-price-badge.set {
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  color: var(--sr-accent);
+}
+
+.sr-selling-price-badge.unset {
+  background: rgba(148, 163, 184, 0.1);
+  border: 1px dashed var(--sr-btn-bdr);
+  color: var(--sr-text-muted);
+}
+
+.sr-unit-cost-badge:hover, .sr-selling-price-badge:hover {
   border-color: var(--sr-accent);
   color: var(--sr-accent);
 }
@@ -659,6 +671,15 @@
   color: var(--sr-text-sub);
 }
 
+.sr-prod-sc-prices {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--sr-text-muted);
+  padding: 4px 0;
+}
+
 .sr-prod-sc-counts {
   display: flex;
   align-items: center;
@@ -670,25 +691,22 @@
 .sr-prod-sc-cost-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding-top: 4px;
+  justify-content: flex-end;
+  padding-top: 6px;
   border-top: 1px solid var(--sr-border);
-  font-size: 11px;
 }
 
-.sr-prod-sc-cost-row .cost-lbl {
-  color: var(--sr-text-muted);
-  font-weight: 600;
-}
-
-.sr-prod-sc-cost-btn {
+.sr-prod-sc-edit-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   background: var(--sr-btn-bg);
   border: 1px solid var(--sr-btn-bdr);
-  border-radius: 5px;
-  padding: 2px 6px;
+  border-radius: 6px;
+  padding: 4px 8px;
   font-size: 11px;
   font-weight: 700;
-  color: var(--sr-text);
+  color: var(--sr-accent);
   cursor: pointer;
 }
 
@@ -996,7 +1014,7 @@
   cursor: pointer;
 }
 
-/* ── Unit Cost Modal ──────────────────────────── */
+/* ── Pricing & Cost Configuration Modal ──────── */
 .sr-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -1013,7 +1031,7 @@
   background: var(--sr-card);
   border-radius: 16px;
   width: 100%;
-  max-width: 520px;
+  max-width: 580px;
   max-height: 85vh;
   overflow: hidden;
   display: flex;
@@ -1022,11 +1040,85 @@
   border: 1px solid var(--sr-border);
 }
 
-.sr-unit-cost-input {
-  border-radius: 6px;
+.sr-pricing-config-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--sr-btn-bg);
   border: 1px solid var(--sr-btn-bdr);
-  background: var(--sr-card);
-  color: var(--sr-text);
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sr-pricing-config-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 140px;
+}
+
+.sr-pricing-config-name {
+  font-size: 13px;
   font-weight: 700;
+  color: var(--sr-text);
+}
+
+.sr-pricing-config-qty {
+  font-size: 11px;
+  color: var(--sr-text-muted);
+}
+
+.sr-pricing-config-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sr-pricing-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sr-pricing-input-group label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--sr-text-muted);
+  text-transform: uppercase;
+}
+
+.sr-currency-input-box {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--sr-card);
+  border: 1px solid var(--sr-btn-bdr);
+  border-radius: 6px;
+  padding: 0 6px;
+  height: 28px;
+}
+
+.sr-currency-input-box.highlight {
+  border-color: rgba(99, 102, 241, 0.35);
+  background: var(--sr-card);
+}
+
+.sr-currency-input-box span {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--sr-text-sub);
+}
+
+.sr-currency-input-box input {
+  width: 58px;
+  border: none;
+  background: transparent;
+  text-align: center;
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--sr-text);
   outline: none;
 }
