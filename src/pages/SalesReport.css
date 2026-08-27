@@ -363,7 +363,7 @@
   border-radius: 20px;
 }
 
-/* ── 4 SUMMARY KPIS (Total Orders, Confirmed, Cancelled, Order Amount) ─ */
+/* ── 5 SUMMARY KPIS (Total Orders, Confirmed, Pending, Cancelled, Order Amount) ─ */
 .sr-summary-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -373,7 +373,14 @@
 
 @media (min-width: 640px) {
   .sr-summary-grid {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .sr-summary-grid {
+    grid-template-columns: repeat(5, 1fr);
     gap: 12px;
   }
 }
@@ -391,8 +398,8 @@
 }
 
 .sr-summary-kpi-icon {
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   border-radius: 9px;
   background: color-mix(in srgb, var(--kc) 12%, transparent);
   color: var(--kc);
@@ -553,14 +560,14 @@
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  padding: 10px 12px;
+  padding: 10px 10px;
   border-bottom: 1px solid var(--sr-border);
   text-align: left;
   white-space: nowrap;
 }
 
 .sr-product-table td {
-  padding: 10px 12px;
+  padding: 10px 10px;
   border-bottom: 1px solid var(--sr-border);
   color: var(--sr-text-sub);
   vertical-align: middle;
@@ -573,6 +580,28 @@
 
 .sr-product-table tr:hover td {
   background: var(--sr-btn-bg);
+}
+
+.sr-top-row td {
+  background: rgba(16, 185, 129, 0.02);
+}
+
+.sr-rank-cell {
+  width: 44px;
+  text-align: center;
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: var(--sr-text-muted);
+}
+
+.sr-top-tag {
+  font-size: 9.5px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  margin-left: 6px;
 }
 
 .sr-prod-name-cell {
@@ -643,6 +672,22 @@
   gap: 6px;
 }
 
+.sr-prod-sc-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sr-prod-rank-pill {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--sr-accent);
+  background: var(--sr-accent-bg);
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
 .sr-prod-sc-name {
   font-size: 13px;
   font-weight: 800;
@@ -683,9 +728,10 @@
 .sr-prod-sc-counts {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   font-size: 11.5px;
   color: var(--sr-text-sub);
+  flex-wrap: wrap;
 }
 
 .sr-prod-sc-cost-row {
@@ -803,6 +849,7 @@
 .font-bold   { font-weight: 700; }
 .font-extrabold { font-weight: 800; }
 .sr-green    { color: #10b981; }
+.sr-pending  { color: #3b82f6; }
 .sr-red      { color: #ef4444; }
 .text-muted  { color: var(--sr-text-muted); }
 .text-accent { color: var(--sr-accent); }

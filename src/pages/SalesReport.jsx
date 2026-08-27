@@ -6,7 +6,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 import {
-  TrendingUp, ShoppingCart, CheckCircle2, XCircle, DollarSign,
+  TrendingUp, ShoppingCart, CheckCircle2, XCircle, DollarSign, Clock,
   FileDown, Printer, BarChart3, Package, Trophy,
   Settings, X, ChevronDown, MoreHorizontal, Calendar, SlidersHorizontal, Search
 } from 'lucide-react';
@@ -450,7 +450,7 @@ export const SalesReport = () => {
   }, [filtered, colorFilter]);
 
   // ── 1. Product-wise Sales Summary Data ──
-  // Columns: Product | Unit Cost | Selling Price | Total Qty | Total Order Selling Amount | Orders | Confirmed | Cancelled
+  // Columns: # | Product | Unit Cost | Selling Price | Total Qty | Total Order Selling Amount | Orders | Confirmed | Pending | Cancelled
   const productData = useMemo(() => {
     const map = {};
 
@@ -476,6 +476,7 @@ export const SalesReport = () => {
             orders: 0,
             totalQty: 0,
             confirmed: 0,
+            pending: 0,
             cancelled: 0,
             historicalRevenue: 0, // Fallback from historical order lines
           };
@@ -495,6 +496,7 @@ export const SalesReport = () => {
       productsInThisOrder.forEach(baseName => {
         map[baseName].orders += 1;
         if (isConf) map[baseName].confirmed += 1;
+        if (isPend) map[baseName].pending += 1;
         if (isCanc) map[baseName].cancelled += 1;
       });
     });
@@ -539,13 +541,15 @@ export const SalesReport = () => {
     }
   };
 
-  // ── 2. Top Summary KPIs (Total Orders, Confirmed, Cancelled, Total Order Amount) ──
+  // ── 2. Top Summary KPIs (Total Orders, Confirmed, Pending, Cancelled, Total Order Amount) ──
   const summaryKpi = useMemo(() => {
     const isConf = o => isConfirmedStatus(o.status) && !(o.notes && o.notes.includes('[Was Incomplete]'));
+    const isPend = o => ['New','Pending Call','Final Call Pending','Hold'].includes(o.status);
     const isCanc = o => o.status === 'Cancelled';
 
     const totalOrders = colorFilteredData.length;
     const confirmedOrders = colorFilteredData.filter(isConf).length;
+    const pendingOrders = colorFilteredData.filter(isPend).length;
     const cancelledOrders = colorFilteredData.filter(isCanc).length;
 
     // Overall Total Order Amount = Sum of product selling amounts
@@ -554,6 +558,7 @@ export const SalesReport = () => {
     return {
       totalOrders,
       confirmedOrders,
+      pendingOrders,
       cancelledOrders,
       totalOrderAmount
     };
@@ -575,6 +580,7 @@ export const SalesReport = () => {
           date: dayKey,
           total: 0,
           confirmed: 0,
+          pending: 0,
           cancelled: 0,
           revenue: 0
         };
@@ -584,6 +590,8 @@ export const SalesReport = () => {
       if (isConfirmedStatus(s) && !(o.notes && o.notes.includes('[Was Incomplete]'))) {
         map[dayKey].confirmed++;
         map[dayKey].revenue += Number(o.amount||0);
+      } else if (['New', 'Pending Call', 'Final Call Pending', 'Hold'].includes(s)) {
+        map[dayKey].pending++;
       } else if (s === 'Cancelled') {
         map[dayKey].cancelled++;
       }
@@ -641,7 +649,7 @@ export const SalesReport = () => {
         </div>
         <div className="sr-header-right desktop-only-actions">
           <button className="sr-btn-cost" onClick={() => setIsPricingModalOpen(true)} title="Configure Unit Costs & Selling Prices">
-            <Settings size={14}/> Unit Cost & Price Config
+            <Settings size={14}/> Pricing & Cost Config
           </button>
           <button className="sr-btn-export" onClick={() => exportCSV(colorFilteredData, presetLabel)}>
             <FileDown size={14}/> Export CSV
@@ -721,7 +729,7 @@ export const SalesReport = () => {
         </span>
       </div>
 
-      {/* ── 4 SUMMARY METRICS (Total Orders, Confirmed, Cancelled, Total Order Amount) ── */}
+      {/* ── 5 SUMMARY METRICS (Total Orders, Confirmed, Pending, Cancelled, Total Order Amount) ── */}
       <div className="sr-summary-grid">
         <SummaryKpiCard
           icon={ShoppingCart}
@@ -734,6 +742,12 @@ export const SalesReport = () => {
           label="Confirmed"
           value={fmtNum(summaryKpi.confirmedOrders)}
           color="#10b981"
+        />
+        <SummaryKpiCard
+          icon={Clock}
+          label="Pending"
+          value={fmtNum(summaryKpi.pendingOrders)}
+          color="#3b82f6"
         />
         <SummaryKpiCard
           icon={XCircle}
@@ -755,7 +769,7 @@ export const SalesReport = () => {
           <SectionTitle
             icon={Package}
             title="Product Sales Summary"
-            sub="Selling price, quantity and order performance by product."
+            sub="Top selling product performance, pricing, and order breakdown."
           />
           <button
             className="sr-btn-cost desktop-only-actions"
@@ -772,9 +786,10 @@ export const SalesReport = () => {
           <>
             {/* Mobile Product Cards (<640px) */}
             <div className="sr-product-mobile-list">
-              {productData.map(p => (
+              {productData.map((p, i) => (
                 <div key={p.name} className="sr-prod-simple-card">
                   <div className="sr-prod-sc-head">
+                    <span className="sr-prod-rank-pill">#{i + 1}</span>
                     <h4 className="sr-prod-sc-name">{p.name}</h4>
                   </div>
 
@@ -790,6 +805,7 @@ export const SalesReport = () => {
 
                   <div className="sr-prod-sc-counts">
                     <span className="sr-green">Confirmed: <strong>{p.confirmed}</strong></span>
+                    <span className="sr-pending">Pending: <strong>{p.pending}</strong></span>
                     <span className="sr-red">Cancelled: <strong>{p.cancelled}</strong></span>
                   </div>
 
@@ -807,11 +823,12 @@ export const SalesReport = () => {
               ))}
             </div>
 
-            {/* Desktop Clean Table (≥640px) - 8 Columns */}
+            {/* Desktop Clean Table (≥640px) - With Serial # and Pending column */}
             <div className="sr-product-table-wrap desktop-only-table-wrap">
               <table className="sr-product-table">
                 <thead>
                   <tr>
+                    <th style={{ width: '44px', textAlign: 'center' }}>#</th>
                     <th className="sr-sortable" onClick={() => handleSort('name')}>
                       Product {productSort === 'name' && (sortDirection === 'asc' ? '↑' : '↓')}
                     </th>
@@ -833,16 +850,23 @@ export const SalesReport = () => {
                     <th className="sr-sortable text-center" onClick={() => handleSort('confirmed')}>
                       Confirmed {productSort === 'confirmed' && (sortDirection === 'asc' ? '↑' : '↓')}
                     </th>
+                    <th className="sr-sortable text-center" onClick={() => handleSort('pending')}>
+                      Pending {productSort === 'pending' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
                     <th className="sr-sortable text-center" onClick={() => handleSort('cancelled')}>
                       Cancelled {productSort === 'cancelled' && (sortDirection === 'asc' ? '↑' : '↓')}
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {productData.map(p => (
-                    <tr key={p.name}>
+                  {productData.map((p, i) => (
+                    <tr key={p.name} className={i < 3 && productSort === 'revenue' ? 'sr-top-row' : ''}>
+                      <td className="sr-rank-cell">
+                        {i === 0 && productSort === 'revenue' ? '🥇' : i === 1 && productSort === 'revenue' ? '🥈' : i === 2 && productSort === 'revenue' ? '🥉' : `${i + 1}`}
+                      </td>
                       <td className="sr-prod-name-cell">
                         <strong>{p.name}</strong>
+                        {i === 0 && productSort === 'revenue' && <span className="sr-top-tag">Top Seller</span>}
                       </td>
                       <td className="text-center">
                         <span
@@ -866,6 +890,7 @@ export const SalesReport = () => {
                       <td className="text-right sr-green font-extrabold">{fmtTk(p.revenue)}</td>
                       <td className="text-center font-bold">{p.orders}</td>
                       <td className="text-center sr-green font-bold">{p.confirmed}</td>
+                      <td className="text-center sr-pending font-bold">{p.pending}</td>
                       <td className="text-center sr-red font-bold">{p.cancelled}</td>
                     </tr>
                   ))}
@@ -879,7 +904,7 @@ export const SalesReport = () => {
       {/* ── Daily Sales Trend Chart ── */}
       <div className="sr-card">
         <div className="sr-card-header">
-          <SectionTitle icon={BarChart3} title="Daily Sales Trend" sub="Orders vs Confirmed vs Cancelled" />
+          <SectionTitle icon={BarChart3} title="Daily Sales Trend" sub="Orders vs Confirmed vs Pending vs Cancelled" />
           <div className="sr-toggle-group">
             <button className={`sr-toggle-btn ${chartType==='bar'?'active':''}`} onClick={() => setChartType('bar')}>Bar</button>
             <button className={`sr-toggle-btn ${chartType==='area'?'active':''}`} onClick={() => setChartType('area')}>Area</button>
@@ -896,14 +921,15 @@ export const SalesReport = () => {
                 <YAxis axisLine={false} tickLine={false} tick={{ fill:'var(--sr-text-muted)', fontSize:11 }} />
                 <Tooltip content={<ChartTooltip />} />
                 <Legend wrapperStyle={{ fontSize:11, paddingTop:8 }} />
-                <Bar dataKey="total"     name="Total Orders" fill="#6366f1" radius={[4,4,0,0]} maxBarSize={28} />
-                <Bar dataKey="confirmed" name="Confirmed"    fill="#10b981" radius={[4,4,0,0]} maxBarSize={28} />
-                <Bar dataKey="cancelled" name="Cancelled"    fill="#ef4444" radius={[4,4,0,0]} maxBarSize={28} />
+                <Bar dataKey="total"     name="Total Orders" fill="#6366f1" radius={[4,4,0,0]} maxBarSize={24} />
+                <Bar dataKey="confirmed" name="Confirmed"    fill="#10b981" radius={[4,4,0,0]} maxBarSize={24} />
+                <Bar dataKey="pending"   name="Pending"      fill="#3b82f6" radius={[4,4,0,0]} maxBarSize={24} />
+                <Bar dataKey="cancelled" name="Cancelled"    fill="#ef4444" radius={[4,4,0,0]} maxBarSize={24} />
               </BarChart>
             ) : (
               <AreaChart data={dailyData} margin={{ top:10, right:10, left:-15, bottom:0 }}>
                 <defs>
-                  {[['conf','#10b981'],['canc','#ef4444'],['total','#6366f1']].map(([id,c]) => (
+                  {[['conf','#10b981'],['pend','#3b82f6'],['canc','#ef4444'],['total','#6366f1']].map(([id,c]) => (
                     <linearGradient key={id} id={`sr-grad-${id}`} x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%"  stopColor={c} stopOpacity={0.25}/>
                       <stop offset="95%" stopColor={c} stopOpacity={0}/>
@@ -917,6 +943,7 @@ export const SalesReport = () => {
                 <Legend wrapperStyle={{ fontSize:11, paddingTop:8 }} />
                 <Area dataKey="total"     name="Total Orders" stroke="#6366f1" fill="url(#sr-grad-total)" strokeWidth={2} dot={false} />
                 <Area dataKey="confirmed" name="Confirmed"    stroke="#10b981" fill="url(#sr-grad-conf)"  strokeWidth={2} dot={false} />
+                <Area dataKey="pending"   name="Pending"      stroke="#3b82f6" fill="url(#sr-grad-pend)"  strokeWidth={2} dot={false} />
                 <Area dataKey="cancelled" name="Cancelled"    stroke="#ef4444" fill="url(#sr-grad-canc)"  strokeWidth={2} dot={false} />
               </AreaChart>
             )}
