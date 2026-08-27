@@ -826,10 +826,22 @@ export const SalesReport = () => {
             {/* Desktop Clean Table (≥640px) - With Serial # and Pending column */}
             <div className="sr-product-table-wrap desktop-only-table-wrap">
               <table className="sr-product-table">
+                <colgroup>
+                  <col style={{ width: '4%' }} />
+                  <col style={{ width: '25%' }} />
+                  <col style={{ width: '9%' }} />
+                  <col style={{ width: '10%' }} />
+                  <col style={{ width: '8%' }} />
+                  <col style={{ width: '16%' }} />
+                  <col style={{ width: '7%' }} />
+                  <col style={{ width: '7%' }} />
+                  <col style={{ width: '7%' }} />
+                  <col style={{ width: '7%' }} />
+                </colgroup>
                 <thead>
                   <tr>
-                    <th style={{ width: '44px', textAlign: 'center' }}>#</th>
-                    <th className="sr-sortable" onClick={() => handleSort('name')}>
+                    <th style={{ textAlign: 'center' }}>#</th>
+                    <th className="sr-sortable text-left" onClick={() => handleSort('name')}>
                       Product {productSort === 'name' && (sortDirection === 'asc' ? '↑' : '↓')}
                     </th>
                     <th className="sr-sortable text-center" onClick={() => handleSort('unitCost')}>
@@ -841,8 +853,8 @@ export const SalesReport = () => {
                     <th className="sr-sortable text-center" onClick={() => handleSort('totalQty')}>
                       Total Qty {productSort === 'totalQty' && (sortDirection === 'asc' ? '↑' : '↓')}
                     </th>
-                    <th className="sr-sortable text-right" onClick={() => handleSort('revenue')}>
-                      Total Order Selling Amount {productSort === 'revenue' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    <th className="sr-sortable text-right" onClick={() => handleSort('revenue')} title="Total Order Selling Amount">
+                      Total Sales {productSort === 'revenue' && (sortDirection === 'asc' ? '↑' : '↓')}
                     </th>
                     <th className="sr-sortable text-center" onClick={() => handleSort('orders')}>
                       Orders {productSort === 'orders' && (sortDirection === 'asc' ? '↑' : '↓')}
@@ -865,8 +877,10 @@ export const SalesReport = () => {
                         {i === 0 && productSort === 'revenue' ? '🥇' : i === 1 && productSort === 'revenue' ? '🥈' : i === 2 && productSort === 'revenue' ? '🥉' : `${i + 1}`}
                       </td>
                       <td className="sr-prod-name-cell">
-                        <strong>{p.name}</strong>
-                        {i === 0 && productSort === 'revenue' && <span className="sr-top-tag">Top Seller</span>}
+                        <div className="sr-prod-name-flex">
+                          <span className="sr-prod-title" title={p.name}>{p.name}</span>
+                          {i === 0 && productSort === 'revenue' && <span className="sr-top-tag">Top Seller</span>}
+                        </div>
                       </td>
                       <td className="text-center">
                         <span
