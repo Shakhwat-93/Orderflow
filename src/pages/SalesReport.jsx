@@ -6,14 +6,13 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 import {
-  TrendingUp, ShoppingCart, CheckCircle2, XCircle, AlertTriangle,
-  Clock, DollarSign, FileDown, Printer, BarChart3, Package,
-  ArrowUpRight, ArrowDownRight, Trophy, Flame, Gift, Settings, Save, X, Edit3, HelpCircle,
-  ChevronDown, MoreHorizontal, Calendar, SlidersHorizontal
+  TrendingUp, ShoppingCart, CheckCircle2, XCircle, DollarSign,
+  FileDown, Printer, BarChart3, Package, Trophy, Flame,
+  Settings, X, ChevronDown, MoreHorizontal, Calendar, SlidersHorizontal, ArrowUpDown
 } from 'lucide-react';
 import './SalesReport.css';
 
-// ── Constants ─────────────────────────────────────────────────────
+// ── Constants & Status Definitions ────────────────────────────────
 const CONFIRMED_STATUSES = [
   'Confirmed',
   'Confirmed & Printed',
@@ -48,11 +47,10 @@ const STATUS_COLORS = {
 };
 const PIE_COLORS = ['#10b981','#6366f1','#ef4444','#f59e0b','#3b82f6','#8b5cf6','#94a3b8','#14b8a6'];
 
-// ── Date Helpers ──────────────────────────────────────────────────
+// ── Date Helpers & Formatters ─────────────────────────────────────
 const midnight = (d) => { const x = new Date(d); x.setHours(0,0,0,0); return x; };
 const endOfDay = (d) => { const x = new Date(d); x.setHours(23,59,59,999); return x; };
 const today    = () => midnight(new Date());
-const fmtDate  = (d) => new Date(d).toLocaleDateString('en-GB', { day:'2-digit', month:'short' });
 const fmtNum   = (n) => Number(n||0).toLocaleString();
 const fmtTk    = (n) => '৳' + fmtNum(n);
 
@@ -102,20 +100,13 @@ const exportCSV = (orders, label) => {
 };
 
 // ── Sub-components ────────────────────────────────────────────────
-const KpiCard = ({ icon: Icon, label, value, sub, color, trend, trendUp }) => (
-  <div className="sr-kpi-card" style={{ '--kc': color }}>
-    <div className="sr-kpi-icon"><Icon size={20} /></div>
-    <div className="sr-kpi-body">
-      <p className="sr-kpi-label">{label}</p>
-      <h3 className="sr-kpi-value">{value}</h3>
-      {sub && <p className="sr-kpi-sub">{sub}</p>}
+const SummaryKpiCard = ({ icon: Icon, label, value, color }) => (
+  <div className="sr-summary-kpi" style={{ '--kc': color }}>
+    <div className="sr-summary-kpi-icon"><Icon size={20} /></div>
+    <div className="sr-summary-kpi-body">
+      <span className="sr-summary-kpi-label">{label}</span>
+      <h3 className="sr-summary-kpi-val">{value}</h3>
     </div>
-    {trend != null && (
-      <div className={`sr-kpi-trend ${trendUp ? 'up' : 'down'}`}>
-        {trendUp ? <ArrowUpRight size={13}/> : <ArrowDownRight size={13}/>}
-        <span>{trend}%</span>
-      </div>
-    )}
   </div>
 );
 
@@ -169,13 +160,13 @@ const getBaseProductName = (rawName) => {
   // 1. Remove bracketed specs like [Black x2, White x1], [Olive x1]
   name = name.replace(/\[[^\]]+\]/g, '');
 
-  // 2. Remove parenthesized specs like (Color: Black), (Color: Black, Golden, Silver)
+  // 2. Remove parenthesized specs like (Color: Black)
   name = name.replace(/\([^)]+\)/g, '');
 
   // 3. Remove "x\d+" or "x \d+" (multipliers) e.g., "Sunglass x2" -> "Sunglass"
   name = name.replace(/\s+x\d+\b/gi, '');
 
-  // 4. Remove common color suffixes and descriptors after a hyphen, comma or space
+  // 4. Remove common color suffixes and descriptors
   const wordsToRemove = [
     'black', 'blue', 'beige', 'standard', 'olive', 'pink', 'white', 'golden', 'gold', 
     'silver', 'grey', 'gray', 'red', 'green', 'yellow', 'purple', 'orange', 'brown', 
@@ -189,16 +180,6 @@ const getBaseProductName = (rawName) => {
     if (isColorOrDescriptor) {
       parts.pop();
       name = parts.join(' - ');
-    }
-  }
-
-  const parts2 = name.split(/\s*[-–—,]\s*/);
-  if (parts2.length > 1) {
-    const lastPart = parts2[parts2.length - 1].toLowerCase().trim();
-    const isColorOrDescriptor = wordsToRemove.some(word => lastPart.includes(word)) || lastPart.match(/^\d+\s*pcs?$/i);
-    if (isColorOrDescriptor) {
-      parts2.pop();
-      name = parts2.join(' - ');
     }
   }
 
@@ -235,23 +216,26 @@ const getBaseProductName = (rawName) => {
     .join(' ');
 };
 
-// ── Main Component ────────────────────────────────────────────────
+// ── Main Sales Report Component ───────────────────────────────────
 export const SalesReport = () => {
   const { updatePresenceContext } = useAuth();
 
-  const [preset, setPreset]     = useState('today');
+  const [preset, setPreset]       = useState('today');
   const [dateRange, setDateRange] = useState(getPresetRange('today'));
   const [chartType, setChartType] = useState('bar'); // 'bar' | 'area'
-  const [productSort, setProductSort] = useState('revenueQty'); // default sort by Revenue Qty (Confirmed + Pending)
+  const [productSort, setProductSort] = useState('revenue'); // default sort by Total Order Amount
+  const [sortDirection, setSortDirection] = useState('desc');
   const [colorFilter, setColorFilter] = useState('All');
   const [reportOrders, setReportOrders] = useState([]);
-  const [fetching, setFetching] = useState(false);
-  const [isMoreMetricsOpen, setIsMoreMetricsOpen] = useState(false);
-  const [isDateSheetOpen, setIsDateSheetOpen] = useState(false);
+  const [fetching, setFetching]   = useState(false);
+
+  // Modals and Sheets
+  const [isDateSheetOpen, setIsDateSheetOpen]   = useState(false);
   const [isColorSheetOpen, setIsColorSheetOpen] = useState(false);
   const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
+  const [isUnitCostModalOpen, setIsUnitCostModalOpen] = useState(false);
 
-  // Unit Cost Management state (persistent in localStorage & synced with inventory table)
+  // Unit Cost Management (persistent in localStorage & synced with inventory table)
   const [productUnitCosts, setProductUnitCosts] = useState(() => {
     try {
       const cached = localStorage.getItem('sr_product_unit_costs');
@@ -261,9 +245,7 @@ export const SalesReport = () => {
     }
   });
 
-  const [isUnitCostModalOpen, setIsUnitCostModalOpen] = useState(false);
-
-  // Sync default unit costs from inventory table
+  // Sync default unit costs from inventory table on mount
   useEffect(() => {
     const fetchInventoryCosts = async () => {
       try {
@@ -313,7 +295,7 @@ export const SalesReport = () => {
     }
   };
 
-  // Fetch all orders in date range directly from Supabase to guarantee accuracy
+  // Fetch all orders in date range directly from Supabase
   useEffect(() => {
     let active = true;
     const loadReportOrders = async () => {
@@ -421,49 +403,112 @@ export const SalesReport = () => {
     }).filter(Boolean);
   }, [filtered, colorFilter]);
 
-  // ── KPI Aggregates ──
-  const kpi = useMemo(() => {
-    const isConf  = o => isConfirmedStatus(o.status) && !(o.notes && o.notes.includes('[Was Incomplete]'));
-    const isCanc  = o => o.status === 'Cancelled';
-    const isFake  = o => o.status === 'Fake Order';
-    const isPend  = o => ['New','Pending Call','Final Call Pending','Hold'].includes(o.status);
-    const isInco  = o => o.status === 'Incomplete';
+  // ── 1. Top Summary KPIs (Total Orders, Confirmed, Cancelled, Total Order Amount) ──
+  const summaryKpi = useMemo(() => {
+    const isConf = o => isConfirmedStatus(o.status) && !(o.notes && o.notes.includes('[Was Incomplete]'));
+    const isCanc = o => o.status === 'Cancelled';
+    const isPend = o => ['New','Pending Call','Final Call Pending','Hold'].includes(o.status);
 
-    const confirmed = colorFilteredData.filter(isConf);
-    const pending   = colorFilteredData.filter(isPend);
-    const incomplete = colorFilteredData.filter(isInco);
+    const totalOrders = colorFilteredData.length;
+    const confirmedOrders = colorFilteredData.filter(isConf).length;
+    const cancelledOrders = colorFilteredData.filter(isCanc).length;
 
-    // Revenue includes BOTH Confirmed + Pending orders per user specification
-    const confRevenue = confirmed.reduce((s,o) => s + (Number(o.amount)||0), 0);
-    const pendRevenue = pending.reduce((s,o) => s + (Number(o.amount)||0), 0);
-    const totalRevenue = confRevenue + pendRevenue;
-
-    const revenueOrderCount = confirmed.length + pending.length;
-    const avgVal    = revenueOrderCount > 0 ? totalRevenue / revenueOrderCount : 0;
-    const confRate  = colorFilteredData.length > 0 ? ((confirmed.length / colorFilteredData.length)*100).toFixed(1) : 0;
-
-    const isBonus = o => isConfirmedStatus(o.status) && o.notes && o.notes.includes('[Was Incomplete]');
-    const bonusOrders = colorFilteredData.filter(isBonus);
-    const bonusRevenue = bonusOrders.reduce((s,o) => s + (Number(o.amount)||0), 0);
+    // Total Order Amount = Actual selling/revenue amount generated by active orders (confirmed + pending)
+    const totalOrderAmount = colorFilteredData
+      .filter(o => isConf(o) || isPend(o))
+      .reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
 
     return {
-      total: colorFilteredData.length,
-      confirmed: confirmed.length,
-      cancelled: colorFilteredData.filter(isCanc).length,
-      fake: colorFilteredData.filter(isFake).length,
-      pending: pending.length,
-      incomplete: incomplete.length,
-      totalRevenue,
-      confRevenue,
-      pendRevenue,
-      avgVal,
-      confRate,
-      bonus: bonusOrders.length,
-      bonusRevenue
+      totalOrders,
+      confirmedOrders,
+      cancelledOrders,
+      totalOrderAmount
     };
   }, [colorFilteredData]);
 
-  // ── Daily Trend with proper timezone key mapping ──
+  // ── 2. Product-wise Sales Summary ──
+  // Columns: Product | Unit Cost | Total Qty | Total Order Amount | Orders | Confirmed | Cancelled
+  const productData = useMemo(() => {
+    const map = {};
+
+    colorFilteredData.forEach(o => {
+      const items = Array.isArray(o.ordered_items) && o.ordered_items.length > 0
+        ? o.ordered_items
+        : [{ name: o.product_name, quantity: o.quantity || 1, price: o.amount || 0 }];
+
+      const isConf = isConfirmedStatus(o.status) && !(o.notes && o.notes.includes('[Was Incomplete]'));
+      const isCanc = o.status === 'Cancelled';
+      const isPend = ['New', 'Pending Call', 'Final Call Pending', 'Hold'].includes(o.status);
+
+      // Track products in this order to count unique orders per product
+      const productsInThisOrder = new Set();
+
+      items.forEach(item => {
+        const baseName = getBaseProductName(item.name || o.product_name);
+        productsInThisOrder.add(baseName);
+
+        if (!map[baseName]) {
+          map[baseName] = {
+            name: baseName,
+            orders: 0,
+            totalQty: 0,
+            confirmed: 0,
+            cancelled: 0,
+            revenue: 0, // Actual Total Order Selling Amount
+          };
+        }
+
+        const q = Number(item.quantity || 1);
+        map[baseName].totalQty += q;
+
+        const itemRevenue = Number(item.line_total ?? (item.price ? Number(item.price) * q : o.amount)) || 0;
+        if (isConf || isPend) {
+          map[baseName].revenue += itemRevenue;
+        }
+      });
+
+      // Increment unique order count and status counts per product
+      productsInThisOrder.forEach(baseName => {
+        map[baseName].orders += 1;
+        if (isConf) map[baseName].confirmed += 1;
+        if (isCanc) map[baseName].cancelled += 1;
+      });
+    });
+
+    const result = Object.values(map).map(p => {
+      const unitCost = Number(productUnitCosts[p.name]) || 0;
+      const totalCost = unitCost * p.totalQty; // Internal cost calculation (Unit Cost × Total Qty)
+      return {
+        ...p,
+        unitCost,
+        totalCost
+      };
+    });
+
+    // Sort result
+    return result.sort((a, b) => {
+      let valA = a[productSort];
+      let valB = b[productSort];
+
+      if (productSort === 'name') {
+        return sortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      }
+      valA = Number(valA) || 0;
+      valB = Number(valB) || 0;
+      return sortDirection === 'asc' ? valA - valB : valB - valA;
+    });
+  }, [colorFilteredData, productSort, sortDirection, productUnitCosts]);
+
+  const handleSort = (field) => {
+    if (productSort === field) {
+      setSortDirection(prev => prev === 'desc' ? 'asc' : 'desc');
+    } else {
+      setProductSort(field);
+      setSortDirection('desc');
+    }
+  };
+
+  // ── Daily Sales Trend Chart Data ──
   const dailyData = useMemo(() => {
     const map = {};
     colorFilteredData.forEach(o => {
@@ -480,7 +525,6 @@ export const SalesReport = () => {
           total: 0,
           confirmed: 0,
           cancelled: 0,
-          fake: 0,
           revenue: 0
         };
       }
@@ -489,103 +533,12 @@ export const SalesReport = () => {
       if (isConfirmedStatus(s) && !(o.notes && o.notes.includes('[Was Incomplete]'))) {
         map[dayKey].confirmed++;
         map[dayKey].revenue += Number(o.amount||0);
+      } else if (s === 'Cancelled') {
+        map[dayKey].cancelled++;
       }
-      else if (s==='Cancelled') map[dayKey].cancelled++;
-      else if (s==='Fake Order') map[dayKey].fake++;
     });
     return Object.values(map).sort((a,b) => a.date.localeCompare(b.date));
   }, [colorFilteredData]);
-
-  // ── Product-wise stats (Revenue from Pending + Confirmed) ──
-  const productData = useMemo(() => {
-    const map = {};
-    colorFilteredData.forEach(o => {
-      const items = Array.isArray(o.ordered_items) && o.ordered_items.length > 0
-        ? o.ordered_items
-        : [{ name: o.product_name, quantity: o.quantity||1, price: o.amount||0 }];
-
-      items.forEach(item => {
-        const baseName = getBaseProductName(item.name || o.product_name);
-        if (!map[baseName]) {
-          map[baseName] = { 
-            name: baseName, 
-            total: 0, 
-            totalQty: 0, 
-            confirmed: 0, 
-            confirmedQty: 0, 
-            cancelled: 0, 
-            cancelledQty: 0, 
-            fake: 0, 
-            fakeQty: 0, 
-            pending: 0,
-            pendingQty: 0,
-            confRevenue: 0,
-            pendRevenue: 0,
-            revenue: 0 
-          };
-        }
-        
-        const q = Number(item.quantity || 1);
-        map[baseName].total++;
-        map[baseName].totalQty += q;
-        
-        const s = o.status;
-        const itemRevenue = Number(item.line_total ?? (item.price ? Number(item.price) * q : o.amount)) || 0;
-
-        if (isConfirmedStatus(s) && !(o.notes && o.notes.includes('[Was Incomplete]'))) {
-          map[baseName].confirmed++;
-          map[baseName].confirmedQty += q;
-          map[baseName].confRevenue += itemRevenue;
-          map[baseName].revenue += itemRevenue;
-        } else if (['New', 'Pending Call', 'Final Call Pending', 'Hold'].includes(s)) {
-          // Pending orders — also count towards revenue quantity per user specification!
-          map[baseName].pending++;
-          map[baseName].pendingQty += q;
-          map[baseName].pendRevenue += itemRevenue;
-          map[baseName].revenue += itemRevenue;
-        } else if (s === 'Cancelled') {
-          map[baseName].cancelled++;
-          map[baseName].cancelledQty += q;
-        } else if (s === 'Fake Order') {
-          map[baseName].fake++;
-          map[baseName].fakeQty += q;
-        }
-      });
-    });
-
-    return Object.values(map)
-      .map(p => {
-        const revenueQty     = p.confirmedQty + p.pendingQty; // Total Revenue Qty (Confirmed + Pending)
-        const unitCost       = Number(productUnitCosts[p.name]) || 0;
-        const totalOrderCost = unitCost * p.totalQty; // Unit Cost * Total Order Qty per user request
-        const totalCost      = unitCost * revenueQty; // COGS for Revenue Qty
-        const netProfit      = p.revenue - totalCost;
-        const profitMargin   = p.revenue > 0 ? +((netProfit / p.revenue) * 100).toFixed(1) : 0;
-        const confRate       = p.total > 0 ? +((p.confirmed / p.total) * 100).toFixed(1) : 0;
-        const fakeRate       = p.total > 0 ? +((p.fake / p.total) * 100).toFixed(1) : 0;
-
-        return {
-          ...p,
-          revenueQty,
-          unitCost,
-          totalOrderCost,
-          totalCost,
-          netProfit,
-          profitMargin,
-          confRate,
-          fakeRate
-        };
-      })
-      .sort((a, b) => (Number(b[productSort]) || 0) - (Number(a[productSort]) || 0));
-  }, [colorFilteredData, productSort, productUnitCosts]);
-
-  // Overall COGS & Profit metrics across filtered dataset
-  const totalCOGS = useMemo(() => {
-    return productData.reduce((s, p) => s + (p.totalCost || 0), 0);
-  }, [productData]);
-
-  const netProfit = kpi.totalRevenue - totalCOGS;
-  const overallMargin = kpi.totalRevenue > 0 ? +((netProfit / kpi.totalRevenue) * 100).toFixed(1) : 0;
 
   // ── Status distribution for Pie ──
   const statusDist = useMemo(() => {
@@ -598,23 +551,20 @@ export const SalesReport = () => {
   const sourceData = useMemo(() => {
     const map = {};
     colorFilteredData.forEach(o => {
-      const src = o.source || 'Unknown';
+      const src = o.source || 'Direct / Store';
       if (!map[src]) map[src] = { source: src, total:0, confirmed:0, revenue:0 };
       map[src].total++;
-      if (isConfirmedStatus(o.status) && !(o.notes && o.notes.includes('[Was Incomplete]'))) { map[src].confirmed++; map[src].revenue += Number(o.amount||0); }
+      if (isConfirmedStatus(o.status) && !(o.notes && o.notes.includes('[Was Incomplete]'))) {
+        map[src].confirmed++;
+        map[src].revenue += Number(o.amount||0);
+      }
     });
-    return Object.values(map)
-      .map(s => ({ ...s, confRate: s.total > 0 ? +((s.confirmed/s.total)*100).toFixed(1) : 0 }))
-      .sort((a,b) => b.total - a.total);
+    return Object.values(map).sort((a,b) => b.total - a.total);
   }, [colorFilteredData]);
 
-  // ── Top Sellers & Top Fake ──
+  // ── Top Selling Products (by Confirmed Orders) ──
   const topSellers = useMemo(() => {
-    return [...productData].sort((a,b) => b.confirmedQty - a.confirmedQty).slice(0,10);
-  }, [productData]);
-
-  const topFake = useMemo(() => {
-    return [...productData].sort((a,b) => b.fakeQty - a.fakeQty).filter(p => p.fakeQty > 0).slice(0,10);
+    return [...productData].sort((a,b) => b.confirmed - a.confirmed).slice(0, 8);
   }, [productData]);
 
   const presetLabel = PRESETS.find(p => p.key === preset)?.label || 'Custom';
@@ -628,12 +578,12 @@ export const SalesReport = () => {
           <div className="sr-header-icon"><TrendingUp size={20}/></div>
           <div>
             <h1>Sales Report</h1>
-            <p>Real-time business performance</p>
+            <p>Sales and order performance summary</p>
           </div>
         </div>
         <div className="sr-header-right desktop-only-actions">
-          <button className="sr-btn-cost" onClick={() => setIsUnitCostModalOpen(true)} title="Set Unit Cost for products">
-            <Settings size={14}/> Unit Costs
+          <button className="sr-btn-cost" onClick={() => setIsUnitCostModalOpen(true)} title="Configure Unit Costs">
+            <Settings size={14}/> Unit Cost Config
           </button>
           <button className="sr-btn-export" onClick={() => exportCSV(colorFilteredData, presetLabel)}>
             <FileDown size={14}/> Export CSV
@@ -713,85 +663,145 @@ export const SalesReport = () => {
         </span>
       </div>
 
-      {/* ── Mobile 2x2 Primary KPI Grid (<640px) ── */}
-      <div className="sr-mobile-kpi-wrapper">
-        <div className="sr-kpi-grid-mobile">
-          <div className="sr-kpi-card-compact">
-            <span className="kpi-c-label">TOTAL ORDERS</span>
-            <span className="kpi-c-val">{fmtNum(kpi.total)}</span>
-          </div>
+      {/* ── 4 SUMMARY METRICS (Total Orders, Confirmed, Cancelled, Total Order Amount) ── */}
+      <div className="sr-summary-grid">
+        <SummaryKpiCard
+          icon={ShoppingCart}
+          label="Total Orders"
+          value={fmtNum(summaryKpi.totalOrders)}
+          color="#6366f1"
+        />
+        <SummaryKpiCard
+          icon={CheckCircle2}
+          label="Confirmed"
+          value={fmtNum(summaryKpi.confirmedOrders)}
+          color="#10b981"
+        />
+        <SummaryKpiCard
+          icon={XCircle}
+          label="Cancelled"
+          value={fmtNum(summaryKpi.cancelledOrders)}
+          color="#ef4444"
+        />
+        <SummaryKpiCard
+          icon={DollarSign}
+          label="Total Order Amount"
+          value={fmtTk(summaryKpi.totalOrderAmount)}
+          color="#059669"
+        />
+      </div>
 
-          <div className="sr-kpi-card-compact">
-            <span className="kpi-c-label">TOTAL REVENUE</span>
-            <span className="kpi-c-val text-success">{fmtTk(kpi.totalRevenue)}</span>
-          </div>
-
-          <div className="sr-kpi-card-compact">
-            <span className="kpi-c-label">NET PROFIT</span>
-            <span className={`kpi-c-val ${netProfit >= 0 ? 'text-success' : 'text-danger'}`}>{fmtTk(netProfit)}</span>
-          </div>
-
-          <div className="sr-kpi-card-compact">
-            <span className="kpi-c-label">PENDING</span>
-            <span className="kpi-c-val text-accent">{fmtNum(kpi.pending)}</span>
-          </div>
+      {/* ── PRODUCT SALES SUMMARY ── */}
+      <div className="sr-card">
+        <div className="sr-card-header">
+          <SectionTitle
+            icon={Package}
+            title="Product Sales Summary"
+            sub="Revenue and order performance by product"
+          />
+          <button
+            className="sr-btn-cost desktop-only-actions"
+            onClick={() => setIsUnitCostModalOpen(true)}
+            style={{ fontSize: '0.78rem', padding: '6px 12px' }}
+          >
+            <Settings size={14}/> Unit Cost Config
+          </button>
         </div>
 
-        {/* Expandable Secondary Metrics */}
-        <button
-          type="button"
-          className="sr-btn-toggle-metrics"
-          onClick={() => setIsMoreMetricsOpen(!isMoreMetricsOpen)}
-        >
-          <span>{isMoreMetricsOpen ? 'Hide Secondary Metrics' : 'More Metrics'}</span>
-          <ChevronDown size={14} className={isMoreMetricsOpen ? 'rotate-180' : ''} />
-        </button>
+        {productData.length === 0 ? (
+          <div className="sr-empty-compact">No product sales data for this period.</div>
+        ) : (
+          <>
+            {/* Mobile Product Cards (<640px) */}
+            <div className="sr-product-mobile-list">
+              {productData.map(p => (
+                <div key={p.name} className="sr-prod-simple-card">
+                  <div className="sr-prod-sc-head">
+                    <h4 className="sr-prod-sc-name">{p.name}</h4>
+                  </div>
 
-        {isMoreMetricsOpen && (
-          <div className="sr-secondary-metrics-list">
-            <div className="sr-secondary-row">
-              <span className="sec-label">Confirmed Orders</span>
-              <span className="sec-val text-success">{fmtNum(kpi.confirmed)} ({kpi.confRate}%)</span>
+                  <div className="sr-prod-sc-rev">
+                    <span className="sr-prod-sc-amount">{fmtTk(p.revenue)}</span>
+                    <span className="sr-prod-sc-meta">{p.totalQty} units · {p.orders} orders</span>
+                  </div>
+
+                  <div className="sr-prod-sc-counts">
+                    <span className="sr-green">Confirmed: <strong>{p.confirmed}</strong></span>
+                    <span className="sr-red">Cancelled: <strong>{p.cancelled}</strong></span>
+                  </div>
+
+                  <div className="sr-prod-sc-cost-row">
+                    <span className="cost-lbl">Unit Cost:</span>
+                    <button
+                      className="sr-prod-sc-cost-btn"
+                      onClick={() => setIsUnitCostModalOpen(true)}
+                      title="Edit Unit Cost"
+                    >
+                      {p.unitCost > 0 ? fmtTk(p.unitCost) : <span className="text-muted">Not Set</span>}
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
-            <div className="sr-secondary-row">
-              <span className="sec-label">COGS (Total Cost)</span>
-              <span className="sec-val">{fmtTk(totalCOGS)}</span>
+
+            {/* Desktop Clean Table (≥640px) */}
+            <div className="sr-product-table-wrap desktop-only-table-wrap">
+              <table className="sr-product-table">
+                <thead>
+                  <tr>
+                    <th className="sr-sortable" onClick={() => handleSort('name')}>
+                      Product {productSort === 'name' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th className="sr-sortable text-center" onClick={() => handleSort('unitCost')}>
+                      Unit Cost {productSort === 'unitCost' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th className="sr-sortable text-center" onClick={() => handleSort('totalQty')}>
+                      Total Qty {productSort === 'totalQty' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th className="sr-sortable text-right" onClick={() => handleSort('revenue')}>
+                      Total Order Amount {productSort === 'revenue' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th className="sr-sortable text-center" onClick={() => handleSort('orders')}>
+                      Orders {productSort === 'orders' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th className="sr-sortable text-center" onClick={() => handleSort('confirmed')}>
+                      Confirmed {productSort === 'confirmed' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th className="sr-sortable text-center" onClick={() => handleSort('cancelled')}>
+                      Cancelled {productSort === 'cancelled' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {productData.map(p => (
+                    <tr key={p.name}>
+                      <td className="sr-prod-name-cell">
+                        <strong>{p.name}</strong>
+                      </td>
+                      <td className="text-center">
+                        <span
+                          className={`sr-unit-cost-badge ${p.unitCost > 0 ? 'set' : 'unset'}`}
+                          onClick={() => setIsUnitCostModalOpen(true)}
+                          title="Click to edit Unit Cost"
+                        >
+                          {p.unitCost > 0 ? fmtTk(p.unitCost) : 'Not Set'}
+                        </span>
+                      </td>
+                      <td className="text-center font-bold">{p.totalQty}</td>
+                      <td className="text-right sr-green font-extrabold">{fmtTk(p.revenue)}</td>
+                      <td className="text-center font-bold">{p.orders}</td>
+                      <td className="text-center sr-green font-bold">{p.confirmed}</td>
+                      <td className="text-center sr-red font-bold">{p.cancelled}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <div className="sr-secondary-row">
-              <span className="sec-label">Avg Order Value</span>
-              <span className="sec-val">{fmtTk(Math.round(kpi.avgVal))}</span>
-            </div>
-            <div className="sr-secondary-row">
-              <span className="sec-label">Cancelled Orders</span>
-              <span className="sec-val text-danger">{fmtNum(kpi.cancelled)}</span>
-            </div>
-            <div className="sr-secondary-row">
-              <span className="sec-label">Fake Orders</span>
-              <span className="sec-val text-warning">{fmtNum(kpi.fake)}</span>
-            </div>
-            <div className="sr-secondary-row">
-              <span className="sec-label">Incomplete Orders</span>
-              <span className="sec-val">{fmtNum(kpi.incomplete)}</span>
-            </div>
-          </div>
+          </>
         )}
       </div>
 
-      {/* ── Desktop Full KPI Cards (≥640px) ── */}
-      <div className="sr-kpi-grid desktop-only-kpi">
-        <KpiCard icon={ShoppingCart}  label="Total Orders"       value={fmtNum(kpi.total)}       color="#6366f1" />
-        <KpiCard icon={CheckCircle2}  label="Confirmed"          value={fmtNum(kpi.confirmed)}   color="#10b981" sub={`${kpi.confRate}% confirm rate`} />
-        <KpiCard icon={Clock}         label="Pending Orders"     value={fmtNum(kpi.pending)}     color="#3b82f6" sub="Pending Call / Hold" />
-        <KpiCard icon={DollarSign}    label="Total Revenue"      value={fmtTk(kpi.totalRevenue)} color="#10b981" sub={`Conf: ${fmtTk(kpi.confRevenue)} · Pend: ${fmtTk(kpi.pendRevenue)}`} />
-        <KpiCard icon={Package}       label="COGS (Total Cost)"   value={fmtTk(totalCOGS)}        color="#eab308" sub="Unit Cost × Rev Qty" />
-        <KpiCard icon={TrendingUp}    label="Net Profit"         value={fmtTk(netProfit)}        color={netProfit >= 0 ? '#10b981' : '#ef4444'} sub={`Margin: ${overallMargin}%`} />
-        <KpiCard icon={BarChart3}     label="Avg Order Value"    value={fmtTk(Math.round(kpi.avgVal))} color="#8b5cf6" />
-        <KpiCard icon={XCircle}       label="Cancelled"          value={fmtNum(kpi.cancelled)}   color="#ef4444" />
-        <KpiCard icon={AlertTriangle} label="Fake Orders"        value={fmtNum(kpi.fake)}         color="#f59e0b" />
-        <KpiCard icon={HelpCircle}    label="Incomplete Orders"  value={fmtNum(kpi.incomplete)}   color="#ec4899" sub="Checkout Auto-save" />
-      </div>
-
-      {/* ── Daily Trend Chart ── */}
+      {/* ── Daily Sales Trend Chart ── */}
       <div className="sr-card">
         <div className="sr-card-header">
           <SectionTitle icon={BarChart3} title="Daily Sales Trend" sub="Orders vs Confirmed vs Cancelled" />
@@ -811,15 +821,14 @@ export const SalesReport = () => {
                 <YAxis axisLine={false} tickLine={false} tick={{ fill:'var(--sr-text-muted)', fontSize:11 }} />
                 <Tooltip content={<ChartTooltip />} />
                 <Legend wrapperStyle={{ fontSize:11, paddingTop:8 }} />
-                <Bar dataKey="total"     name="Total"     fill="#6366f1" radius={[4,4,0,0]} maxBarSize={28} />
-                <Bar dataKey="confirmed" name="Confirmed" fill="#10b981" radius={[4,4,0,0]} maxBarSize={28} />
-                <Bar dataKey="cancelled" name="Cancelled" fill="#ef4444" radius={[4,4,0,0]} maxBarSize={28} />
-                <Bar dataKey="fake"      name="Fake"      fill="#f59e0b" radius={[4,4,0,0]} maxBarSize={28} />
+                <Bar dataKey="total"     name="Total Orders" fill="#6366f1" radius={[4,4,0,0]} maxBarSize={28} />
+                <Bar dataKey="confirmed" name="Confirmed"    fill="#10b981" radius={[4,4,0,0]} maxBarSize={28} />
+                <Bar dataKey="cancelled" name="Cancelled"    fill="#ef4444" radius={[4,4,0,0]} maxBarSize={28} />
               </BarChart>
             ) : (
               <AreaChart data={dailyData} margin={{ top:10, right:10, left:-15, bottom:0 }}>
                 <defs>
-                  {[['conf','#10b981'],['canc','#ef4444'],['fake','#f59e0b'],['total','#6366f1']].map(([id,c]) => (
+                  {[['conf','#10b981'],['canc','#ef4444'],['total','#6366f1']].map(([id,c]) => (
                     <linearGradient key={id} id={`sr-grad-${id}`} x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%"  stopColor={c} stopOpacity={0.25}/>
                       <stop offset="95%" stopColor={c} stopOpacity={0}/>
@@ -831,25 +840,24 @@ export const SalesReport = () => {
                 <YAxis axisLine={false} tickLine={false} tick={{ fill:'var(--sr-text-muted)', fontSize:11 }} />
                 <Tooltip content={<ChartTooltip />} />
                 <Legend wrapperStyle={{ fontSize:11, paddingTop:8 }} />
-                <Area dataKey="total"     name="Total"     stroke="#6366f1" fill="url(#sr-grad-total)" strokeWidth={2} dot={false} />
-                <Area dataKey="confirmed" name="Confirmed" stroke="#10b981" fill="url(#sr-grad-conf)"  strokeWidth={2} dot={false} />
-                <Area dataKey="cancelled" name="Cancelled" stroke="#ef4444" fill="url(#sr-grad-canc)"  strokeWidth={2} dot={false} />
-                <Area dataKey="fake"      name="Fake"      stroke="#f59e0b" fill="url(#sr-grad-fake)"  strokeWidth={2} dot={false} />
+                <Area dataKey="total"     name="Total Orders" stroke="#6366f1" fill="url(#sr-grad-total)" strokeWidth={2} dot={false} />
+                <Area dataKey="confirmed" name="Confirmed"    stroke="#10b981" fill="url(#sr-grad-conf)"  strokeWidth={2} dot={false} />
+                <Area dataKey="cancelled" name="Cancelled"    stroke="#ef4444" fill="url(#sr-grad-canc)"  strokeWidth={2} dot={false} />
               </AreaChart>
             )}
           </ResponsiveContainer>
         )}
       </div>
 
-      {/* ── Two Column: Pie + Source ── */}
+      {/* ── Two Column: Order Status + Source ── */}
       <div className="sr-two-col">
 
-        {/* Status Pie */}
+        {/* Order Status Distribution */}
         <div className="sr-card">
           <div className="sr-card-header">
             <SectionTitle icon={BarChart3} title="Order Status Distribution" />
           </div>
-          {statusDist.length === 0 ? <div className="sr-empty-compact">No order status data.</div> : (
+          {statusDist.length === 0 ? <div className="sr-empty-compact">No order status data for this period.</div> : (
             <>
               <ResponsiveContainer width="100%" height={200} minWidth={0} minHeight={0}>
                 <PieChart>
@@ -866,8 +874,7 @@ export const SalesReport = () => {
                   <div key={d.name} className="sr-pie-legend-row">
                     <span className="sr-pie-dot" style={{ background: STATUS_COLORS[d.name] || PIE_COLORS[i % PIE_COLORS.length] }} />
                     <span className="sr-pie-name">{d.name}</span>
-                    <strong>{d.value}</strong>
-                    <span className="sr-pie-pct">{filtered.length > 0 ? ((d.value/filtered.length)*100).toFixed(1) : 0}%</span>
+                    <strong>{d.value} orders</strong>
                   </div>
                 ))}
               </div>
@@ -875,13 +882,12 @@ export const SalesReport = () => {
           )}
         </div>
 
-        {/* Source Breakdown (Mobile Card List + Desktop Table) */}
+        {/* Source Breakdown */}
         <div className="sr-card">
           <div className="sr-card-header">
             <SectionTitle icon={BarChart3} title="Source Breakdown" sub="Where orders originate" />
           </div>
 
-          {/* Mobile Source Card List */}
           <div className="sr-source-mobile-list">
             {sourceData.length === 0 ? (
               <div className="sr-empty-compact">No source data for this period.</div>
@@ -889,32 +895,29 @@ export const SalesReport = () => {
               sourceData.map(s => (
                 <div key={s.source} className="sr-source-mobile-item">
                   <div className="sr-source-m-top">
-                    <span className="sr-source-m-name">{s.source || 'Unknown'}</span>
+                    <span className="sr-source-m-name">{s.source || 'Direct / Store'}</span>
                     <span className="sr-source-m-tot">{s.total} orders</span>
                   </div>
                   <div className="sr-source-m-bottom">
-                    <span>Conf: <strong>{s.confirmed}</strong></span>
-                    <span className="sr-green">Rev: <strong>{fmtTk(s.revenue)}</strong></span>
-                    <span className={`sr-rate-pill ${s.confRate >= 50 ? 'good' : 'warn'}`}>{s.confRate}%</span>
+                    <span>Confirmed: <strong className="sr-green">{s.confirmed}</strong></span>
+                    <span>Order Amount: <strong className="sr-green">{fmtTk(s.revenue)}</strong></span>
                   </div>
                 </div>
               ))
             )}
           </div>
 
-          {/* Desktop Source Table */}
           <div className="sr-source-table-wrap desktop-only-table-wrap">
             <div className="sr-source-table">
               <div className="sr-source-head">
-                <span>Source</span><span>Total</span><span>Confirmed</span><span>Revenue</span><span>Conf%</span>
+                <span>Source</span><span>Total Orders</span><span>Confirmed</span><span>Order Amount</span>
               </div>
               {sourceData.length === 0 ? <div className="sr-empty-compact">No data</div> : sourceData.map(s => (
                 <div key={s.source} className="sr-source-row">
-                  <span className="sr-source-name">{s.source || 'Unknown'}</span>
+                  <span className="sr-source-name">{s.source || 'Direct / Store'}</span>
                   <span>{s.total}</span>
                   <span className="sr-green">{s.confirmed}</span>
-                  <span className="sr-green">{fmtTk(s.revenue)}</span>
-                  <span className={`sr-rate-pill ${s.confRate >= 50 ? 'good' : 'warn'}`}>{s.confRate}%</span>
+                  <span className="sr-green font-bold">{fmtTk(s.revenue)}</span>
                 </div>
               ))}
             </div>
@@ -922,174 +925,20 @@ export const SalesReport = () => {
         </div>
       </div>
 
-      {/* ── Top Selling + Top Fake Bar Charts ── */}
-      <div className="sr-two-col">
-        <div className="sr-card">
-          <div className="sr-card-header">
-            <SectionTitle icon={Trophy} title="Top Selling Products" sub="By confirmed orders" />
-          </div>
-          {topSellers.length === 0 ? <div className="sr-empty-compact">No confirmed orders yet.</div> : (
-            <ResponsiveContainer width="100%" height={320} minWidth={0} minHeight={0}>
-              <BarChart data={topSellers} layout="vertical" margin={{ top:0, right:16, left:0, bottom:0 }}>
-                <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill:'var(--sr-text-muted)', fontSize:11 }} />
-                <YAxis dataKey="name" type="category" width={110} axisLine={false} tickLine={false} tick={{ fill:'var(--sr-text-sub)', fontSize:10.5, fontWeight:600 }} tickFormatter={(val) => val.length > 18 ? val.substring(0, 16) + '...' : val} />
-                <Tooltip content={<ChartTooltip />} />
-                <Bar dataKey="confirmedQty" name="Confirmed Qty" fill="#10b981" radius={[0,6,6,0]} maxBarSize={18} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-        <div className="sr-card">
-          <div className="sr-card-header">
-            <SectionTitle icon={Flame} title="Top Fake Order Products" sub="Products with most fake orders" />
-          </div>
-          {topFake.length === 0 ? <div className="sr-empty-compact">No fake orders in this period 🎉</div> : (
-            <ResponsiveContainer width="100%" height={320} minWidth={0} minHeight={0}>
-              <BarChart data={topFake} layout="vertical" margin={{ top:0, right:16, left:0, bottom:0 }}>
-                <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill:'var(--sr-text-muted)', fontSize:11 }} />
-                <YAxis dataKey="name" type="category" width={110} axisLine={false} tickLine={false} tick={{ fill:'var(--sr-text-sub)', fontSize:10.5, fontWeight:600 }} tickFormatter={(val) => val.length > 18 ? val.substring(0, 16) + '...' : val} />
-                <Tooltip content={<ChartTooltip />} />
-                <Bar dataKey="fakeQty" name="Fake Qty" fill="#f59e0b" radius={[0,6,6,0]} maxBarSize={18} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-      </div>
-
-      {/* ── Product-wise Sales & Profit Breakdown ── */}
+      {/* ── Top Selling Products ── */}
       <div className="sr-card">
         <div className="sr-card-header">
-          <SectionTitle icon={Package} title="Product-wise Sales & Profit" sub="Revenue = Confirmed + Pending" />
-          <button className="sr-btn-cost desktop-only-actions" onClick={() => setIsUnitCostModalOpen(true)} style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
-            <Settings size={14}/> Unit Cost Config
-          </button>
+          <SectionTitle icon={Trophy} title="Top Selling Products" sub="By confirmed orders" />
         </div>
-
-        {productData.length === 0 ? (
-          <div className="sr-empty-compact">No product data for this period.</div>
-        ) : (
-          <>
-            {/* Mobile Product Card List (<1024px) */}
-            <div className="sr-product-mobile-list">
-              {productData.map((p, i) => (
-                <div key={p.name} className="sr-prod-m-card">
-                  <div className="sr-prod-m-top">
-                    <span className="sr-prod-m-rank">#{i + 1}</span>
-                    <div className="sr-prod-m-title-wrap">
-                      <h4 className="sr-prod-m-name">{p.name}</h4>
-                      {i === 0 && productSort === 'revenueQty' && <span className="sr-top-badge">🔥 Top</span>}
-                      {p.fakeRate > 20 && <span className="sr-fake-warn">⚠️ High Fake</span>}
-                    </div>
-                  </div>
-
-                  <div className="sr-prod-m-grid">
-                    <div className="sr-prod-m-stat">
-                      <span className="lbl">REV QTY</span>
-                      <span className="val">{p.revenueQty} pcs</span>
-                    </div>
-                    <div className="sr-prod-m-stat">
-                      <span className="lbl">GROSS REV</span>
-                      <span className="val sr-green">{fmtTk(p.revenue)}</span>
-                    </div>
-                    <div className="sr-prod-m-stat">
-                      <span className="lbl">NET PROFIT</span>
-                      <span className={`val ${p.netProfit >= 0 ? 'sr-green' : 'sr-red'}`}>{fmtTk(p.netProfit)}</span>
-                    </div>
-                    <div className="sr-prod-m-stat">
-                      <span className="lbl">MARGIN</span>
-                      <span className="val">{p.profitMargin}%</span>
-                    </div>
-                  </div>
-
-                  <div className="sr-prod-m-footer">
-                    <div className="sr-prod-m-cost-edit">
-                      <span className="cost-lbl">Unit Cost:</span>
-                      <div className="cost-input-box">
-                        <span>৳</span>
-                        <input
-                          type="number"
-                          min="0"
-                          value={p.unitCost || ''}
-                          onChange={(e) => handleUnitCostChange(p.name, e.target.value)}
-                          placeholder="0"
-                        />
-                      </div>
-                    </div>
-                    <div className="sr-prod-m-rates">
-                      <span>Conf: {p.confRate}%</span>
-                      <span>COGS: {fmtTk(p.totalCost)}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Desktop Product Table (≥1024px) */}
-            <div className="sr-product-table-wrap desktop-only-table-wrap">
-              <table className="sr-product-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '22px', textAlign: 'center' }}>#</th>
-                    <th>Product</th>
-                    <th className="sr-sortable" onClick={() => setProductSort('unitCost')}>Unit Cost {productSort==='unitCost'&&'↓'}</th>
-                    <th className="sr-sortable" onClick={() => setProductSort('total')}>Orders {productSort==='total'&&'↓'}</th>
-                    <th className="sr-sortable" onClick={() => setProductSort('totalQty')}>Ord Qty {productSort==='totalQty'&&'↓'}</th>
-                    <th className="sr-sortable" onClick={() => setProductSort('totalOrderCost')}>Ord Cost {productSort==='totalOrderCost'&&'↓'}</th>
-                    <th className="sr-sortable" onClick={() => setProductSort('confirmedQty')}>Conf Qty {productSort==='confirmedQty'&&'↓'}</th>
-                    <th className="sr-sortable" onClick={() => setProductSort('pendingQty')}>Pend Qty {productSort==='pendingQty'&&'↓'}</th>
-                    <th className="sr-sortable" onClick={() => setProductSort('revenueQty')}>Rev Qty {productSort==='revenueQty'&&'↓'}</th>
-                    <th className="sr-sortable" onClick={() => setProductSort('revenue')}>Revenue {productSort==='revenue'&&'↓'}</th>
-                    <th className="sr-sortable" onClick={() => setProductSort('totalCost')}>COGS {productSort==='totalCost'&&'↓'}</th>
-                    <th className="sr-sortable" onClick={() => setProductSort('netProfit')}>Net Profit {productSort==='netProfit'&&'↓'}</th>
-                    <th className="sr-sortable" onClick={() => setProductSort('profitMargin')}>Margin {productSort==='profitMargin'&&'↓'}</th>
-                    <th className="sr-sortable" onClick={() => setProductSort('confRate')}>Conf% {productSort==='confRate'&&'↓'}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {productData.map((p, i) => (
-                    <tr key={p.name} className={i===0 && productSort==='revenueQty' ? 'sr-top-row' : ''}>
-                      <td className="sr-rank">
-                        {productSort==='revenueQty' ? (i===0 ? '🥇' : i===1 ? '🥈' : i===2 ? '🥉' : i+1) : i+1}
-                      </td>
-                      <td className="sr-prod-name">
-                        {p.name}
-                        {p.fakeRate > 20 && <span className="sr-fake-warn">⚠️ High Fake</span>}
-                        {i===0 && productSort==='revenueQty' && <span className="sr-top-badge">🔥 Top</span>}
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          min="0"
-                          className="sr-unit-cost-input"
-                          value={p.unitCost || ''}
-                          onChange={(e) => handleUnitCostChange(p.name, e.target.value)}
-                          placeholder="৳ Cost"
-                          title="Set unit making cost for this product"
-                        />
-                      </td>
-                      <td style={{ fontWeight: 700 }}>{p.total}</td>
-                      <td style={{ fontWeight: 800, color: 'var(--sr-text)' }}>{p.totalQty}</td>
-                      <td style={{ fontWeight: 700, color: '#eab308' }} title="Unit Cost × Total Order Qty">{fmtTk(p.totalOrderCost)}</td>
-                      <td className="sr-green" style={{ fontWeight: 700 }}>{p.confirmedQty}</td>
-                      <td className="sr-pending" style={{ fontWeight: 700 }}>{p.pendingQty || 0}</td>
-                      <td style={{ fontWeight: 800, color: 'var(--sr-text)' }}>{p.revenueQty}</td>
-                      <td className="sr-green" style={{ fontWeight: 800 }}>{fmtTk(p.revenue)}</td>
-                      <td style={{ fontWeight: 700, color: '#eab308' }}>{fmtTk(p.totalCost)}</td>
-                      <td style={{ fontWeight: 800, color: p.netProfit >= 0 ? '#10b981' : '#ef4444' }}>
-                        {fmtTk(p.netProfit)}
-                      </td>
-                      <td>
-                        <span className={`sr-rate-pill ${p.profitMargin >= 30 ? 'good' : p.profitMargin > 0 ? 'neutral' : 'warn'}`}>
-                          {p.profitMargin}%
-                        </span>
-                      </td>
-                      <td><span className={`sr-rate-pill ${p.confRate>=50?'good':'warn'}`}>{p.confRate}%</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
+        {topSellers.length === 0 ? <div className="sr-empty-compact">No confirmed orders yet.</div> : (
+          <ResponsiveContainer width="100%" height={280} minWidth={0} minHeight={0}>
+            <BarChart data={topSellers} layout="vertical" margin={{ top:0, right:16, left:0, bottom:0 }}>
+              <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill:'var(--sr-text-muted)', fontSize:11 }} />
+              <YAxis dataKey="name" type="category" width={140} axisLine={false} tickLine={false} tick={{ fill:'var(--sr-text-sub)', fontSize:11, fontWeight:600 }} tickFormatter={(val) => val.length > 20 ? val.substring(0, 18) + '...' : val} />
+              <Tooltip content={<ChartTooltip />} />
+              <Bar dataKey="confirmed" name="Confirmed Orders" fill="#10b981" radius={[0,6,6,0]} maxBarSize={18} />
+            </BarChart>
+          </ResponsiveContainer>
         )}
       </div>
 
@@ -1211,14 +1060,14 @@ export const SalesReport = () => {
       {isUnitCostModalOpen && (
         <div className="sr-modal-backdrop" onClick={() => setIsUnitCostModalOpen(false)}>
           <div className="sr-modal-shell" onClick={e => e.stopPropagation()}>
-            <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid var(--sr-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid var(--sr-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'var(--sr-accent-bg)', color: 'var(--sr-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: '34px', height: '34px', borderRadius: '8px', background: 'var(--sr-accent-bg)', color: 'var(--sr-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Settings size={18} />
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: 'var(--sr-text)' }}>Product Unit Cost Manager</h3>
-                  <p style={{ margin: 0, fontSize: '12px', color: 'var(--sr-text-muted)' }}>Configure COGS per unit for exact revenue & profit analytics</p>
+                  <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: 'var(--sr-text)' }}>Product Unit Cost Config</h3>
+                  <p style={{ margin: 0, fontSize: '11.5px', color: 'var(--sr-text-muted)' }}>Configure internal unit production/making cost per product</p>
                 </div>
               </div>
               <button onClick={() => setIsUnitCostModalOpen(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--sr-text-muted)' }}>
@@ -1226,12 +1075,12 @@ export const SalesReport = () => {
               </button>
             </div>
 
-            <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {productData.map(p => (
-                <div key={p.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: '12px', background: 'var(--sr-btn-bg)', border: '1px solid var(--sr-btn-bdr)' }}>
-                  <div>
+                <div key={p.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: '10px', background: 'var(--sr-btn-bg)', border: '1px solid var(--sr-btn-bdr)' }}>
+                  <div style={{ flex: 1, paddingRight: '12px' }}>
                     <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--sr-text)' }}>{p.name}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--sr-text-muted)' }}>Rev Qty: {p.revenueQty} pcs · Gross Rev: {fmtTk(p.revenue)}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--sr-text-muted)' }}>{p.totalQty} total units ordered</div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--sr-text-sub)' }}>৳</span>
@@ -1242,17 +1091,17 @@ export const SalesReport = () => {
                       value={p.unitCost || ''}
                       onChange={e => handleUnitCostChange(p.name, e.target.value)}
                       placeholder="0"
-                      style={{ width: '100px', fontSize: '13px', padding: '6px 10px' }}
+                      style={{ width: '90px', fontSize: '13px', padding: '6px 8px' }}
                     />
                   </div>
                 </div>
               ))}
             </div>
 
-            <div style={{ padding: '16px 24px', borderTop: '1px solid var(--sr-border)', display: 'flex', justifyContent: 'flex-end' }}>
+            <div style={{ padding: '14px 20px', borderTop: '1px solid var(--sr-border)', display: 'flex', justifyContent: 'flex-end' }}>
               <button
                 onClick={() => setIsUnitCostModalOpen(false)}
-                style={{ padding: '9px 20px', borderRadius: '10px', background: 'var(--sr-accent)', color: '#fff', border: 'none', fontWeight: 800, fontSize: '13px', cursor: 'pointer' }}
+                style={{ padding: '8px 20px', borderRadius: '8px', background: 'var(--sr-accent)', color: '#fff', border: 'none', fontWeight: 800, fontSize: '13px', cursor: 'pointer' }}
               >
                 Done
               </button>
