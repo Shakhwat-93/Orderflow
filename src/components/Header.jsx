@@ -246,7 +246,7 @@ export const Header = ({ onMenuToggle }) => {
         <Search className="header-search-icon" size={18} />
         <input
           type="text"
-          placeholder="Search everything..."
+          placeholder="Search..."
           className="search-input"
           value={searchQuery}
           onChange={(e) => {

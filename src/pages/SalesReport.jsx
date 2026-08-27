@@ -8,7 +8,8 @@ import {
 import {
   TrendingUp, ShoppingCart, CheckCircle2, XCircle, AlertTriangle,
   Clock, DollarSign, FileDown, Printer, BarChart3, Package,
-  ArrowUpRight, ArrowDownRight, Trophy, Flame, Gift, Settings, Save, X, Edit3, HelpCircle
+  ArrowUpRight, ArrowDownRight, Trophy, Flame, Gift, Settings, Save, X, Edit3, HelpCircle,
+  ChevronDown, MoreHorizontal, Calendar, SlidersHorizontal
 } from 'lucide-react';
 import './SalesReport.css';
 
@@ -245,6 +246,10 @@ export const SalesReport = () => {
   const [colorFilter, setColorFilter] = useState('All');
   const [reportOrders, setReportOrders] = useState([]);
   const [fetching, setFetching] = useState(false);
+  const [isMoreMetricsOpen, setIsMoreMetricsOpen] = useState(false);
+  const [isDateSheetOpen, setIsDateSheetOpen] = useState(false);
+  const [isColorSheetOpen, setIsColorSheetOpen] = useState(false);
+  const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
 
   // Unit Cost Management state (persistent in localStorage & synced with inventory table)
   const [productUnitCosts, setProductUnitCosts] = useState(() => {
@@ -620,27 +625,56 @@ export const SalesReport = () => {
       {/* ── Header ── */}
       <div className="sr-header">
         <div className="sr-header-left">
-          <div className="sr-header-icon"><TrendingUp size={22}/></div>
+          <div className="sr-header-icon"><TrendingUp size={20}/></div>
           <div>
             <h1>Sales Report</h1>
-            <p>Real-time business performance dashboard</p>
+            <p>Real-time business performance</p>
           </div>
         </div>
-        <div className="sr-header-right">
+        <div className="sr-header-right desktop-only-actions">
           <button className="sr-btn-cost" onClick={() => setIsUnitCostModalOpen(true)} title="Set Unit Cost for products">
-            <Settings size={15}/> Unit Costs
+            <Settings size={14}/> Unit Costs
           </button>
           <button className="sr-btn-export" onClick={() => exportCSV(colorFilteredData, presetLabel)}>
-            <FileDown size={15}/> Export CSV
+            <FileDown size={14}/> Export CSV
           </button>
           <button className="sr-btn-print" onClick={() => window.print()}>
-            <Printer size={15}/> Print
+            <Printer size={14}/> Print
+          </button>
+        </div>
+
+        {/* Mobile Header Actions */}
+        <div className="sr-header-right mobile-only-actions">
+          <button className="sr-btn-cost" onClick={() => setIsUnitCostModalOpen(true)}>
+            <Settings size={14}/> Unit Costs
+          </button>
+          <button className="sr-btn-more-menu" onClick={() => setIsHeaderMenuOpen(true)} aria-label="More options">
+            <MoreHorizontal size={16} />
           </button>
         </div>
       </div>
 
-      {/* ── Date Presets & Filters Bar ── */}
-      <div className="sr-presets-bar">
+      {/* ── Mobile Compact Filter Bar (<640px) ── */}
+      <div className="sr-mobile-filter-bar">
+        <button className="sr-mobile-filter-pill" onClick={() => setIsDateSheetOpen(true)}>
+          <Calendar size={13} />
+          <span>{presetLabel}</span>
+          <ChevronDown size={12} />
+        </button>
+
+        <button className="sr-mobile-filter-pill" onClick={() => setIsColorSheetOpen(true)}>
+          <SlidersHorizontal size={13} />
+          <span>{colorFilter === 'All' ? 'All Colors' : colorFilter}</span>
+          <ChevronDown size={12} />
+        </button>
+
+        <span className="sr-mobile-order-count">
+          {fetching ? '...' : `${fmtNum(colorFilteredData.length)} orders`}
+        </span>
+      </div>
+
+      {/* ── Desktop Date Presets & Filters Bar (≥640px) ── */}
+      <div className="sr-presets-bar desktop-only-presets">
         <div className="sr-presets">
           {PRESETS.map(p => (
             <button key={p.key} className={`sr-preset-btn ${preset===p.key ? 'active' : ''}`} onClick={() => applyPreset(p.key)}>
@@ -661,13 +695,12 @@ export const SalesReport = () => {
         )}
 
         {/* Color Filter Dropdown */}
-        <div className="sr-color-filter-wrapper" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
-          <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--sr-text-sub)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Color:</span>
+        <div className="sr-color-filter-wrapper">
+          <span className="sr-color-label">Color:</span>
           <select 
             className="sr-date-input" 
             value={colorFilter} 
             onChange={e => setColorFilter(e.target.value)}
-            style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--sr-btn-bdr)', background: 'var(--sr-btn-bg)', color: 'var(--sr-text)', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}
           >
             {uniqueColors.map(c => (
               <option key={c} value={c}>{c === 'All' ? 'All Colors' : c}</option>
@@ -675,13 +708,77 @@ export const SalesReport = () => {
           </select>
         </div>
 
-        <span className="sr-order-count" style={{ marginLeft: '12px' }}>
-          {fetching ? 'Syncing Accurate Data...' : `${fmtNum(colorFilteredData.length)} orders`}
+        <span className="sr-order-count">
+          {fetching ? 'Syncing...' : `${fmtNum(colorFilteredData.length)} orders`}
         </span>
       </div>
 
-      {/* ── KPI Cards ── */}
-      <div className="sr-kpi-grid">
+      {/* ── Mobile 2x2 Primary KPI Grid (<640px) ── */}
+      <div className="sr-mobile-kpi-wrapper">
+        <div className="sr-kpi-grid-mobile">
+          <div className="sr-kpi-card-compact">
+            <span className="kpi-c-label">TOTAL ORDERS</span>
+            <span className="kpi-c-val">{fmtNum(kpi.total)}</span>
+          </div>
+
+          <div className="sr-kpi-card-compact">
+            <span className="kpi-c-label">TOTAL REVENUE</span>
+            <span className="kpi-c-val text-success">{fmtTk(kpi.totalRevenue)}</span>
+          </div>
+
+          <div className="sr-kpi-card-compact">
+            <span className="kpi-c-label">NET PROFIT</span>
+            <span className={`kpi-c-val ${netProfit >= 0 ? 'text-success' : 'text-danger'}`}>{fmtTk(netProfit)}</span>
+          </div>
+
+          <div className="sr-kpi-card-compact">
+            <span className="kpi-c-label">PENDING</span>
+            <span className="kpi-c-val text-accent">{fmtNum(kpi.pending)}</span>
+          </div>
+        </div>
+
+        {/* Expandable Secondary Metrics */}
+        <button
+          type="button"
+          className="sr-btn-toggle-metrics"
+          onClick={() => setIsMoreMetricsOpen(!isMoreMetricsOpen)}
+        >
+          <span>{isMoreMetricsOpen ? 'Hide Secondary Metrics' : 'More Metrics'}</span>
+          <ChevronDown size={14} className={isMoreMetricsOpen ? 'rotate-180' : ''} />
+        </button>
+
+        {isMoreMetricsOpen && (
+          <div className="sr-secondary-metrics-list">
+            <div className="sr-secondary-row">
+              <span className="sec-label">Confirmed Orders</span>
+              <span className="sec-val text-success">{fmtNum(kpi.confirmed)} ({kpi.confRate}%)</span>
+            </div>
+            <div className="sr-secondary-row">
+              <span className="sec-label">COGS (Total Cost)</span>
+              <span className="sec-val">{fmtTk(totalCOGS)}</span>
+            </div>
+            <div className="sr-secondary-row">
+              <span className="sec-label">Avg Order Value</span>
+              <span className="sec-val">{fmtTk(Math.round(kpi.avgVal))}</span>
+            </div>
+            <div className="sr-secondary-row">
+              <span className="sec-label">Cancelled Orders</span>
+              <span className="sec-val text-danger">{fmtNum(kpi.cancelled)}</span>
+            </div>
+            <div className="sr-secondary-row">
+              <span className="sec-label">Fake Orders</span>
+              <span className="sec-val text-warning">{fmtNum(kpi.fake)}</span>
+            </div>
+            <div className="sr-secondary-row">
+              <span className="sec-label">Incomplete Orders</span>
+              <span className="sec-val">{fmtNum(kpi.incomplete)}</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Desktop Full KPI Cards (≥640px) ── */}
+      <div className="sr-kpi-grid desktop-only-kpi">
         <KpiCard icon={ShoppingCart}  label="Total Orders"       value={fmtNum(kpi.total)}       color="#6366f1" />
         <KpiCard icon={CheckCircle2}  label="Confirmed"          value={fmtNum(kpi.confirmed)}   color="#10b981" sub={`${kpi.confRate}% confirm rate`} />
         <KpiCard icon={Clock}         label="Pending Orders"     value={fmtNum(kpi.pending)}     color="#3b82f6" sub="Pending Call / Hold" />
@@ -697,30 +794,30 @@ export const SalesReport = () => {
       {/* ── Daily Trend Chart ── */}
       <div className="sr-card">
         <div className="sr-card-header">
-          <SectionTitle icon={BarChart3} title="Daily Sales Trend" sub="Orders vs Confirmed vs Cancelled vs Fake" />
+          <SectionTitle icon={BarChart3} title="Daily Sales Trend" sub="Orders vs Confirmed vs Cancelled" />
           <div className="sr-toggle-group">
             <button className={`sr-toggle-btn ${chartType==='bar'?'active':''}`} onClick={() => setChartType('bar')}>Bar</button>
             <button className={`sr-toggle-btn ${chartType==='area'?'active':''}`} onClick={() => setChartType('area')}>Area</button>
           </div>
         </div>
         {dailyData.length === 0 ? (
-          <div className="sr-empty">No orders in this period</div>
+          <div className="sr-empty-compact">No sales data for this period.</div>
         ) : (
-          <ResponsiveContainer width="100%" height={280} minWidth={0} minHeight={0}>
+          <ResponsiveContainer width="100%" height={240} minWidth={0} minHeight={0}>
             {chartType === 'bar' ? (
-              <BarChart data={dailyData} margin={{ top:10, right:10, left:-10, bottom:0 }}>
+              <BarChart data={dailyData} margin={{ top:10, right:10, left:-15, bottom:0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(99,102,241,0.06)" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill:'var(--sr-text-muted)', fontSize:11 }} dy={8} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fill:'var(--sr-text-muted)', fontSize:11 }} />
                 <Tooltip content={<ChartTooltip />} />
-                <Legend wrapperStyle={{ fontSize:12, paddingTop:12 }} />
-                <Bar dataKey="total"     name="Total"     fill="#6366f1" radius={[4,4,0,0]} maxBarSize={32} />
-                <Bar dataKey="confirmed" name="Confirmed" fill="#10b981" radius={[4,4,0,0]} maxBarSize={32} />
-                <Bar dataKey="cancelled" name="Cancelled" fill="#ef4444" radius={[4,4,0,0]} maxBarSize={32} />
-                <Bar dataKey="fake"      name="Fake"      fill="#f59e0b" radius={[4,4,0,0]} maxBarSize={32} />
+                <Legend wrapperStyle={{ fontSize:11, paddingTop:8 }} />
+                <Bar dataKey="total"     name="Total"     fill="#6366f1" radius={[4,4,0,0]} maxBarSize={28} />
+                <Bar dataKey="confirmed" name="Confirmed" fill="#10b981" radius={[4,4,0,0]} maxBarSize={28} />
+                <Bar dataKey="cancelled" name="Cancelled" fill="#ef4444" radius={[4,4,0,0]} maxBarSize={28} />
+                <Bar dataKey="fake"      name="Fake"      fill="#f59e0b" radius={[4,4,0,0]} maxBarSize={28} />
               </BarChart>
             ) : (
-              <AreaChart data={dailyData} margin={{ top:10, right:10, left:-10, bottom:0 }}>
+              <AreaChart data={dailyData} margin={{ top:10, right:10, left:-15, bottom:0 }}>
                 <defs>
                   {[['conf','#10b981'],['canc','#ef4444'],['fake','#f59e0b'],['total','#6366f1']].map(([id,c]) => (
                     <linearGradient key={id} id={`sr-grad-${id}`} x1="0" y1="0" x2="0" y2="1">
@@ -733,7 +830,7 @@ export const SalesReport = () => {
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill:'var(--sr-text-muted)', fontSize:11 }} dy={8} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fill:'var(--sr-text-muted)', fontSize:11 }} />
                 <Tooltip content={<ChartTooltip />} />
-                <Legend wrapperStyle={{ fontSize:12, paddingTop:12 }} />
+                <Legend wrapperStyle={{ fontSize:11, paddingTop:8 }} />
                 <Area dataKey="total"     name="Total"     stroke="#6366f1" fill="url(#sr-grad-total)" strokeWidth={2} dot={false} />
                 <Area dataKey="confirmed" name="Confirmed" stroke="#10b981" fill="url(#sr-grad-conf)"  strokeWidth={2} dot={false} />
                 <Area dataKey="cancelled" name="Cancelled" stroke="#ef4444" fill="url(#sr-grad-canc)"  strokeWidth={2} dot={false} />
@@ -752,11 +849,11 @@ export const SalesReport = () => {
           <div className="sr-card-header">
             <SectionTitle icon={BarChart3} title="Order Status Distribution" />
           </div>
-          {statusDist.length === 0 ? <div className="sr-empty">No data</div> : (
+          {statusDist.length === 0 ? <div className="sr-empty-compact">No order status data.</div> : (
             <>
-              <ResponsiveContainer width="100%" height={220} minWidth={0} minHeight={0}>
+              <ResponsiveContainer width="100%" height={200} minWidth={0} minHeight={0}>
                 <PieChart>
-                  <Pie data={statusDist} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={3}>
+                  <Pie data={statusDist} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={78} paddingAngle={3}>
                     {statusDist.map((entry, i) => (
                       <Cell key={i} fill={STATUS_COLORS[entry.name] || PIE_COLORS[i % PIE_COLORS.length]} />
                     ))}
@@ -778,17 +875,40 @@ export const SalesReport = () => {
           )}
         </div>
 
-        {/* Source Breakdown */}
+        {/* Source Breakdown (Mobile Card List + Desktop Table) */}
         <div className="sr-card">
           <div className="sr-card-header">
-            <SectionTitle icon={BarChart3} title="Source Breakdown" sub="Where orders are coming from" />
+            <SectionTitle icon={BarChart3} title="Source Breakdown" sub="Where orders originate" />
           </div>
-          <div className="sr-source-table-wrap">
+
+          {/* Mobile Source Card List */}
+          <div className="sr-source-mobile-list">
+            {sourceData.length === 0 ? (
+              <div className="sr-empty-compact">No source data for this period.</div>
+            ) : (
+              sourceData.map(s => (
+                <div key={s.source} className="sr-source-mobile-item">
+                  <div className="sr-source-m-top">
+                    <span className="sr-source-m-name">{s.source || 'Unknown'}</span>
+                    <span className="sr-source-m-tot">{s.total} orders</span>
+                  </div>
+                  <div className="sr-source-m-bottom">
+                    <span>Conf: <strong>{s.confirmed}</strong></span>
+                    <span className="sr-green">Rev: <strong>{fmtTk(s.revenue)}</strong></span>
+                    <span className={`sr-rate-pill ${s.confRate >= 50 ? 'good' : 'warn'}`}>{s.confRate}%</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Desktop Source Table */}
+          <div className="sr-source-table-wrap desktop-only-table-wrap">
             <div className="sr-source-table">
               <div className="sr-source-head">
                 <span>Source</span><span>Total</span><span>Confirmed</span><span>Revenue</span><span>Conf%</span>
               </div>
-              {sourceData.length === 0 ? <div className="sr-empty">No data</div> : sourceData.map(s => (
+              {sourceData.length === 0 ? <div className="sr-empty-compact">No data</div> : sourceData.map(s => (
                 <div key={s.source} className="sr-source-row">
                   <span className="sr-source-name">{s.source || 'Unknown'}</span>
                   <span>{s.total}</span>
@@ -808,13 +928,13 @@ export const SalesReport = () => {
           <div className="sr-card-header">
             <SectionTitle icon={Trophy} title="Top Selling Products" sub="By confirmed orders" />
           </div>
-          {topSellers.length === 0 ? <div className="sr-empty">No confirmed orders</div> : (
-            <ResponsiveContainer width="100%" height={380} minWidth={0} minHeight={0}>
+          {topSellers.length === 0 ? <div className="sr-empty-compact">No confirmed orders yet.</div> : (
+            <ResponsiveContainer width="100%" height={320} minWidth={0} minHeight={0}>
               <BarChart data={topSellers} layout="vertical" margin={{ top:0, right:16, left:0, bottom:0 }}>
                 <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill:'var(--sr-text-muted)', fontSize:11 }} />
-                <YAxis dataKey="name" type="category" width={130} axisLine={false} tickLine={false} tick={{ fill:'var(--sr-text-sub)', fontSize:11, fontWeight:600 }} tickFormatter={(val) => val.length > 22 ? val.substring(0, 20) + '...' : val} />
+                <YAxis dataKey="name" type="category" width={110} axisLine={false} tickLine={false} tick={{ fill:'var(--sr-text-sub)', fontSize:10.5, fontWeight:600 }} tickFormatter={(val) => val.length > 18 ? val.substring(0, 16) + '...' : val} />
                 <Tooltip content={<ChartTooltip />} />
-                <Bar dataKey="confirmedQty" name="Confirmed Qty" fill="#10b981" radius={[0,6,6,0]} maxBarSize={20} />
+                <Bar dataKey="confirmedQty" name="Confirmed Qty" fill="#10b981" radius={[0,6,6,0]} maxBarSize={18} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -823,94 +943,269 @@ export const SalesReport = () => {
           <div className="sr-card-header">
             <SectionTitle icon={Flame} title="Top Fake Order Products" sub="Products with most fake orders" />
           </div>
-          {topFake.length === 0 ? <div className="sr-empty">No fake orders — great! 🎉</div> : (
-            <ResponsiveContainer width="100%" height={380} minWidth={0} minHeight={0}>
+          {topFake.length === 0 ? <div className="sr-empty-compact">No fake orders in this period 🎉</div> : (
+            <ResponsiveContainer width="100%" height={320} minWidth={0} minHeight={0}>
               <BarChart data={topFake} layout="vertical" margin={{ top:0, right:16, left:0, bottom:0 }}>
                 <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill:'var(--sr-text-muted)', fontSize:11 }} />
-                <YAxis dataKey="name" type="category" width={130} axisLine={false} tickLine={false} tick={{ fill:'var(--sr-text-sub)', fontSize:11, fontWeight:600 }} tickFormatter={(val) => val.length > 22 ? val.substring(0, 20) + '...' : val} />
+                <YAxis dataKey="name" type="category" width={110} axisLine={false} tickLine={false} tick={{ fill:'var(--sr-text-sub)', fontSize:10.5, fontWeight:600 }} tickFormatter={(val) => val.length > 18 ? val.substring(0, 16) + '...' : val} />
                 <Tooltip content={<ChartTooltip />} />
-                <Bar dataKey="fakeQty" name="Fake Qty" fill="#f59e0b" radius={[0,6,6,0]} maxBarSize={20} />
+                <Bar dataKey="fakeQty" name="Fake Qty" fill="#f59e0b" radius={[0,6,6,0]} maxBarSize={18} />
               </BarChart>
             </ResponsiveContainer>
           )}
         </div>
       </div>
 
-      {/* ── Product-wise Table ── */}
+      {/* ── Product-wise Sales & Profit Breakdown ── */}
       <div className="sr-card">
         <div className="sr-card-header">
-          <SectionTitle icon={Package} title="Product-wise Sales & Profit Breakdown" sub="Revenue = Confirmed + Pending orders. Type Unit Cost directly to calculate Net Profit." />
-          <button className="sr-btn-cost" onClick={() => setIsUnitCostModalOpen(true)} style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
+          <SectionTitle icon={Package} title="Product-wise Sales & Profit" sub="Revenue = Confirmed + Pending" />
+          <button className="sr-btn-cost desktop-only-actions" onClick={() => setIsUnitCostModalOpen(true)} style={{ fontSize: '0.78rem', padding: '6px 12px' }}>
             <Settings size={14}/> Unit Cost Config
           </button>
         </div>
-        {productData.length === 0 ? <div className="sr-empty">No product data in this period</div> : (
-          <div className="sr-product-table-wrap">
-            <table className="sr-product-table">
-              <thead>
-                <tr>
-                  <th style={{ width: '22px', textAlign: 'center' }}>#</th>
-                  <th>Product</th>
-                  <th className="sr-sortable" onClick={() => setProductSort('unitCost')}>Unit Cost {productSort==='unitCost'&&'↓'}</th>
-                  <th className="sr-sortable" onClick={() => setProductSort('total')}>Orders {productSort==='total'&&'↓'}</th>
-                  <th className="sr-sortable" onClick={() => setProductSort('totalQty')}>Ord Qty {productSort==='totalQty'&&'↓'}</th>
-                  <th className="sr-sortable" onClick={() => setProductSort('totalOrderCost')}>Ord Cost {productSort==='totalOrderCost'&&'↓'}</th>
-                  <th className="sr-sortable" onClick={() => setProductSort('confirmedQty')}>Conf Qty {productSort==='confirmedQty'&&'↓'}</th>
-                  <th className="sr-sortable" onClick={() => setProductSort('pendingQty')}>Pend Qty {productSort==='pendingQty'&&'↓'}</th>
-                  <th className="sr-sortable" onClick={() => setProductSort('revenueQty')}>Rev Qty {productSort==='revenueQty'&&'↓'}</th>
-                  <th className="sr-sortable" onClick={() => setProductSort('revenue')}>Revenue {productSort==='revenue'&&'↓'}</th>
-                  <th className="sr-sortable" onClick={() => setProductSort('totalCost')}>COGS {productSort==='totalCost'&&'↓'}</th>
-                  <th className="sr-sortable" onClick={() => setProductSort('netProfit')}>Net Profit {productSort==='netProfit'&&'↓'}</th>
-                  <th className="sr-sortable" onClick={() => setProductSort('profitMargin')}>Margin {productSort==='profitMargin'&&'↓'}</th>
-                  <th className="sr-sortable" onClick={() => setProductSort('confRate')}>Conf% {productSort==='confRate'&&'↓'}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {productData.map((p, i) => (
-                  <tr key={p.name} className={i===0 && productSort==='revenueQty' ? 'sr-top-row' : ''}>
-                    <td className="sr-rank">
-                      {productSort==='revenueQty' ? (i===0 ? '🥇' : i===1 ? '🥈' : i===2 ? '🥉' : i+1) : i+1}
-                    </td>
-                    <td className="sr-prod-name">
-                      {p.name}
+
+        {productData.length === 0 ? (
+          <div className="sr-empty-compact">No product data for this period.</div>
+        ) : (
+          <>
+            {/* Mobile Product Card List (<1024px) */}
+            <div className="sr-product-mobile-list">
+              {productData.map((p, i) => (
+                <div key={p.name} className="sr-prod-m-card">
+                  <div className="sr-prod-m-top">
+                    <span className="sr-prod-m-rank">#{i + 1}</span>
+                    <div className="sr-prod-m-title-wrap">
+                      <h4 className="sr-prod-m-name">{p.name}</h4>
+                      {i === 0 && productSort === 'revenueQty' && <span className="sr-top-badge">🔥 Top</span>}
                       {p.fakeRate > 20 && <span className="sr-fake-warn">⚠️ High Fake</span>}
-                      {i===0 && productSort==='revenueQty' && <span className="sr-top-badge">🔥 Top</span>}
-                    </td>
-                    <td>
-                      <input
-                        type="number"
-                        min="0"
-                        className="sr-unit-cost-input"
-                        value={p.unitCost || ''}
-                        onChange={(e) => handleUnitCostChange(p.name, e.target.value)}
-                        placeholder="৳ Cost"
-                        title="Set unit making cost for this product"
-                      />
-                    </td>
-                    <td style={{ fontWeight: 700 }}>{p.total}</td>
-                    <td style={{ fontWeight: 800, color: 'var(--sr-text)' }}>{p.totalQty}</td>
-                    <td style={{ fontWeight: 700, color: '#eab308' }} title="Unit Cost × Total Order Qty">{fmtTk(p.totalOrderCost)}</td>
-                    <td className="sr-green" style={{ fontWeight: 700 }}>{p.confirmedQty}</td>
-                    <td className="sr-pending" style={{ fontWeight: 700 }}>{p.pendingQty || 0}</td>
-                    <td style={{ fontWeight: 800, color: 'var(--sr-text)' }}>{p.revenueQty}</td>
-                    <td className="sr-green" style={{ fontWeight: 800 }}>{fmtTk(p.revenue)}</td>
-                    <td style={{ fontWeight: 700, color: '#eab308' }}>{fmtTk(p.totalCost)}</td>
-                    <td style={{ fontWeight: 800, color: p.netProfit >= 0 ? '#10b981' : '#ef4444' }}>
-                      {fmtTk(p.netProfit)}
-                    </td>
-                    <td>
-                      <span className={`sr-rate-pill ${p.profitMargin >= 30 ? 'good' : p.profitMargin > 0 ? 'neutral' : 'warn'}`}>
-                        {p.profitMargin}%
-                      </span>
-                    </td>
-                    <td><span className={`sr-rate-pill ${p.confRate>=50?'good':'warn'}`}>{p.confRate}%</span></td>
+                    </div>
+                  </div>
+
+                  <div className="sr-prod-m-grid">
+                    <div className="sr-prod-m-stat">
+                      <span className="lbl">REV QTY</span>
+                      <span className="val">{p.revenueQty} pcs</span>
+                    </div>
+                    <div className="sr-prod-m-stat">
+                      <span className="lbl">GROSS REV</span>
+                      <span className="val sr-green">{fmtTk(p.revenue)}</span>
+                    </div>
+                    <div className="sr-prod-m-stat">
+                      <span className="lbl">NET PROFIT</span>
+                      <span className={`val ${p.netProfit >= 0 ? 'sr-green' : 'sr-red'}`}>{fmtTk(p.netProfit)}</span>
+                    </div>
+                    <div className="sr-prod-m-stat">
+                      <span className="lbl">MARGIN</span>
+                      <span className="val">{p.profitMargin}%</span>
+                    </div>
+                  </div>
+
+                  <div className="sr-prod-m-footer">
+                    <div className="sr-prod-m-cost-edit">
+                      <span className="cost-lbl">Unit Cost:</span>
+                      <div className="cost-input-box">
+                        <span>৳</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={p.unitCost || ''}
+                          onChange={(e) => handleUnitCostChange(p.name, e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+                    <div className="sr-prod-m-rates">
+                      <span>Conf: {p.confRate}%</span>
+                      <span>COGS: {fmtTk(p.totalCost)}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop Product Table (≥1024px) */}
+            <div className="sr-product-table-wrap desktop-only-table-wrap">
+              <table className="sr-product-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '22px', textAlign: 'center' }}>#</th>
+                    <th>Product</th>
+                    <th className="sr-sortable" onClick={() => setProductSort('unitCost')}>Unit Cost {productSort==='unitCost'&&'↓'}</th>
+                    <th className="sr-sortable" onClick={() => setProductSort('total')}>Orders {productSort==='total'&&'↓'}</th>
+                    <th className="sr-sortable" onClick={() => setProductSort('totalQty')}>Ord Qty {productSort==='totalQty'&&'↓'}</th>
+                    <th className="sr-sortable" onClick={() => setProductSort('totalOrderCost')}>Ord Cost {productSort==='totalOrderCost'&&'↓'}</th>
+                    <th className="sr-sortable" onClick={() => setProductSort('confirmedQty')}>Conf Qty {productSort==='confirmedQty'&&'↓'}</th>
+                    <th className="sr-sortable" onClick={() => setProductSort('pendingQty')}>Pend Qty {productSort==='pendingQty'&&'↓'}</th>
+                    <th className="sr-sortable" onClick={() => setProductSort('revenueQty')}>Rev Qty {productSort==='revenueQty'&&'↓'}</th>
+                    <th className="sr-sortable" onClick={() => setProductSort('revenue')}>Revenue {productSort==='revenue'&&'↓'}</th>
+                    <th className="sr-sortable" onClick={() => setProductSort('totalCost')}>COGS {productSort==='totalCost'&&'↓'}</th>
+                    <th className="sr-sortable" onClick={() => setProductSort('netProfit')}>Net Profit {productSort==='netProfit'&&'↓'}</th>
+                    <th className="sr-sortable" onClick={() => setProductSort('profitMargin')}>Margin {productSort==='profitMargin'&&'↓'}</th>
+                    <th className="sr-sortable" onClick={() => setProductSort('confRate')}>Conf% {productSort==='confRate'&&'↓'}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {productData.map((p, i) => (
+                    <tr key={p.name} className={i===0 && productSort==='revenueQty' ? 'sr-top-row' : ''}>
+                      <td className="sr-rank">
+                        {productSort==='revenueQty' ? (i===0 ? '🥇' : i===1 ? '🥈' : i===2 ? '🥉' : i+1) : i+1}
+                      </td>
+                      <td className="sr-prod-name">
+                        {p.name}
+                        {p.fakeRate > 20 && <span className="sr-fake-warn">⚠️ High Fake</span>}
+                        {i===0 && productSort==='revenueQty' && <span className="sr-top-badge">🔥 Top</span>}
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          min="0"
+                          className="sr-unit-cost-input"
+                          value={p.unitCost || ''}
+                          onChange={(e) => handleUnitCostChange(p.name, e.target.value)}
+                          placeholder="৳ Cost"
+                          title="Set unit making cost for this product"
+                        />
+                      </td>
+                      <td style={{ fontWeight: 700 }}>{p.total}</td>
+                      <td style={{ fontWeight: 800, color: 'var(--sr-text)' }}>{p.totalQty}</td>
+                      <td style={{ fontWeight: 700, color: '#eab308' }} title="Unit Cost × Total Order Qty">{fmtTk(p.totalOrderCost)}</td>
+                      <td className="sr-green" style={{ fontWeight: 700 }}>{p.confirmedQty}</td>
+                      <td className="sr-pending" style={{ fontWeight: 700 }}>{p.pendingQty || 0}</td>
+                      <td style={{ fontWeight: 800, color: 'var(--sr-text)' }}>{p.revenueQty}</td>
+                      <td className="sr-green" style={{ fontWeight: 800 }}>{fmtTk(p.revenue)}</td>
+                      <td style={{ fontWeight: 700, color: '#eab308' }}>{fmtTk(p.totalCost)}</td>
+                      <td style={{ fontWeight: 800, color: p.netProfit >= 0 ? '#10b981' : '#ef4444' }}>
+                        {fmtTk(p.netProfit)}
+                      </td>
+                      <td>
+                        <span className={`sr-rate-pill ${p.profitMargin >= 30 ? 'good' : p.profitMargin > 0 ? 'neutral' : 'warn'}`}>
+                          {p.profitMargin}%
+                        </span>
+                      </td>
+                      <td><span className={`sr-rate-pill ${p.confRate>=50?'good':'warn'}`}>{p.confRate}%</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
+
+      {/* ── Mobile Date Range Bottom Sheet ── */}
+      {isDateSheetOpen && (
+        <div className="sr-sheet-backdrop" onClick={() => setIsDateSheetOpen(false)}>
+          <div className="sr-bottom-sheet" onClick={e => e.stopPropagation()}>
+            <div className="sr-sheet-head">
+              <h3>Select Date Range</h3>
+              <button className="sr-sheet-close" onClick={() => setIsDateSheetOpen(false)}><X size={18} /></button>
+            </div>
+            <div className="sr-sheet-body">
+              <div className="sr-sheet-options">
+                {PRESETS.map(p => (
+                  <button
+                    key={p.key}
+                    className={`sr-sheet-option-btn ${preset === p.key ? 'active' : ''}`}
+                    onClick={() => {
+                      applyPreset(p.key);
+                      if (p.key !== 'custom') setIsDateSheetOpen(false);
+                    }}
+                  >
+                    <span>{p.label}</span>
+                    {preset === p.key && <CheckCircle2 size={15} className="text-accent" />}
+                  </button>
+                ))}
+              </div>
+
+              {preset === 'custom' && (
+                <div className="sr-sheet-custom-dates">
+                  <label>From:
+                    <input
+                      type="date"
+                      className="sr-date-input"
+                      value={dateRange.start.toISOString().split('T')[0]}
+                      onChange={e => { const d = new Date(e.target.value); d.setHours(0,0,0,0); setDateRange(r => ({...r, start:d})); }}
+                    />
+                  </label>
+                  <label>To:
+                    <input
+                      type="date"
+                      className="sr-date-input"
+                      value={dateRange.end.toISOString().split('T')[0]}
+                      onChange={e => { const d = new Date(e.target.value); d.setHours(23,59,59,999); setDateRange(r => ({...r, end:d})); }}
+                    />
+                  </label>
+                  <button className="sr-sheet-apply-btn" onClick={() => setIsDateSheetOpen(false)}>Apply Custom Range</button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Mobile Color Filter Bottom Sheet ── */}
+      {isColorSheetOpen && (
+        <div className="sr-sheet-backdrop" onClick={() => setIsColorSheetOpen(false)}>
+          <div className="sr-bottom-sheet" onClick={e => e.stopPropagation()}>
+            <div className="sr-sheet-head">
+              <h3>Filter by Color</h3>
+              <button className="sr-sheet-close" onClick={() => setIsColorSheetOpen(false)}><X size={18} /></button>
+            </div>
+            <div className="sr-sheet-body">
+              <div className="sr-sheet-options">
+                {uniqueColors.map(c => (
+                  <button
+                    key={c}
+                    className={`sr-sheet-option-btn ${colorFilter === c ? 'active' : ''}`}
+                    onClick={() => {
+                      setColorFilter(c);
+                      setIsColorSheetOpen(false);
+                    }}
+                  >
+                    <span>{c === 'All' ? 'All Colors' : c}</span>
+                    {colorFilter === c && <CheckCircle2 size={15} className="text-accent" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Mobile Header Actions Menu ── */}
+      {isHeaderMenuOpen && (
+        <div className="sr-sheet-backdrop" onClick={() => setIsHeaderMenuOpen(false)}>
+          <div className="sr-bottom-sheet" onClick={e => e.stopPropagation()}>
+            <div className="sr-sheet-head">
+              <h3>Report Actions</h3>
+              <button className="sr-sheet-close" onClick={() => setIsHeaderMenuOpen(false)}><X size={18} /></button>
+            </div>
+            <div className="sr-sheet-body" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <button
+                className="sr-sheet-action-item"
+                onClick={() => {
+                  exportCSV(colorFilteredData, presetLabel);
+                  setIsHeaderMenuOpen(false);
+                }}
+              >
+                <FileDown size={16} />
+                <span>Export CSV ({presetLabel})</span>
+              </button>
+              <button
+                className="sr-sheet-action-item"
+                onClick={() => {
+                  setIsHeaderMenuOpen(false);
+                  window.print();
+                }}
+              >
+                <Printer size={16} />
+                <span>Print Report</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Unit Cost Configuration Modal ── */}
       {isUnitCostModalOpen && (

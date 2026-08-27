@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOrders } from '../context/OrderContext';
 import { Card } from '../components/Card';
@@ -8,17 +8,28 @@ import { Input } from '../components/Input';
 import { Modal } from '../components/Modal';
 import CurrencyIcon from '../components/CurrencyIcon';
 import {
-  Search, Plus, Package, AlertTriangle, ArrowUpRight, ArrowDownRight,
-  Edit2, Trash2, Tag, Bot, Loader2, CheckCircle2, CircleAlert, ChevronDown, Sparkles,
-  TrendingUp, TrendingDown, DollarSign, BarChart2, Layers, Filter, Clock, Calendar, Globe, X, CheckCircle
+  Search, Plus, Minus, Package, AlertTriangle, ArrowUpRight, ArrowDownRight,
+  Edit2, Trash2, Tag, Bot, Loader2, CheckCircle2, CircleAlert, ChevronDown, ChevronRight, Sparkles,
+  TrendingUp, TrendingDown, DollarSign, BarChart2, Layers, Filter, Clock, Calendar,
+  Globe, X, CheckCircle, SlidersHorizontal, ArrowUpDown, CheckSquare, RefreshCw,
+  Boxes, Check, ShieldAlert, Sparkle, LayoutGrid, List
 } from 'lucide-react';
-import { PremiumSearch } from '../components/PremiumSearch';
 import { usePersistentState } from '../utils/persistentState';
 import { getSerialTrackedProducts } from '../utils/productCatalog';
 import { supabase } from '../lib/supabase';
 import { parseProductionText } from '../services/productionAI';
 import { ProductionPaymentModal } from '../components/ProductionPaymentModal';
 import { GlobalProductionPaymentModal } from '../components/GlobalProductionPaymentModal';
+
+// Subcomponents
+import { MobileInventoryCard } from './inventory/MobileInventoryCard';
+import { DesktopInventoryTable } from './inventory/DesktopInventoryTable';
+import { ProductDetailDrawer } from './inventory/ProductDetailDrawer';
+import { InventoryFilterSheet } from './inventory/InventoryFilterSheet';
+import { InventorySortSheet } from './inventory/InventorySortSheet';
+import { BulkActionBar } from './inventory/BulkActionBar';
+import { SerialInventorySheet } from './inventory/SerialInventorySheet';
+
 import './InventoryPage.css';
 
 const CATEGORIES = ['All', 'TOY BOX', 'ORGANIZER', 'Bags', 'Accessories', 'Religious', 'Other'];
@@ -37,11 +48,67 @@ export const InventoryPage = () => {
     previewInvoiceStockUpdate,
     applyInvoiceStockUpdate
   } = useOrders();
+
+  // ── Route View & Tab States ──
+  const [activeTab, setActiveTab] = usePersistentState('panel:inventory:activeTab', 'catalog');
   const [searchTerm, setSearchTerm] = usePersistentState('panel:inventory:search', '');
   const [categoryFilter, setCategoryFilter] = usePersistentState('panel:inventory:category', 'All');
-  const [activeTab, setActiveTab] = usePersistentState('panel:inventory:activeTab', 'catalog');
+  const [stockStatusFilter, setStockStatusFilter] = usePersistentState('panel:inventory:stockStatus', 'all');
+  const [sortBy, setSortBy] = usePersistentState('panel:inventory:sort', 'name_asc');
+  const [serialOnlyFilter, setSerialOnlyFilter] = useState(false);
 
-  // ── Production & Ledger States (for Inventory view) ──
+  // ── Sheet & Modal States ──
+  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
+  const [isSortSheetOpen, setIsSortSheetOpen] = useState(false);
+  const [selectedProductForDrawer, setSelectedProductForDrawer] = useState(null);
+  const [isSerialSheetOpen, setIsSerialSheetOpen] = useState(false);
+
+  // ── Selection & Bulk Action States ──
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [isBatchAdjustModalOpen, setIsBatchAdjustModalOpen] = useState(false);
+  const [batchAdjustMode, setBatchAdjustMode] = useState('add');
+  const [batchAdjustAmount, setBatchAdjustAmount] = useState(5);
+  const [isApplyingBatch, setIsApplyingBatch] = useState(false);
+
+  // ── Optimistic Stock Adjust Tracking ──
+  const [adjustingIds, setAdjustingIds] = useState(new Set());
+
+  // ── Product Add/Edit & Quick Adjust Modals ──
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
+  const [adjustingProduct, setAdjustingProduct] = useState(null);
+  const [adjustAmount, setAdjustAmount] = useState(1);
+  const [adjustType, setAdjustType] = useState('add');
+
+  // ── Product Form Data ──
+  const [formData, setFormData] = useState({
+    name: '', sku: '', category: 'Other', current_stock: 0, min_stock_level: 5,
+    unit_price: 0, selling_price: 0, making_cost: 0, supports_serial_tracking: false
+  });
+
+  // ── AI Invoice Sync States ──
+  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [invoiceText, setInvoiceText] = useState('');
+  const [invoicePreview, setInvoicePreview] = useState(null);
+  const [invoiceError, setInvoiceError] = useState('');
+  const [reviewError, setReviewError] = useState('');
+  const [invoiceSuccess, setInvoiceSuccess] = useState('');
+  const [isPreviewingInvoice, setIsPreviewingInvoice] = useState(false);
+  const [isApplyingInvoice, setIsApplyingInvoice] = useState(false);
+  const [confirmCommand] = useState('confirm');
+  const [useManualBulkMode, setUseManualBulkMode] = useState(true);
+  const [invoiceStockMode, setInvoiceStockMode] = useState('add');
+
+  // ── Toy Box Serial State ──
+  const [isToyBoxModalOpen, setIsToyBoxModalOpen] = useState(false);
+  const [toyBoxSerialInput, setToyBoxSerialInput] = useState('');
+  const [toyBoxInitialStock, setToyBoxInitialStock] = useState(0);
+  const [toyBoxProductName, setToyBoxProductName] = useState('');
+
+  // ── Production & Ledger Tab States ──
   const [productionLogs, setProductionLogs] = useState([]);
   const [isLogsLoading, setIsLogsLoading] = useState(false);
   const [logSearchTerm, setLogSearchTerm] = useState('');
@@ -54,6 +121,7 @@ export const InventoryPage = () => {
   const [logPage, setLogPage] = useState(1);
   const [logPageSize, setLogPageSize] = useState(10);
   const [totalLogRecords, setTotalLogRecords] = useState(0);
+  const [isAiAutofillExpanded, setIsAiAutofillExpanded] = useState(false);
 
   const [productionStats, setProductionStats] = useState({
     totalQty: 0,
@@ -84,7 +152,7 @@ export const InventoryPage = () => {
   const [logFormError, setLogFormError] = useState('');
   const [editingLogId, setEditingLogId] = useState(null);
 
-  // ── AI Autofill States ──
+  // AI Autofill States
   const [aiInputText, setAiInputText] = useState('');
   const [isAILoading, setIsAILoading] = useState(false);
   const [aiConfidence, setAiConfidence] = useState(null);
@@ -92,16 +160,398 @@ export const InventoryPage = () => {
   const [aiSource, setAiSource] = useState(null);
   const aiInputRef = useRef(null);
 
-  // ── Production Toast ──
+  // Production Toast & Modals
   const [productionToast, setProductionToast] = useState(null);
-
-  // ── Payment Modal ──
-  const [paymentModalLog, setPaymentModalLog] = useState(null); // log being paid
+  const [paymentModalLog, setPaymentModalLog] = useState(null);
   const [isGlobalPaymentModalOpen, setIsGlobalPaymentModalOpen] = useState(false);
 
-  const uniqueProducts = Array.from(new Set(inventory.map(item => item.name))).sort();
+  const uniqueProducts = useMemo(() => {
+    return Array.from(new Set(inventory.map(item => item.name))).sort();
+  }, [inventory]);
 
-  const fetchProductionLogs = async () => {
+  const serialTrackedProducts = useMemo(() => {
+    return getSerialTrackedProducts(inventory);
+  }, [inventory]);
+
+  const toyBoxGroups = useMemo(() => {
+    return (toyBoxes || []).reduce((acc, item) => {
+      const key = item.product_name || 'TOY BOX';
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(item);
+      return acc;
+    }, {});
+  }, [toyBoxes]);
+
+  // ── P&L and Summary Statistics ──
+  const totalInventoryValue = useMemo(() => {
+    return inventory.reduce((s, i) => s + ((Number(i.selling_price) || Number(i.unit_price) || 0) * (Number(i.current_stock) || 0)), 0);
+  }, [inventory]);
+
+  const totalCOGSValue = useMemo(() => {
+    return inventory.reduce((s, i) => s + ((Number(i.making_cost) || 0) * (Number(i.current_stock) || 0)), 0);
+  }, [inventory]);
+
+  const lowStockItems = useMemo(() => {
+    return inventory.filter(item => (Number(item.current_stock) || 0) <= (Number(item.min_stock_level) || 5) && (Number(item.current_stock) || 0) > 0);
+  }, [inventory]);
+
+  const outOfStockItems = useMemo(() => {
+    return inventory.filter(item => (Number(item.current_stock) || 0) === 0);
+  }, [inventory]);
+
+  const inStockItems = useMemo(() => {
+    return inventory.filter(item => (Number(item.current_stock) || 0) > (Number(item.min_stock_level) || 5));
+  }, [inventory]);
+
+  // ── Filtered & Sorted Inventory ──
+  const filteredAndSortedInventory = useMemo(() => {
+    let result = inventory.filter(item => {
+      const name = (item.name || '').toLowerCase();
+      const sku = (item.sku || '').toLowerCase();
+      const q = searchTerm.trim().toLowerCase();
+      const matchesSearch = !q || name.includes(q) || sku.includes(q);
+
+      const matchesCategory = categoryFilter === 'All' || item.category === categoryFilter;
+
+      const stock = Number(item.current_stock) || 0;
+      const minStock = Number(item.min_stock_level) || 5;
+
+      let matchesStock = true;
+      if (stockStatusFilter === 'in_stock') {
+        matchesStock = stock > minStock;
+      } else if (stockStatusFilter === 'low_stock') {
+        matchesStock = stock <= minStock && stock > 0;
+      } else if (stockStatusFilter === 'out_of_stock') {
+        matchesStock = stock === 0;
+      }
+
+      const matchesSerial = !serialOnlyFilter || item.supports_serial_tracking || item.category === 'TOY BOX';
+
+      return matchesSearch && matchesCategory && matchesStock && matchesSerial;
+    });
+
+    // Sorting
+    result.sort((a, b) => {
+      const stockA = Number(a.current_stock) || 0;
+      const stockB = Number(b.current_stock) || 0;
+      const priceA = Number(a.selling_price) || Number(a.unit_price) || 0;
+      const priceB = Number(b.selling_price) || Number(b.unit_price) || 0;
+      const marginA = priceA > 0 ? ((priceA - (Number(a.making_cost) || 0)) / priceA) : 0;
+      const marginB = priceB > 0 ? ((priceB - (Number(b.making_cost) || 0)) / priceB) : 0;
+
+      if (sortBy === 'name_asc') return (a.name || '').localeCompare(b.name || '');
+      if (sortBy === 'name_desc') return (b.name || '').localeCompare(a.name || '');
+      if (sortBy === 'stock_asc') return stockA - stockB;
+      if (sortBy === 'stock_desc') return stockB - stockA;
+      if (sortBy === 'price_asc') return priceA - priceB;
+      if (sortBy === 'price_desc') return priceB - priceA;
+      if (sortBy === 'margin_desc') return marginB - marginA;
+      return 0;
+    });
+
+    return result;
+  }, [inventory, searchTerm, categoryFilter, stockStatusFilter, serialOnlyFilter, sortBy]);
+
+  // Active Filter Count Calculation
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (categoryFilter !== 'All') count++;
+    if (stockStatusFilter !== 'all') count++;
+    if (serialOnlyFilter) count++;
+    return count;
+  }, [categoryFilter, stockStatusFilter, serialOnlyFilter]);
+
+  const activeSortLabel = useMemo(() => {
+    const map = {
+      name_asc: 'Name (A→Z)',
+      name_desc: 'Name (Z→A)',
+      stock_asc: 'Stock (Low→High)',
+      stock_desc: 'Stock (High→Low)',
+      price_desc: 'Price (High→Low)',
+      price_asc: 'Price (Low→High)',
+      margin_desc: 'Margin %'
+    };
+    return map[sortBy] || 'Sort';
+  }, [sortBy]);
+
+  // ── Quick Stock Stepper Mutation ──
+  const handleQuickAdjust = useCallback(async (item, delta) => {
+    if (!item?.id) return;
+    setAdjustingIds(prev => new Set(prev).add(item.id));
+    try {
+      await adjustStock(item.id, delta);
+      if (selectedProductForDrawer?.id === item.id) {
+        setSelectedProductForDrawer(prev => ({
+          ...prev,
+          current_stock: Math.max(0, (Number(prev.current_stock) || 0) + delta)
+        }));
+      }
+    } catch (err) {
+      console.error('Quick adjust error:', err);
+      alert('Failed to update stock: ' + (err?.message || 'Unknown error'));
+    } finally {
+      setAdjustingIds(prev => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
+    }
+  }, [adjustStock, selectedProductForDrawer]);
+
+  // ── Multi-Select Actions ──
+  const handleToggleSelect = useCallback((id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleSelectAll = useCallback(() => {
+    if (selectedIds.size === filteredAndSortedInventory.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredAndSortedInventory.map(i => i.id)));
+    }
+  }, [selectedIds, filteredAndSortedInventory]);
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+    setSelectionMode(false);
+  }, []);
+
+  const handleOpenBatchAdjust = (mode) => {
+    setBatchAdjustMode(mode);
+    setIsBatchAdjustModalOpen(true);
+  };
+
+  const handleApplyBatchAdjust = async () => {
+    if (selectedIds.size === 0) return;
+    setIsApplyingBatch(true);
+    const delta = batchAdjustMode === 'add' ? batchAdjustAmount : -batchAdjustAmount;
+
+    try {
+      const promises = Array.from(selectedIds).map(id => adjustStock(id, delta));
+      await Promise.all(promises);
+      setInvoiceSuccess(`✅ Updated ${selectedIds.size} products (${delta >= 0 ? '+' : ''}${delta} units each)`);
+      setTimeout(() => setInvoiceSuccess(''), 5000);
+      setIsBatchAdjustModalOpen(false);
+      handleClearSelection();
+    } catch (err) {
+      console.error('Batch adjust error:', err);
+      alert('Batch adjust failed: ' + err.message);
+    } finally {
+      setIsApplyingBatch(false);
+    }
+  };
+
+  const handleDeleteBatch = async () => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Are you sure you want to delete ${selectedIds.size} selected products? This cannot be undone.`)) return;
+
+    try {
+      const promises = Array.from(selectedIds).map(id => deleteInventoryItem(id));
+      await Promise.all(promises);
+      handleClearSelection();
+    } catch (err) {
+      console.error('Batch delete error:', err);
+      alert('Batch delete failed: ' + err.message);
+    }
+  };
+
+  // ── Product Modal Open/Save ──
+  const handleOpenProductModal = (product = null) => {
+    if (product) {
+      setEditingProduct(product);
+      setFormData({
+        name: product.name,
+        sku: product.sku || '',
+        category: product.category || 'Other',
+        current_stock: product.current_stock,
+        min_stock_level: product.min_stock_level,
+        unit_price: product.unit_price,
+        selling_price: Number(product.selling_price) || Number(product.unit_price) || 0,
+        making_cost: Number(product.making_cost) || 0,
+        supports_serial_tracking: Boolean(product.supports_serial_tracking ?? (product.category === 'TOY BOX'))
+      });
+    } else {
+      setEditingProduct(null);
+      setFormData({
+        name: '', sku: '', category: 'Other', current_stock: 0, min_stock_level: 5,
+        unit_price: 0, selling_price: 0, making_cost: 0, supports_serial_tracking: false
+      });
+    }
+    setIsProductModalOpen(true);
+  };
+
+  const handleSaveProduct = async (e) => {
+    e.preventDefault();
+    if (editingProduct) {
+      await updateInventoryItem(editingProduct.id, formData);
+      if (selectedProductForDrawer?.id === editingProduct.id) {
+        setSelectedProductForDrawer(prev => ({ ...prev, ...formData }));
+      }
+    } else {
+      await addInventoryItem(formData);
+    }
+    setIsProductModalOpen(false);
+  };
+
+  const handleOpenAdjustModal = (product) => {
+    setAdjustingProduct(product);
+    setAdjustAmount(1);
+    setAdjustType('add');
+    setIsAdjustModalOpen(true);
+  };
+
+  const handleAdjustStock = async () => {
+    if (!adjustingProduct) return;
+    const amount = adjustType === 'add' ? adjustAmount : -adjustAmount;
+    await adjustStock(adjustingProduct.id, amount);
+    if (selectedProductForDrawer?.id === adjustingProduct.id) {
+      setSelectedProductForDrawer(prev => ({
+        ...prev,
+        current_stock: Math.max(0, (Number(prev.current_stock) || 0) + amount)
+      }));
+    }
+    setIsAdjustModalOpen(false);
+  };
+
+  const handleDeleteProduct = async (id) => {
+    if (window.confirm('Are you sure you want to delete this product?')) {
+      await deleteInventoryItem(id);
+      if (selectedProductForDrawer?.id === id) {
+        setSelectedProductForDrawer(null);
+      }
+    }
+  };
+
+  const handleResetFilters = () => {
+    setCategoryFilter('All');
+    setStockStatusFilter('all');
+    setSerialOnlyFilter(false);
+    setSearchTerm('');
+    setIsFilterSheetOpen(false);
+  };
+
+  // ── Toy Box Serial Handlers ──
+  const handleAddToyBoxSerials = async (e) => {
+    e.preventDefault();
+    if (!toyBoxProductName) {
+      alert('Select a product for these serials.');
+      return;
+    }
+
+    const requested = toyBoxSerialInput
+      .split(/[,\s]+/)
+      .map((value) => parseInt(value.trim(), 10))
+      .filter((value) => Number.isInteger(value) && value > 0);
+
+    const uniqueRequested = [...new Set(requested)];
+    const existing = new Set(
+      (toyBoxes || [])
+        .filter((box) => (box.product_name || 'TOY BOX') === toyBoxProductName)
+        .map((box) => Number(box.toy_box_number))
+    );
+    const entries = uniqueRequested
+      .filter((serial) => !existing.has(serial))
+      .map((serial) => ({
+        product_name: toyBoxProductName,
+        toy_box_number: serial,
+        stock_quantity: toyBoxInitialStock
+      }));
+
+    if (entries.length === 0) {
+      alert('No new serial numbers found to add.');
+      return;
+    }
+
+    try {
+      await addToyBoxStocks(entries);
+      setToyBoxSerialInput('');
+      setToyBoxInitialStock(0);
+      setToyBoxProductName('');
+      setIsToyBoxModalOpen(false);
+    } catch (error) {
+      console.error('Failed to add toy box serials:', error);
+      alert(error?.message || 'Failed to add serial numbers. Please try again.');
+    }
+  };
+
+  // ── AI Invoice Handlers ──
+  const handleOpenInvoiceModal = () => {
+    setIsInvoiceModalOpen(true);
+    setInvoiceError('');
+    setInvoicePreview(null);
+    setIsReviewModalOpen(false);
+    setInvoiceStockMode('add');
+  };
+
+  const handlePreviewInvoice = async () => {
+    if (!invoiceText.trim()) {
+      setInvoiceError('Please paste invoice lines first.');
+      return;
+    }
+    setIsPreviewingInvoice(true);
+    setInvoiceError('');
+    try {
+      const preview = await previewInvoiceStockUpdate(invoiceText, { preferManualBulk: useManualBulkMode, stockMode: invoiceStockMode });
+      setInvoicePreview(preview);
+    } catch (error) {
+      setInvoiceError(error?.message || 'Failed to analyze invoice.');
+      setInvoicePreview(null);
+    } finally {
+      setIsPreviewingInvoice(false);
+    }
+  };
+
+  const handleApplyInvoiceSync = async () => {
+    if (!invoicePreview) {
+      await handlePreviewInvoice();
+      return;
+    }
+    setInvoiceError('');
+    setIsReviewModalOpen(true);
+  };
+
+  const handleFinalConfirmApply = async () => {
+    if (!invoicePreview || !(invoicePreview?.matched?.length > 0)) return;
+    setIsApplyingInvoice(true);
+    setReviewError('');
+    setInvoiceError('');
+    try {
+      const result = await applyInvoiceStockUpdate(invoiceText, {
+        preferManualBulk: useManualBulkMode,
+        confirmCommand,
+        stockMode: invoiceStockMode
+      });
+      const appliedCount = result?.applied?.length || result?.matched?.length || 0;
+      const totalChanged = result?.summary?.totalDeducted || result?.summary?.totalQty || 0;
+      const modeLabel = invoiceStockMode === 'add' ? 'added' : 'deducted';
+
+      setIsReviewModalOpen(false);
+      setIsInvoiceModalOpen(false);
+      setInvoiceText('');
+      setInvoicePreview(null);
+      setInvoiceError('');
+      setReviewError('');
+
+      setInvoiceSuccess(`✅ Stock updated successfully! ${appliedCount} item(s) affected, ${totalChanged} total units ${modeLabel}.`);
+      setTimeout(() => setInvoiceSuccess(''), 6000);
+    } catch (error) {
+      console.error('Invoice apply error:', error);
+      setReviewError(error?.message || 'Failed to apply inventory update from invoice.');
+    } finally {
+      setIsApplyingInvoice(false);
+    }
+  };
+
+  // ── Production & Ledger Tab Logic ──
+  const fetchProductionLogs = useCallback(async () => {
     setIsLogsLoading(true);
     try {
       let query = supabase
@@ -111,11 +561,9 @@ export const InventoryPage = () => {
       if (logSearchTerm.trim()) {
         query = query.or(`product_name.ilike.%${logSearchTerm}%,color.ilike.%${logSearchTerm}%,variant.ilike.%${logSearchTerm}%,notes.ilike.%${logSearchTerm}%`);
       }
-
       if (logProductFilter !== 'All') {
         query = query.eq('product_name', logProductFilter);
       }
-
       if (logPaymentFilter !== 'All') {
         query = query.eq('payment_status', logPaymentFilter);
       }
@@ -123,14 +571,12 @@ export const InventoryPage = () => {
       if (logDatePreset !== 'all') {
         const now = new Date();
         const todayStr = now.toISOString().slice(0, 10);
-        
         if (logDatePreset === 'today') {
           query = query.eq('production_date', todayStr);
         } else if (logDatePreset === 'yesterday') {
           const yesterday = new Date(now);
           yesterday.setDate(now.getDate() - 1);
-          const yesterdayStr = yesterday.toISOString().slice(0, 10);
-          query = query.eq('production_date', yesterdayStr);
+          query = query.eq('production_date', yesterday.toISOString().slice(0, 10));
         } else if (logDatePreset === '7days') {
           const start = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
           query = query.gte('production_date', start).lte('production_date', todayStr);
@@ -142,12 +588,8 @@ export const InventoryPage = () => {
           query = query.gte('production_date', start).lte('production_date', todayStr);
         }
       } else {
-        if (logDateFrom) {
-          query = query.gte('production_date', logDateFrom);
-        }
-        if (logDateTo) {
-          query = query.lte('production_date', logDateTo);
-        }
+        if (logDateFrom) query = query.gte('production_date', logDateFrom);
+        if (logDateTo) query = query.lte('production_date', logDateTo);
       }
 
       if (logSortOrder === 'newest') {
@@ -167,23 +609,24 @@ export const InventoryPage = () => {
       query = query.range(from, to);
 
       const { data, error, count } = await query;
-      if (error) throw error;
-
+      if (error && !error.message.includes('relation "public.factory_production_logs" does not exist')) {
+        throw error;
+      }
       setProductionLogs(data || []);
       setTotalLogRecords(count || 0);
     } catch (err) {
-      console.error('Error fetching production logs:', err);
+      console.warn('Error fetching production logs:', err);
     } finally {
       setIsLogsLoading(false);
     }
-  };
+  }, [logSearchTerm, logProductFilter, logPaymentFilter, logDatePreset, logDateFrom, logDateTo, logSortOrder, logPage, logPageSize]);
 
-  const fetchProductionStats = async () => {
+  const fetchProductionStats = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('factory_production_logs')
         .select('product_name, quantity_ready, total_cost, payment_status, paid_amount');
-      if (error) throw error;
+      if (error && !error.message.includes('relation "public.factory_production_logs" does not exist')) throw error;
 
       let totalQty = 0;
       let totalCost = 0;
@@ -208,7 +651,6 @@ export const InventoryPage = () => {
         breakdownMap[name].due += due;
       });
 
-      // Sum all payment transactions from production_payments directly
       const { data: payments } = await supabase
         .from('production_payments')
         .select('amount');
@@ -224,36 +666,20 @@ export const InventoryPage = () => {
         breakdown: Object.values(breakdownMap).sort((a, b) => b.cost - a.cost)
       });
     } catch (err) {
-      console.error('Error fetching production stats:', err);
+      console.warn('Error fetching production stats:', err);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'production') {
       fetchProductionLogs();
       fetchProductionStats();
     }
-  }, [
-    activeTab,
-    logSearchTerm,
-    logDatePreset,
-    logDateFrom,
-    logDateTo,
-    logProductFilter,
-    logPaymentFilter,
-    logSortOrder,
-    logPage,
-    logPageSize
-  ]);
+  }, [activeTab, fetchProductionLogs, fetchProductionStats]);
 
-  /**
-   * Sync newly produced quantities to inventory stock.
-   * Uses the `inventory` array from OrderContext (already loaded).
-   */
   const syncToInventory = async (productName, qty, color, variant) => {
     try {
-      const normalizeStr = (s = '') =>
-        String(s).toLowerCase().replace(/[_\-\s]+/g, ' ').trim();
+      const normalizeStr = (s = '') => String(s).toLowerCase().replace(/[_\-\s]+/g, ' ').trim();
       const targetNorm = normalizeStr(productName);
 
       let bestMatch = null;
@@ -268,7 +694,7 @@ export const InventoryPage = () => {
           continue;
         }
         const targetTokens = new Set(targetNorm.split(' ').filter(t => t.length > 1));
-        const itemTokens   = new Set(itemNorm.split(' ').filter(t => t.length > 1));
+        const itemTokens = new Set(itemNorm.split(' ').filter(t => t.length > 1));
         const overlap = [...targetTokens].filter(t => itemTokens.has(t)).length;
         const score = overlap / Math.max(targetTokens.size, itemTokens.size, 1);
         if (score > bestScore) { bestScore = score; bestMatch = item; }
@@ -354,21 +780,14 @@ export const InventoryPage = () => {
 
       let error;
       if (editingLogId) {
-        const res = await supabase
-          .from('factory_production_logs')
-          .update(payload)
-          .eq('id', editingLogId);
+        const res = await supabase.from('factory_production_logs').update(payload).eq('id', editingLogId);
         error = res.error;
       } else {
-        const res = await supabase
-          .from('factory_production_logs')
-          .insert([payload]);
+        const res = await supabase.from('factory_production_logs').insert([payload]);
         error = res.error;
       }
-
       if (error) throw error;
 
-      // ── Auto-sync to inventory ──
       let toastMsg = null;
       let toastType = 'success';
 
@@ -419,13 +838,9 @@ export const InventoryPage = () => {
     }
   };
 
-  /**
-   * AI Autofill handler — parses the magic textarea and fills form fields.
-   */
   const handleAIAutofill = async () => {
     const text = aiInputText.trim();
     if (!text) return;
-
     setIsAILoading(true);
     setAiConfidence(null);
     setAiFilledFields([]);
@@ -466,12 +881,10 @@ export const InventoryPage = () => {
   };
 
   const handleTogglePaymentStatus = async (log) => {
-    // If 'Due' or 'Partial', open the payment modal instead of toggling
     if (log.payment_status !== 'Paid') {
       setPaymentModalLog(log);
       return;
     }
-    // If already 'Paid', allow toggle back to Due (reset paid_amount)
     if (!window.confirm('Mark this entry as Due again? This will reset the paid amount.')) return;
     try {
       const { error } = await supabase
@@ -479,9 +892,7 @@ export const InventoryPage = () => {
         .update({ payment_status: 'Due', paid_amount: 0, updated_at: new Date().toISOString() })
         .eq('id', log.id);
 
-      // Also remove all payment records
       await supabase.from('production_payments').delete().eq('production_log_id', log.id);
-
       if (error) throw error;
       fetchProductionLogs();
       fetchProductionStats();
@@ -492,13 +903,9 @@ export const InventoryPage = () => {
 
   const handleDeleteProductionLog = async (id) => {
     if (!window.confirm('Are you sure you want to delete this production log entry?')) return;
-
     try {
       const { error } = await supabase
-        .from('factory_production_logs')
-        .delete()
-        .eq('id', id);
-
+        .from('factory_production_logs').delete().eq('id', id);
       if (error) throw error;
       fetchProductionLogs();
       fetchProductionStats();
@@ -510,7 +917,6 @@ export const InventoryPage = () => {
   const handleStartEditLog = (log) => {
     setEditingLogId(log.id);
     const hasProductInDropdown = uniqueProducts.includes(log.product_name);
-    
     setLogFormData({
       production_date: log.production_date,
       product_name: log.product_name,
@@ -528,9 +934,7 @@ export const InventoryPage = () => {
     if (!dateStr) return '';
     try {
       const parts = dateStr.split('-');
-      if (parts.length === 3) {
-        return `${parts[2]}/${parts[1]}/${parts[0]}`;
-      }
+      if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
       return dateStr;
     } catch {
       return dateStr;
@@ -542,1128 +946,1037 @@ export const InventoryPage = () => {
     const maxVisible = 5;
     let start = Math.max(1, curr - Math.floor(maxVisible / 2));
     let end = Math.min(total, start + maxVisible - 1);
-    
-    if (end - start + 1 < maxVisible) {
-      start = Math.max(1, end - maxVisible + 1);
-    }
-    for (let i = start; i <= end; i++) {
-      pages.push(i);
-    }
+    if (end - start + 1 < maxVisible) start = Math.max(1, end - maxVisible + 1);
+    for (let i = start; i <= end; i++) pages.push(i);
     return pages;
   };
 
-  // Modal states
-  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
-  const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
-  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
-  const [isToyBoxModalOpen, setIsToyBoxModalOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState(null);
-  const [adjustingProduct, setAdjustingProduct] = useState(null);
-  const [adjustAmount, setAdjustAmount] = useState(1);
-  const [adjustType, setAdjustType] = useState('add'); // 'add' or 'deduct'
-  const [invoiceText, setInvoiceText] = useState('');
-  const [invoicePreview, setInvoicePreview] = useState(null);
-  const [invoiceError, setInvoiceError] = useState('');
-  const [isPreviewingInvoice, setIsPreviewingInvoice] = useState(false);
-  const [isApplyingInvoice, setIsApplyingInvoice] = useState(false);
-  const [confirmCommand] = useState('confirm');
-  const [useManualBulkMode, setUseManualBulkMode] = useState(true);
-  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
-  const [invoiceStockMode, setInvoiceStockMode] = useState('add'); // 'add' or 'deduct'
-  const [toyBoxSerialInput, setToyBoxSerialInput] = useState('');
-  const [toyBoxInitialStock, setToyBoxInitialStock] = useState(0);
-  const [toyBoxProductName, setToyBoxProductName] = useState('');
-
-  const [formData, setFormData] = useState({
-    name: '', sku: '', category: 'Other', current_stock: 0, min_stock_level: 5,
-    unit_price: 0, selling_price: 0, making_cost: 0, supports_serial_tracking: false
-  });
-
-  const serialTrackedProducts = getSerialTrackedProducts(inventory);
-  const toyBoxGroups = (toyBoxes || []).reduce((acc, item) => {
-    const key = item.product_name || 'TOY BOX';
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(item);
-    return acc;
-  }, {});
-
-  const filteredInventory = inventory.filter(item => {
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.sku && item.sku.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesCategory = categoryFilter === 'All' || item.category === categoryFilter;
-    return matchesSearch && matchesCategory;
-  });
-
-  // --- Computed P&L stats across all inventory ---
-  const totalInventoryValue = inventory.reduce((s, i) => s + ((Number(i.selling_price) || Number(i.unit_price) || 0) * (Number(i.current_stock) || 0)), 0);
-  const totalCOGSValue      = inventory.reduce((s, i) => s + ((Number(i.making_cost) || 0) * (Number(i.current_stock) || 0)), 0);
-
-  const lowStockItems = inventory.filter(item => item.current_stock <= item.min_stock_level);
-  const outOfStockItems = inventory.filter(item => item.current_stock === 0);
-
-  const handleOpenProductModal = (product = null) => {
-    if (product) {
-      setEditingProduct(product);
-      setFormData({
-        name: product.name,
-        sku: product.sku || '',
-        category: product.category || 'Other',
-        current_stock: product.current_stock,
-        min_stock_level: product.min_stock_level,
-        unit_price: product.unit_price,
-        // selling_price falls back to unit_price for legacy records
-        selling_price: Number(product.selling_price) || Number(product.unit_price) || 0,
-        making_cost: Number(product.making_cost) || 0,
-        supports_serial_tracking: Boolean(product.supports_serial_tracking ?? (product.category === 'TOY BOX'))
-      });
-    } else {
-      setEditingProduct(null);
-      setFormData({ name: '', sku: '', category: 'Other', current_stock: 0, min_stock_level: 5, unit_price: 0, selling_price: 0, making_cost: 0, supports_serial_tracking: false });
-    }
-    setIsProductModalOpen(true);
-  };
-
-  const handleSaveProduct = async (e) => {
-    e.preventDefault();
-    if (editingProduct) {
-      await updateInventoryItem(editingProduct.id, formData);
-    } else {
-      await addInventoryItem(formData);
-    }
-    setIsProductModalOpen(false);
-  };
-
-  const handleOpenAdjustModal = (product) => {
-    setAdjustingProduct(product);
-    setAdjustAmount(1);
-    setAdjustType('add');
-    setIsAdjustModalOpen(true);
-  };
-
-  const handleAdjustStock = async () => {
-    const amount = adjustType === 'add' ? adjustAmount : -adjustAmount;
-    await adjustStock(adjustingProduct.id, amount);
-    setIsAdjustModalOpen(false);
-  };
-
-  const handleDeleteProduct = async (id) => {
-    if (window.confirm('Are you sure you want to delete this product?')) {
-      await deleteInventoryItem(id);
-    }
-  };
-
-  const handleAddToyBoxSerials = async (e) => {
-    e.preventDefault();
-
-    if (!toyBoxProductName) {
-      alert('Select a product for these serials.');
-      return;
-    }
-
-    const requested = toyBoxSerialInput
-      .split(/[,\s]+/)
-      .map((value) => parseInt(value.trim(), 10))
-      .filter((value) => Number.isInteger(value) && value > 0);
-
-    const uniqueRequested = [...new Set(requested)];
-    const existing = new Set(
-      (toyBoxes || [])
-        .filter((box) => (box.product_name || 'TOY BOX') === toyBoxProductName)
-        .map((box) => Number(box.toy_box_number))
-    );
-    const entries = uniqueRequested
-      .filter((serial) => !existing.has(serial))
-      .map((serial) => ({
-        product_name: toyBoxProductName,
-        toy_box_number: serial,
-        stock_quantity: toyBoxInitialStock
-      }));
-
-    if (entries.length === 0) {
-      alert('No new serial numbers found to add.');
-      return;
-    }
-
-    try {
-      await addToyBoxStocks(entries);
-      setToyBoxSerialInput('');
-      setToyBoxInitialStock(0);
-      setToyBoxProductName('');
-      setIsToyBoxModalOpen(false);
-    } catch (error) {
-      console.error('Failed to add toy box serials:', error);
-      alert(error?.message || 'Failed to add serial numbers. Please try again.');
-    }
-  };
-
-  const handleOpenInvoiceModal = () => {
-    setIsInvoiceModalOpen(true);
-    setInvoiceError('');
-    setInvoicePreview(null);
-    setIsReviewModalOpen(false);
-    setInvoiceStockMode('add');
-  };
-
-  const handlePreviewInvoice = async () => {
-    if (!invoiceText.trim()) {
-      setInvoiceError('Please paste invoice lines first.');
-      return;
-    }
-
-    setIsPreviewingInvoice(true);
-    setInvoiceError('');
-    try {
-      const preview = await previewInvoiceStockUpdate(invoiceText, { preferManualBulk: useManualBulkMode, stockMode: invoiceStockMode });
-      setInvoicePreview(preview);
-    } catch (error) {
-      setInvoiceError(error?.message || 'Failed to analyze invoice.');
-      setInvoicePreview(null);
-    } finally {
-      setIsPreviewingInvoice(false);
-    }
-  };
-
-  const handleApplyInvoiceSync = async () => {
-    if (!invoicePreview) {
-      await handlePreviewInvoice();
-      return;
-    }
-    setInvoiceError('');
-    setIsReviewModalOpen(true);
-  };
-
-  const [reviewError, setReviewError] = useState('');
-  const [invoiceSuccess, setInvoiceSuccess] = useState('');
-
-  const handleFinalConfirmApply = async () => {
-    if (!invoicePreview || !(invoicePreview?.matched?.length > 0)) return;
-
-    setIsApplyingInvoice(true);
-    setReviewError('');
-    setInvoiceError('');
-    try {
-      const result = await applyInvoiceStockUpdate(invoiceText, {
-        preferManualBulk: useManualBulkMode,
-        confirmCommand,
-        stockMode: invoiceStockMode
-      });
-      const appliedCount = result?.applied?.length || result?.matched?.length || 0;
-      const totalChanged = result?.summary?.totalDeducted || result?.summary?.totalQty || 0;
-      const modeLabel = invoiceStockMode === 'add' ? 'added' : 'deducted';
-
-      // Close both modals
-      setIsReviewModalOpen(false);
-      setIsInvoiceModalOpen(false);
-
-      // Reset all invoice state
-      setInvoiceText('');
-      setInvoicePreview(null);
-      setInvoiceError('');
-      setReviewError('');
-
-      // Show success feedback
-      setInvoiceSuccess(`✅ Stock updated successfully! ${appliedCount} item(s) affected, ${totalChanged} total units ${modeLabel}.`);
-      setTimeout(() => setInvoiceSuccess(''), 6000);
-    } catch (error) {
-      console.error('Invoice apply error:', error);
-      setReviewError(error?.message || 'Failed to apply inventory update from invoice.');
-    } finally {
-      setIsApplyingInvoice(false);
-    }
-  };
-
   return (
-    <div className="inventory-page">
-      <div className="page-header">
-        <div>
-          <h1 className="premium-title">Inventory Management</h1>
-          <p className="page-subtitle">Monitor stock levels, manage products, and track warehouse movements.</p>
-        </div>
-        {activeTab === 'catalog' && (
-          <div className="inventory-header-actions">
-            <Button variant="ghost" onClick={handleOpenInvoiceModal} className="ai-sync-btn">
-              <Bot size={18} /> <span>AI Invoice Sync</span>
-            </Button>
-            <Button variant="primary" onClick={() => handleOpenProductModal()} className="add-product-btn">
-              <Plus size={18} /> <span>Add New Product</span>
-            </Button>
+    <div className="inventory-page-root">
+      {/* ── 1. Top Header ── */}
+      <header className="inv-topbar">
+        <div className="inv-topbar-header-row">
+          <div className="inv-topbar-title-wrap">
+            <h1 className="inv-page-heading">Inventory</h1>
+            <span className="inv-item-count-badge">{filteredAndSortedInventory.length} items</span>
           </div>
-        )}
-      </div>
 
-      {invoiceSuccess && (
-        <div className="invoice-success-toast">
-          <CheckCircle2 size={18} />
-          <span>{invoiceSuccess}</span>
-        </div>
-      )}
-
-      {/* Tab Toggle */}
-      <div className="factory-tabs-container" style={{ marginBottom: '24px' }}>
-        <div className="factory-tabs">
-          <button className={`factory-tab ${activeTab === 'catalog' ? 'active' : ''}`} onClick={() => setActiveTab('catalog')}>
-            <Package size={16} /> Stock & Catalog ({inventory.length})
-          </button>
-          <button className={`factory-tab ${activeTab === 'production' ? 'active' : ''}`} onClick={() => setActiveTab('production')}>
-            <Layers size={16} /> Production & Ledger
-          </button>
-        </div>
-      </div>
-
-      {/* Stats Row */}
-      {activeTab === 'catalog' ? (
-        <div className="inventory-stats">
-          <Card className="stat-card glass-card">
-            <div className="stat-icon-box blue">
-              <Package size={22} />
-            </div>
-            <div className="stat-info">
-              <span className="label">Total Products</span>
-              <span className="value">{inventory.length}</span>
-            </div>
-          </Card>
-          <Card className="stat-card glass-card">
-            <div className="stat-icon-box orange">
-              <AlertTriangle size={22} />
-            </div>
-            <div className="stat-info">
-              <span className="label">Low Stock Items</span>
-              <span className="value">{lowStockItems.length}</span>
-            </div>
-          </Card>
-          <Card className="stat-card glass-card">
-            <div className="stat-icon-box red">
-              <Package size={22} />
-            </div>
-            <div className="stat-info">
-              <span className="label">Out of Stock</span>
-              <span className="value">{outOfStockItems.length}</span>
-            </div>
-          </Card>
-          <Card className="stat-card glass-card">
-            <div className="stat-icon-box green">
-              <TrendingUp size={22} />
-            </div>
-            <div className="stat-info">
-              <span className="label">Stock Value (Retail)</span>
-              <span className="value">৳{totalInventoryValue.toLocaleString()}</span>
-            </div>
-          </Card>
-          <Card className="stat-card glass-card">
-            <div className="stat-icon-box purple">
-              <BarChart2 size={22} />
-            </div>
-            <div className="stat-info">
-              <span className="label">Stock COGS (Cost)</span>
-              <span className="value">৳{totalCOGSValue.toLocaleString()}</span>
-            </div>
-          </Card>
-        </div>
-      ) : (
-        <div className="inventory-stats factory-stats-row">
-          <Card className="stat-card glass-card factory-stat-card">
-            <div className="stat-icon-box blue"><Layers size={22} /></div>
-            <div className="stat-info">
-              <span className="label">Total Qty Produced</span>
-              <span className="value">{productionStats.totalQty}</span>
-            </div>
-          </Card>
-          <Card className="stat-card glass-card factory-stat-card">
-            <div className="stat-icon-box orange"><Tag size={22} /></div>
-            <div className="stat-info">
-              <span className="label">Total Cost</span>
-              <span className="value">৳{productionStats.totalCost.toLocaleString('en-BD')}</span>
-            </div>
-          </Card>
-          <Card className="stat-card glass-card factory-stat-card">
-            <div className="stat-icon-box green"><CheckCircle2 size={22} /></div>
-            <div className="stat-info">
-              <span className="label">Total Paid</span>
-              <span className="value">৳{productionStats.totalPaid.toLocaleString('en-BD')}</span>
-            </div>
-          </Card>
-          <Card
-            className="stat-card glass-card factory-stat-card"
-            style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}
-            onClick={() => setIsGlobalPaymentModalOpen(true)}
-            title="Click to manage & pay global dues"
-          >
-            <div className="stat-icon-box red" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}><AlertTriangle size={22} /></div>
-            <div className="stat-info" style={{ minWidth: 0, width: '100%' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
-                <span className="label">Total Due</span>
-                <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '2px 5px', borderRadius: '6px', background: 'rgba(99,102,241,0.12)', color: '#6366f1', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                  Pay Global
-                </span>
-              </div>
-              <span className="value" style={{ color: '#ef4444' }}>৳{productionStats.totalDue.toLocaleString('en-BD')}</span>
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {activeTab === 'catalog' ? (
-        <>
-          <div className="inventory-controls-strip">
-            <div className="unified-filter-bar glass">
-          <PremiumSearch
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search products by name or SKU..."
-            suggestions={
-              searchTerm ? (inventory || []).filter(p => 
-                p.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                p.sku?.toLowerCase().includes(searchTerm.toLowerCase())
-              ).slice(0, 5).map(p => ({
-                id: p.id,
-                label: p.name,
-                sub: `SKU: ${p.sku || 'N/A'} — Stock: ${p.current_stock}`,
-                type: 'product',
-                original: p
-              })) : []
-            }
-            onSuggestionClick={(item) => {
-              if (item.type === 'product') {
-                setSearchTerm(item.label);
-              }
-            }}
-          />
-          <div className="filter-divider"></div>
-          <div className="category-scroll-container">
-            <div className="category-tabs-mini">
-              {CATEGORIES.map(cat => (
+          <div className="inv-topbar-actions">
+            {activeTab === 'catalog' && (
+              <>
                 <button
-                  key={cat}
-                  className={`mini-tab ${categoryFilter === cat ? 'active' : ''}`}
-                  onClick={() => setCategoryFilter(cat)}
+                  type="button"
+                  onClick={handleOpenInvoiceModal}
+                  className="inv-btn-ai-sync-icon"
+                  title="Sync stock from pasted invoice text"
+                  aria-label="AI Invoice Sync"
                 >
-                  {cat}
+                  <Bot size={16} className="text-accent" />
+                  <span className="hide-on-mobile">AI Sync</span>
                 </button>
-              ))}
-            </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleOpenProductModal()}
+                  className="inv-btn-add-product"
+                  aria-label="Add Product"
+                  title="Add Product"
+                >
+                  <Plus size={18} strokeWidth={2.5} />
+                  <span className="hide-on-mobile">Add Product</span>
+                </button>
+              </>
+            )}
           </div>
         </div>
-      </div>
 
-      <Card className="table-card premium-glass" noPadding>
-        <div className="table-container">
-          <table className="management-table">
-            <thead>
-              <tr>
-                <th>Product Information</th>
-                <th>Category</th>
-                <th>Price / Cost</th>
-                <th>Margin</th>
-                <th>Stock Availability</th>
-                <th>Status</th>
-                <th className="text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredInventory.map(item => {
-                const stockStatus = item.current_stock === 0 ? 'Out of Stock' :
-                  item.current_stock <= item.min_stock_level ? 'Low Stock' : 'In Stock';
-                const statusVariant = stockStatus === 'Out of Stock' ? 'danger' :
-                  stockStatus === 'Low Stock' ? 'warning' : 'success';
+        {/* Segmented Route Tab Switcher */}
+        <div className="inv-tab-pills">
+          <button
+            type="button"
+            className={`inv-tab-pill ${activeTab === 'catalog' ? 'active' : ''}`}
+            onClick={() => setActiveTab('catalog')}
+          >
+            <Package size={14} />
+            <span>Stock & Catalog</span>
+          </button>
 
-                // Stock progress bar calculation
-                const maxRef = Math.max(item.min_stock_level * 4, item.current_stock, 10);
-                const stockPercent = Math.min((item.current_stock / maxRef) * 100, 100);
-
-                // Profit margin calculation
-                const sellingPrice = Number(item.selling_price) || Number(item.unit_price) || 0;
-                const makingCost   = Number(item.making_cost) || 0;
-                const marginPct    = sellingPrice > 0 ? ((sellingPrice - makingCost) / sellingPrice * 100) : 0;
-                const isProfit     = marginPct >= 0;
-
-                return (
-                  <tr key={item.id} className="inventory-row">
-                    <td data-label="Product">
-                      <div className="product-info-cell">
-                        <div className="product-avatar">
-                          <Package size={20} />
-                        </div>
-                        <div className="product-meta">
-                          <span className="product-name">{item.name}</span>
-                          <span className="product-sku">{item.sku || 'No SKU'}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td data-label="Category"><span className="category-pill">{item.category}</span></td>
-                    <td data-label="Price / Cost">
-                      <div className="price-cost-cell">
-                        <div className="price-cell">
-                          <CurrencyIcon size={11} className="currency-icon-elite" />
-                          <span className="amount-val">{sellingPrice.toLocaleString()}</span>
-                        </div>
-                        {makingCost > 0 && (
-                          <div className="cost-cell">
-                            <span className="cost-label">Cost: </span>
-                            <span className="cost-val">৳{makingCost.toLocaleString()}</span>
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td data-label="Margin">
-                      {sellingPrice > 0 ? (
-                        <span className={`margin-badge ${isProfit ? 'profit' : 'loss'}`}>
-                          {isProfit ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                          {marginPct.toFixed(1)}%
-                        </span>
-                      ) : (
-                        <span className="margin-badge neutral">—</span>
-                      )}
-                    </td>
-                    <td data-label="Stock">
-                      <div className="stock-visual-group">
-                        <div className="stock-labels">
-                          <span className="stock-count"><b>{item.current_stock}</b> items</span>
-                          <span className="stock-min-label">Min: {item.min_stock_level}</span>
-                        </div>
-                        <div className="stock-progress-track">
-                          <div
-                            className={`stock-progress-bar ${statusVariant}`}
-                            style={{ width: `${stockPercent}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    </td>
-                    <td data-label="Status">
-                      <Badge variant={statusVariant} size="sm">{stockStatus}</Badge>
-                    </td>
-                    <td data-label="Actions" className="text-right">
-                      <div className="inventory-actions">
-                        <button className="action-btn adjust" onClick={() => handleOpenAdjustModal(item)} title="Update Stock">
-                          <Plus size={16} /> Stock
-                        </button>
-                        <button className="icon-action-btn edit" onClick={() => handleOpenProductModal(item)} title="Edit Product">
-                          <Edit2 size={16} />
-                        </button>
-                        <button className="icon-action-btn delete" onClick={() => handleDeleteProduct(item.id)} title="Remove">
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {!loading && filteredInventory.length === 0 && (
-                <tr>
-                  <td colSpan="6" className="empty-state-cell">
-                    <div className="empty-state-content">
-                      <Search size={40} />
-                      <h3>No products found</h3>
-                      <p>Try adjusting your search or category filters.</p>
-                      <Button variant="ghost" onClick={() => { setSearchTerm(''); setCategoryFilter('All'); }}>
-                        Clear All Filters
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          <button
+            type="button"
+            className={`inv-tab-pill ${activeTab === 'production' ? 'active' : ''}`}
+            onClick={() => setActiveTab('production')}
+          >
+            <Layers size={14} />
+            <span>Production & Ledger</span>
+          </button>
         </div>
-      </Card>
+      </header>
 
-      {/* Toy Box Special Inventory Section */}
-      <div className="toy-box-inventory-section">
-        <div className="section-header">
-          <div className="title-group">
-            <Tag size={20} className="accent-icon" />
-            <h2>Serial Stock Products ({toyBoxes.length} Serials)</h2>
-          </div>
-          <div className="inventory-header-actions">
-            <p>Each serial is now tracked per product, so identical serial numbers can exist in different products.</p>
-            <Button
-              variant="primary"
-              onClick={() => {
-                setToyBoxProductName(serialTrackedProducts[0]?.name || '');
-                setIsToyBoxModalOpen(true);
-              }}
-              className="add-product-btn"
+      {/* Global Invoice / Production Toast */}
+      <AnimatePresence>
+        {invoiceSuccess && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.96 }}
+            className="inv-toast-banner success"
+          >
+            <CheckCircle2 size={16} />
+            <span>{invoiceSuccess}</span>
+            <button type="button" onClick={() => setInvoiceSuccess('')} className="toast-dismiss">
+              <X size={14} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── 2. CATALOG & STOCK TAB ── */}
+      {activeTab === 'catalog' && (
+        <div className="inv-catalog-view">
+          {/* Compact 2-Column Summary Cards on Mobile */}
+          <section className="inv-summary-two-col">
+            <div
+              className={`summary-compact-card ${stockStatusFilter === 'all' ? 'pill-active' : ''}`}
+              onClick={() => setStockStatusFilter('all')}
             >
-              <Plus size={18} /> <span>Add Serials</span>
-            </Button>
-          </div>
-        </div>
+              <span className="summary-compact-label">RETAIL VALUE</span>
+              <span className="summary-compact-val">৳{totalInventoryValue.toLocaleString('en-BD')}</span>
+            </div>
 
-        <div className="toy-box-grid-management">
-          {Object.entries(toyBoxGroups)
-            .sort(([left], [right]) => left.localeCompare(right))
-            .map(([productName, productBoxes]) => (
-              <div key={productName} className="toy-box-product-group">
-                <div className="toy-box-product-heading">
-                  <span>{productName}</span>
-                  <Badge variant="default" size="sm">{productBoxes.length} serials</Badge>
-                </div>
-                <div className="toy-box-grid-management">
-                  {[...productBoxes]
-                    .sort((a, b) => a.toy_box_number - b.toy_box_number)
-                    .map((box) => (
-                      <div key={box.id} className={`toy-box-stock-card ${box.stock_quantity === 0 ? 'out' : box.stock_quantity <= 5 ? 'low' : ''}`}>
-                        <div className="box-num-badge">#{box.toy_box_number}</div>
-                        <div className="stock-input-wrap">
-                          <input
-                            type="number"
-                            min="0"
-                            defaultValue={box.stock_quantity}
-                            onBlur={(e) => {
-                              const newVal = parseInt(e.target.value, 10);
-                              if (!isNaN(newVal) && newVal !== box.stock_quantity) {
-                                updateToyBoxStock(box.id, newVal);
-                              }
-                            }}
-                            className="stock-edit-input"
-                          />
-                          <span className="unit-label">pcs</span>
-                        </div>
-                        <div className="stock-status-dot"></div>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            ))}
-        </div>
-      </div>
-      </>
-      ) : (
-        <div className="production-grid">
-          <div className="production-sidebar-col">
-            {/* Form Card */}
-            <Card className="production-form-card">
-              <h3 className="card-title">Log Production</h3>
+            <div className="summary-compact-card">
+              <span className="summary-compact-label">COGS CAPITAL</span>
+              <span className="summary-compact-val">৳{totalCOGSValue.toLocaleString('en-BD')}</span>
+            </div>
+          </section>
 
-              {/* ── Production Toast ── */}
-              <AnimatePresence>
-                {productionToast && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -8, scale: 0.97 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -8, scale: 0.97 }}
-                    className={`production-toast production-toast--${productionToast.type}`}
-                  >
-                    {productionToast.type === 'success' ? <CheckCircle size={15} /> : <AlertTriangle size={15} />}
-                    <span>{productionToast.message}</span>
-                    <button type="button" onClick={() => setProductionToast(null)} className="production-toast-close">
-                      <X size={12} />
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* ── AI Magic Autofill Input ── */}
-              <div className={`ai-autofill-block ${isAILoading ? 'ai-loading' : ''}`}>
-                <div className="ai-autofill-header">
-                  <div className="ai-autofill-label">
-                    <Sparkles size={15} className="ai-spark-icon" />
-                    <span>AI Smart Autofill</span>
-                    {aiConfidence && (
-                      <span className={`ai-confidence-badge confidence-${aiConfidence}`}>
-                        {aiSource === 'local' ? 'Local' : 'AI'} · {aiConfidence}
-                      </span>
-                    )}
-                  </div>
-                  {aiFilledFields.length > 0 && (
-                    <span className="ai-filled-hint">
-                      Filled: {aiFilledFields.map(f => f.replace('_', ' ')).join(', ')}
-                    </span>
-                  )}
-                </div>
-                <div className="ai-autofill-input-row">
-                  <textarea
-                    ref={aiInputRef}
-                    className="ai-autofill-textarea"
-                    rows={2}
-                    placeholder="Describe in any language… e.g. 'smart travel bag 5 black banano hoyece' or '5 pcs Smart Travel Bag Black manufactured'"
-                    value={aiInputText}
-                    onChange={(e) => setAiInputText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                        e.preventDefault();
-                        handleAIAutofill();
-                      }
-                    }}
-                    disabled={isAILoading}
-                  />
+          {/* ── 3. Search & Filter Bar ── */}
+          <section className="inv-toolbar-card">
+            {/* Full-width Search Input */}
+            <div className="inv-search-row">
+              <div className="inv-search-box">
+                <Search size={16} className="inv-search-icon" />
+                <input
+                  type="text"
+                  className="inv-search-input"
+                  placeholder="Search products or SKU..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+                {searchTerm && (
                   <button
                     type="button"
-                    className={`ai-autofill-btn ${isAILoading ? 'loading' : ''}`}
-                    onClick={handleAIAutofill}
-                    disabled={isAILoading || !aiInputText.trim()}
-                    title="Parse with AI (Ctrl+Enter)"
+                    className="inv-search-clear-btn"
+                    onClick={() => setSearchTerm('')}
+                    aria-label="Clear search"
                   >
-                    {isAILoading
-                      ? <Loader2 size={16} className="spin" />
-                      : <Sparkles size={16} />}
-                    <span>{isAILoading ? 'Parsing...' : 'Autofill'}</span>
+                    <X size={14} />
                   </button>
-                </div>
-                <p className="ai-autofill-hint">Press Ctrl+Enter or click Autofill — AI will fill all fields automatically.</p>
+                )}
+              </div>
+            </div>
+
+            {/* Filter / Sort / Select Buttons */}
+            <div className="inv-filter-btn-row">
+              <button
+                type="button"
+                className={`inv-tool-btn ${activeFiltersCount > 0 ? 'tool-active' : ''}`}
+                onClick={() => setIsFilterSheetOpen(true)}
+                aria-label="Open filters"
+              >
+                <SlidersHorizontal size={14} />
+                <span>Filter</span>
+                {activeFiltersCount > 0 && (
+                  <span className="tool-count-dot">{activeFiltersCount}</span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                className="inv-tool-btn"
+                onClick={() => setIsSortSheetOpen(true)}
+                aria-label="Open sorting options"
+              >
+                <ArrowUpDown size={14} />
+                <span className="hide-on-mobile">{activeSortLabel}</span>
+                <span className="show-on-mobile-inline">Sort</span>
+              </button>
+
+              <button
+                type="button"
+                className={`inv-tool-btn select-toggle ${selectionMode ? 'tool-active' : ''}`}
+                onClick={() => {
+                  if (selectionMode) {
+                    handleClearSelection();
+                  } else {
+                    setSelectionMode(true);
+                  }
+                }}
+                title={selectionMode ? 'Exit multi-select mode' : 'Select products for bulk action'}
+              >
+                <CheckSquare size={14} />
+                <span>{selectionMode ? 'Done' : 'Select'}</span>
+              </button>
+            </div>
+
+            {/* Category Horizontal Scrolling Rail */}
+            <div className="inv-category-scroll-stream">
+              {CATEGORIES.map(cat => {
+                const isActive = categoryFilter === cat;
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    className={`inv-category-pill ${isActive ? 'active' : ''}`}
+                    onClick={() => setCategoryFilter(cat)}
+                  >
+                    {cat}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Active Filter Chips Banner */}
+          {(activeFiltersCount > 0 || searchTerm) && (
+            <div className="inv-active-chips-banner">
+              <span className="active-chips-label">Active Filters:</span>
+              <div className="chips-list">
+                {searchTerm && (
+                  <span className="filter-chip">
+                    Search: "{searchTerm}"
+                    <button type="button" onClick={() => setSearchTerm('')}><X size={12} /></button>
+                  </span>
+                )}
+                {categoryFilter !== 'All' && (
+                  <span className="filter-chip">
+                    Category: {categoryFilter}
+                    <button type="button" onClick={() => setCategoryFilter('All')}><X size={12} /></button>
+                  </span>
+                )}
+                {stockStatusFilter !== 'all' && (
+                  <span className="filter-chip">
+                    Status: {stockStatusFilter.replace('_', ' ')}
+                    <button type="button" onClick={() => setStockStatusFilter('all')}><X size={12} /></button>
+                  </span>
+                )}
+                {serialOnlyFilter && (
+                  <span className="filter-chip">
+                    Serial Tracked Only
+                    <button type="button" onClick={() => setSerialOnlyFilter(false)}><X size={12} /></button>
+                  </span>
+                )}
+                <button type="button" className="btn-clear-all-chips" onClick={handleResetFilters}>
+                  Clear all
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── 4. Main Product Inventory Display (Mobile List + Desktop Table) ── */}
+          {loading ? (
+            <div className="inv-loading-state">
+              <div className="inv-skeleton-grid">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <div key={n} className="inv-skeleton-card" />
+                ))}
+              </div>
+            </div>
+          ) : filteredAndSortedInventory.length > 0 ? (
+            <div className="inv-content-layout">
+              {/* Mobile View: Product Cards List */}
+              <div className="inv-mobile-list-view">
+                {filteredAndSortedInventory.map((item) => (
+                  <MobileInventoryCard
+                    key={item.id}
+                    item={item}
+                    onSelectProduct={(p) => setSelectedProductForDrawer(p)}
+                    onQuickAdjust={handleQuickAdjust}
+                    isSelected={selectedIds.has(item.id)}
+                    onToggleSelect={handleToggleSelect}
+                    selectionMode={selectionMode}
+                    isAdjusting={adjustingIds.has(item.id)}
+                  />
+                ))}
               </div>
 
-              <form onSubmit={handleSaveProductionLog} className="production-form">
-                {logFormError && <div className="form-error-toast">{logFormError}</div>}
-                
-                <div className="form-group">
-                  <label>Date</label>
-                  <input
-                    type="date"
-                    value={logFormData.production_date}
-                    onChange={(e) => setLogFormData(prev => ({ ...prev, production_date: e.target.value }))}
-                    required
-                  />
+              {/* Desktop View: Data Table */}
+              <div className="inv-desktop-table-view">
+                <DesktopInventoryTable
+                  items={filteredAndSortedInventory}
+                  selectedIds={selectedIds}
+                  onToggleSelect={handleToggleSelect}
+                  onSelectAll={handleSelectAll}
+                  onSelectProduct={(p) => setSelectedProductForDrawer(p)}
+                  onOpenProductModal={handleOpenProductModal}
+                  onOpenAdjustModal={handleOpenAdjustModal}
+                  onDeleteProduct={handleDeleteProduct}
+                  onQuickAdjust={handleQuickAdjust}
+                  adjustingIds={adjustingIds}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="inv-empty-state">
+              <div className="inv-empty-icon-wrap">
+                <Package size={36} />
+              </div>
+              <h3 className="inv-empty-title">No products match your criteria</h3>
+              <p className="inv-empty-desc">
+                {searchTerm || activeFiltersCount > 0
+                  ? 'Try modifying your search keywords or clearing active filters.'
+                  : 'Get started by creating your first catalog product.'}
+              </p>
+              <div className="inv-empty-actions">
+                {searchTerm || activeFiltersCount > 0 ? (
+                  <Button variant="outline" onClick={handleResetFilters}>
+                    Clear Filters & Search
+                  </Button>
+                ) : (
+                  <Button variant="primary" onClick={() => handleOpenProductModal()}>
+                    <Plus size={16} /> Add First Product
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── 5. Serial Tracked Inventory Compact Summary Card (Replaces inline 43 cards) ── */}
+          <section className="inv-serial-summary-card">
+            <div className="serial-summary-info">
+              <div className="serial-summary-icon">
+                <Tag size={18} className="text-accent" />
+              </div>
+              <div className="serial-summary-text">
+                <h3 className="serial-summary-title">Serial Tracked Inventory</h3>
+                <span className="serial-summary-count">{toyBoxes.length} Serials</span>
+                <p className="serial-summary-desc">Track individual serial stock for products.</p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="btn-view-serials"
+              onClick={() => setIsSerialSheetOpen(true)}
+            >
+              <span>View Serials</span>
+              <ChevronRight size={16} />
+            </button>
+          </section>
+        </div>
+      )}
+
+      {/* ── 6. PRODUCTION & LEDGER TAB ── */}
+      {activeTab === 'production' && (
+        <div className="inv-production-view">
+          {/* Production KPI Summary Grid (2x2 on mobile, 4-col on desktop) */}
+          <section className="prod-stats-grid">
+            <div className="prod-stat-card">
+              <span className="prod-stat-label">PRODUCED</span>
+              <span className="prod-stat-num">{productionStats.totalQty}</span>
+            </div>
+
+            <div className="prod-stat-card">
+              <span className="prod-stat-label">PROD. COST</span>
+              <span className="prod-stat-num">৳{productionStats.totalCost.toLocaleString('en-BD')}</span>
+            </div>
+
+            <div className="prod-stat-card">
+              <span className="prod-stat-label">PAID</span>
+              <span className="prod-stat-num text-success">৳{productionStats.totalPaid.toLocaleString('en-BD')}</span>
+            </div>
+
+            <div
+              className="prod-stat-card clickable"
+              onClick={() => setIsGlobalPaymentModalOpen(true)}
+              title="Click to manage and pay factory dues"
+            >
+              <span className="prod-stat-label">OUTSTANDING DUE</span>
+              <span className="prod-stat-num text-danger">৳{productionStats.totalDue.toLocaleString('en-BD')}</span>
+            </div>
+          </section>
+
+          <div className="production-grid-layout">
+            {/* Left/Sidebar: Log Production Form & Breakdown */}
+            <div className="production-sidebar-col">
+              {/* Production Form Card */}
+              <div className="production-form-card">
+                <div className="card-head-compact">
+                  <h3 className="card-title">{editingLogId ? 'Edit Production Entry' : 'Log New Production'}</h3>
+                  <p className="card-desc">Record manufacturing batches and auto-sync to inventory.</p>
                 </div>
 
-                <div className="form-group">
-                  <label>Product Name</label>
-                  {!isCustomProduct ? (
-                    <div className="select-input-container">
-                      <select
-                        value={logFormData.product_name}
-                        onChange={(e) => {
-                          if (e.target.value === '__custom__') {
-                            setIsCustomProduct(true);
-                            setLogFormData(prev => ({ ...prev, product_name: '' }));
-                          } else {
-                            setLogFormData(prev => ({ ...prev, product_name: e.target.value }));
+                {/* Compact AI Magic Autofill Block */}
+                <div className="ai-magic-compact-toggle">
+                  <div className="ai-toggle-header">
+                    <div className="ai-toggle-title">
+                      <Sparkles size={14} className="text-accent" />
+                      <span>AI Magic Autofill</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="ai-toggle-action-btn"
+                      onClick={() => setIsAiAutofillExpanded(!isAiAutofillExpanded)}
+                    >
+                      {isAiAutofillExpanded ? 'Hide' : 'Use AI'}
+                    </button>
+                  </div>
+
+                  {isAiAutofillExpanded && (
+                    <div className="ai-magic-expanded-area">
+                      <textarea
+                        ref={aiInputRef}
+                        className="ai-autofill-textarea"
+                        rows={2}
+                        placeholder="Describe production e.g. '5 pcs Organizer Blue'..."
+                        value={aiInputText}
+                        onChange={(e) => setAiInputText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                            e.preventDefault();
+                            handleAIAutofill();
                           }
                         }}
-                        required
-                      >
-                        <option value="">Select a Product</option>
-                        {uniqueProducts.map(p => (
-                          <option key={p} value={p}>{p}</option>
-                        ))}
-                        <option value="__custom__" style={{ fontStyle: 'italic', color: 'var(--fp-accent)' }}>+ Enter Custom Product...</option>
-                      </select>
-                    </div>
-                  ) : (
-                    <div className="custom-input-wrapper" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                      <input
-                        type="text"
-                        placeholder="Enter custom product name"
-                        value={logFormData.product_name}
-                        onChange={(e) => setLogFormData(prev => ({ ...prev, product_name: e.target.value }))}
-                        required
-                        style={{ flex: 1 }}
+                        disabled={isAILoading}
                       />
-                      <button 
-                        type="button" 
-                        className="btn-text-link" 
-                        onClick={() => {
-                          setIsCustomProduct(false);
-                          setLogFormData(prev => ({ ...prev, product_name: '' }));
-                        }}
-                        style={{ fontSize: '0.8rem', whiteSpace: 'nowrap', border: 'none', background: 'transparent', color: 'var(--fp-accent)', cursor: 'pointer' }}
+                      <button
+                        type="button"
+                        className="btn-ai-submit"
+                        onClick={handleAIAutofill}
+                        disabled={isAILoading || !aiInputText.trim()}
                       >
-                        Dropdown
+                        {isAILoading ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} />}
+                        <span>{isAILoading ? 'Parsing...' : 'Autofill Form'}</span>
                       </button>
                     </div>
                   )}
                 </div>
 
-                <div className="form-row-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div className="form-group">
-                    <label>Variant</label>
-                    <input
-                      type="text"
-                      placeholder="e.g., Standard"
-                      value={logFormData.variant}
-                      onChange={(e) => setLogFormData(prev => ({ ...prev, variant: e.target.value }))}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Color</label>
-                    <input
-                      type="text"
-                      placeholder="e.g., Black"
-                      value={logFormData.color}
-                      onChange={(e) => setLogFormData(prev => ({ ...prev, color: e.target.value }))}
-                    />
-                  </div>
-                </div>
+                {/* Production Form */}
+                <form onSubmit={handleSaveProductionLog} className="production-form">
+                  {logFormError && <div className="form-error-toast">{logFormError}</div>}
 
-                <div className="form-row-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div className="form-group">
-                    <label>Quantity Ready</label>
+                    <label>Production Date</label>
                     <input
-                      type="number"
-                      min="1"
-                      placeholder="0"
-                      value={logFormData.quantity_ready}
-                      onChange={(e) => setLogFormData(prev => ({ ...prev, quantity_ready: e.target.value }))}
+                      type="date"
+                      value={logFormData.production_date}
+                      onChange={(e) => setLogFormData(prev => ({ ...prev, production_date: e.target.value }))}
                       required
                     />
                   </div>
+
                   <div className="form-group">
-                    <label>Unit Cost (৳)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                      value={logFormData.unit_cost}
-                      onChange={(e) => setLogFormData(prev => ({ ...prev, unit_cost: e.target.value }))}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label>Payment Status</label>
-                  <div className="payment-status-radio-group" style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
-                    <label className={`radio-label-pill ${logFormData.payment_status === 'Due' ? 'active due' : ''}`} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px', border: '1px solid var(--fp-border)', borderRadius: '8px', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600 }}>
-                      <input
-                        type="radio"
-                        name="payment_status"
-                        value="Due"
-                        checked={logFormData.payment_status === 'Due'}
-                        onChange={(e) => setLogFormData(prev => ({ ...prev, payment_status: e.target.value }))}
-                        style={{ display: 'none' }}
-                      />
-                      Due
-                    </label>
-                    <label className={`radio-label-pill ${logFormData.payment_status === 'Paid' ? 'active paid' : ''}`} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px', border: '1px solid var(--fp-border)', borderRadius: '8px', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600 }}>
-                      <input
-                        type="radio"
-                        name="payment_status"
-                        value="Paid"
-                        checked={logFormData.payment_status === 'Paid'}
-                        onChange={(e) => setLogFormData(prev => ({ ...prev, payment_status: e.target.value }))}
-                        style={{ display: 'none' }}
-                      />
-                      Paid
-                    </label>
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label>Notes</label>
-                  <textarea
-                    rows="2"
-                    placeholder="Optional notes..."
-                    value={logFormData.notes}
-                    onChange={(e) => setLogFormData(prev => ({ ...prev, notes: e.target.value }))}
-                  />
-                </div>
-
-                <Button type="submit" variant="primary" className="btn-full-width" disabled={isSubmittingLog}>
-                  {isSubmittingLog ? <Loader2 size={16} className="spin" /> : <Layers size={16} />}
-                  <span>{editingLogId ? 'Update Entry' : 'Log Production'}</span>
-                </Button>
-                {editingLogId && (
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    className="btn-full-width" 
-                    style={{ marginTop: '8px' }}
-                    onClick={() => {
-                      setEditingLogId(null);
-                      setLogFormData({
-                        production_date: getTodayDateString(),
-                        product_name: '',
-                        color: '',
-                        variant: '',
-                        quantity_ready: '',
-                        unit_cost: '',
-                        notes: '',
-                        payment_status: 'Due'
-                      });
-                      setIsCustomProduct(false);
-                    }}
-                  >
-                    Cancel Edit
-                  </Button>
-                )}
-              </form>
-            </Card>
-
-            {/* Product Cost Breakdown Card */}
-            <Card className="product-breakdown-card">
-              <h3 className="card-title">Cost Breakdown</h3>
-              <div className="breakdown-table-wrapper">
-                <table className="breakdown-table">
-                  <thead>
-                    <tr>
-                      <th>Product</th>
-                      <th className="num-col">Qty</th>
-                      <th className="num-col">Total Cost</th>
-                      <th className="num-col">Paid</th>
-                      <th className="num-col">Due</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {productionStats.breakdown.map(item => (
-                      <tr key={item.name}>
-                        <td className="prod-name-col" title={item.name}>{item.name}</td>
-                        <td className="num-col bold">{item.qty}</td>
-                        <td className="num-col">৳{item.cost.toLocaleString('en-BD')}</td>
-                        <td className="num-col green">৳{item.paid.toLocaleString('en-BD')}</td>
-                        <td className="num-col red">৳{item.due.toLocaleString('en-BD')}</td>
-                      </tr>
-                    ))}
-                    {productionStats.breakdown.length === 0 && (
-                      <tr>
-                        <td colSpan="5" className="empty-state-cell">No logs entered yet.</td>
-                      </tr>
+                    <label>Product Name</label>
+                    {!isCustomProduct ? (
+                      <div className="select-input-container">
+                        <select
+                          value={logFormData.product_name}
+                          onChange={(e) => {
+                            if (e.target.value === '__custom__') {
+                              setIsCustomProduct(true);
+                              setLogFormData(prev => ({ ...prev, product_name: '' }));
+                            } else {
+                              setLogFormData(prev => ({ ...prev, product_name: e.target.value }));
+                            }
+                          }}
+                          required
+                        >
+                          <option value="">Select a Product</option>
+                          {uniqueProducts.map(p => (
+                            <option key={p} value={p}>{p}</option>
+                          ))}
+                          <option value="__custom__" style={{ fontStyle: 'italic', color: 'var(--accent)' }}>+ Enter Custom Product...</option>
+                        </select>
+                      </div>
+                    ) : (
+                      <div className="custom-input-wrapper">
+                        <input
+                          type="text"
+                          placeholder="Enter custom product name"
+                          value={logFormData.product_name}
+                          onChange={(e) => setLogFormData(prev => ({ ...prev, product_name: e.target.value }))}
+                          required
+                        />
+                        <button
+                          type="button"
+                          className="btn-text-link"
+                          onClick={() => {
+                            setIsCustomProduct(false);
+                            setLogFormData(prev => ({ ...prev, product_name: '' }));
+                          }}
+                        >
+                          Select Dropdown
+                        </button>
+                      </div>
                     )}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-          </div>
+                  </div>
 
-          <div className="production-main-col">
-            {/* Ledger Table & Filters Card */}
-            <Card className="ledger-card" noPadding>
-              <div className="table-search-bar">
-                <div className="elite-search-wrapper">
-                  <Filter size={18} className="elite-search-icon" />
-                  <input
-                    type="text"
-                    className="elite-search-input"
-                    placeholder="Search by product, variant, color or notes..."
-                    value={logSearchTerm}
-                    onChange={(e) => { setLogSearchTerm(e.target.value); setLogPage(1); }}
-                  />
-                </div>
+                  <div className="form-row-responsive">
+                    <div className="form-group">
+                      <label>Variant</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Standard"
+                        value={logFormData.variant}
+                        onChange={(e) => setLogFormData(prev => ({ ...prev, variant: e.target.value }))}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Color</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Black"
+                        value={logFormData.color}
+                        onChange={(e) => setLogFormData(prev => ({ ...prev, color: e.target.value }))}
+                      />
+                    </div>
+                  </div>
 
-                <div className="filter-actions-group">
-                  <select
-                    className="factory-page-size-select"
-                    style={{ minWidth: '130px' }}
-                    value={logProductFilter}
-                    onChange={(e) => { setLogProductFilter(e.target.value); setLogPage(1); }}
-                  >
-                    <option value="All">All Products</option>
-                    {uniqueProducts.map(p => (
-                      <option key={p} value={p}>{p}</option>
-                    ))}
-                  </select>
+                  <div className="form-row-responsive">
+                    <div className="form-group">
+                      <label>Quantity Ready</label>
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="0"
+                        value={logFormData.quantity_ready}
+                        onChange={(e) => setLogFormData(prev => ({ ...prev, quantity_ready: e.target.value }))}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Unit Cost (৳)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={logFormData.unit_cost}
+                        onChange={(e) => setLogFormData(prev => ({ ...prev, unit_cost: e.target.value }))}
+                        required
+                      />
+                    </div>
+                  </div>
 
-                  <select
-                    className="factory-page-size-select"
-                    style={{ minWidth: '110px' }}
-                    value={logPaymentFilter}
-                    onChange={(e) => { setLogPaymentFilter(e.target.value); setLogPage(1); }}
-                  >
-                    <option value="All">All Statuses</option>
-                    <option value="Paid">Paid</option>
-                    <option value="Due">Due</option>
-                  </select>
+                  <div className="form-group">
+                    <label>Payment Status</label>
+                    <div className="payment-status-radio-group">
+                      <label className={`radio-label-pill ${logFormData.payment_status === 'Due' ? 'active due' : ''}`}>
+                        <input
+                          type="radio"
+                          name="payment_status"
+                          value="Due"
+                          checked={logFormData.payment_status === 'Due'}
+                          onChange={(e) => setLogFormData(prev => ({ ...prev, payment_status: e.target.value }))}
+                          style={{ display: 'none' }}
+                        />
+                        DUE
+                      </label>
+                      <label className={`radio-label-pill ${logFormData.payment_status === 'Paid' ? 'active paid' : ''}`}>
+                        <input
+                          type="radio"
+                          name="payment_status"
+                          value="Paid"
+                          checked={logFormData.payment_status === 'Paid'}
+                          onChange={(e) => setLogFormData(prev => ({ ...prev, payment_status: e.target.value }))}
+                          style={{ display: 'none' }}
+                        />
+                        PAID
+                      </label>
+                    </div>
+                  </div>
 
-                  <select
-                    className="factory-page-size-select"
-                    style={{ minWidth: '130px' }}
-                    value={logDatePreset}
-                    onChange={(e) => { setLogDatePreset(e.target.value); setLogPage(1); }}
-                  >
-                    <option value="all">All Time</option>
-                    <option value="today">Today</option>
-                    <option value="yesterday">Yesterday</option>
-                    <option value="7days">Last 7 Days</option>
-                    <option value="30days">Last 30 Days</option>
-                    <option value="thisMonth">This Month</option>
-                  </select>
+                  <div className="form-group">
+                    <label>Notes</label>
+                    <textarea
+                      rows="2"
+                      placeholder="Optional notes or batch details..."
+                      value={logFormData.notes}
+                      onChange={(e) => setLogFormData(prev => ({ ...prev, notes: e.target.value }))}
+                    />
+                  </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setIsGlobalPaymentModalOpen(true)}
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', gap: '6px',
-                      padding: '8px 14px', borderRadius: '8px', border: 'none',
-                      background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                      color: '#fff', fontSize: '0.8rem', fontWeight: 800,
-                      cursor: 'pointer', boxShadow: '0 4px 14px rgba(99,102,241,0.28)',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    <DollarSign size={14} /> Global Pay & History
+                  <button type="submit" className="btn-save-production" disabled={isSubmittingLog}>
+                    {isSubmittingLog ? <Loader2 size={15} className="spin" /> : <Layers size={15} />}
+                    <span>{editingLogId ? 'Update Log' : 'Save Production Log'}</span>
                   </button>
-                </div>
-              </div>
 
-              {/* Custom Date Picker Fields */}
-              {logDatePreset === 'all' && (
-                <div className="custom-date-row" style={{ display: 'flex', gap: '12px', padding: '10px 20px', borderBottom: '1px solid var(--fp-border-row)', background: 'var(--fp-input-bg)' }}>
-                  <div className="date-field" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--fp-text-sub)' }}>From:</span>
-                    <input
-                      type="date"
-                      style={{ padding: '4px 8px', fontSize: '0.8rem', borderRadius: '6px', border: '1px solid var(--fp-border)', background: 'var(--fp-card)', color: 'var(--fp-text)' }}
-                      value={logDateFrom}
-                      onChange={(e) => { setLogDateFrom(e.target.value); setLogPage(1); }}
-                    />
-                  </div>
-                  <div className="date-field" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--fp-text-sub)' }}>To:</span>
-                    <input
-                      type="date"
-                      style={{ padding: '4px 8px', fontSize: '0.8rem', borderRadius: '6px', border: '1px solid var(--fp-border)', background: 'var(--fp-card)', color: 'var(--fp-text)' }}
-                      value={logDateTo}
-                      onChange={(e) => { setLogDateTo(e.target.value); setLogPage(1); }}
-                    />
-                  </div>
-                  {(logDateFrom || logDateTo) && (
+                  {editingLogId && (
                     <button
-                      className="btn-text-link"
-                      style={{ fontSize: '0.75rem', color: '#ef4444', border: 'none', background: 'transparent', cursor: 'pointer' }}
-                      onClick={() => { setLogDateFrom(''); setLogDateTo(''); setLogPage(1); }}
+                      type="button"
+                      className="btn-cancel-edit"
+                      onClick={() => {
+                        setEditingLogId(null);
+                        setLogFormData({
+                          production_date: getTodayDateString(),
+                          product_name: '',
+                          color: '',
+                          variant: '',
+                          quantity_ready: '',
+                          unit_cost: '',
+                          notes: '',
+                          payment_status: 'Due'
+                        });
+                        setIsCustomProduct(false);
+                      }}
                     >
-                      Clear Range
+                      Cancel Edit
                     </button>
                   )}
-                </div>
-              )}
-
-              <div className="table-container">
-                <table className="management-table">
-                  <thead>
-                    <tr>
-                      <th style={{ width: '100px' }}>Date</th>
-                      <th>Product</th>
-                      <th>Variant/Color</th>
-                      <th style={{ width: '80px', textAlign: 'right' }}>Qty</th>
-                      <th style={{ width: '100px', textAlign: 'right' }}>Unit Cost</th>
-                      <th style={{ width: '110px', textAlign: 'right' }}>Total Cost</th>
-                      <th style={{ width: '120px', textAlign: 'right' }}>Paid / Due</th>
-                      <th style={{ width: '100px' }}>Status</th>
-                      <th style={{ width: '110px' }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {isLogsLoading ? (
-                      <tr>
-                        <td colSpan="8" className="empty-state-cell">
-                          <Loader2 className="spin" size={24} style={{ margin: 'auto' }} />
-                          <p style={{ marginTop: '8px' }}>Loading production ledger...</p>
-                        </td>
-                      </tr>
-                    ) : (
-                      productionLogs.map(log => (
-                        <tr key={log.id}>
-                          <td>{formatSheetDate(log.production_date)}</td>
-                          <td className="bold" style={{ color: 'var(--fp-text)' }}>{log.product_name}</td>
-                          <td>
-                            <div className="variant-color-badge-stack" style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                              {log.variant && <span className="text-tag variant" style={{ fontSize: '0.72rem', padding: '2px 6px', background: 'var(--fp-btn-bg)', color: 'var(--fp-text-sub)', borderRadius: '4px' }}>{log.variant}</span>}
-                              {log.color && <span className="text-tag color" style={{ fontSize: '0.72rem', padding: '2px 6px', background: 'var(--fp-accent-bg)', color: 'var(--fp-accent)', borderRadius: '4px' }}>{log.color}</span>}
-                              {!log.variant && !log.color && <span style={{ color: 'var(--fp-text-muted)', fontSize: '0.75rem' }}>—</span>}
-                            </div>
-                          </td>
-                          <td className="bold" style={{ textAlign: 'right' }}>{log.quantity_ready}</td>
-                          <td style={{ textAlign: 'right' }}>৳{log.unit_cost.toLocaleString('en-BD')}</td>
-                          <td className="bold" style={{ textAlign: 'right', color: 'var(--fp-accent)' }}>৳{log.total_cost.toLocaleString('en-BD')}</td>
-                          {/* Paid / Due column */}
-                          <td style={{ textAlign: 'right' }}>
-                            {(() => {
-                              const paid = Number(log.paid_amount || 0);
-                              const due = Math.max(0, Number(log.total_cost) - paid);
-                              return (
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
-                                  {paid > 0 && <span style={{ fontSize: '11px', fontWeight: 700, color: '#10b981' }}>৳{paid.toLocaleString('en-BD')} paid</span>}
-                                  {due > 0 && <span style={{ fontSize: '11px', fontWeight: 700, color: '#ef4444' }}>৳{due.toLocaleString('en-BD')} due</span>}
-                                  {paid === 0 && due === 0 && <span style={{ fontSize: '11px', color: 'var(--fp-text-muted)' }}>—</span>}
-                                </div>
-                              );
-                            })()}
-                          </td>
-                          <td>
-                            <button
-                              type="button"
-                              className={`payment-status-pill ${(log.payment_status || 'due').toLowerCase().replace(' ', '-')}`}
-                              onClick={() => handleTogglePaymentStatus(log)}
-                              title={log.payment_status === 'Paid' ? 'Fully paid — click to reset' : 'Click to record payment'}
-                              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px', borderRadius: '12px', border: '1px solid transparent', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer' }}
-                            >
-                              {log.payment_status === 'Paid' ? <CheckCircle2 size={12} /> : log.payment_status === 'Partial' ? <DollarSign size={12} /> : <Clock size={12} />}
-                              <span>{log.payment_status || 'Due'}</span>
-                            </button>
-                          </td>
-                          <td>
-                            <div className="saas-row-actions" style={{ display: 'flex', gap: '6px' }}>
-                              {/* Pay button — only if not fully paid */}
-                              {log.payment_status !== 'Paid' && (
-                                <button
-                                  className="saas-icon-btn"
-                                  title="Record Payment"
-                                  onClick={() => setPaymentModalLog(log)}
-                                  style={{ padding: '6px', borderRadius: '6px', border: '1px solid rgba(99,102,241,0.3)', background: 'rgba(99,102,241,0.08)', color: '#6366f1', cursor: 'pointer', fontWeight: 700, fontSize: '10px', display: 'flex', alignItems: 'center', gap: '3px' }}
-                                >
-                                  <DollarSign size={12} /> Pay
-                                </button>
-                              )}
-                              <button className="saas-icon-btn" title="Edit Log Entry" onClick={() => handleStartEditLog(log)} style={{ padding: '6px', borderRadius: '6px', border: '1px solid var(--fp-border)', background: 'var(--fp-card)', color: 'var(--fp-text-sub)', cursor: 'pointer' }}>
-                                <Edit2 size={13} />
-                              </button>
-                              <button className="saas-icon-btn danger" title="Delete Log Entry" onClick={() => handleDeleteProductionLog(log.id)} style={{ padding: '6px', borderRadius: '6px', border: '1px solid rgba(239, 68, 68, 0.15)', background: 'rgba(239, 68, 68, 0.05)', color: '#ef4444', cursor: 'pointer' }}>
-                                <AlertTriangle size={13} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                    {!isLogsLoading && productionLogs.length === 0 && (
-                      <tr>
-                        <td colSpan="8" className="empty-state-cell">No matching production logs found.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                </form>
               </div>
 
-              {/* Ledger Pagination */}
-              {!isLogsLoading && totalLogRecords > logPageSize && (
-                <div className="factory-pagination-footer" style={{ borderTop: '1px solid var(--fp-border-row)', padding: '14px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--fp-card)' }}>
-                  <div className="factory-pagination-info" style={{ fontSize: '0.8rem', color: 'var(--fp-text-muted)', fontWeight: 500 }}>
-                    Showing {(logPage - 1) * logPageSize + 1}-
-                    {Math.min(logPage * logPageSize, totalLogRecords)} of {totalLogRecords} records
-                  </div>
-                  <div className="factory-pagination-actions" style={{ display: 'flex', gap: '6px' }}>
-                    <button
-                      className="factory-page-btn"
-                      onClick={() => setLogPage(prev => Math.max(1, prev - 1))}
-                      disabled={logPage === 1}
-                      style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '6px', border: '1px solid var(--fp-btn-border)', background: 'var(--fp-btn-bg)', color: 'var(--fp-text-sub)', cursor: 'pointer' }}
-                    >
-                      Previous
-                    </button>
-                    <div className="factory-page-numbers" style={{ display: 'flex', gap: '4px' }}>
-                      {getVisiblePageNumbers(logPage, Math.ceil(totalLogRecords / logPageSize)).map((pageNumber) => (
-                        <button
-                          key={pageNumber}
-                          className={`factory-page-btn factory-page-num ${logPage === pageNumber ? 'active' : ''}`}
-                          onClick={() => setLogPage(pageNumber)}
-                          style={{ minWidth: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 600, borderRadius: '6px', border: '1px solid var(--fp-btn-border)', background: logPage === pageNumber ? 'var(--fp-accent)' : 'transparent', color: logPage === pageNumber ? '#fff' : 'var(--fp-text-sub)', cursor: 'pointer' }}
-                        >
-                          {pageNumber}
-                        </button>
-                      ))}
+              {/* Product Cost Breakdown */}
+              <div className="product-breakdown-card">
+                <h3 className="card-title">Production Cost Breakdown</h3>
+                
+                {/* Mobile Breakdown Card List */}
+                <div className="breakdown-mobile-list">
+                  {productionStats.breakdown.map(item => (
+                    <div key={item.name} className="breakdown-mobile-item">
+                      <div className="breakdown-item-head">
+                        <span className="breakdown-item-name">{item.name}</span>
+                        <span className="breakdown-item-qty">{item.qty} pcs</span>
+                      </div>
+                      <div className="breakdown-item-meta">
+                        <span>Cost: <strong>৳{item.cost.toLocaleString('en-BD')}</strong></span>
+                        <span className="text-success">Paid: <strong>৳{item.paid.toLocaleString('en-BD')}</strong></span>
+                        <span className="text-danger">Due: <strong>৳{item.due.toLocaleString('en-BD')}</strong></span>
+                      </div>
                     </div>
-                    <button
-                      className="factory-page-btn"
-                      onClick={() => setLogPage(prev => Math.min(Math.ceil(totalLogRecords / logPageSize), prev + 1))}
-                      disabled={logPage === Math.ceil(totalLogRecords / logPageSize)}
-                      style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '6px', border: '1px solid var(--fp-btn-border)', background: 'var(--fp-btn-bg)', color: 'var(--fp-text-sub)', cursor: 'pointer' }}
+                  ))}
+                  {productionStats.breakdown.length === 0 && (
+                    <div className="breakdown-empty-text">No logs recorded yet.</div>
+                  )}
+                </div>
+
+                {/* Desktop Breakdown Table */}
+                <div className="breakdown-desktop-table-wrap">
+                  <table className="breakdown-table">
+                    <thead>
+                      <tr>
+                        <th>Product</th>
+                        <th className="num-col">Qty</th>
+                        <th className="num-col">Cost</th>
+                        <th className="num-col">Paid</th>
+                        <th className="num-col">Due</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {productionStats.breakdown.map(item => (
+                        <tr key={item.name}>
+                          <td className="prod-name-col" title={item.name}>{item.name}</td>
+                          <td className="num-col bold">{item.qty}</td>
+                          <td className="num-col">৳{item.cost.toLocaleString('en-BD')}</td>
+                          <td className="num-col green">৳{item.paid.toLocaleString('en-BD')}</td>
+                          <td className="num-col red">৳{item.due.toLocaleString('en-BD')}</td>
+                        </tr>
+                      ))}
+                      {productionStats.breakdown.length === 0 && (
+                        <tr>
+                          <td colSpan="5" className="empty-state-cell">No logs entered yet.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            {/* Right/Main Column: Production Ledger */}
+            <div className="production-main-col">
+              <div className="ledger-card">
+                {/* Search & Filter Toolbar */}
+                <div className="table-search-bar">
+                  <div className="elite-search-wrapper">
+                    <Search size={15} className="elite-search-icon" />
+                    <input
+                      type="text"
+                      className="elite-search-input"
+                      placeholder="Search production logs..."
+                      value={logSearchTerm}
+                      onChange={(e) => { setLogSearchTerm(e.target.value); setLogPage(1); }}
+                    />
+                  </div>
+
+                  <div className="filter-actions-group">
+                    <select
+                      className="factory-page-size-select"
+                      value={logProductFilter}
+                      onChange={(e) => { setLogProductFilter(e.target.value); setLogPage(1); }}
                     >
-                      Next
+                      <option value="All">All Products</option>
+                      {uniqueProducts.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+
+                    <select
+                      className="factory-page-size-select"
+                      value={logPaymentFilter}
+                      onChange={(e) => { setLogPaymentFilter(e.target.value); setLogPage(1); }}
+                    >
+                      <option value="All">All Statuses</option>
+                      <option value="Paid">Paid</option>
+                      <option value="Due">Due</option>
+                    </select>
+
+                    <select
+                      className="factory-page-size-select"
+                      value={logDatePreset}
+                      onChange={(e) => { setLogDatePreset(e.target.value); setLogPage(1); }}
+                    >
+                      <option value="all">All Time</option>
+                      <option value="today">Today</option>
+                      <option value="yesterday">Yesterday</option>
+                      <option value="7days">7 Days</option>
+                      <option value="30days">30 Days</option>
+                      <option value="thisMonth">This Month</option>
+                    </select>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsGlobalPaymentModalOpen(true)}
+                      className="btn-global-pay-trigger"
+                    >
+                      <DollarSign size={13} /> Pay Dues
                     </button>
                   </div>
                 </div>
-              )}
-            </Card>
+
+                {/* Mobile Log Cards List */}
+                <div className="mobile-log-card-list">
+                  {isLogsLoading ? (
+                    <div className="mobile-log-loading">
+                      <Loader2 className="spin" size={20} />
+                      <span>Loading logs...</span>
+                    </div>
+                  ) : productionLogs.length > 0 ? (
+                    productionLogs.map(log => {
+                      const paid = Number(log.paid_amount || 0);
+                      const due = Math.max(0, Number(log.total_cost) - paid);
+                      const isPaid = (log.payment_status || 'due').toLowerCase() === 'paid';
+
+                      return (
+                        <div key={log.id} className="mobile-log-card">
+                          <div className="mobile-log-header">
+                            <span className="mobile-log-date">{formatSheetDate(log.production_date)}</span>
+                            <button
+                              type="button"
+                              className={`payment-status-pill ${isPaid ? 'paid' : 'due'}`}
+                              onClick={() => handleTogglePaymentStatus(log)}
+                            >
+                              {isPaid ? <CheckCircle2 size={11} /> : <Clock size={11} />}
+                              <span>{log.payment_status || 'Due'}</span>
+                            </button>
+                          </div>
+
+                          <div className="mobile-log-title-row">
+                            <h4 className="mobile-log-prod">{log.product_name}</h4>
+                            {(log.variant || log.color) && (
+                              <span className="mobile-log-variant">
+                                {[log.variant, log.color].filter(Boolean).join(' · ')}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="mobile-log-meta-grid">
+                            <div className="mobile-log-stat">
+                              <span className="stat-l">QTY</span>
+                              <span className="stat-v">{log.quantity_ready}</span>
+                            </div>
+                            <div className="mobile-log-stat">
+                              <span className="stat-l">TOTAL</span>
+                              <span className="stat-v">৳{Number(log.total_cost).toLocaleString('en-BD')}</span>
+                            </div>
+                            <div className="mobile-log-stat">
+                              <span className="stat-l">PAID</span>
+                              <span className="stat-v text-success">৳{paid.toLocaleString('en-BD')}</span>
+                            </div>
+                            <div className="mobile-log-stat">
+                              <span className="stat-l">DUE</span>
+                              <span className="stat-v text-danger">৳{due.toLocaleString('en-BD')}</span>
+                            </div>
+                          </div>
+
+                          <div className="mobile-log-footer">
+                            {!isPaid && (
+                              <button
+                                type="button"
+                                className="mobile-log-pay-btn"
+                                onClick={() => setPaymentModalLog(log)}
+                              >
+                                <DollarSign size={12} /> Pay Due
+                              </button>
+                            )}
+                            <div className="mobile-log-actions-right">
+                              <button
+                                type="button"
+                                className="mobile-log-action-btn"
+                                onClick={() => handleStartEditLog(log)}
+                                title="Edit entry"
+                              >
+                                <Edit2 size={13} />
+                              </button>
+                              <button
+                                type="button"
+                                className="mobile-log-action-btn danger"
+                                onClick={() => handleDeleteProductionLog(log.id)}
+                                title="Delete entry"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="mobile-log-empty">No production logs found.</div>
+                  )}
+                </div>
+
+                {/* Desktop Management Table */}
+                <div className="table-container desktop-only-table">
+                  <table className="management-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Product</th>
+                        <th>Variant / Color</th>
+                        <th className="text-right">Qty</th>
+                        <th className="text-right">Unit Cost</th>
+                        <th className="text-right">Total Cost</th>
+                        <th className="text-right">Paid / Due</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {isLogsLoading ? (
+                        <tr>
+                          <td colSpan="9" className="empty-state-cell">
+                            <Loader2 className="spin" size={24} style={{ margin: 'auto' }} />
+                            <p style={{ marginTop: '8px' }}>Loading production ledger...</p>
+                          </td>
+                        </tr>
+                      ) : (
+                        productionLogs.map(log => (
+                          <tr key={log.id}>
+                            <td>{formatSheetDate(log.production_date)}</td>
+                            <td className="bold">{log.product_name}</td>
+                            <td>
+                              <div className="variant-color-badge-stack">
+                                {log.variant && <span className="text-tag variant">{log.variant}</span>}
+                                {log.color && <span className="text-tag color">{log.color}</span>}
+                                {!log.variant && !log.color && <span className="text-muted">—</span>}
+                              </div>
+                            </td>
+                            <td className="bold text-right">{log.quantity_ready}</td>
+                            <td className="text-right">৳{Number(log.unit_cost).toLocaleString('en-BD')}</td>
+                            <td className="bold text-right text-accent">৳{Number(log.total_cost).toLocaleString('en-BD')}</td>
+                            <td className="text-right">
+                              {(() => {
+                                const paid = Number(log.paid_amount || 0);
+                                const due = Math.max(0, Number(log.total_cost) - paid);
+                                return (
+                                  <div className="paid-due-stack">
+                                    {paid > 0 && <span className="paid-val">৳{paid.toLocaleString('en-BD')} paid</span>}
+                                    {due > 0 && <span className="due-val">৳{due.toLocaleString('en-BD')} due</span>}
+                                    {paid === 0 && due === 0 && <span className="text-muted">—</span>}
+                                  </div>
+                                );
+                              })()}
+                            </td>
+                            <td>
+                              <button
+                                type="button"
+                                className={`payment-status-pill ${(log.payment_status || 'due').toLowerCase().replace(' ', '-')}`}
+                                onClick={() => handleTogglePaymentStatus(log)}
+                                title={log.payment_status === 'Paid' ? 'Fully paid — click to reset' : 'Click to record payment'}
+                              >
+                                {log.payment_status === 'Paid' ? <CheckCircle2 size={12} /> : <Clock size={12} />}
+                                <span>{log.payment_status || 'Due'}</span>
+                              </button>
+                            </td>
+                            <td>
+                              <div className="saas-row-actions">
+                                {log.payment_status !== 'Paid' && (
+                                  <button
+                                    className="saas-pay-btn"
+                                    onClick={() => setPaymentModalLog(log)}
+                                    title="Record payment"
+                                  >
+                                    <DollarSign size={12} /> Pay
+                                  </button>
+                                )}
+                                <button
+                                  className="saas-icon-btn"
+                                  onClick={() => handleStartEditLog(log)}
+                                  title="Edit entry"
+                                >
+                                  <Edit2 size={13} />
+                                </button>
+                                <button
+                                  className="saas-icon-btn danger"
+                                  onClick={() => handleDeleteProductionLog(log.id)}
+                                  title="Delete entry"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                      {!isLogsLoading && productionLogs.length === 0 && (
+                        <tr>
+                          <td colSpan="9" className="empty-state-cell">No matching production logs found.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Ledger Pagination */}
+                {!isLogsLoading && totalLogRecords > logPageSize && (
+                  <div className="factory-pagination-footer">
+                    <div className="factory-pagination-info">
+                      Showing {(logPage - 1) * logPageSize + 1}-{Math.min(logPage * logPageSize, totalLogRecords)} of {totalLogRecords}
+                    </div>
+                    <div className="factory-pagination-actions">
+                      <button
+                        className="factory-page-btn"
+                        onClick={() => setLogPage(prev => Math.max(1, prev - 1))}
+                        disabled={logPage === 1}
+                      >
+                        ‹
+                      </button>
+                      <span className="factory-page-compact-indicator">
+                        {logPage} / {Math.ceil(totalLogRecords / logPageSize)}
+                      </span>
+                      <button
+                        className="factory-page-btn"
+                        onClick={() => setLogPage(prev => Math.min(Math.ceil(totalLogRecords / logPageSize), prev + 1))}
+                        disabled={logPage === Math.ceil(totalLogRecords / logPageSize)}
+                      >
+                        ›
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Product Modals remain functional but will look better with updated CSS */}
+      {/* ── 7. Floating Multi-Select Bulk Action Bar ── */}
+      <BulkActionBar
+        selectedCount={selectedIds.size}
+        onClearSelection={handleClearSelection}
+        onOpenBatchAdjust={handleOpenBatchAdjust}
+        onDeleteBatch={handleDeleteBatch}
+      />
+
+      {/* ── 8. Product Detail Drawer / Bottom Sheet ── */}
+      <AnimatePresence>
+        {selectedProductForDrawer && (
+          <ProductDetailDrawer
+            product={selectedProductForDrawer}
+            isOpen={Boolean(selectedProductForDrawer)}
+            onClose={() => setSelectedProductForDrawer(null)}
+            onOpenEditModal={handleOpenProductModal}
+            onOpenAdjustModal={handleOpenAdjustModal}
+            onDeleteProduct={handleDeleteProduct}
+            onQuickAdjust={handleQuickAdjust}
+            isAdjusting={adjustingIds.has(selectedProductForDrawer.id)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ── 9. Mobile Filter Bottom Sheet ── */}
+      <AnimatePresence>
+        {isFilterSheetOpen && (
+          <InventoryFilterSheet
+            isOpen={isFilterSheetOpen}
+            onClose={() => setIsFilterSheetOpen(false)}
+            categories={CATEGORIES}
+            selectedCategory={categoryFilter}
+            onSelectCategory={(cat) => setCategoryFilter(cat)}
+            stockStatusFilter={stockStatusFilter}
+            onSelectStockStatus={(st) => setStockStatusFilter(st)}
+            serialOnlyFilter={serialOnlyFilter}
+            onToggleSerialOnly={(val) => setSerialOnlyFilter(val)}
+            onResetFilters={handleResetFilters}
+            totalMatching={filteredAndSortedInventory.length}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ── 10. Mobile Sort Bottom Sheet ── */}
+      <AnimatePresence>
+        {isSortSheetOpen && (
+          <InventorySortSheet
+            isOpen={isSortSheetOpen}
+            onClose={() => setIsSortSheetOpen(false)}
+            currentSort={sortBy}
+            onSelectSort={(s) => setSortBy(s)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ── 11. Batch Restock/Deduct Modal ── */}
+      <Modal
+        isOpen={isBatchAdjustModalOpen}
+        onClose={() => setIsBatchAdjustModalOpen(false)}
+        title={`Batch ${batchAdjustMode === 'add' ? 'Restock' : 'Deduct'} (${selectedIds.size} Items)`}
+        subtitle="Apply stock quantity change across all selected products."
+      >
+        <div className="batch-adjust-content">
+          <div className="adjust-mode-toggle">
+            <button
+              type="button"
+              className={`mode-btn restock ${batchAdjustMode === 'add' ? 'active' : ''}`}
+              onClick={() => setBatchAdjustMode('add')}
+            >
+              <ArrowUpRight size={16} /> Add Stock (+)
+            </button>
+            <button
+              type="button"
+              className={`mode-btn deduct ${batchAdjustMode === 'deduct' ? 'active' : ''}`}
+              onClick={() => setBatchAdjustMode('deduct')}
+            >
+              <ArrowDownRight size={16} /> Deduct Stock (-)
+            </button>
+          </div>
+
+          <div className="quantity-entry" style={{ marginTop: '16px' }}>
+            <Input
+              label="Quantity per item"
+              type="number"
+              min="1"
+              value={batchAdjustAmount}
+              onChange={(e) => setBatchAdjustAmount(Math.max(1, parseInt(e.target.value, 10) || 1))}
+            />
+          </div>
+
+          <div className="modal-footer-actions">
+            <Button variant="ghost" type="button" onClick={() => setIsBatchAdjustModalOpen(false)} disabled={isApplyingBatch}>
+              Cancel
+            </Button>
+            <Button variant="primary" type="button" onClick={handleApplyBatchAdjust} disabled={isApplyingBatch}>
+              {isApplyingBatch ? <Loader2 size={16} className="spin" /> : <Check size={16} />}
+              <span>Apply to {selectedIds.size} Products</span>
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── 12. Add/Edit Product Modal ── */}
       <Modal
         isOpen={isProductModalOpen}
         onClose={() => setIsProductModalOpen(false)}
         title={editingProduct ? 'Edit Product Details' : 'Register New Product'}
-        subtitle={editingProduct ? 'Refine inventory details, stock thresholds, and price without breaking flow.' : 'Create a clean product record with pricing and stock logic.'}
+        subtitle={editingProduct ? 'Refine inventory details, stock thresholds, and prices.' : 'Create a clean product record with pricing and stock logic.'}
       >
         <form onSubmit={handleSaveProduct} className="product-form premium-form product-modal-shell">
           <div className="modal-hero-card">
@@ -1682,12 +1995,27 @@ export const InventoryPage = () => {
               <span className="section-kicker">Product Identity</span>
               <p>Define how the item appears across search, category filters, and table rows.</p>
             </div>
-            <Input label="Product Name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required placeholder="Enter full product name" />
+            <Input
+              label="Product Name"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              required
+              placeholder="Enter full product name"
+            />
             <div className="form-grid">
-              <Input label="SKU / Identifier" value={formData.sku} onChange={(e) => setFormData({ ...formData, sku: e.target.value })} placeholder="SKU-XXX" />
+              <Input
+                label="SKU / Identifier"
+                value={formData.sku}
+                onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                placeholder="SKU-XXX"
+              />
               <div className="elite-select-wrapper inventory-elite-select-wrapper">
                 <label className="input-label">Category</label>
-                <select className="elite-select inventory-elite-select" value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })}>
+                <select
+                  className="elite-select inventory-elite-select"
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                >
                   {CATEGORIES.filter(c => c !== 'All').map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
                 <ChevronDown size={14} className="elite-select-chevron" />
@@ -1701,8 +2029,20 @@ export const InventoryPage = () => {
               <p>Set quantity thresholds, selling price, and production cost for profit tracking.</p>
             </div>
             <div className="form-grid">
-              <Input label="Initial Inventory" type="number" value={formData.current_stock} onChange={(e) => setFormData({ ...formData, current_stock: parseInt(e.target.value) })} required />
-              <Input label="Min Alert Level" type="number" value={formData.min_stock_level} onChange={(e) => setFormData({ ...formData, min_stock_level: parseInt(e.target.value) })} required />
+              <Input
+                label="Initial Inventory"
+                type="number"
+                value={formData.current_stock}
+                onChange={(e) => setFormData({ ...formData, current_stock: parseInt(e.target.value, 10) || 0 })}
+                required
+              />
+              <Input
+                label="Min Alert Level"
+                type="number"
+                value={formData.min_stock_level}
+                onChange={(e) => setFormData({ ...formData, min_stock_level: parseInt(e.target.value, 10) || 0 })}
+                required
+              />
             </div>
             <div className="form-grid">
               <Input
@@ -1724,15 +2064,15 @@ export const InventoryPage = () => {
 
             {/* Live Profit Margin Preview */}
             {formData.selling_price > 0 && (() => {
-              const sp  = Number(formData.selling_price) || 0;
-              const mc  = Number(formData.making_cost)   || 0;
+              const sp = Number(formData.selling_price) || 0;
+              const mc = Number(formData.making_cost) || 0;
               const pct = sp > 0 ? ((sp - mc) / sp * 100) : 0;
               const profit = sp - mc;
               return (
                 <div className={`margin-preview-card ${profit >= 0 ? 'profit' : 'loss'}`}>
                   <div className="margin-preview-row">
                     <span>Profit per Unit</span>
-                    <strong className={profit >= 0 ? 'green' : 'red'}>৳{profit.toLocaleString()}</strong>
+                    <strong className={profit >= 0 ? 'green' : 'red'}>৳{profit.toLocaleString('en-BD')}</strong>
                   </div>
                   <div className="margin-preview-row">
                     <span>Profit Margin</span>
@@ -1762,6 +2102,7 @@ export const InventoryPage = () => {
         </form>
       </Modal>
 
+      {/* ── 13. Quick Inventory Adjustment Modal ── */}
       <Modal isOpen={isAdjustModalOpen} onClose={() => setIsAdjustModalOpen(false)} title="Quick Inventory Adjustment">
         <div className="adjust-stock-content premium-adjust">
           <div className="adjust-header">
@@ -1780,7 +2121,7 @@ export const InventoryPage = () => {
           </div>
 
           <div className="quantity-entry">
-            <Input label="Adjustment Quantity" type="number" min="1" value={adjustAmount} onChange={(e) => setAdjustAmount(parseInt(e.target.value))} />
+            <Input label="Adjustment Quantity" type="number" min="1" value={adjustAmount} onChange={(e) => setAdjustAmount(parseInt(e.target.value, 10) || 1)} />
           </div>
 
           <div className="modal-footer-actions">
@@ -1790,7 +2131,8 @@ export const InventoryPage = () => {
         </div>
       </Modal>
 
-      <Modal isOpen={isToyBoxModalOpen} onClose={() => setIsToyBoxModalOpen(false)} title="Add Toy Box Serials">
+      {/* ── 14. Toy Box Serials Modal ── */}
+      <Modal isOpen={isToyBoxModalOpen} onClose={() => setIsToyBoxModalOpen(false)} title="Add Serial Stock Numbers">
         <form onSubmit={handleAddToyBoxSerials} className="product-form premium-form">
           <div className="elite-select-wrapper">
             <label className="input-label">Product</label>
@@ -1800,12 +2142,12 @@ export const InventoryPage = () => {
             </select>
             <ChevronDown size={14} className="elite-select-chevron" />
           </div>
-          <label className="input-label">Serial Numbers</label>
+          <label className="input-label">Serial Numbers (comma or space separated)</label>
           <textarea
             className="invoice-textarea"
             value={toyBoxSerialInput}
             onChange={(e) => setToyBoxSerialInput(e.target.value)}
-            placeholder="41,42,43,44,45"
+            placeholder="41, 42, 43, 44, 45"
             rows={4}
             required
           />
@@ -1824,6 +2166,7 @@ export const InventoryPage = () => {
         </form>
       </Modal>
 
+      {/* ── 15. AI Invoice Modal ── */}
       <Modal isOpen={isInvoiceModalOpen} onClose={() => setIsInvoiceModalOpen(false)} title="AI Invoice → Inventory Stock Sync">
         <div className="invoice-sync-wrap invoice-modal-shell">
           <div className="modal-hero-card invoice-hero-card">
@@ -1883,10 +2226,6 @@ export const InventoryPage = () => {
             </Button>
           </div>
 
-          <div className="invoice-confirm-wrap invoice-flow-note">
-            <label className="invoice-label">Flow: Preview → Modal Review → Final Confirm</label>
-          </div>
-
           {invoiceError && (
             <div className="invoice-error-box">
               <CircleAlert size={16} />
@@ -1944,6 +2283,7 @@ export const InventoryPage = () => {
         </div>
       </Modal>
 
+      {/* ── 16. Invoice Review Confirmation Modal ── */}
       <Modal isOpen={isReviewModalOpen} onClose={() => setIsReviewModalOpen(false)} title="Review Pending Inventory Changes">
         <div className="invoice-sync-wrap">
           <p className="invoice-help-text">
@@ -2006,7 +2346,7 @@ export const InventoryPage = () => {
         </div>
       </Modal>
 
-      {/* ══ Production Payment Modal ══ */}
+      {/* ── 17. Production Payment Modal ── */}
       {paymentModalLog && (
         <ProductionPaymentModal
           log={paymentModalLog}
@@ -2018,16 +2358,18 @@ export const InventoryPage = () => {
         />
       )}
 
-      {/* ══ Global Production Payment Modal ══ */}
-      {isGlobalPaymentModalOpen && (
-        <GlobalProductionPaymentModal
-          onClose={() => setIsGlobalPaymentModalOpen(false)}
-          onRefresh={() => {
-            fetchProductionLogs();
-            fetchProductionStats();
-          }}
-        />
-      )}
+      {/* ── 19. Dedicated Serial Inventory Sheet ── */}
+      <SerialInventorySheet
+        isOpen={isSerialSheetOpen}
+        onClose={() => setIsSerialSheetOpen(false)}
+        toyBoxes={toyBoxes}
+        toyBoxGroups={toyBoxGroups}
+        onOpenAddModal={() => {
+          setToyBoxProductName(serialTrackedProducts[0]?.name || '');
+          setIsToyBoxModalOpen(true);
+        }}
+        onUpdateStock={updateToyBoxStock}
+      />
     </div>
   );
 };
