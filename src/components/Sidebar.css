@@ -70,13 +70,13 @@
 
 /* Header */
 .sidebar-header {
-  padding: max(16px, calc(10px + var(--safe-top, 0px))) 20px 12px;
+  padding: max(18px, calc(10px + var(--safe-top, 0px))) 20px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-shrink: 0;
+  min-height: 64px;
 }
-
 
 .sidebar-logo-container {
   display: flex;
@@ -84,12 +84,13 @@
   justify-content: flex-start;
   text-decoration: none;
   flex: 1;
+  min-width: 0;
 }
 
 .sidebar-logo-img {
-  height: 56px;
-  width: auto;
-  max-width: 180px;
+  width: 135px;
+  max-width: 100%;
+  height: 38px;
   object-fit: contain;
   object-position: left center;
   display: block;

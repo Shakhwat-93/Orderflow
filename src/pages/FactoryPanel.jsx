@@ -700,6 +700,7 @@ export const FactoryPanel = () => {
   const [datePreset, setDatePreset] = usePersistentState('panel:factory:date-preset', 'all');
   const [dateFrom, setDateFrom] = usePersistentState('panel:factory:date-from', '');
   const [dateTo, setDateTo] = usePersistentState('panel:factory:date-to', '');
+  const hasCustomRange = Boolean(dateFrom || dateTo);
   const [sourceFilter, setSourceFilter] = usePersistentState('panel:factory:source-filter', 'All');
   const [productFilter, setProductFilter] = usePersistentState('panel:factory:product-filter', 'All');
   const [colorFilter, setColorFilter] = usePersistentState('panel:factory:color-filter', 'All');
@@ -748,6 +749,11 @@ export const FactoryPanel = () => {
   const [rowLoading, setRowLoading] = useState({});
   const [isDispatchingSelected, setIsDispatchingSelected] = useState(false);
 
+  // ── Mobile Filter & Bottom Sheet States ──
+  const [isMobileFilterSheetOpen, setIsMobileFilterSheetOpen] = useState(false);
+  const [isMobileDateSheetOpen, setIsMobileDateSheetOpen] = useState(false);
+  const [isMobileSortSheetOpen, setIsMobileSortSheetOpen] = useState(false);
+
   // ── Production & Ledger States ──
   const [productionLogs, setProductionLogs] = useState([]);
   const [isLogsLoading, setIsLogsLoading] = useState(false);
@@ -769,6 +775,21 @@ export const FactoryPanel = () => {
     totalDue: 0,
     breakdown: []
   });
+
+  const totalStockAvailable = useMemo(() => {
+    return toyBoxes.reduce((sum, b) => sum + (Number(b.stock_quantity) || 0), 0);
+  }, [toyBoxes]);
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (productFilter !== 'All') count++;
+    if (colorFilter !== 'All') count++;
+    if (variantFilter !== 'All') count++;
+    if (zoneFilter !== 'All') count++;
+    if (sourceFilter !== 'All') count++;
+    if (hasCustomRange || datePreset !== 'all') count++;
+    return count;
+  }, [productFilter, colorFilter, variantFilter, zoneFilter, sourceFilter, hasCustomRange, datePreset]);
 
   const getTodayDateString = () => {
     const today = new Date();
@@ -1399,7 +1420,6 @@ export const FactoryPanel = () => {
   const normalizedSearchTerm = searchTerm.toLowerCase();
   const rangeStartDate = useMemo(() => getRangeBoundary(dateFrom, 'start'), [dateFrom]);
   const rangeEndDate = useMemo(() => getRangeBoundary(dateTo, 'end'), [dateTo]);
-  const hasCustomRange = Boolean(dateFrom || dateTo);
 
   const matchesActiveDateFilter = (value) => {
     if (hasCustomRange) {
@@ -2026,7 +2046,7 @@ export const FactoryPanel = () => {
       <header className="page-header">
         <div>
           <h1 className="premium-title">Confirmed Panel</h1>
-          <p className="page-subtitle">Confirmed order review, distribution and inventory verification hub.</p>
+          <p className="page-subtitle">Confirmed orders ready for review and dispatch</p>
         </div>
         <div className="factory-header-actions">
           <Button
@@ -2034,9 +2054,9 @@ export const FactoryPanel = () => {
             onClick={handleOpenExportModal}
             className="factory-export-btn"
           >
-            <FileSpreadsheet size={18} />
-            <span>Bulk Export ({confirmedOrders.length})</span>
-            <Download size={16} />
+            <FileSpreadsheet size={16} />
+            <span>Export CSV ({confirmedOrders.length})</span>
+            <Download size={14} />
           </Button>
         </div>
       </header>
@@ -2065,31 +2085,31 @@ export const FactoryPanel = () => {
 
       {/* Stats */}
       {activeTab !== 'production' ? (
-        <section className="factory-stats-row">
+        <section className="factory-stats-row fp-compact-summary">
           <motion.div variants={itemVariants}>
             <Card className="factory-stat-card">
-              <div className="stat-icon-box blue"><Package size={22} /></div>
+              <div className="stat-icon-box blue"><Package size={20} /></div>
               <div className="stat-info">
-                <span className="label">Confirmed</span>
+                <span className="label">Orders</span>
                 <span className="value">{confirmedOrders.length}</span>
               </div>
             </Card>
           </motion.div>
           <motion.div variants={itemVariants}>
             <Card className="factory-stat-card">
-              <div className="stat-icon-box orange"><AlertTriangle size={22} /></div>
+              <div className="stat-icon-box orange"><AlertTriangle size={20} /></div>
               <div className="stat-info">
-                <span className="label">Total Queued</span>
+                <span className="label">Queued</span>
                 <span className="value">{queuedOrders.length}</span>
               </div>
             </Card>
           </motion.div>
           <motion.div variants={itemVariants}>
             <Card className="factory-stat-card">
-              <div className="stat-icon-box green"><CheckCircle size={22} /></div>
+              <div className="stat-icon-box green"><CheckCircle size={20} /></div>
               <div className="stat-info">
-                <span className="label">Bulk Exported</span>
-                <span className="value">{orders.filter(o => o.status === 'Bulk Exported').length}</span>
+                <span className="label">Stock</span>
+                <span className="value">{totalStockAvailable > 0 ? totalStockAvailable : orders.filter(o => o.status === 'Bulk Exported').length}</span>
               </div>
             </Card>
           </motion.div>
@@ -2177,7 +2197,46 @@ export const FactoryPanel = () => {
             }}
           />
 
-          <div className="factory-filter-toolbar">
+          {/* Mobile Filter Bar & Quick Actions */}
+          <div className="factory-mobile-filter-bar mobile-only">
+            <button
+              type="button"
+              className="fp-mobile-filter-pill"
+              onClick={() => setIsMobileDateSheetOpen(true)}
+            >
+              <Calendar size={13} />
+              <span>{hasCustomRange ? 'Custom Date' : DATE_PRESETS.find(p => p.id === datePreset)?.label || 'All Time'}</span>
+              <ChevronDown size={12} />
+            </button>
+
+            <button
+              type="button"
+              className={`fp-mobile-filter-pill ${activeFilterCount > 0 ? 'active' : ''}`}
+              onClick={() => setIsMobileFilterSheetOpen(true)}
+            >
+              <Filter size={13} />
+              <span>Filters</span>
+              {activeFilterCount > 0 && <span className="fp-filter-count-badge">{activeFilterCount}</span>}
+              <ChevronDown size={12} />
+            </button>
+
+            <button
+              type="button"
+              className="fp-mobile-filter-pill"
+              onClick={() => setIsMobileSortSheetOpen(true)}
+            >
+              <ArrowUpDown size={13} />
+              <span>{SORT_OPTIONS.find(o => o.value === sortOrder)?.label?.replace(' First', '') || 'Sort'}</span>
+              <ChevronDown size={12} />
+            </button>
+          </div>
+
+          <div className="factory-mobile-result-count mobile-only">
+            <span className="fp-mrc-text">{displayOrders.length} confirmed orders</span>
+            {unreadCount > 0 && <span className="route-unread-count-pill">{unreadCount} unread</span>}
+          </div>
+
+          <div className="factory-filter-toolbar desktop-only">
             <div className="factory-date-preset-bar">
               <div className="factory-date-preset-label">
                 <CalendarDays size={15} />
@@ -2794,26 +2853,37 @@ export const FactoryPanel = () => {
           </table>
         </div>
 
-        {/* Mobile View Card List */}
+        {/* Mobile View Card List — Shopify-Style Elite UX */}
         <div className="orders-mobile-list mobile-only">
           {paginatedOrders.map(order => {
             const stock = getStockStatus(order);
             const { cleanName, totalQty } = getCleanProductDisplay(order);
             const orderTotal = Number(order.total_amount || order.amount || order.total || 0);
             const rawPhone = String(order.phone || '').trim();
+            const normalizedPhone = rawPhone.replace(/\D/g, '');
+            const whatsappPhone = normalizedPhone.startsWith('880')
+              ? normalizedPhone
+              : normalizedPhone.startsWith('0')
+                ? `88${normalizedPhone}`
+                : normalizedPhone;
+            const whatsappLink = whatsappPhone ? `https://wa.me/${whatsappPhone}` : null;
 
             return (
               <div
                 key={order.id}
-                className={`order-mobile-card elite-card ${isOrderUnread(order) ? 'route-unread-card' : ''}`}
+                className={`fp-shopify-order-card ${isOrderUnread(order) ? 'route-unread-card' : ''}`}
                 onClick={() => handleRowClick(order)}
               >
-                <div className="card-header-elite">
-                  <div className="id-group">
-                    <div className="route-read-card-header">
-                      {isOrderUnread(order) && <span className="route-unread-dot" aria-label="Unread order" />}
-                      <span className="saas-id">#{(order.id || '').replace('ORD-', '')}</span>
-                    </div>
+                {/* 1. Card Header: ID + Status */}
+                <div className="fp-soc-head">
+                  <div className="fp-soc-id-wrap">
+                    {isOrderUnread(order) && <span className="route-unread-dot" aria-label="Unread order" />}
+                    <span className="fp-soc-id">#{String(order.id || '').replace('ORD-', '')}</span>
+                    {order.first_caller_name && (
+                      <span className="fp-soc-caller">
+                        <User size={10} /> {order.first_caller_name}
+                      </span>
+                    )}
                   </div>
                   <span
                     className={`saas-badge saas-badge-${getStatusBadgeVariant(order.status)} ${isIncompleteConversion(order) ? 'is-inco-converted' : ''}`}
@@ -2823,32 +2893,75 @@ export const FactoryPanel = () => {
                     {getDisplayStatusLabel(order)}
                   </span>
                 </div>
-                <div className="card-body-elite">
-                  <div className="info-row">
-                    <span className="label">Customer:</span>
-                    <span className="value">{order.customer_name} ({rawPhone})</span>
-                  </div>
-                  <div className="info-row">
-                    <span className="label">Product:</span>
-                    <span className="value product-mobile-value">
-                      {cleanName} <span className="product-qty-badge-mobile">Qty: {totalQty}</span>
-                    </span>
-                  </div>
-                  <div className="info-row">
-                    <span className="label">Total Amount:</span>
-                    <span className="value price">৳{orderTotal.toLocaleString()}</span>
-                  </div>
-                  <div className="info-row">
-                    <span className="label">Stock:</span>
-                    <span className="value">{stock.matched ? 'Full Stock' : `${stock.missing.length} Missing`}</span>
+
+                {/* 2. Customer Info */}
+                <div className="fp-soc-customer-row">
+                  <div className="fp-soc-cust-name">{order.customer_name || 'Customer'}</div>
+                  <div className="fp-soc-phone-row" onClick={e => e.stopPropagation()}>
+                    <span className="fp-soc-phone">{rawPhone || 'No phone'}</span>
+                    {rawPhone && (
+                      <div className="fp-soc-phone-actions">
+                        <button
+                          type="button"
+                          className={`fp-soc-icon-btn ${copiedPhoneId === order.id ? 'copied' : ''}`}
+                          onClick={(e) => handleCopyPhone(e, rawPhone, order.id)}
+                          title="Copy phone"
+                        >
+                          <Copy size={11} />
+                        </button>
+                        <a href={`tel:${rawPhone}`} className="fp-soc-icon-btn" title="Call customer">
+                          <Phone size={11} />
+                        </a>
+                        {whatsappLink && (
+                          <a href={whatsappLink} target="_blank" rel="noreferrer" className="fp-soc-icon-btn wa" title="Open WhatsApp">
+                            <MessageCircle size={11} />
+                          </a>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div className="card-actions-elite" onClick={(e) => e.stopPropagation()}>
+
+                {/* 3. Product Info */}
+                <div className="fp-soc-product-row">
+                  <div className="fp-soc-prod-title">{cleanName}</div>
+                  <div className="fp-soc-prod-meta">
+                    <span className="fp-soc-qty-badge">Qty {totalQty}</span>
+                    {order.shipping_zone && <span className="fp-soc-zone-badge">{order.shipping_zone}</span>}
+                    <SourceBadge traffic_source={order.traffic_source} source={order.source} />
+                  </div>
+                </div>
+
+                {/* 4. Pricing & Stock Summary */}
+                <div className="fp-soc-summary-row">
+                  <div className="fp-soc-amount-block">
+                    <span className="fp-soc-amount-val">৳{orderTotal.toLocaleString()}</span>
+                    <span className="fp-soc-amount-lbl">Order amount</span>
+                  </div>
+                  <div className="fp-soc-stock-block">
+                    {stock.matched ? (
+                      <span className="fp-soc-stock-badge in-stock">✓ In Stock</span>
+                    ) : (
+                      <span className="fp-soc-stock-badge out-stock">⚠️ {stock.missing.length} Missing</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* 5. Actions Footer */}
+                <div className="fp-soc-action-row" onClick={e => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    className="fp-soc-view-btn"
+                    onClick={() => handleRowClick(order)}
+                  >
+                    <span>View details →</span>
+                  </button>
+
                   {order.status === 'Confirmed' && (
                     <div className="courier-dropdown-wrapper">
                       <button
                         type="button"
-                        className="factory-action-btn courier-main-btn"
+                        className="factory-action-btn courier-main-btn fp-soc-dispatch-btn"
                         onClick={(e) => {
                           e.stopPropagation();
                           setActiveCourierDropdownId(activeCourierDropdownId === order.id ? null : order.id);
@@ -2856,11 +2969,11 @@ export const FactoryPanel = () => {
                         disabled={rowLoading[order.id] || rowLoading[`pathao-${order.id}`] || isDispatchingSelected || isMovingSelectedConfirmed}
                       >
                         {rowLoading[order.id] || rowLoading[`pathao-${order.id}`] ? (
-                          <Loader2 size={14} className="spin" />
+                          <Loader2 size={13} className="spin" />
                         ) : (
-                          <Truck size={14} />
+                          <Truck size={13} />
                         )}
-                        <span>Dispatch</span>
+                        <span>Dispatch →</span>
                         <ChevronDown size={12} />
                       </button>
 
@@ -2899,8 +3012,30 @@ export const FactoryPanel = () => {
                       )}
                     </div>
                   )}
-                  <button className="saas-icon-btn" onClick={(e) => { e.stopPropagation(); handleOpenEditModal(order); }}>
-                    <Edit2 size={16} />
+
+                  {order.status === 'Factory Queue' && (
+                    <button
+                      type="button"
+                      className="factory-action-btn retry fp-soc-retry-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRetryDistribute(order.id);
+                      }}
+                    >
+                      <Zap size={13} /> <span>Recheck</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    className="saas-icon-btn fp-soc-edit-icon-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenEditModal(order);
+                    }}
+                    title="Edit order"
+                  >
+                    <Edit2 size={14} />
                   </button>
                 </div>
               </div>
@@ -2909,8 +3044,32 @@ export const FactoryPanel = () => {
         </div>
       </Card>
 
+        {/* Mobile Pagination (<640px) */}
         {displayOrders.length > 0 && (
-          <div className="factory-pagination-footer">
+          <div className="factory-mobile-pagination mobile-only">
+            <button
+              type="button"
+              className="fp-mob-page-btn"
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+            >
+              ‹ Previous
+            </button>
+            <span className="fp-mob-page-indicator">{currentPage} / {Math.max(1, totalPages)}</span>
+            <button
+              type="button"
+              className="fp-mob-page-btn"
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages || totalPages === 0}
+            >
+              Next ›
+            </button>
+          </div>
+        )}
+
+        {/* Desktop Pagination (≥640px) */}
+        {displayOrders.length > 0 && (
+          <div className="factory-pagination-footer desktop-only">
             <div className="factory-pagination-info">
               Showing {(currentPage - 1) * pageSize + 1}-
               {Math.min(currentPage * pageSize, displayOrders.length)} of {displayOrders.length} records
@@ -3472,6 +3631,295 @@ export const FactoryPanel = () => {
         order={selectedOrder}
         onEdit={handleOpenEditModal}
       />
+
+      {/* Mobile Date Preset & Range Bottom Sheet */}
+      <AnimatePresence>
+        {isMobileDateSheetOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileDateSheetOpen(false)}
+              className="sheet-backdrop"
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+              className="bottom-sheet fp-mobile-sheet"
+            >
+              <div className="bottom-sheet-handle" />
+              <div className="bottom-sheet-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Calendar size={18} style={{ color: 'var(--fp-accent)' }} />
+                  <h3 className="bottom-sheet-title">Select Date Filter</h3>
+                </div>
+                <button
+                  type="button"
+                  className="drawer-close-btn"
+                  onClick={() => setIsMobileDateSheetOpen(false)}
+                  aria-label="Close date sheet"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="bottom-sheet-body">
+                <div className="sheet-section">
+                  <span className="sheet-section-title">Quick Presets</span>
+                  <div className="fp-sheet-chips-grid">
+                    {DATE_PRESETS.map((preset) => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        className={`fp-sheet-chip ${!hasCustomRange && datePreset === preset.id ? 'active' : ''}`}
+                        onClick={() => {
+                          handlePresetChange(preset.id);
+                          setIsMobileDateSheetOpen(false);
+                        }}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="sheet-section" style={{ marginTop: '16px' }}>
+                  <span className="sheet-section-title">Custom Date Range</span>
+                  <div className="fp-sheet-date-inputs">
+                    <div className="fp-sheet-input-group">
+                      <label>From</label>
+                      <input
+                        type="date"
+                        value={dateFrom}
+                        onChange={(e) => handleDateRangeChange('from', e.target.value)}
+                      />
+                    </div>
+                    <div className="fp-sheet-input-group">
+                      <label>To</label>
+                      <input
+                        type="date"
+                        value={dateTo}
+                        onChange={(e) => handleDateRangeChange('to', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bottom-sheet-footer">
+                <button
+                  type="button"
+                  className="fp-sheet-btn-secondary"
+                  onClick={() => {
+                    handleClearDateRange();
+                    setIsMobileDateSheetOpen(false);
+                  }}
+                >
+                  Reset
+                </button>
+                <button
+                  type="button"
+                  className="fp-sheet-btn-primary"
+                  onClick={() => setIsMobileDateSheetOpen(false)}
+                >
+                  Done
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Mobile Filter Bottom Sheet */}
+      <AnimatePresence>
+        {isMobileFilterSheetOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileFilterSheetOpen(false)}
+              className="sheet-backdrop"
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+              className="bottom-sheet fp-mobile-sheet"
+            >
+              <div className="bottom-sheet-handle" />
+              <div className="bottom-sheet-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Filter size={18} style={{ color: 'var(--fp-accent)' }} />
+                  <h3 className="bottom-sheet-title">Filter Confirmed Orders</h3>
+                </div>
+                <button
+                  type="button"
+                  className="drawer-close-btn"
+                  onClick={() => setIsMobileFilterSheetOpen(false)}
+                  aria-label="Close filter sheet"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="bottom-sheet-body">
+                {/* Product Filter */}
+                <div className="fp-sheet-filter-group">
+                  <label><Tag size={13} /> Product</label>
+                  <select
+                    value={productFilter}
+                    onChange={(e) => setProductFilter(e.target.value)}
+                  >
+                    <option value="All">All Products</option>
+                    {uniqueProducts.map((p) => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Color Filter */}
+                <div className="fp-sheet-filter-group">
+                  <label><Palette size={13} /> Color</label>
+                  <select
+                    value={colorFilter}
+                    onChange={(e) => setColorFilter(e.target.value)}
+                  >
+                    <option value="All">All Colors</option>
+                    {uniqueColors.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Variant Filter */}
+                <div className="fp-sheet-filter-group">
+                  <label><Layers size={13} /> Variant</label>
+                  <select
+                    value={variantFilter}
+                    onChange={(e) => setVariantFilter(e.target.value)}
+                  >
+                    <option value="All">All Variants</option>
+                    {uniqueVariants.map((v) => (
+                      <option key={v} value={v}>{v}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Zone Filter */}
+                <div className="fp-sheet-filter-group">
+                  <label><MapPin size={13} /> Location Zone</label>
+                  <select
+                    value={zoneFilter}
+                    onChange={(e) => setZoneFilter(e.target.value)}
+                  >
+                    <option value="All">All Locations</option>
+                    <option value="Inside Dhaka">Inside Dhaka</option>
+                    <option value="Outside Dhaka">Outside Dhaka</option>
+                  </select>
+                </div>
+
+                {/* Source Filter */}
+                <div className="fp-sheet-filter-group">
+                  <label><Globe size={13} /> Order Source</label>
+                  <select
+                    value={sourceFilter}
+                    onChange={(e) => setSourceFilter(e.target.value)}
+                  >
+                    {SOURCES.map((src) => (
+                      <option key={src} value={src}>{src === 'All' ? 'All Sources' : src}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="bottom-sheet-footer">
+                <button
+                  type="button"
+                  className="fp-sheet-btn-secondary"
+                  onClick={() => {
+                    setProductFilter('All');
+                    setColorFilter('All');
+                    setVariantFilter('All');
+                    setZoneFilter('All');
+                    setSourceFilter('All');
+                  }}
+                >
+                  Reset All
+                </button>
+                <button
+                  type="button"
+                  className="fp-sheet-btn-primary"
+                  onClick={() => setIsMobileFilterSheetOpen(false)}
+                >
+                  Apply Filters ({displayOrders.length})
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Mobile Sort Bottom Sheet */}
+      <AnimatePresence>
+        {isMobileSortSheetOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileSortSheetOpen(false)}
+              className="sheet-backdrop"
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+              className="bottom-sheet fp-mobile-sheet"
+            >
+              <div className="bottom-sheet-handle" />
+              <div className="bottom-sheet-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <ArrowUpDown size={18} style={{ color: 'var(--fp-accent)' }} />
+                  <h3 className="bottom-sheet-title">Sort Orders By</h3>
+                </div>
+                <button
+                  type="button"
+                  className="drawer-close-btn"
+                  onClick={() => setIsMobileSortSheetOpen(false)}
+                  aria-label="Close sort sheet"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="bottom-sheet-body">
+                <div className="fp-sheet-sort-options">
+                  {SORT_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      className={`fp-sheet-sort-row ${sortOrder === opt.value ? 'active' : ''}`}
+                      onClick={() => {
+                        setSortOrder(opt.value);
+                        setIsMobileSortSheetOpen(false);
+                      }}
+                    >
+                      <span>{opt.label}</span>
+                      {sortOrder === opt.value && <CheckCircle size={16} style={{ color: 'var(--fp-accent)' }} />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };
