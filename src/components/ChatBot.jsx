@@ -21,9 +21,25 @@ export const ChatBot = () => {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [dbConnected, setDbConnected] = useState(true);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const chatHistoryRef = useRef([]);
+
+  // Verify real database connection health
+  useEffect(() => {
+    let isMounted = true;
+    async function checkDbHealth() {
+      try {
+        const { error } = await supabase.from('orders').select('id', { head: true, count: 'exact' });
+        if (isMounted) setDbConnected(!error);
+      } catch {
+        if (isMounted) setDbConnected(false);
+      }
+    }
+    checkDbHealth();
+    return () => { isMounted = false; };
+  }, []);
 
   // Auto-scroll to bottom
   const scrollToBottom = useCallback(() => {
@@ -158,8 +174,8 @@ export const ChatBot = () => {
             <div>
               <h4>NovaAI</h4>
               <span className="chatbot-status">
-                <span className="chatbot-status-dot" />
-                Online • Full DB Access
+                <span className={`chatbot-status-dot ${dbConnected ? 'online' : 'offline'}`} />
+                {dbConnected ? 'Online • Full DB Access' : 'Offline • Database Disconnected'}
               </span>
             </div>
           </div>

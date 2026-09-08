@@ -10,6 +10,8 @@ const corsHeaders = {
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_MODEL = Deno.env.get("GROQ_MODEL") ?? "llama-3.3-70b-versatile";
+const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
+const OPENROUTER_MODEL = Deno.env.get("OPENROUTER_MODEL") ?? "openai/gpt-4o-mini";
 const CACHE_TTL_MS = 5_000;
 const ORDER_STATUS_NAMES = [
   "New",
@@ -60,9 +62,42 @@ const GROQ_FALLBACK_MODELS = [
 ];
 
 async function callGroq(messages: Array<{ role: string; content: string }>, temperature = 0.2) {
+  // 1. Try OpenRouter if key is available
+  const openRouterKey = Deno.env.get("OPENROUTER_API_KEY");
+  if (openRouterKey) {
+    try {
+      const response = await fetch(OPENROUTER_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${openRouterKey}`,
+          "HTTP-Referer": "https://orderflow.app",
+          "X-Title": "OrderFlow NovaAI"
+        },
+        body: JSON.stringify({
+          max_tokens: 2048,
+          messages,
+          model: OPENROUTER_MODEL,
+          temperature,
+        }),
+      });
+
+      if (response.ok) {
+        const payload = await response.json();
+        const content = payload?.choices?.[0]?.message?.content;
+        if (content) {
+          return String(content).trim();
+        }
+      }
+    } catch (openRouterErr) {
+      console.warn("OpenRouter in edge function failed, falling back to Groq:", openRouterErr);
+    }
+  }
+
+  // 2. Groq fallback
   const apiKey = Deno.env.get("GROQ_API_KEY");
-  if (!apiKey) {
-    throw new Error("GROQ_API_KEY is not configured.");
+  if (!apiKey && !openRouterKey) {
+    throw new Error("Neither OPENROUTER_API_KEY nor GROQ_API_KEY is configured.");
   }
 
   const envModel = Deno.env.get("GROQ_MODEL");
@@ -106,7 +141,7 @@ async function callGroq(messages: Array<{ role: string; content: string }>, temp
     }
   }
 
-  throw lastError || new Error("Failed to call Groq API on all candidate models.");
+  throw lastError || new Error("Failed to call AI API on all candidate models.");
 }
 
 function buildChatPrompt(dbContext: Record<string, any>) {

@@ -205,6 +205,12 @@
   border-radius: 50%;
   background: #34d399;
   box-shadow: 0 0 6px rgba(52, 211, 153, 0.6);
+  transition: all 0.3s ease;
+}
+
+.chatbot-status-dot.offline {
+  background: #ef4444;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
 }
 
 .chatbot-header-actions {

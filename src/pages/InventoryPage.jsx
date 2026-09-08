@@ -2358,6 +2358,17 @@ export const InventoryPage = () => {
         />
       )}
 
+      {/* ── 18. Global Production Payment Modal ── */}
+      {isGlobalPaymentModalOpen && (
+        <GlobalProductionPaymentModal
+          onClose={() => setIsGlobalPaymentModalOpen(false)}
+          onRefresh={() => {
+            fetchProductionLogs();
+            fetchProductionStats();
+          }}
+        />
+      )}
+
       {/* ── 19. Dedicated Serial Inventory Sheet ── */}
       <SerialInventorySheet
         isOpen={isSerialSheetOpen}

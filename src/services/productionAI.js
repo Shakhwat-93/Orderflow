@@ -15,6 +15,7 @@
  */
 
 import { supabase } from '../lib/supabase';
+import { callOpenRouter } from './aiProxy';
 
 const AI_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/nova-ai`;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -240,7 +241,38 @@ export async function parseProductionText(userText, productNames = []) {
   const text = String(userText || '').trim();
   if (!text) throw new Error('Input text is empty');
 
-  // ── Try AI first ─────────────────────────────────────────────────────────────
+  // ── 1. Try Direct OpenRouter ──────────────────────────────────────────────
+  try {
+    const aiResponse = await callOpenRouter([
+      { role: 'system', content: 'Return valid JSON only.' },
+      { role: 'user', content: buildPrompt(text, productNames) }
+    ], 0.1);
+
+    if (aiResponse) {
+      const cleanReply = aiResponse
+        .replace(/^```(?:json)?\n?/im, '')
+        .replace(/\n?```$/im, '')
+        .trim();
+
+      const parsed = JSON.parse(cleanReply);
+      if (typeof parsed === 'object' && parsed !== null) {
+        return {
+          product_name: parsed.product_name || null,
+          quantity_ready: parsed.quantity_ready !== null && parsed.quantity_ready !== undefined ? Number(parsed.quantity_ready) : null,
+          color: parsed.color || null,
+          variant: parsed.variant || null,
+          unit_cost: parsed.unit_cost !== null && parsed.unit_cost !== undefined ? Number(parsed.unit_cost) : null,
+          notes: parsed.notes || null,
+          confidence: parsed.confidence || 'high',
+          source: 'ai',
+        };
+      }
+    }
+  } catch (openRouterErr) {
+    console.warn('OpenRouter production parse failed, trying edge proxy:', openRouterErr?.message);
+  }
+
+  // ── 2. Try Edge Function proxy ─────────────────────────────────────────────
   try {
     const { data: sessionData } = await supabase.auth.getSession();
     const accessToken = sessionData?.session?.access_token;
