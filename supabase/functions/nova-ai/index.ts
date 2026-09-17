@@ -52,14 +52,50 @@ async function getAuthenticatedUser(req: Request, supabaseAdmin: ReturnType<type
   return data.user;
 }
 
-const GROQ_FALLBACK_MODELS = [
-  "llama-3.3-70b-versatile",
-  "llama-3.1-8b-instant",
-  "mixtral-8x7b-32768",
-  "gemma2-9b-it",
-  "llama3-70b-8192",
-  "llama3-8b-8192"
-];
+let cachedActiveModels: string[] = [];
+let cachedModelsAt = 0;
+
+async function getAvailableGroqModels(apiKey: string): Promise<string[]> {
+  const now = Date.now();
+  if (cachedActiveModels.length > 0 && now - cachedModelsAt < 300_000) {
+    return cachedActiveModels;
+  }
+
+  try {
+    const res = await fetch("https://api.groq.com/openai/v1/models", {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data?.data)) {
+        const textModels = data.data
+          .map((m: any) => String(m?.id || "").trim())
+          .filter((id: string) => 
+            id && 
+            !id.includes("whisper") && 
+            !id.includes("audio") && 
+            !id.includes("embed") && 
+            !id.includes("guard")
+          );
+        if (textModels.length > 0) {
+          cachedActiveModels = textModels;
+          cachedModelsAt = now;
+          return textModels;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("Failed to fetch dynamic Groq models list:", err);
+  }
+
+  return [
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+    "llama-3.2-3b-preview",
+    "llama-3.2-1b-preview",
+    "gemma2-9b-it"
+  ];
+}
 
 async function callGroq(messages: Array<{ role: string; content: string }>, temperature = 0.2) {
   // 1. Try OpenRouter if key is available
@@ -100,10 +136,17 @@ async function callGroq(messages: Array<{ role: string; content: string }>, temp
     throw new Error("Neither OPENROUTER_API_KEY nor GROQ_API_KEY is configured.");
   }
 
+  const liveModels = apiKey ? await getAvailableGroqModels(apiKey) : [];
   const envModel = Deno.env.get("GROQ_MODEL");
+
   const modelsToTry = [
     envModel,
-    ...GROQ_FALLBACK_MODELS
+    ...liveModels,
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+    "llama-3.2-3b-preview",
+    "llama-3.2-1b-preview",
+    "gemma2-9b-it"
   ].filter((m, i, arr): m is string => Boolean(m) && arr.indexOf(m) === i);
 
   let lastError: Error | null = null;
