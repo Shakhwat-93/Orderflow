@@ -81,7 +81,30 @@ export const OrderProvider = ({ children }) => {
         apiFilters.status = currentFilters.status;
       }
       
-      const { data, count } = await api.getOrdersWithCount(currentPage, ORDER_SNAPSHOT_SIZE, apiFilters);
+      let { data, count } = await api.getOrdersWithCount(currentPage, ORDER_SNAPSHOT_SIZE, apiFilters);
+      
+      // Ensure all active / non-completed orders (Confirmed, Factory Queue, Courier Ready, Pending Call, Final Call Pending)
+      // are ALWAYS included in the orders list so that they never get omitted by the pagination limit!
+      if (currentPage === 1 && (!currentFilters.status || currentFilters.status === 'All')) {
+        try {
+          const { data: activeOrders, error: activeErr } = await supabase
+            .from('orders')
+            .select('*')
+            .in('status', ['Confirmed', 'Factory Queue', 'Courier Ready', 'Pending Call', 'Final Call Pending'])
+            .order('created_at', { ascending: false });
+
+          if (!activeErr && Array.isArray(activeOrders) && activeOrders.length > 0) {
+            const existingIdMap = new Map((data || []).map(o => [o.id, true]));
+            const missingActiveOrders = activeOrders.filter(o => !existingIdMap.has(o.id));
+            if (missingActiveOrders.length > 0) {
+              data = [...(data || []), ...missingActiveOrders];
+            }
+          }
+        } catch (activeFetchError) {
+          console.warn('Could not backfill older active orders:', activeFetchError);
+        }
+      }
+
       if (id === fetchIdRef.current) { 
         setOrders(data);
         setTotalCount(count);
