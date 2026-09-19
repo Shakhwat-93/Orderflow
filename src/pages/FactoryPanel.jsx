@@ -127,6 +127,7 @@ const formatExportDate = (value) => {
 const DATE_PRESETS = [
   { id: 'all', label: 'All Time' },
   { id: 'today', label: 'Today' },
+  { id: '24hours', label: 'Last 24h' },
   { id: 'yesterday', label: 'Yesterday' },
   { id: '7days', label: '7 Days' },
   { id: '30days', label: '30 Days' },
@@ -199,15 +200,18 @@ const matchesDatePreset = (value, preset) => {
   const orderDate = new Date(value);
   if (Number.isNaN(orderDate.getTime())) return false;
 
-  const now = new Date();
-
   if (preset === 'today') {
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    return orderDate >= todayStart;
+  }
+
+  if (preset === '24hours') {
     return now.getTime() - orderDate.getTime() <= 24 * 60 * 60 * 1000;
   }
 
   if (preset === 'yesterday') {
-    const yesterdayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-    const yesterdayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterdayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0);
+    const yesterdayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
     return orderDate >= yesterdayStart && orderDate < yesterdayEnd;
   }
 

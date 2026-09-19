@@ -56,6 +56,7 @@ const fmtTk    = (n) => '৳' + fmtNum(n);
 
 const PRESETS = [
   { key:'today',      label:'Today' },
+  { key:'24hours',    label:'Last 24h' },
   { key:'yesterday',  label:'Yesterday' },
   { key:'week',       label:'This Week' },
   { key:'lastweek',   label:'Last Week' },
@@ -68,6 +69,7 @@ const getPresetRange = (key) => {
   const now = new Date();
   switch (key) {
     case 'today':     return { start: today(), end: endOfDay(now) };
+    case '24hours':   return { start: new Date(now.getTime() - 24 * 60 * 60 * 1000), end: now };
     case 'yesterday': { const y = new Date(now); y.setDate(y.getDate()-1); return { start: midnight(y), end: endOfDay(y) }; }
     case 'week':      { const s = new Date(now); s.setDate(now.getDate()-now.getDay()+1); return { start: midnight(s), end: endOfDay(now) }; }
     case 'lastweek':  { const s = new Date(now); s.setDate(now.getDate()-now.getDay()-6); const e = new Date(s); e.setDate(s.getDate()+6); return { start: midnight(s), end: endOfDay(e) }; }
