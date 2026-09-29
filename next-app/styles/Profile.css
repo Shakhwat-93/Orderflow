@@ -1,0 +1,261 @@
+/* ================================================================
+   PROFILE PAGE — Perfect Dual-Mode Desktop
+   ================================================================ */
+
+.profile-container {
+  width: 100%;
+      min-width: 0;
+  padding-inline: clamp(12px, 1.6vw, 24px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  animation: panelIn 0.4s var(--ease-out);
+}
+
+.profile-grid {
+  width: 100%;
+}
+
+.profile-main {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--sp-5);
+  align-items: start;
+}
+
+/* ── Profile Header Card ── */
+.profile-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  padding: var(--sp-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+  box-shadow: var(--shadow-card);
+}
+
+/* ── Avatar Section ── */
+.avatar-section {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-5);
+}
+
+.avatar-wrapper {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  overflow: hidden;
+  box-shadow: var(--accent-glow-sm);
+  flex-shrink: 0;
+  border: 3px solid var(--accent-stroke);
+}
+
+.avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.875rem;
+  font-weight: 800;
+  color: var(--accent);
+  background: var(--accent-muted);
+}
+
+.profile-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  opacity: 0;
+  transition: opacity var(--anim-fast) ease;
+}
+
+.avatar-wrapper:hover .avatar-overlay { opacity: 1; }
+
+.avatar-info h3 {
+  font-size: var(--fs-h1);
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0 0 4px;
+  letter-spacing: -0.02em;
+}
+
+.avatar-info p {
+  color: var(--text-tertiary);
+  font-size: var(--fs-body);
+  margin: 0 0 var(--sp-3);
+  font-weight: 500;
+}
+
+/* ── Role Badge ── */
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-small);
+  font-weight: 700;
+  background: var(--accent-muted);
+  color: var(--accent);
+  border: 1px solid var(--accent-stroke);
+  letter-spacing: 0.01em;
+}
+
+/* ── Form Divider ── */
+.password-divider {
+  height: 1px;
+  background: var(--glass-border);
+  margin: var(--sp-2) 0;
+}
+
+/* ── Form Groups ── */
+.profile-form,
+.security-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+/* ── Security Card Header ── */
+.security-card .card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-5);
+  color: var(--accent);
+}
+
+.security-card .card-header h3 {
+    min-width: 0;
+  font-size: var(--fs-h2);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* ── Message Banner ── */
+.message-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: var(--fs-body);
+  animation: slideIn 0.3s ease-out;
+}
+
+.message-banner.success {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+  border: 1px solid var(--color-success-border);
+}
+
+.message-banner.error {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger-border);
+}
+
+.close-msg {
+  margin-left: auto;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.6;
+  padding: var(--sp-1);
+  min-width: 32px;
+  min-height: 32px;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all var(--anim-fast) ease;
+}
+
+.close-msg:hover { opacity: 1; background: rgba(0,0,0,0.05); }
+
+/* ── Avatar Loader ── */
+.avatar-loader {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar-loader::after {
+  content: '';
+  width: 26px;
+  height: 26px;
+  border: 3px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* ── Form Actions ── */
+.form-actions-premium {
+  margin-top: var(--sp-2);
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* ── Warning Hint ── */
+.modal-hint.warning {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+  border: 1px solid var(--color-warning-border);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius-sm);
+  display: flex;
+  gap: var(--sp-3);
+  align-items: flex-start;
+  font-size: var(--fs-body);
+  line-height: 1.5;
+  margin-bottom: var(--sp-4);
+}
+
+/* ── Label ── */
+.form-label {
+  font-size: var(--fs-small);
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  display: block;
+  margin-bottom: var(--sp-2);
+}
+
+@keyframes slideIn {
+  from { transform: translateY(-8px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 1024px) {
+  .profile-main {
+    grid-template-columns: 1fr;
+  }
+}

@@ -22,7 +22,8 @@ import {
   X,
   Sun,
   Moon,
-  DatabaseBackup
+  DatabaseBackup,
+  CreditCard
 } from 'lucide-react';
 
 import { useAuth } from '../context/AuthContext';
@@ -49,6 +50,7 @@ const menuItems = [
       { path: '/orders?status=Incomplete', label: 'Incomplete Orders', status: 'Incomplete', tone: 'incomplete' }
     ]
   },
+  { path: '/payments', label: 'Payments', icon: CreditCard, group: 'Main Console' },
   { path: '/inventory', label: 'Inventory', icon: Package, roles: ['Admin', 'Moderator'], group: 'Main Console' },
   { path: '/factory', label: 'Confirmed', icon: Factory, roles: ['Admin', 'Factory Team'], group: 'Logistics' },
   { path: '/courier', label: 'Bulk Exported', icon: Truck, roles: ['Admin', 'Courier Team', 'Factory Team'], group: 'Logistics' },

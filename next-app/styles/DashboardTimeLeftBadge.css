@@ -1,0 +1,189 @@
+/* ================================================================
+   STADIUM COUNTDOWN TIMER — Taskplus Masterpiece & Linear Standard
+   Light Mode (Preserved & Clean) + Dark Mode (Neon Glowing Capsule)
+   ================================================================ */
+
+.stadium-timer-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 172px;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 9999px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 2px 8px rgba(0, 0, 0, 0.03);
+  cursor: pointer;
+  user-select: none;
+  text-decoration: none;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              background-color 0.2s ease;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow: visible;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.stadium-timer-badge:hover {
+  transform: translateY(-1px) scale(1.02);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(225, 29, 72, 0.12);
+}
+
+.stadium-timer-badge:active {
+  transform: translateY(0) scale(0.99);
+}
+
+/* ── SVG Progress Track & Stroke ─────────────────────────────────────────── */
+.stadium-timer-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+/* Inactive background track */
+.stadium-timer-track {
+  fill: none;
+  stroke: #e2e8f0;
+  stroke-width: 3.2px;
+}
+
+/* Active animated progress stroke */
+.stadium-timer-progress {
+  fill: none;
+  stroke: #e11d48;
+  stroke-width: 3.2px;
+  stroke-linecap: round;
+  filter: drop-shadow(0 1px 3px rgba(225, 29, 72, 0.3));
+  transition: stroke-dashoffset 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ── Inner Content (Values & Labels) ─────────────────────────────────────── */
+.stadium-timer-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  pointer-events: none;
+  line-height: 1;
+}
+
+.stadium-timer-icon {
+  color: #e11d48;
+  flex-shrink: 0;
+  opacity: 0.9;
+  transition: transform 0.3s ease;
+}
+
+.stadium-timer-badge:hover .stadium-timer-icon {
+  transform: rotate(15deg);
+}
+
+.stadium-timer-val {
+  font-size: 0.86rem;
+  font-weight: 750;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.stadium-timer-label {
+  font-size: 0.68rem;
+  font-weight: 550;
+  color: #64748b;
+  text-transform: capitalize;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* ── Skeleton / Hydration Loading State ───────────────────────────────────── */
+.stadium-timer-skeleton {
+  width: 80px;
+  height: 10px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.08);
+  animation: stadium-shimmer 1.5s infinite;
+}
+
+@keyframes stadium-shimmer {
+  0%   { opacity: 0.4; }
+  50%  { opacity: 0.8; }
+  100% { opacity: 0.4; }
+}
+
+/* ================================================================
+   DARK MODE OVERRIDES (Taskplus Masterpiece Capsule Styling)
+   ================================================================ */
+[data-theme='dark'] .stadium-timer-badge,
+.dark .stadium-timer-badge {
+  background: #141414 !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+}
+
+[data-theme='dark'] .stadium-timer-badge:hover,
+.dark .stadium-timer-badge:hover {
+  background: #1c1c1e !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8), 0 0 14px rgba(255, 59, 92, 0.25) !important;
+}
+
+/* Dark mode track: deep charcoal/slate */
+[data-theme='dark'] .stadium-timer-track,
+.dark .stadium-timer-track {
+  stroke: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Dark mode active stroke: vibrant glowing neon coral/red */
+[data-theme='dark'] .stadium-timer-progress,
+.dark .stadium-timer-progress {
+  stroke: #ff3b5c !important;
+  filter: drop-shadow(0 0 5px rgba(255, 59, 92, 0.65)) drop-shadow(0 0 12px rgba(255, 59, 92, 0.3)) !important;
+}
+
+[data-theme='dark'] .stadium-timer-icon,
+.dark .stadium-timer-icon {
+  color: #ff3b5c !important;
+}
+
+/* Dark mode value: pure crisp white */
+[data-theme='dark'] .stadium-timer-val,
+.dark .stadium-timer-val {
+  color: #f4f4f5 !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* Dark mode label: cool muted slate */
+[data-theme='dark'] .stadium-timer-label,
+.dark .stadium-timer-label {
+  color: #a1a1aa !important;
+}
+
+[data-theme='dark'] .stadium-timer-skeleton,
+.dark .stadium-timer-skeleton {
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* ── Mobile responsiveness ───────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .stadium-timer-badge {
+    width: 156px;
+    height: 36px;
+    padding: 0 12px;
+  }
+  .stadium-timer-val {
+    font-size: 0.8rem;
+  }
+  .stadium-timer-label {
+    font-size: 0.64rem;
+  }
+}

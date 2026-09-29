@@ -31,6 +31,7 @@ const ORDER_STATUSES = [
   'Final Call Pending',
   'Confirmed',
   'Bulk Exported',
+  'Courier Ready',
   'Courier Submitted',
   'Factory Processing',
   'Completed',
@@ -673,13 +674,13 @@ export const OrdersBoard = () => {
 
   const statusTabs = useMemo(() => {
     const counts = new Map(statusBreakdown.map((item) => [item.status, item.count]));
-    const totalOrdersForStatuses = statusBreakdown.reduce((sum, item) => sum + item.count, 0);
+    const allCount = counts.get('All') ?? statusBreakdown.reduce((sum, item) => sum + item.count, 0);
 
     return [
-      { value: 'All', label: 'All Orders', count: totalOrdersForStatuses },
+      { value: 'All', label: 'All Orders', count: allCount },
       ...ORDER_STATUSES.map((status) => ({
         value: status,
-        label: status,
+        label: status === 'Final Call Pending' ? 'Final Call' : status === 'Cancelled' ? 'Canceled' : status,
         count: counts.get(status) || 0
       }))
     ];

@@ -393,7 +393,16 @@ export const OrderProvider = ({ children }) => {
       return;
     }
 
-    setOrders(prev => prev.map(order => order.id === orderId ? { ...order, status: newStatus } : order));
+    // Optimistic status + note update in memory for instant 0ms UI transition
+    const noteEntry = noteText ? api.formatOrderNoteEntry(noteText, newStatus, currentUserName) : '';
+    const optimisticNotes = noteEntry ? api.mergeOrderNotes(order?.notes, noteEntry) : order?.notes;
+
+    setOrders(prev => prev.map(o => o.id === orderId ? {
+      ...o,
+      status: newStatus,
+      notes: optimisticNotes,
+      updated_at: new Date().toISOString()
+    } : o));
 
     try {
       const updatedOrder = await api.changeOrderStatus(orderId, newStatus, user?.id, currentUserName, userRoles, noteText);
@@ -413,26 +422,31 @@ export const OrderProvider = ({ children }) => {
       const qty = order?.quantity || 1;
       const stockOpts = { orderId, userId: user?.id };
 
-      // Auto stock deduction when order is confirmed (prefer inventory_id, fallback to name)
+      // Auto stock deduction when order is confirmed (non-blocking background task)
       if (isNowConfirmed && order) {
         if (order.inventory_id) {
-          await api.deductStockByInventoryId(order.inventory_id, qty, { ...stockOpts, note: `Order ${orderId} confirmed — deducted ${qty} unit(s)` });
+          api.deductStockByInventoryId(order.inventory_id, qty, { ...stockOpts, note: `Order ${orderId} confirmed — deducted ${qty} unit(s)` })
+            .catch(e => console.warn('Stock deduction non-fatal error:', e));
         } else if (order.product_name) {
-          await api.deductStockByProductName(order.product_name, qty, stockOpts);
+          api.deductStockByProductName(order.product_name, qty, stockOpts)
+            .catch(e => console.warn('Stock deduction non-fatal error:', e));
         }
       }
 
-      // Auto stock restore when a previously-confirmed order is cancelled
+      // Auto stock restore when a previously-confirmed order is cancelled (non-blocking background task)
       if (isNowCancelled && order) {
         const txType = newStatus === 'Fake Order' ? 'order_returned' : 'order_cancelled';
         if (order.inventory_id) {
-          await api.restoreStockByInventoryId(order.inventory_id, qty, { ...stockOpts, txType, note: `Order ${orderId} ${newStatus.toLowerCase()} — restored ${qty} unit(s)` });
+          api.restoreStockByInventoryId(order.inventory_id, qty, { ...stockOpts, txType, note: `Order ${orderId} ${newStatus.toLowerCase()} — restored ${qty} unit(s)` })
+            .catch(e => console.warn('Stock restore non-fatal error:', e));
         } else if (order.product_name) {
           // Legacy name-based restore
-          const { data: items } = await supabase.from('inventory').select('id, current_stock').ilike('name', order.product_name).limit(1);
-          if (items?.[0]) {
-            await api.restoreStockByInventoryId(items[0].id, qty, { ...stockOpts, txType });
-          }
+          supabase.from('inventory').select('id, current_stock').ilike('name', order.product_name).limit(1).then(({ data: items }) => {
+            if (items?.[0]) {
+              api.restoreStockByInventoryId(items[0].id, qty, { ...stockOpts, txType })
+                .catch(e => console.warn('Stock restore non-fatal error:', e));
+            }
+          }).catch(e => console.warn('Legacy stock lookup error:', e));
         }
       }
 
@@ -898,6 +912,7 @@ export const OrderProvider = ({ children }) => {
   return (
     <OrderContext.Provider value={{
       orders,
+      setOrders,
       loading,
       totalCount,
       page,

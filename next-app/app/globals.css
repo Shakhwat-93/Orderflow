@@ -1,0 +1,388 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import '../styles/DashboardLayout.css';
+@import '../styles/Sidebar.css';
+@import '../styles/Header.css';
+@import '../styles/NotificationCenter.css';
+@import '../styles/MobileBottomNav.css';
+@import '../styles/PresenceStack.css';
+@import '../styles/Card.css';
+@import '../styles/Button.css';
+@import '../styles/Input.css';
+@import '../styles/Badge.css';
+@import '../styles/DateRangePicker.css';
+@import '../styles/AccessRestricted.css';
+@import '../styles/Settings.css';
+@import '../styles/Profile.css';
+@import '../styles/BackupPanel.css';
+@import '../styles/FraudControl.css';
+@import '../styles/Modal.css';
+@import '../styles/OrdersBoard.css';
+@import '../styles/OrderRow.css';
+@import '../styles/OrderDetailsModal.css';
+@import '../styles/OrderEditModal.css';
+@import '../styles/BulkOrderCreator.css';
+@import '../styles/BulkActions.css';
+@import '../styles/ResponseTimer.css';
+@import '../styles/DashboardTimeLeftBadge.css';
+@import '../styles/UnattendedOrdersAlertModal.css';
+@import '../styles/OrderHistoryTimeline.css';
+@import '../styles/ExportModal.css';
+@import '../styles/PrintPreviewModal.css';
+@import '../styles/InventoryPage.css';
+@import '../styles/FactoryPanel.css';
+@import '../styles/CourierPanel.css';
+@import '../styles/SteadfastPanel.css';
+@import '../styles/BulkExportModal.css';
+@import '../styles/PackingSlip.css';
+@import '../styles/ReportsPanel.css';
+@import '../styles/SalesReport.css';
+@import '../styles/TaskBoard.css';
+@import '../styles/TaskDetailsModal.css';
+@import '../styles/CreateTaskOverlay.css';
+@import '../styles/ActivityTimeline.css';
+@import '../styles/AuthLoader.css';
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* ================================================================
+   ELITE ENTERPRISE DESIGN SYSTEM VARIABLES
+   Preserved 1:1 with Original React Application
+   ================================================================ */
+
+:root {
+  /* ── Color Palette — Light Mode ── */
+  --bg-main:       #f4f6fb;
+  --bg-surface:    #ffffff;
+  --bg-elevated:   #f1f5f9;
+  --bg-hover:      #e8ecf4;
+
+  /* ── Primary Accent — Indigo ── */
+  --accent:        #6366f1;
+  --accent-rgb:    99, 102, 241;
+  --accent-dark:   #4f46e5;
+  --accent-light:  #818cf8;
+  --accent-muted:  rgba(99, 102, 241, 0.08);
+  --accent-stroke: rgba(99, 102, 241, 0.2);
+  --accent-gradient: linear-gradient(135deg, #6366f1, #4f46e5);
+
+  /* ── Text Colors ── */
+  --text-primary:   #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary:  #94a3b8;
+  --text-muted:     #cbd5e1;
+
+  /* ── Borders & Glass ── */
+  --glass-border:   rgba(0, 0, 0, 0.07);
+  --border-strong:  rgba(0, 0, 0, 0.12);
+
+  /* ── Shadows ── */
+  --shadow-xs:      0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-sm:      0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-card:    0 4px 20px rgba(0, 0, 0, 0.05);
+
+  /* ── 8px Spacing Scale ── */
+  --sp-1:  4px;
+  --sp-2:  8px;
+  --sp-3:  12px;
+  --sp-4:  16px;
+  --sp-5:  20px;
+  --sp-6:  24px;
+  --sp-7:  28px;
+  --sp-8:  32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+  --sp-16: 64px;
+
+  /* ── Safe Area Insets ── */
+  --safe-top:    env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left:   env(safe-area-inset-left, 0px);
+  --safe-right:  env(safe-area-inset-right, 0px);
+
+  /* ── Status Colors ── */
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-danger:  #ef4444;
+  --color-info:    #3b82f6;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-theme='dark'] {
+  --bg-main:       #141414;
+  --bg-surface:    #1c1c1e;
+  --bg-elevated:   #242424;
+  --bg-hover:      #2a2a2a;
+  --bg-inner:      #141414;
+
+  --accent:        #818cf8;
+  --accent-rgb:    129, 140, 248;
+  --accent-dark:   #6366f1;
+  --accent-light:  #a5b4fc;
+  --accent-muted:  rgba(129, 140, 248, 0.1);
+  --accent-stroke: rgba(129, 140, 248, 0.2);
+
+  --text-primary:   #f4f4f5;
+  --text-secondary: #a1a1aa;
+  --text-tertiary:  #71717a;
+  --text-muted:     #52525b;
+
+  --glass-border:  rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.08);
+
+  --shadow-xs:     0 1px 3px rgba(0, 0, 0, 0.35);
+  --shadow-sm:     0 2px 10px rgba(0, 0, 0, 0.35);
+  --shadow-card:   0 2px 10px rgba(0, 0, 0, 0.35), 0 6px 24px rgba(0, 0, 0, 0.25);
+}
+
+body {
+  background-color: var(--bg-main);
+  color: var(--text-primary);
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+  padding: 0;
+}
+
+/* Fast touch response (eliminates 300ms mobile tap delay) */
+button,
+a,
+input,
+select,
+textarea,
+label {
+  touch-action: manipulation;
+}
+
+/* Hardware-accelerated momentum scrolling on touch devices */
+* {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Visibility Helper Classes */
+@media (max-width: 767px) {
+  .desktop-only {
+    display: none !important;
+  }
+  .desktop-only-flex {
+    display: none !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .mobile-only {
+    display: none !important;
+  }
+}
+
+/* ── Hardware Acceleration & Containment ── */
+.content-scrollable {
+  contain: content;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+.table-responsive, .orders-table-container, .card-scroll-container {
+  will-change: scroll-position;
+  contain: paint;
+}
+
+.floating, .modal-panel, .drawer-panel {
+  transform: translate3d(0, 0, 0);
+  will-change: transform, opacity;
+}
+
+@layer base {
+  :root {
+    --background:       #ffffff;
+    --foreground:       #0f172a;
+    --card:             #ffffff;
+    --card-foreground:  #0f172a;
+    --popover:          #ffffff;
+    --popover-foreground: #0f172a;
+    --primary:          #18181b;
+    --primary-foreground: #fafafa;
+    --secondary:        #f4f4f5;
+    --secondary-foreground: #18181b;
+    --muted:            #f4f4f5;
+    --muted-foreground: #71717a;
+    --accent-foreground: #ffffff;
+    --destructive:      #ef4444;
+    --destructive-foreground: #fafafa;
+    --border:           #e4e4e7;
+    --input:            #e4e4e7;
+    --ring:             #6366f1;
+    --chart-1:          #e76e50;
+    --chart-2:          #2a9d90;
+    --chart-3:          #274754;
+    --chart-4:          #e8c468;
+    --chart-5:          #f4a462;
+    --radius:           0.5rem;
+    --sidebar:          #fafafa;
+    --sidebar-foreground: #18181b;
+    --sidebar-primary:  #18181b;
+    --sidebar-primary-foreground: #fafafa;
+    --sidebar-accent:   #f4f4f5;
+    --sidebar-accent-foreground: #18181b;
+    --sidebar-border:   #e4e4e7;
+    --sidebar-ring:     #6366f1;
+  }
+  .dark, [data-theme='dark'] {
+    --background:       #141414;
+    --foreground:       #f4f4f5;
+    --card:             #1c1c1e;
+    --card-foreground:  #f4f4f5;
+    --popover:          #1c1c1e;
+    --popover-foreground: #f4f4f5;
+    --primary:          #fafafa;
+    --primary-foreground: #18181b;
+    --secondary:        #242424;
+    --secondary-foreground: #f4f4f5;
+    --muted:            #242424;
+    --muted-foreground: #a1a1aa;
+    --accent-foreground: #ffffff;
+    --destructive:      #ef4444;
+    --destructive-foreground: #fafafa;
+    --border:           rgba(255, 255, 255, 0.06);
+    --input:            rgba(255, 255, 255, 0.06);
+    --ring:             #818cf8;
+    --chart-1:          #818cf8;
+    --chart-2:          #22c55e;
+    --chart-3:          #f59e0b;
+    --chart-4:          #a855f7;
+    --chart-5:          #ef4444;
+    --sidebar:          #141414;
+    --sidebar-foreground: #f4f4f5;
+    --sidebar-primary:  #818cf8;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent:   #242424;
+    --sidebar-accent-foreground: #f4f4f5;
+    --sidebar-border:   rgba(255, 255, 255, 0.06);
+    --sidebar-ring:     #818cf8;
+  }
+}
+
+/* ================================================================
+   MAGIC UI ANIMATED THEME TOGGLER (View Transitions API)
+   ================================================================ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+html[data-magicui-theme-vt="active"]::view-transition-group(root) {
+  animation-duration: var(--magicui-theme-toggle-vt-duration);
+}
+
+html[data-magicui-theme-vt="active"]::view-transition-new(root) {
+  clip-path: var(--magicui-theme-vt-clip-from);
+}
+
+/* ================================================================
+   SMOOTH CURSOR (Desktop & Fine Pointer Only)
+   ================================================================ */
+@media (any-hover: hover) and (any-pointer: fine) {
+  html.has-smooth-cursor,
+  html.has-smooth-cursor body {
+    cursor: none;
+  }
+
+  /* Preserve native text cursor for text editing & selection */
+  html.has-smooth-cursor input,
+  html.has-smooth-cursor textarea,
+  html.has-smooth-cursor select,
+  html.has-smooth-cursor [contenteditable="true"],
+  html.has-smooth-cursor [contenteditable=""] {
+    cursor: text !important;
+  }
+
+  /* Interactive control inputs that use pointer */
+  html.has-smooth-cursor input[type="button"],
+  html.has-smooth-cursor input[type="submit"],
+  html.has-smooth-cursor input[type="reset"],
+  html.has-smooth-cursor input[type="checkbox"],
+  html.has-smooth-cursor input[type="radio"],
+  html.has-smooth-cursor input[type="file"],
+  html.has-smooth-cursor input[type="range"] {
+    cursor: pointer !important;
+  }
+}
+
+/* ================================================================
+   MAGIC UI SHIMMER BUTTON ANIMATIONS & PERIMETER GLOW
+   ================================================================ */
+@keyframes shimmer-slide {
+  to {
+    transform: translate(calc(100cqw - 100%), 0);
+  }
+}
+
+@keyframes spin-around {
+  0% {
+    transform: translateZ(0) rotate(0);
+  }
+  15%,
+  35% {
+    transform: translateZ(0) rotate(90deg);
+  }
+  65%,
+  85% {
+    transform: translateZ(0) rotate(270deg);
+  }
+  100% {
+    transform: translateZ(0) rotate(360deg);
+  }
+}
+
+@property --shimmer-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes spin-angle {
+  to {
+    --shimmer-angle: 360deg;
+  }
+}
+
+.animate-shimmer-slide {
+  animation: shimmer-slide var(--speed, 3s) ease-in-out infinite alternate;
+}
+
+.animate-spin-around {
+  animation: spin-around calc(var(--speed, 3s) * 2) infinite linear;
+}
+
+.shimmer-spark-container {
+  container-type: size;
+}
+
+/* Reduced motion accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .animate-shimmer-slide,
+  .animate-spin-around {
+    animation: none !important;
+  }
+  [data-shimmer-layer="true"],
+  .shimmer-perimeter-mask {
+    display: none !important;
+  }
+  .btn-primary::after,
+  .btn-secondary::after,
+  .btn-confirmed::after,
+  .btn-courier::after,
+  .btn-factory::after,
+  .btn-completed::after,
+  .btn-shimmer::after,
+  .elite-btn-primary::after {
+    animation: none !important;
+    display: none !important;
+  }
+}

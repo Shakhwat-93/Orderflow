@@ -38,3 +38,29 @@ android/app/build/
 android/build/
 android/captures/
 android/local.properties
+
+# Scratch forensics and data dumps
+check_*.cjs
+probe_*.cjs
+inspect_*.cjs
+test_*.cjs
+analyze_*.cjs
+build_payments_*.cjs
+fetch_*.cjs
+parse_*.cjs
+run_*.cjs
+sample_*.cjs
+all_payments_summary.json
+extracted_ids.json
+final_crosscheck_results.json
+settled_consignments_map.json
+unsettled_*.json
+user_ids_status.json
+
+# Next.js build output
+next-app/.next/
+next-app/out/
+next-app/*.tsbuildinfo
+
+# Database migration dumps & scratch data
+supabase/migration/

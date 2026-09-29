@@ -1,0 +1,306 @@
+/* =========================================================
+   AI BRIEFING — COMPACT EXECUTIVE SUMMARY
+   ========================================================= */
+
+.ai-briefing-card {
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 60%, #3730a3 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 10px 25px -5px rgba(79, 70, 229, 0.2);
+  padding: 18px 22px;
+  border-radius: 16px;
+  position: relative;
+  overflow: hidden;
+  animation: slideInBrief 0.4s var(--ease-out);
+  transition: all 0.3s var(--ease-out);
+  color: #fff;
+}
+
+.ai-briefing-card:hover {
+  box-shadow: 0 14px 30px -6px rgba(79, 70, 229, 0.25);
+}
+
+/* ── Header ── */
+.briefing-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  position: relative;
+  z-index: 2;
+}
+
+/* ── AI Icon Nucleus ── */
+.ai-icon-pulse {
+  width: 36px;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(8px);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  flex-shrink: 0;
+}
+
+/* ── Typography ── */
+.briefing-title {
+  display: flex;
+  flex-direction: column;
+}
+
+.briefing-subtitle {
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.briefing-subtitle::after {
+  content: "";
+  height: 1px;
+  width: 28px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.briefing-title h2 {
+  font-size: 1.25rem;
+  font-weight: 750;
+  color: #fff;
+  margin: 0;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+/* ── Content Layout ── */
+.briefing-content {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 20px;
+  align-items: center;
+  position: relative;
+  z-index: 2;
+}
+
+.narrative-text {
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.95);
+  font-weight: 450;
+  margin: 0;
+}
+
+/* ── CLEAN RESULT FOCUS ── */
+.stat-highlight {
+  display: inline;
+  padding: 0;
+  margin: 0;
+  font-weight: 750;
+  color: #fff !important;
+  text-decoration: underline decoration-2 underline-offset-3 rgba(255, 255, 255, 0.35);
+}
+
+.stat-highlight.success { color: #4ade80 !important; text-decoration-color: rgba(74, 222, 128, 0.45) !important; }
+.stat-highlight.alert   { color: #fb7185 !important; text-decoration-color: rgba(251, 113, 133, 0.45) !important; }
+.stat-highlight.info    { color: #38bdf8 !important; text-decoration-color: rgba(56, 189, 248, 0.45) !important; }
+.stat-highlight.warning { color: #fbbf24 !important; text-decoration-color: rgba(251, 191, 36, 0.45) !important; }
+
+/* ── Suggestions Tray ── */
+.briefing-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.action-suggestion {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  color: #fff;
+  text-decoration: none;
+}
+
+.action-suggestion:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.25);
+  transform: translateX(3px);
+}
+
+.suggestion-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.14);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.suggestion-text {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #fff;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.suggestion-arrow {
+  color: rgba(255, 255, 255, 0.5);
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.action-suggestion:hover .suggestion-arrow {
+  transform: translateX(3px);
+  color: #fff;
+}
+
+/* ── Animations ── */
+@keyframes slideInBrief {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Abstract BG Shapes (Minimal) ── */
+.briefing-abstract-shapes .shape {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 1;
+}
+.briefing-abstract-shapes .shape.s1 { width: 140px; height: 140px; top: -60px; right: -30px; }
+.briefing-abstract-shapes .shape.s2 { width: 80px; height: 80px; bottom: -30px; left: 15%; }
+
+@media (max-width: 900px) {
+  .briefing-content {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}
+
+@media (max-width: 640px) {
+  .ai-briefing-card {
+    padding: 14px 16px;
+    border-radius: 14px;
+  }
+
+  .briefing-title h2 {
+    font-size: 1.1rem;
+  }
+
+  .narrative-text {
+    font-size: 0.85rem;
+  }
+}
+
+/* ── DARK THEME OVERRIDE (Taskplus Reference Minimal Intelligence Panel) ── */
+[data-theme='dark'] .ai-briefing-card {
+  background: #1c1c1e !important;
+  background-image: radial-gradient(circle at 95% 10%, rgba(99, 102, 241, 0.05) 0%, transparent 50%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35) !important;
+  border-radius: 16px !important;
+}
+
+[data-theme='dark'] .ai-briefing-card:hover {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+  border-color: rgba(255, 255, 255, 0.10) !important;
+}
+
+[data-theme='dark'] .ai-icon-pulse {
+  background: #141414 !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  color: #818cf8 !important;
+  border-radius: 10px !important;
+}
+
+[data-theme='dark'] .briefing-subtitle {
+  color: #818cf8 !important;
+  font-size: 0.65rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.12em !important;
+}
+
+[data-theme='dark'] .briefing-subtitle::after {
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+[data-theme='dark'] .briefing-title h2 {
+  color: #f4f4f5 !important;
+  font-size: 1.25rem !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.02em !important;
+}
+
+[data-theme='dark'] .narrative-text {
+  color: #a1a1aa !important;
+  font-size: 0.88rem !important;
+  line-height: 1.55 !important;
+}
+
+[data-theme='dark'] .stat-highlight {
+  color: #f4f4f5 !important;
+  text-decoration-color: rgba(255, 255, 255, 0.25) !important;
+}
+
+[data-theme='dark'] .stat-highlight.success { color: #34d399 !important; text-decoration-color: rgba(52, 211, 153, 0.4) !important; }
+[data-theme='dark'] .stat-highlight.alert   { color: #f87171 !important; text-decoration-color: rgba(248, 113, 113, 0.4) !important; }
+[data-theme='dark'] .stat-highlight.info    { color: #60a5fa !important; text-decoration-color: rgba(96, 165, 250, 0.4) !important; }
+[data-theme='dark'] .stat-highlight.warning { color: #fbbf24 !important; text-decoration-color: rgba(251, 191, 36, 0.4) !important; }
+
+[data-theme='dark'] .action-suggestion {
+  background: #141414 !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  border-radius: 10px !important;
+  color: #f4f4f5 !important;
+}
+
+[data-theme='dark'] .action-suggestion:hover {
+  background: #242424 !important;
+  border-color: rgba(255, 255, 255, 0.10) !important;
+}
+
+[data-theme='dark'] .suggestion-icon {
+  background: #242424 !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  color: #818cf8 !important;
+}
+
+[data-theme='dark'] .suggestion-text {
+  color: #f4f4f5 !important;
+  font-weight: 550 !important;
+}
+
+[data-theme='dark'] .suggestion-arrow {
+  color: #52525b !important;
+}
+
+[data-theme='dark'] .action-suggestion:hover .suggestion-arrow {
+  color: #f4f4f5 !important;
+}
+
+[data-theme='dark'] .briefing-abstract-shapes {
+  display: none !important;
+}

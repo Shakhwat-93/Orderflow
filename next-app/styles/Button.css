@@ -1,0 +1,158 @@
+/* ===== BUTTON — Clean Premium Pill Typography ===== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px; /* sp-2 */
+  border-radius: 9999px; /* Pill shape */
+  font-weight: 500;
+  font-size: 0.95rem; /* Clean professional font size */
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  border: none;
+  padding: 0 20px;
+  height: 44px; /* Default height */
+  cursor: pointer;
+  font-family: inherit;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── PRIMARY (Solid Indigo/Purple-Blue) ── */
+.btn-primary {
+  background: #5b58ee; /* A premium modern indigo */
+  color: #ffffff;
+}
+
+@media (hover: hover) {
+  .btn-primary:hover {
+    background: #4f4ae6;
+    box-shadow: 0 4px 14px rgba(91, 88, 238, 0.3);
+  }
+}
+
+/* ── SECONDARY ── */
+.btn-secondary {
+  background: #0284c7; /* Keeping a blue variant */
+  color: #ffffff;
+}
+
+@media (hover: hover) { 
+  .btn-secondary:hover { 
+    background: #0369a1; 
+  } 
+}
+
+/* ── GHOST / OUTLINE (Cancel buttons) ── */
+.btn-ghost {
+  background: #ffffff;
+  color: #374151; /* Dark grey */
+  border: 1px solid #e5e7eb;
+}
+
+[data-theme='dark'] .btn-ghost {
+  background: transparent;
+  color: #a1a1aa;
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+@media (hover: hover) {
+  .btn-ghost:hover {
+    background: #f9fafb;
+    color: #111827;
+  }
+  [data-theme='dark'] .btn-ghost:hover {
+    background: #242424;
+    color: #f4f4f5; 
+  }
+}
+
+/* ── STATUS BUTTONS ── */
+/* Simplified for clean aesthetics */
+.btn-confirmed { background: #16a34a; color: #fff; }
+.btn-cancelled { background: #e11d48; color: #fff; }
+.btn-courier { background: #7c3aed; color: #fff; }
+.btn-factory { background: #ea580c; color: #fff; }
+.btn-completed { background: #059669; color: #fff; }
+
+.btn-sm { height: 36px; padding: 0 16px; font-size: 0.85rem; }
+.btn-lg { height: 50px; padding: 0 24px; font-size: 1rem; }
+
+.btn-block-mobile { width: 100%; }
+@media (min-width: 768px) { .btn-block-mobile { width: auto; } }
+
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn:active:not(:disabled) { transform: scale(0.98); }
+
+/* ── MAGIC UI PERIMETER SHIMMER ON GLOBAL BUTTONS ── */
+.btn-primary::after,
+.btn-secondary::after,
+.btn-confirmed::after,
+.btn-courier::after,
+.btn-factory::after,
+.btn-completed::after,
+.btn-shimmer::after,
+.elite-btn-primary::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+  padding: 1.5px;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  background: conic-gradient(
+    from var(--shimmer-angle, 0deg) at 50% 50%,
+    transparent 0deg,
+    transparent 65deg,
+    var(--btn-shimmer-color, rgba(255, 255, 255, 0.45)) 90deg,
+    transparent 115deg,
+    transparent 360deg
+  );
+  animation: spin-angle var(--btn-shimmer-speed, 3s) linear infinite;
+  opacity: 0.75;
+  transition: opacity 0.3s ease;
+}
+
+.btn-secondary::after {
+  --btn-shimmer-color: rgba(255, 255, 255, 0.22);
+  opacity: 0.55;
+}
+
+[data-theme='dark'] .btn-secondary::after {
+  --btn-shimmer-color: rgba(255, 255, 255, 0.28);
+}
+
+@media (hover: hover) {
+  .btn-primary:hover::after,
+  .btn-secondary:hover::after,
+  .btn-confirmed:hover::after,
+  .btn-courier:hover::after,
+  .btn-factory:hover::after,
+  .btn-completed:hover::after,
+  .btn-shimmer:hover::after,
+  .elite-btn-primary:hover::after {
+    opacity: 1;
+  }
+}
+
+/* Explicit exclusions & disabled states */
+.btn:disabled::after,
+.btn[aria-disabled="true"]::after,
+.btn[data-loading="true"]::after,
+.btn.no-shimmer::after,
+.no-shimmer::after,
+.theme-toggle::after,
+.theme-toggle-btn::after,
+.icon-badge-btn::after,
+.sidebar-nav *::after,
+.mobile-menu-toggle::after,
+.sidebar-close::after {
+  animation: none !important;
+  opacity: 0 !important;
+  display: none !important;
+}
+

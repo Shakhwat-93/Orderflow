@@ -1,0 +1,304 @@
+/* ================================================================
+   LIVE ACTIVITY FEED — Compact, Modern Timeline
+   ================================================================ */
+
+.live-activity-feed {
+  background: var(--db-card);
+  border-radius: var(--db-radius);
+  border: 1px solid var(--db-border);
+  box-shadow: var(--db-shadow);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.feed-header {
+  padding: 14px 18px 12px;
+  border-bottom: 1px solid var(--db-border-row);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.feed-header h3 {
+  font-size: 0.88rem;
+  font-weight: 750;
+  color: var(--db-text);
+  margin: 0;
+  letter-spacing: -0.015em;
+}
+
+.live-badge {
+  background: rgba(239, 68, 68, 0.08);
+  color: #ef4444;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid rgba(239, 68, 68, 0.18);
+  letter-spacing: 0.04em;
+}
+
+.live-badge::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  background: #ef4444;
+  border-radius: 50%;
+  animation: live-ping 1.8s infinite;
+}
+
+.activity-list {
+  padding: 12px 14px;
+  overflow-y: auto;
+  flex: 1;
+  max-height: 480px;
+}
+
+/* Custom Scrollbar */
+.activity-list::-webkit-scrollbar {
+  width: 4px;
+}
+.activity-list::-webkit-scrollbar-thumb {
+  background: var(--db-border);
+  border-radius: 4px;
+}
+
+.activity-item {
+  display: flex;
+  gap: 10px;
+  animation: slideInDown 0.25s var(--ease-out) both;
+}
+
+@keyframes slideInDown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.activity-marker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 10px;
+  flex-shrink: 0;
+}
+
+.marker-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--db-accent);
+  border-radius: 50%;
+  margin-top: 0.35rem;
+  position: relative;
+  z-index: 2;
+  box-shadow: 0 0 0 2px var(--db-accent-bg);
+}
+
+.marker-line {
+  flex: 1;
+  width: 1px;
+  background: var(--db-border-row);
+  margin: 0.2rem 0;
+}
+
+.activity-content {
+  flex: 1;
+  padding-bottom: 10px;
+  min-width: 0;
+}
+
+.activity-main {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.action-type {
+  width: 24px;
+  height: 24px;
+  background: var(--db-bg);
+  border: 1px solid var(--db-border-row);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.activity-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.activity-desc {
+  font-size: 0.78rem;
+  color: var(--db-text);
+  margin: 0;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.activity-desc strong {
+  font-weight: 650;
+  color: var(--db-text);
+}
+
+.activity-ref {
+  font-size: 0.68rem;
+  color: var(--db-accent);
+  font-weight: 650;
+  background: var(--db-accent-bg);
+  padding: 1px 5px;
+  border-radius: 4px;
+  display: inline-block;
+  margin-top: 2px;
+}
+
+.activity-meta {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.activity-time {
+  font-size: 0.68rem;
+  color: var(--db-text-muted);
+  font-weight: 500;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--db-bg);
+  border: 1px solid var(--db-border-row);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--db-text-sub);
+}
+
+.activity-feed-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+}
+
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--db-border);
+  border-top: 2px solid var(--db-accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.empty-feed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 180px;
+  color: var(--db-text-muted);
+  text-align: center;
+  gap: 8px;
+}
+
+.empty-feed p {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+/* ================================================================
+   DARK MODE OVERRIDES (Taskplus Charcoal Layering Standard)
+   ================================================================ */
+[data-theme='dark'] .live-activity-feed {
+  background: #1c1c1e !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35) !important;
+}
+
+[data-theme='dark'] .feed-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+[data-theme='dark'] .feed-header h3 {
+  color: #f4f4f5 !important;
+}
+
+[data-theme='dark'] .live-badge {
+  background: rgba(248, 113, 113, 0.12) !important;
+  color: #f87171 !important;
+  border: 1px solid rgba(248, 113, 113, 0.25) !important;
+}
+
+[data-theme='dark'] .live-badge::before {
+  background: #f87171 !important;
+}
+
+[data-theme='dark'] .action-type {
+  background: #141414 !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  color: #818cf8 !important;
+}
+
+[data-theme='dark'] .marker-dot {
+  background: #818cf8 !important;
+  box-shadow: 0 0 0 2px #141414 !important;
+}
+
+[data-theme='dark'] .marker-line {
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+
+[data-theme='dark'] .activity-desc {
+  color: #a1a1aa !important;
+}
+
+[data-theme='dark'] .activity-desc strong {
+  color: #f4f4f5 !important;
+}
+
+[data-theme='dark'] .activity-ref {
+  background: #141414 !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  color: #818cf8 !important;
+}
+
+[data-theme='dark'] .activity-time {
+  color: #52525b !important;
+}
+
+[data-theme='dark'] .status-chip {
+  background: #141414 !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  color: #a1a1aa !important;
+}
+
+[data-theme='dark'] .activity-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-theme='dark'] .empty-feed {
+  color: #52525b !important;
+}
+
+[data-theme='dark'] .spinner {
+  border-color: rgba(255, 255, 255, 0.06) !important;
+  border-top-color: #818cf8 !important;
+}

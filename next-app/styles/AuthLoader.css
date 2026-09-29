@@ -1,0 +1,57 @@
+/* ================================================================
+   AuthLoader.css — UI Ball Pinwheel Authentication Loading Screen
+   ================================================================ */
+
+.auth-loading-screen {
+  display: flex;
+  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: transparent;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+  user-select: none;
+}
+
+.auth-pinwheel-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.auth-loading-title {
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  text-align: center;
+}
+
+.auth-text-lead {
+  color: var(--text-primary, #0f172a);
+}
+
+[data-theme='dark'] .auth-text-lead,
+.dark .auth-text-lead {
+  color: var(--text-primary, #f4f4f5);
+}
+
+.auth-text-accent {
+  color: var(--accent, #6366f1);
+}
+
+[data-theme='dark'] .auth-text-accent,
+.dark .auth-text-accent {
+  color: var(--accent, #818cf8);
+}
+
+/* ── Accessibility: Reduced Motion ── */
+@media (prefers-reduced-motion: reduce) {
+  l-pinwheel {
+    --uib-speed: 0s !important;
+  }
+}

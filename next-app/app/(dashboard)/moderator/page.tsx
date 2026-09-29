@@ -1,0 +1,590 @@
+// @ts-nocheck
+'use client';
+
+import React, { useState, useRef, useEffect, useMemo, useDeferredValue } from 'react';
+import dynamic from 'next/dynamic';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useOrders } from '@/context/OrderContext';
+import { Card } from '@/components/Card';
+import { Input } from '@/components/Input';
+import { Button } from '@/components/Button';
+import { Modal } from '@/components/Modal';
+import { OrderRow } from '@/components/OrderRow';
+import { DateRangePicker } from '@/components/DateRangePicker';
+import { 
+  Edit2, Trash2, Plus, Search, Package, DollarSign, ShoppingCart, 
+  Globe, ChevronDown, ChevronLeft, ChevronRight, Wand2, Trash, Truck, MapPin, X, Sparkles, CheckCircle2, Loader2
+} from 'lucide-react';
+import { PremiumSearch } from '@/components/PremiumSearch';
+import CurrencyIcon from '@/components/CurrencyIcon';
+import { deserializeDateRange, usePersistentState } from '@/utils/persistentState';
+import { getProductCheckpoints } from '@/utils/productCatalog';
+import { useRouteOrderReadState } from '@/hooks/useRouteOrderReadState';
+import { ResponseTimer } from '@/components/ResponseTimer';
+import './ModeratorPanel.css';
+
+import { OrderEditModal } from '@/components/OrderEditModal';
+import { OrderDetailsModal } from '@/components/OrderDetailsModal';
+const ModeratorSourceChart = dynamic(() => import('@/components/charts/ModeratorSourceChart'), {
+  ssr: false,
+  loading: () => <div className="h-[250px] animate-pulse bg-slate-100/50 dark:bg-white/[0.02] rounded-xl" />,
+});
+
+const ORDER_STATUSES = [
+  'New', 'Pending Call', 'Final Call Pending', 'Confirmed', 'Bulk Exported', 'Factory Queue', 'Courier Ready',
+  'Courier Submitted', 'Factory Processing', 'Completed', 'Fake Order', 'Cancelled', 'Incomplete', 'Test'
+];
+
+const SOURCES = ['Website', 'Facebook', 'Instagram', 'Direct', 'Messenger'];
+const MODERATOR_PAGE_SIZE = 10;
+
+const getVisiblePageNumbers = (currentPage, totalPages, maxVisible = 5) => {
+  if (totalPages <= maxVisible) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const half = Math.floor(maxVisible / 2);
+  let start = Math.max(1, currentPage - half);
+  const end = Math.min(totalPages, start + maxVisible - 1);
+  start = Math.max(1, end - maxVisible + 1);
+
+  return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+};
+
+export default function ModeratorPanel() {
+  const { orders, stats, inventory, updateOrderStatus } = useOrders();
+  const productCheckpoints = getProductCheckpoints(inventory);
+  
+  // Filters
+  const [searchTerm, setSearchTerm] = usePersistentState('panel:moderator:search', '');
+  const [statusFilter, setStatusFilter] = usePersistentState('panel:moderator:status', 'All');
+  const [productFilter, setProductFilter] = usePersistentState('panel:moderator:product', '');
+  const [sourceFilter, setSourceFilter] = usePersistentState('panel:moderator:source', 'All');
+  const [dateRange, setDateRange] = usePersistentState(
+    'panel:moderator:dateRange',
+    { start: null, end: null },
+    { deserialize: deserializeDateRange }
+  );
+
+  const [sourceDropdownOpen, setSourceDropdownOpen] = useState(false);
+  const sourceDropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (sourceDropdownRef.current && !sourceDropdownRef.current.contains(event.target)) {
+        setSourceDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Scroll refs
+  const statusTabsRef = useRef(null);
+  const checkpointsRef = useRef(null);
+  
+  // Modal States
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  // Track which order is currently saving a status change
+  const [savingStatusId, setSavingStatusId] = useState(null);
+  // Track which order's status dropdown is open on mobile
+  const [openStatusDropdownId, setOpenStatusDropdownId] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [selectedOrderIds, setSelectedOrderIds] = useState([]);
+
+  const handleSelectOrder = (orderId) => {
+    setSelectedOrderIds(prev =>
+      prev.includes(orderId) ? prev.filter(id => id !== orderId) : [...prev, orderId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    const pagedIds = paginatedOrders.map(o => o.id);
+    const allSelected = pagedIds.length > 0 && pagedIds.every(id => selectedOrderIds.includes(id));
+    if (allSelected) {
+      setSelectedOrderIds(prev => prev.filter(id => !pagedIds.includes(id)));
+    } else {
+      setSelectedOrderIds(prev => [...new Set([...prev, ...pagedIds])]);
+    }
+  };
+
+  const handleOpenEditModal = (order) => {
+    setSelectedOrder(order);
+    setIsEditModalOpen(true);
+  };
+
+  const handleRowClick = (order) => {
+    markOrderRead(order);
+    setSelectedOrder(order);
+    setIsDetailsModalOpen(true);
+  };
+
+  const scrollContainer = (ref, direction) => {
+    if (ref.current) {
+      ref.current.scrollBy({ left: direction === 'left' ? -200 : 200, behavior: 'smooth' });
+    }
+  };
+
+  /**
+   * Handle inline status change from mobile card dropdown.
+   * Calls updateOrderStatus and tracks loading state per order.
+   */
+  const handleMobileStatusChange = async (orderId, newStatus) => {
+    setSavingStatusId(orderId);
+    try {
+      await updateOrderStatus(orderId, newStatus);
+    } catch (err) {
+      console.error('Status update failed:', err);
+      alert(err.message || 'Failed to update status.');
+    } finally {
+      setSavingStatusId(null);
+    }
+  };
+
+  /**
+   * Format a date string to readable date + time.
+   * e.g. "23 Apr 2026, 12:34 PM"
+   */
+  const formatDateTime = (dateStr) => {
+    if (!dateStr) return '—';
+    const d = new Date(dateStr);
+    return d.toLocaleString('en-GB', {
+      day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', hour12: true
+    });
+  };
+
+  // Apply all filters
+  const filteredOrders = orders.filter(o => {
+    const term = searchTerm.toLowerCase();
+    const matchesSearch = !searchTerm || 
+      (o.id || '').toLowerCase().includes(term) ||
+      (o.customer_name || '').toLowerCase().includes(term) ||
+      (o.phone || '').includes(term) ||
+      (o.product_name || '').toLowerCase().includes(term);
+
+    const matchesStatus = statusFilter === 'All' || o.status === statusFilter;
+    const matchesProduct = !productFilter || o.product_name === productFilter;
+    const matchesSource = sourceFilter === 'All' || o.source === sourceFilter;
+    
+    let matchesDate = true;
+    if (dateRange.start && dateRange.end) {
+      const orderDate = new Date(o.created_at);
+      matchesDate = orderDate >= new Date(dateRange.start) && orderDate <= new Date(dateRange.end);
+    }
+
+    return matchesSearch && matchesStatus && matchesProduct && matchesSource && matchesDate;
+  });
+  const { isOrderUnread, markOrderRead, unreadCount } = useRouteOrderReadState('moderator-panel', filteredOrders);
+
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / MODERATOR_PAGE_SIZE));
+  const paginatedOrders = useMemo(() => {
+    const startIndex = (currentPage - 1) * MODERATOR_PAGE_SIZE;
+    return filteredOrders.slice(startIndex, startIndex + MODERATOR_PAGE_SIZE);
+  }, [filteredOrders, currentPage]);
+  const visiblePages = useMemo(() => getVisiblePageNumbers(currentPage, totalPages), [currentPage, totalPages]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, productFilter, sourceFilter, dateRange.start, dateRange.end]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+
+
+  return (
+    <div className="moderator-panel">
+      <div className="page-header orders-header elite-enterprise-header">
+        <div className="header-main-stack">
+          <div className="title-group-elite">
+            <h1 className="premium-title-enterprise">
+              <span className="text-dark">Moderator </span>
+              <span className="text-accent-indigo">Panel</span>
+            </h1>
+            <p className="premium-subtitle-enterprise">Manage incoming orders, verify details, and route for processing.</p>
+          </div>
+        </div>
+        
+        <div className="header-actions-enterprise">
+          <Button variant="primary" className="action-btn-green" onClick={() => handleOpenEditModal(null)}>
+            <Plus size={18} /> Add New Order
+          </Button>
+        </div>
+      </div>
+
+      {/* Metrics Row */}
+      <div className="mod-metrics-grid">
+        <div className="metric-card success-glow relative overflow-hidden">
+          <div className="card-decoration" style={{ width: '100px', height: '100px', top: '-30px', right: '-30px' }}></div>
+          <div className="card-decoration" style={{ width: '60px', height: '60px', bottom: '-20px', left: '-10px', opacity: 0.05 }}></div>
+          <div className="metric-content">
+            <div className="metric-icon-wrap vibrancy-icon">
+              <ShoppingCart size={22} color="#fff" />
+            </div>
+            <div className="metric-info-group">
+              <span className="metric-label vibrant-label">Total Orders</span>
+              <div className="metric-value vibrant-value">{orders.length}</div>
+            </div>
+          </div>
+        </div>
+        <div className="metric-card indigo-glow relative overflow-hidden">
+          <div className="card-decoration" style={{ width: '120px', height: '120px', top: '-40px', right: '-40px' }}></div>
+          <div className="card-decoration" style={{ width: '80px', height: '80px', bottom: '-30px', left: '-20px', opacity: 0.08 }}></div>
+          <div className="metric-content">
+            <div className="metric-icon-wrap vibrancy-icon">
+              <Package size={22} color="#fff" />
+            </div>
+            <div className="metric-info-group">
+              <span className="metric-label vibrant-label">Added Today</span>
+              <div className="metric-value vibrant-value">{stats.addedTodayCount}</div>
+            </div>
+          </div>
+        </div>
+        <div className="metric-card teal-glow relative overflow-hidden">
+          <div className="card-decoration" style={{ width: '110px', height: '110px', top: '-35px', right: '-35px' }}></div>
+          <div className="card-decoration" style={{ width: '70px', height: '70px', bottom: '-25px', left: '-15px', opacity: 0.06 }}></div>
+          <div className="metric-content">
+            <div className="metric-icon-wrap vibrancy-icon">
+              <DollarSign size={22} color="#fff" />
+            </div>
+            <div className="metric-info-group">
+              <span className="metric-label vibrant-label">Revenue Today</span>
+              <div className="metric-value vibrant-value">
+                <CurrencyIcon size={22} className="vibrant-currency" />
+                {orders.reduce((s, o) => s + (parseFloat(o.amount) || 0), 0).toLocaleString()}
+              </div>
+            </div>
+          </div>
+        </div>
+        <Card className="metric-card liquid-glass chart-card" noPadding style={{ padding: '24px' }}>
+          <h3 className="chart-title" style={{ marginBottom: '8px', fontSize: '1.2rem', fontWeight: 800 }}>By Source</h3>
+          <div className="chart-wrapper pie-chart-wrapper" style={{ minHeight: 250, position: 'relative' }}>
+            <ModeratorSourceChart sourceDistribution={stats.sourceDistribution} />
+            <div className="pie-legend" style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginTop: '16px' }}>
+              {stats.sourceDistribution.map(s => (
+                <div key={s.name} className="legend-item" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span className="legend-dot" style={{ backgroundColor: s.color, width: '10px', height: '10px', borderRadius: '50%', boxShadow: `0 0 10px ${s.color}40` }}></span>
+                  <span className="legend-label" style={{ color: document.documentElement.getAttribute('data-theme') === 'dark' ? '#a1a1aa' : '#475569', fontSize: '0.85rem', fontWeight: 700 }}>{s.name} ({s.value})</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* Status Tabs */}
+      <div className="scrollable-strip-wrapper">
+        <button className="strip-arrow left" onClick={() => scrollContainer(statusTabsRef, 'left')}><ChevronLeft size={16} /></button>
+        <div className="status-tabs-bar" ref={statusTabsRef}>
+          {['All', ...ORDER_STATUSES].map(tab => (
+            <button key={tab} className={`status-tab ${statusFilter === tab ? 'active' : ''}`} onClick={() => setStatusFilter(tab)}>
+              {tab === 'All' ? 'All Orders' : tab}
+            </button>
+          ))}
+        </div>
+        <button className="strip-arrow right" onClick={() => scrollContainer(statusTabsRef, 'right')}><ChevronRight size={16} /></button>
+      </div>
+
+
+      {/* Product Checkpoints */}
+      <div className="scrollable-strip-wrapper">
+        <button className="strip-arrow left" onClick={() => scrollContainer(checkpointsRef, 'left')}><ChevronLeft size={16} /></button>
+        <div className="product-checkpoints-strip" ref={checkpointsRef}>
+          {productCheckpoints.map(p => (
+            <button
+              key={p.id}
+              className={`checkpoint-pill ${productFilter === (p.id === 'all' ? '' : p.name) ? 'active' : ''}`}
+              style={{ '--pill-color': p.color, '--pill-bg': p.id === 'all' ? '#f1f5f9' : `${p.color}10`, '--pill-border': p.id === 'all' ? '#e2e8f0' : `${p.color}25` }}
+              onClick={() => setProductFilter(p.id === 'all' ? '' : p.name)}
+            >
+              <span className="dot" style={{ backgroundColor: p.color }}></span>
+              {p.name}
+            </button>
+          ))}
+        </div>
+        <button className="strip-arrow right" onClick={() => scrollContainer(checkpointsRef, 'right')}><ChevronRight size={16} /></button>
+      </div>
+
+      {/* Unified Filter Bar */}
+      <div className="unified-filter-bar" style={{ marginBottom: '16px' }}>
+        <PremiumSearch
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search ID, name or phone..."
+          suggestions={
+            searchTerm ? orders.filter(o => 
+              o.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              o.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              o.phone?.includes(searchTerm)
+            ).slice(0, 5).map(o => ({
+              id: o.id,
+              label: o.customer_name,
+              sub: o.id,
+              type: 'order',
+              original: o
+            })) : []
+          }
+          onSuggestionClick={(item) => {
+            if (item.type === 'order') {
+              handleRowClick(item.original);
+            }
+          }}
+        />
+        
+        <div 
+          className="elite-select-wrapper" 
+          ref={sourceDropdownRef}
+          onClick={() => setSourceDropdownOpen(!sourceDropdownOpen)}
+          style={{ position: 'relative', cursor: 'pointer' }}
+        >
+          <Globe size={14} className="elite-select-icon" />
+          <span className="elite-select-selected-value">
+            {sourceFilter === 'All' ? 'All Sources' : sourceFilter}
+          </span>
+          <ChevronDown size={14} className="ml-auto opacity-50" style={{ transform: sourceDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease', flexShrink: 0 }} />
+          
+          <AnimatePresence>
+            {sourceDropdownOpen && (
+              <motion.div 
+                className="premium-select-dropdown"
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                transition={{ duration: 0.15, ease: 'easeOut' }}
+              >
+                <div 
+                  className={`select-dropdown-item ${sourceFilter === 'All' ? 'active' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSourceFilter('All');
+                    setSourceDropdownOpen(false);
+                  }}
+                >
+                  All Sources
+                </div>
+                {SOURCES.map(s => (
+                  <div 
+                    key={s} 
+                    className={`select-dropdown-item ${sourceFilter === s ? 'active' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSourceFilter(s);
+                      setSourceDropdownOpen(false);
+                    }}
+                  >
+                    {s}
+                  </div>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+        
+        <DateRangePicker value={dateRange} onChange={setDateRange} />
+        {unreadCount > 0 && (
+          <span className="route-unread-count-pill" title="Orders not opened in Moderator route">
+            {unreadCount} unread
+          </span>
+        )}
+        <span className="order-count-badge" style={{ padding: '0 12px', fontWeight: 700, color: 'var(--text-secondary)' }}>
+          {filteredOrders.length} orders
+        </span>
+      </div>
+
+      {/* Orders Table */}
+      <Card className="table-card liquid-glass" noPadding>
+        {/* ── Desktop Table ── */}
+        <div className="orders-table-wrapper">
+          <table className="management-table premium-table">
+            <thead>
+              <tr>
+                <th className="col-checkbox">
+                  <input 
+                    type="checkbox" 
+                    className="premium-checkbox" 
+                    checked={paginatedOrders.length > 0 && paginatedOrders.every(order => selectedOrderIds.includes(order.id))}
+                    onChange={handleSelectAll}
+                    aria-label="Select all orders"
+                  />
+                </th>
+                <th className="col-id">Order ID</th>
+                <th className="col-customer">Customer</th>
+                <th className="col-phone">Contact Phone</th>
+                <th className="col-product">Product</th>
+                <th className="col-amount">Amount</th>
+                <th className="col-area">Area</th>
+                <th className="col-status">Status</th>
+                <th className="col-time">Time</th>
+                <th className="col-actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedOrders.map(order => (
+                <OrderRow 
+                  key={order.id} 
+                  order={order} 
+                  onStatusChange={updateOrderStatus} 
+                  onEdit={handleOpenEditModal} 
+                  onDetails={handleRowClick}
+                  isSelected={selectedOrderIds.includes(order.id)}
+                  onSelect={handleSelectOrder}
+                  isUnread={isOrderUnread(order)}
+                />
+              ))}
+              {filteredOrders.length === 0 && (
+                <tr><td colSpan={10} className="empty-state-cell">No orders found matching your filters.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* ── Mobile Order Cards ── */}
+        <div className="mod-mobile-list">
+          {filteredOrders.length === 0 && (
+            <div className="mod-mobile-empty">No orders found matching your filters.</div>
+          )}
+          {paginatedOrders.map(order => {
+            const isSaving = savingStatusId === order.id;
+            return (
+              <div key={order.id} className={`mod-mobile-card ${isOrderUnread(order) ? 'route-unread-card' : ''}`} onClick={() => handleRowClick(order)}>
+                {/* ── Row 1: Order ID + Status pill ── */}
+                <div className="mod-mobile-card-row">
+                  <div>
+                    <div className="route-read-card-header">
+                      {isOrderUnread(order) && <span className="route-unread-dot" aria-label="Unread order" />}
+                      <div className="mod-mobile-id">#{order.id.replace('ORD-', '')}</div>
+                      {isOrderUnread(order) && <span className="route-unread-chip">New</span>}
+                    </div>
+                    <div className="mod-mobile-datetime">{formatDateTime(order.created_at)}</div>
+                  </div>
+                  <span className={`mod-mobile-status status-${(order.status || '').toLowerCase().replace(/\s+/g, '-')}`}>
+                    {order.status}
+                  </span>
+                </div>
+
+                {/* ── Row 2: Customer + Amount ── */}
+                <div className="mod-mobile-card-row" style={{ marginTop: 8 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="mod-mobile-name">{order.customer_name}</div>
+                    <div className="mod-mobile-meta">
+                      {order.phone}
+                      {order.product_name && <> · <span style={{ fontStyle: 'italic' }}>{order.product_name}</span></>}
+                    </div>
+                  </div>
+                  <div className="mod-mobile-amount">৳{Number(order.amount || 0).toLocaleString()}</div>
+                </div>
+
+                {/* ── Footer: Response Timer + Status Changer + Edit ── */}
+                <div className="mod-mobile-card-footer" onClick={e => e.stopPropagation()}>
+                  {/* Response Timer badge */}
+                  <ResponseTimer order={order} mode="compact" />
+
+                  {/* Status dropdown */}
+                  <div className="mod-mobile-status-select-wrap">
+                    {isSaving
+                      ? <span className="mod-status-saving"><Loader2 size={13} className="spin-anim" /> Saving...</span>
+                      : (
+                        <div className="premium-status-dropdown-wrap">
+                          <button 
+                            className={`premium-status-trigger ${openStatusDropdownId === order.id ? 'active' : ''}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenStatusDropdownId(openStatusDropdownId === order.id ? null : order.id);
+                            }}
+                          >
+                            <span className={`status-dot dot-${(order.status || '').toLowerCase().replace(/\s+/g, '-')}`} />
+                            <span className="trigger-label">{order.status}</span>
+                            <ChevronDown size={14} className={`trigger-chevron ${openStatusDropdownId === order.id ? 'rotate' : ''}`} />
+                          </button>
+
+                          {openStatusDropdownId === order.id && (
+                            <div className="premium-status-menu">
+                              {ORDER_STATUSES.map(s => (
+                                <button
+                                  key={s}
+                                  className={`status-option ${order.status === s ? 'selected' : ''}`}
+                                  onClick={() => {
+                                    handleMobileStatusChange(order.id, s);
+                                    setOpenStatusDropdownId(null);
+                                  }}
+                                >
+                                  <span className={`status-dot dot-${s.toLowerCase().replace(/\s+/g, '-')}`} />
+                                  {s}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    }
+                  </div>
+
+                  {/* Edit button */}
+                  <button className="mod-mobile-edit-btn" onClick={() => handleOpenEditModal(order)}>
+                    <Edit2 size={13} /> Edit
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {filteredOrders.length > 0 && (
+          <div className="mod-pagination-footer">
+            <div className="mod-pagination-info">
+              Showing {(currentPage - 1) * MODERATOR_PAGE_SIZE + 1}-
+              {Math.min(currentPage * MODERATOR_PAGE_SIZE, filteredOrders.length)} of {filteredOrders.length} orders
+            </div>
+            <div className="mod-pagination-actions">
+              <button
+                className="mod-page-btn"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+              >
+                Previous
+              </button>
+              <div className="mod-page-numbers">
+                {visiblePages.map((pageNumber) => (
+                  <button
+                    key={pageNumber}
+                    className={`mod-page-btn mod-page-num ${currentPage === pageNumber ? 'active' : ''}`}
+                    onClick={() => setCurrentPage(pageNumber)}
+                  >
+                    {pageNumber}
+                  </button>
+                ))}
+              </div>
+              <button
+                className="mod-page-btn"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+      </Card>
+
+      <OrderEditModal 
+        isOpen={isEditModalOpen} 
+        onClose={() => setIsEditModalOpen(false)} 
+        order={selectedOrder} 
+      />
+
+      <OrderDetailsModal 
+        isOpen={isDetailsModalOpen} 
+        onClose={() => setIsDetailsModalOpen(false)} 
+        order={selectedOrder}
+        onEdit={handleOpenEditModal}
+      />
+    </div>
+  );
+};
+

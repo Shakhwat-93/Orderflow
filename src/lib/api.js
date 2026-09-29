@@ -1117,7 +1117,7 @@ export const api = {
     return count || 0;
   },
 
-  async getOrderProductBreakdown(filters = {}, limit = 2000) {
+  async getOrderProductBreakdown(filters = {}, limit = 50000) {
     const batchSize = 1000;
     const rows = [];
     let from = 0;
@@ -1139,9 +1139,9 @@ export const api = {
         query = query.or(`id.ilike.%${filters.searchTerm}%,customer_name.ilike.%${filters.searchTerm}%,phone.ilike.%${filters.searchTerm}%`);
       }
       if (filters.dateRange?.start && filters.dateRange?.end) {
-        query = query
-          .gte('created_at', filters.dateRange.start.toISOString())
-          .lte('created_at', filters.dateRange.end.toISOString());
+        const start = typeof filters.dateRange.start === 'string' ? filters.dateRange.start : filters.dateRange.start.toISOString();
+        const end = typeof filters.dateRange.end === 'string' ? filters.dateRange.end : filters.dateRange.end.toISOString();
+        query = query.gte('created_at', start).lte('created_at', end);
       }
 
       const { data, error } = await query;
@@ -1169,18 +1169,9 @@ export const api = {
       });
   },
 
-  async getOrderStatusBreakdown(filters = {}, limit = 2000) {
-    const batchSize = 1000;
-    const rows = [];
-    let from = 0;
-
-    while (rows.length < limit) {
-      let query = supabase
-        .from('orders')
-        .select('status')
-        .order('created_at', { ascending: false })
-        .range(from, from + batchSize - 1);
-
+  async getOrderStatusBreakdown(filters = {}) {
+    const applyFilters = (baseQuery) => {
+      let query = baseQuery;
       if (filters.source && filters.source !== 'All') {
         query = query.eq('source', filters.source);
       }
@@ -1191,34 +1182,41 @@ export const api = {
         query = query.ilike('product_name', `%${filters.productName}%`);
       }
       if (filters.dateRange?.start && filters.dateRange?.end) {
-        query = query
-          .gte('created_at', filters.dateRange.start.toISOString())
-          .lte('created_at', filters.dateRange.end.toISOString());
+        const start = typeof filters.dateRange.start === 'string' ? filters.dateRange.start : filters.dateRange.start.toISOString();
+        const end = typeof filters.dateRange.end === 'string' ? filters.dateRange.end : filters.dateRange.end.toISOString();
+        query = query.gte('created_at', start).lte('created_at', end);
       }
+      return query;
+    };
 
-      const { data, error } = await query;
-      if (error) throw error;
+    const statuses = [
+      'New',
+      'Pending Call',
+      'Final Call Pending',
+      'Confirmed',
+      'Bulk Exported',
+      'Courier Ready',
+      'Courier Submitted',
+      'Factory Processing',
+      'Completed',
+      'Fake Order',
+      'Cancelled',
+      'Incomplete',
+      'Test'
+    ];
 
-      const batch = data || [];
-      rows.push(...batch);
+    const [allRes, ...statusResults] = await Promise.all([
+      applyFilters(supabase.from('orders').select('*', { count: 'exact', head: true })),
+      ...statuses.map((status) =>
+        applyFilters(supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', status))
+          .then((res) => ({ status, count: res.count || 0 }))
+      )
+    ]);
 
-      if (batch.length < batchSize) break;
-      from += batchSize;
-    }
-
-    const counts = new Map();
-
-    rows.forEach((row) => {
-      const status = String(row?.status || 'Unknown').trim() || 'Unknown';
-      counts.set(status, (counts.get(status) || 0) + 1);
-    });
-
-    return Array.from(counts.entries())
-      .map(([status, count]) => ({ status, count }))
-      .sort((a, b) => {
-        if (b.count !== a.count) return b.count - a.count;
-        return a.status.localeCompare(b.status);
-      });
+    return [
+      { status: 'All', count: allRes.count || 0 },
+      ...statusResults
+    ];
   },
 
 
@@ -1453,6 +1451,15 @@ export const api = {
       }
     }
 
+    // Merge noteText directly into single atomic update payload
+    const cleanNote = String(noteText || '').trim();
+    if (cleanNote) {
+      const noteEntry = this.formatOrderNoteEntry(cleanNote, newStatus, userName);
+      if (noteEntry) {
+        updatePayload.notes = this.mergeOrderNotes(updatePayload.notes ?? oldData?.notes, noteEntry);
+      }
+    }
+
     const { data, error } = await supabase
       .from('orders')
       .update(updatePayload)
@@ -1462,27 +1469,23 @@ export const api = {
 
     if (error) throw error;
 
-    // Log status change
-    await this.logActivity({
+    // Log status change (non-blocking)
+    this.logActivity({
       order_id: orderId,
       action_type: 'STATUS_CHANGE',
       old_status: oldData?.status,
       new_status: newStatus,
       changed_by_user_id: userId,
       changed_by_user_name: userName,
-      action_description: `${userName} changed the status of order #${orderId} to ${newStatus}`
-    });
+      action_description: `${userName} changed the status of order #${orderId} to ${newStatus}${cleanNote ? ` - Note: ${cleanNote}` : ''}`
+    }).catch(err => console.warn('Activity log non-fatal error:', err));
 
     let resultData = data;
-
-    if (String(noteText || '').trim()) {
-      resultData = await this.appendOrderNote(orderId, noteText, userId, userName, userRoles, newStatus, data?.notes || '');
-    }
 
     if (newStatus === 'Fake Order') {
       const ipAddress = this.normalizeIpAddress(data?.ip_address || oldData?.ip_address);
       if (ipAddress) {
-        await this.blockIpAddressForFakeOrder({
+        this.blockIpAddressForFakeOrder({
           ipAddress,
           orderId,
           customerName: data?.customer_name || oldData?.customer_name || 'Unknown customer',
@@ -1490,15 +1493,15 @@ export const api = {
           noteText,
           userId,
           userName
-        });
+        }).catch(err => console.warn('Fake order IP block error:', err));
       } else {
-        await this.logActivity({
+        this.logActivity({
           order_id: orderId,
           action_type: 'UPDATE',
           changed_by_user_id: userId,
           changed_by_user_name: userName,
           action_description: `${userName} marked order #${orderId} as Fake Order, but no IP address was stored on the order to block.`
-        });
+        }).catch(err => console.warn('Activity log non-fatal error:', err));
       }
     }
 
@@ -1522,8 +1525,11 @@ export const api = {
   },
 
   mergeOrderNotes(existingNotes, nextEntry) {
-    const entry = String(nextEntry || '').trim();
-    return entry;
+    const cleanExisting = String(existingNotes || '').trim();
+    const cleanNext = String(nextEntry || '').trim();
+    if (!cleanExisting) return cleanNext;
+    if (!cleanNext) return cleanExisting;
+    return `${cleanExisting}\n\n${cleanNext}`;
   },
 
   async appendOrderNote(orderId, noteText, userId, userName, userRoles = [], actionLabel = 'Note', existingNotes = null, skipActivityLog = false) {
@@ -1603,33 +1609,39 @@ export const api = {
       ? oldData.status
       : (isFailedCallStatus && newAttempts >= 6 ? 'Final Call Pending' : 'Pending Call');
 
+    const cleanNote = String(noteText || '').trim();
+    const updatePayload = {
+      status: nextStatus,
+      call_attempts: newAttempts,
+      last_call_status: status,
+      first_call_time: newFirstCallTime,
+      last_call_at: new Date().toISOString()
+    };
+
+    if (cleanNote) {
+      const noteEntry = this.formatOrderNoteEntry(cleanNote, status, userName);
+      if (noteEntry) {
+        updatePayload.notes = this.mergeOrderNotes(oldData?.notes, noteEntry);
+      }
+    }
+
     const { data, error } = await supabase
       .from('orders')
-      .update({
-        status: nextStatus,
-        call_attempts: newAttempts,
-        last_call_status: status,
-        first_call_time: newFirstCallTime,
-        last_call_at: new Date().toISOString()
-      })
+      .update(updatePayload)
       .eq('id', orderId)
       .select()
       .single();
 
     if (error) throw error;
 
-    await this.logActivity({
+    this.logActivity({
       order_id: orderId,
       action_type: 'UPDATE', // Use UPDATE as it's allowed by DB constraints while providing a specific description
       changed_by_user_id: userId,
       changed_by_user_name: userName,
-      action_description: `${userName} logged a call attempt: ${status} (Attempt #${newAttempts})${nextStatus === 'Final Call Pending' ? ' and moved the order to Final Call Pending' : ''}${String(noteText || '').trim() ? ` - Note: ${String(noteText || '').trim()}` : ''}`,
+      action_description: `${userName} logged a call attempt: ${status} (Attempt #${newAttempts})${nextStatus === 'Final Call Pending' ? ' and moved the order to Final Call Pending' : ''}${cleanNote ? ` - Note: ${cleanNote}` : ''}`,
       new_status: nextStatus
-    });
-
-    if (String(noteText || '').trim()) {
-      return this.appendOrderNote(orderId, noteText, userId, userName, userRoles, status, data?.notes || '', true);
-    }
+    }).catch(err => console.warn('Call attempt activity log error:', err));
 
     return data;
   },

@@ -95,7 +95,7 @@ const getCallQueueStage = (order) => {
 };
 
 export const CallTeamPanel = () => {
-  const { orders, stats, inventory, updateOrderStatus, fetchOrders } = useOrders();
+  const { orders, setOrders, stats, inventory, updateOrderStatus, fetchOrders } = useOrders();
   const { user, profile, userRoles, updatePresenceContext } = useAuth();
   const productOptions = getProductOptions(inventory);
 
@@ -157,8 +157,13 @@ export const CallTeamPanel = () => {
   const handleLogAttempt = async (orderId, attemptStatus, noteText = '') => {
     setLoggingAttemptId(orderId);
     try {
-      await api.logCallAttempt(orderId, attemptStatus, user.id, profile?.name || 'Call Team', userRoles, noteText);
-      if (fetchOrders) await fetchOrders();
+      const currentUserName = profile?.name || user?.user_metadata?.full_name || 'Call Team';
+      const updatedOrder = await api.logCallAttempt(orderId, attemptStatus, user?.id, currentUserName, userRoles, noteText);
+      if (updatedOrder && setOrders) {
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...updatedOrder } : o));
+      }
+      if (fetchOrders) fetchOrders().catch(() => {});
+      return updatedOrder;
     } catch (err) {
       console.error('Failed to log attempt:', err);
       alert(err.message || 'Failed to log call attempt.');
@@ -362,8 +367,8 @@ export const CallTeamPanel = () => {
           break;
       }
 
-      if (fetchOrders) await fetchOrders();
       closeActionNoteModal(true);
+      if (fetchOrders) fetchOrders().catch(() => {});
     } catch (error) {
       console.error('Failed to save call action note:', error);
       alert(error.message || 'Failed to save note and update status.');
