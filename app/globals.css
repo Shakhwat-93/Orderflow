@@ -285,36 +285,6 @@ html[data-magicui-theme-vt="active"]::view-transition-new(root) {
 }
 
 /* ================================================================
-   SMOOTH CURSOR (Desktop & Fine Pointer Only)
-   ================================================================ */
-@media (any-hover: hover) and (any-pointer: fine) {
-  html.has-smooth-cursor,
-  html.has-smooth-cursor body {
-    cursor: none;
-  }
-
-  /* Preserve native text cursor for text editing & selection */
-  html.has-smooth-cursor input,
-  html.has-smooth-cursor textarea,
-  html.has-smooth-cursor select,
-  html.has-smooth-cursor [contenteditable="true"],
-  html.has-smooth-cursor [contenteditable=""] {
-    cursor: text !important;
-  }
-
-  /* Interactive control inputs that use pointer */
-  html.has-smooth-cursor input[type="button"],
-  html.has-smooth-cursor input[type="submit"],
-  html.has-smooth-cursor input[type="reset"],
-  html.has-smooth-cursor input[type="checkbox"],
-  html.has-smooth-cursor input[type="radio"],
-  html.has-smooth-cursor input[type="file"],
-  html.has-smooth-cursor input[type="range"] {
-    cursor: pointer !important;
-  }
-}
-
-/* ================================================================
    MAGIC UI SHIMMER BUTTON ANIMATIONS & PERIMETER GLOW
    ================================================================ */
 @keyframes shimmer-slide {

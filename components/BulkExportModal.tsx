@@ -17,6 +17,7 @@ import {
   Users
 } from 'lucide-react';
 import { getFormattedProductName } from '../utils/productCatalog';
+import '../styles/BulkExportModal.css';
 
 // ── Constants ────────────────────────────────────────────────
 const EXPORT_HISTORY_KEY = 'factory:bulk-export-history-v2';
@@ -433,7 +434,7 @@ export const BulkExportModal: React.FC<BulkExportModalProps> = ({
   const doneCount = succeededCount + failedCount;
 
   return (
-    <div className="bem-overlay" onClick={onClose}>
+    <div className="bem-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="bem-title">
       <div className="bem-modal" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="bem-header">
@@ -441,8 +442,8 @@ export const BulkExportModal: React.FC<BulkExportModalProps> = ({
             <div className="bem-header-icon">
               <FileSpreadsheet size={20} />
             </div>
-            <div>
-              <p className="bem-header-title">Bulk Export System</p>
+            <div className="bem-header-titles">
+              <h3 id="bem-title" className="bem-header-title">Bulk Export System</h3>
               <p className="bem-header-subtitle">Export confirmed orders → XLSX + auto-move to Bulk Exported</p>
             </div>
           </div>
@@ -453,19 +454,23 @@ export const BulkExportModal: React.FC<BulkExportModalProps> = ({
 
         {/* Body */}
         <div className="bem-body">
+          {/* Last Export Notice (if any & phase === 'idle') */}
           {lastExport && phase === 'idle' && (
             <div className="bem-last-export-card">
-              <div className="bem-last-export-icon"><History size={16} /></div>
-              <div className="bem-last-export-content">
-                <span className="bem-last-export-title">
-                  Last Exported: {fmtDate(lastExport.exported_at)}
-                </span>
-                <span className="bem-last-export-meta">
-                  {lastExport.order_count} orders by {lastExport.exported_by}
-                  {lastExport.failed_count > 0 && ` (${lastExport.failed_count} failed to move)`}
-                </span>
+              <div className="bem-last-export-left">
+                <History size={16} className="bem-last-export-icon" />
+                <div className="bem-last-export-content">
+                  <span className="bem-last-export-title">
+                    Last Exported: {fmtDate(lastExport.exported_at)}
+                  </span>
+                  <span className="bem-last-export-meta">
+                    {lastExport.order_count} orders by {lastExport.exported_by}
+                    {lastExport.failed_count > 0 && ` (${lastExport.failed_count} failed to move)`}
+                  </span>
+                </div>
               </div>
               <button
+                type="button"
                 className="bem-reexport-link"
                 onClick={() => setPreset('all')}
                 title="Include already exported orders"
@@ -475,32 +480,39 @@ export const BulkExportModal: React.FC<BulkExportModalProps> = ({
             </div>
           )}
 
+          {/* Scope selector (when selectedIds > 0) */}
           {selectedIds.length > 0 && phase === 'idle' && (
             <div className="bem-scope-selector">
               <button
+                type="button"
                 className={`bem-scope-btn ${scope === 'selected' ? 'active' : ''}`}
                 onClick={() => setScope('selected')}
               >
-                <CheckSquare size={14} />
-                Selected ({selectedIds.length})
+                <CheckSquare size={15} />
+                <span>Selected Orders ({selectedIds.length})</span>
               </button>
               <button
+                type="button"
                 className={`bem-scope-btn ${scope === 'all' ? 'active' : ''}`}
                 onClick={() => setScope('all')}
               >
-                <Users size={14} />
-                Filter-Based ({confirmedOrders.length})
+                <Users size={15} />
+                <span>All Confirmed ({confirmedOrders.length})</span>
               </button>
             </div>
           )}
 
+          {/* Section 1: Date Presets & Custom Range */}
           {scope === 'all' && phase === 'idle' && (
             <div className="bem-section">
-              <p className="bem-section-title">Select Orders to Export</p>
+              <div className="bem-section-header">
+                <span className="bem-section-title">Select Orders to Export</span>
+              </div>
               <div className="bem-preset-grid">
                 {DATE_PRESETS.map(p => (
                   <button
                     key={p.id}
+                    type="button"
                     className={`bem-preset-btn ${preset === p.id && !hasCustomRange ? 'active' : ''}`}
                     onClick={() => {
                       setPreset(p.id);
@@ -508,67 +520,89 @@ export const BulkExportModal: React.FC<BulkExportModalProps> = ({
                       setDateTo('');
                     }}
                   >
-                    <Calendar size={13} />
                     <span>{p.label}</span>
-                    {p.id === 'sinceLast' && lastExport && (
-                      <span className="bem-preset-hint">new since last export</span>
-                    )}
                   </button>
                 ))}
               </div>
 
-              <div className="bem-custom-dates">
-                <span className="bem-custom-dates-label">Or Custom Date Range:</span>
-                <div className="bem-date-inputs">
-                  <input
-                    type="date"
-                    className="bem-date-input"
-                    value={dateFrom}
-                    onChange={e => { setDateFrom(e.target.value); setPreset(''); }}
-                    placeholder="From"
-                  />
-                  <span className="bem-date-sep">→</span>
-                  <input
-                    type="date"
-                    className="bem-date-input"
-                    value={dateTo}
-                    onChange={e => { setDateTo(e.target.value); setPreset(''); }}
-                    placeholder="To"
-                  />
+              {/* Custom Date Range */}
+              <div className="bem-custom-dates-block">
+                <div className="bem-custom-dates-header">
+                  <span className="bem-date-field-label">Custom Date Range</span>
                   {hasCustomRange && (
                     <button
+                      type="button"
                       className="bem-clear-date-btn"
                       onClick={() => { setDateFrom(''); setDateTo(''); setPreset('sinceLast'); }}
                     >
-                      <X size={12}/> Clear
+                      <X size={12} /> Clear
                     </button>
                   )}
+                </div>
+                <div className="bem-custom-dates-grid">
+                  <div className="bem-date-field">
+                    <span className="bem-date-field-label">From</span>
+                    <div className="bem-date-input-wrap">
+                      <Calendar size={14} className="bem-date-input-icon" />
+                      <input
+                        type="date"
+                        className="bem-date-input"
+                        value={dateFrom}
+                        onChange={e => { setDateFrom(e.target.value); setPreset(''); }}
+                        aria-label="Export from date"
+                      />
+                    </div>
+                  </div>
+                  <div className="bem-date-field">
+                    <span className="bem-date-field-label">To</span>
+                    <div className="bem-date-input-wrap">
+                      <Calendar size={14} className="bem-date-input-icon" />
+                      <input
+                        type="date"
+                        className="bem-date-input"
+                        value={dateTo}
+                        onChange={e => { setDateTo(e.target.value); setPreset(''); }}
+                        aria-label="Export to date"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
+          {/* Export Summary: 3 Equal Columns */}
           {phase === 'idle' && (
-            <div className="bem-summary-bar">
-              <div className="bem-summary-stat">
-                <span className="bem-stat-val">{exportOrders.length}</span>
-                <span className="bem-stat-lbl">Orders to Export</span>
-              </div>
-              <div className="bem-summary-divider" />
-              <div className="bem-summary-stat">
-                <span className="bem-stat-val">৳{totalAmount.toLocaleString()}</span>
-                <span className="bem-stat-lbl">Total Value</span>
-              </div>
-              <div className="bem-summary-divider" />
-              <div className="bem-summary-stat">
-                <span className="bem-stat-val">
-                  {scope === 'selected' ? 'Custom Selection' : DATE_PRESETS.find(p => p.id === preset)?.label || 'Custom Range'}
+            <div className="bem-summary-grid">
+              <div className="bem-summary-card">
+                <span className="bem-summary-label">Orders to Export</span>
+                <span className="bem-summary-value">{exportOrders.length}</span>
+                <span className="bem-summary-sub">
+                  {exportOrders.length === 1 ? '1 order matched' : `${exportOrders.length} orders matched`}
                 </span>
-                <span className="bem-stat-lbl">Scope</span>
+              </div>
+              <div className="bem-summary-card">
+                <span className="bem-summary-label">Total Value</span>
+                <span className="bem-summary-value">৳{totalAmount.toLocaleString()}</span>
+                <span className="bem-summary-sub">Gross revenue amount</span>
+              </div>
+              <div className="bem-summary-card">
+                <span className="bem-summary-label">Export Scope</span>
+                <span className="bem-summary-value">
+                  {scope === 'selected' ? 'Selection' : DATE_PRESETS.find(p => p.id === preset)?.label || 'Custom'}
+                </span>
+                <span className="bem-summary-sub">
+                  {hasCustomRange
+                    ? `${dateFrom || 'Start'} → ${dateTo || 'Today'}`
+                    : scope === 'selected'
+                    ? `${selectedIds.length} orders picked`
+                    : 'Preset period'}
+                </span>
               </div>
             </div>
           )}
 
+          {/* Progress / Moving / Done Panel */}
           {(phase === 'exporting' || phase === 'moving' || phase === 'done') && (
             <div className="bem-progress-panel">
               <div className="bem-progress-header">
@@ -605,7 +639,7 @@ export const BulkExportModal: React.FC<BulkExportModalProps> = ({
 
               {phase === 'done' && (
                 <div className="bem-done-card">
-                  <CheckCircle2 size={24} className="bem-done-icon"/>
+                  <CheckCircle2 size={22} className="bem-done-icon" />
                   <div>
                     <p className="bem-done-title">Bulk Export Successful</p>
                     <p className="bem-done-body">
@@ -624,21 +658,28 @@ export const BulkExportModal: React.FC<BulkExportModalProps> = ({
 
           {phase === 'error' && (
             <div className="bem-error-card">
-              <AlertTriangle size={18}/>
+              <AlertTriangle size={18} className="shrink-0" />
               <span>{errorMsg}</span>
             </div>
           )}
 
+          {/* Recent Exports */}
           {history.length > 0 && phase === 'idle' && (
             <div className="bem-section">
-              <p className="bem-section-title">Recent Exports</p>
+              <span className="bem-section-title">Recent Exports</span>
               <div className="bem-history-list">
                 {history.slice(0, 4).map((item: any) => (
                   <div className="bem-history-item" key={item.id}>
-                    <div className="bem-history-item-icon"><Package size={14}/></div>
-                    <div className="bem-history-item-info">
-                      <strong>{item.order_count} orders · ৳{Number(item.total_amount||0).toLocaleString()}</strong>
-                      <span>{fmtDate(item.exported_at)} by {item.exported_by}</span>
+                    <div className="bem-history-item-left">
+                      <Package size={15} className="bem-history-item-icon" />
+                      <div className="bem-history-item-info">
+                        <span className="bem-history-item-title">
+                          {item.order_count} orders · ৳{Number(item.total_amount || 0).toLocaleString()}
+                        </span>
+                        <span className="bem-history-item-meta">
+                          {fmtDate(item.exported_at)}
+                        </span>
+                      </div>
                     </div>
                     <span className="bem-history-badge">Done</span>
                   </div>
@@ -653,21 +694,24 @@ export const BulkExportModal: React.FC<BulkExportModalProps> = ({
           <div className="bem-footer-info">
             {phase === 'idle' && exportOrders.length > 0 &&
               `${exportOrders.length} orders · ৳${totalAmount.toLocaleString()} · XLSX format`}
+            {phase === 'idle' && exportOrders.length === 0 && '0 orders match selected criteria'}
             {phase === 'done' && 'All orders moved to Bulk Exported ✓'}
+            {(phase === 'exporting' || phase === 'moving') && 'Processing bulk export & status updates...'}
           </div>
           <div className="bem-footer-actions">
-            <button className="bem-cancel-btn" onClick={onClose}>
+            <button type="button" className="bem-cancel-btn" onClick={onClose}>
               {phase === 'done' ? 'Close' : 'Cancel'}
             </button>
             {phase !== 'done' && (
               <button
-                className={`bem-export-btn ${(phase==='exporting'||phase==='moving') ? 'running' : ''}`}
+                type="button"
+                className={`bem-export-btn ${(phase === 'exporting' || phase === 'moving') ? 'running' : ''}`}
                 disabled={!canExport || exportOrders.length === 0}
                 onClick={handleExport}
               >
                 {(phase === 'exporting' || phase === 'moving')
-                  ? <><Loader2 size={16} className="bem-spin"/> Processing...</>
-                  : <><Zap size={16}/> Export {exportOrders.length} Orders</>
+                  ? <><Loader2 size={16} className="bem-spin" /> Processing...</>
+                  : <><Zap size={16} /> Export {exportOrders.length} Orders</>
                 }
               </button>
             )}

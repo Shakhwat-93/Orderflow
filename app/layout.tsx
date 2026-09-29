@@ -29,7 +29,6 @@ import { AuthProvider } from '@/context/AuthContext';
 import { BrandingProvider } from '@/context/BrandingContext';
 import { AlertProvider } from '@/context/AlertContext';
 import { ConfirmProvider } from '@/context/ConfirmContext';
-import { SmoothCursor } from '@/components/ui/smooth-cursor';
 import { HexagonPattern } from '@/components/ui/hexagon-pattern';
 import { cn } from "@/lib/utils";
 
@@ -56,7 +55,6 @@ export default function RootLayout({
             <BrandingProvider>
               <AlertProvider>
                 <ConfirmProvider>
-                  <SmoothCursor />
                   <div className="relative min-h-screen w-full" suppressHydrationWarning>
                     <HexagonPattern
                       radius={42}
