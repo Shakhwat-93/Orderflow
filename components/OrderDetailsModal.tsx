@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Modal } from './Modal';
 import { Badge } from './Badge';
 import { Button } from './Button';
@@ -17,6 +17,172 @@ import dynamic from 'next/dynamic';
 import { isIncompleteConversion, getDisplayStatusLabel } from '@/utils/orderStatusHelper';
 
 const PrintPreviewModal = dynamic(() => import('./PrintSystem/PrintPreviewModal').then((m) => m.PrintPreviewModal || m.default), { ssr: false });
+
+interface EditableFieldProps {
+  field: string;
+  label: string;
+  icon?: React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
+  type?: string;
+  multiline?: boolean;
+  orderId?: string;
+  initialValue: string;
+  displayValue: React.ReactNode;
+  onSave: (field: string, newValue: string) => Promise<void>;
+}
+
+const EditableField = React.memo<EditableFieldProps>(({
+  field,
+  label,
+  icon: Icon,
+  type = 'text',
+  multiline = false,
+  orderId,
+  initialValue,
+  displayValue,
+  onSave,
+}) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftValue, setDraftValue] = useState(initialValue);
+  const [isSaving, setIsSaving] = useState(false);
+  const [fieldError, setFieldError] = useState('');
+  
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const lastOrderIdRef = useRef(orderId);
+
+  // If the active order changes to a different order, reset edit state and initialize
+  useEffect(() => {
+    if (orderId && orderId !== lastOrderIdRef.current) {
+      lastOrderIdRef.current = orderId;
+      setIsEditing(false);
+      setDraftValue(initialValue);
+      setFieldError('');
+    }
+  }, [orderId, initialValue]);
+
+  // Synchronize draft value ONLY when NOT actively editing
+  // Prevents background/parent re-renders from overwriting the active typing caret
+  useEffect(() => {
+    if (!isEditing) {
+      setDraftValue(initialValue);
+    }
+  }, [initialValue, isEditing]);
+
+  // Focus input and set caret once when editing begins
+  useEffect(() => {
+    if (isEditing) {
+      if (multiline && textareaRef.current) {
+        textareaRef.current.focus();
+        const len = textareaRef.current.value.length;
+        textareaRef.current.setSelectionRange?.(len, len);
+      } else if (!multiline && inputRef.current) {
+        inputRef.current.focus();
+        inputRef.current.select?.();
+      }
+    }
+  }, [isEditing, multiline]);
+
+  const handleOpen = () => {
+    setDraftValue(initialValue);
+    setFieldError('');
+    setIsEditing(true);
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    setDraftValue(initialValue);
+    setFieldError('');
+  };
+
+  const handleSave = async () => {
+    const trimmed = draftValue.trim();
+    if (!trimmed) {
+      setFieldError('Value cannot be empty.');
+      return;
+    }
+    if (field === 'delivery_charge' && isNaN(Number(trimmed))) {
+      setFieldError('Must be a valid number.');
+      return;
+    }
+    setIsSaving(true);
+    setFieldError('');
+    try {
+      await onSave(field, trimmed);
+      setIsEditing(false);
+    } catch (err: any) {
+      console.error(`[OrderDetailsModal] Save failed for ${field}:`, err);
+      setFieldError(err?.message || 'Save failed. Try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !multiline) {
+      e.preventDefault();
+      handleSave();
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      handleCancel();
+    }
+  };
+
+  return (
+    <div className={`info-item${multiline ? ' vertical' : ''}`}>
+      <span className="info-label">{label}</span>
+      {isEditing ? (
+        <div className="odm-inline-edit-wrap">
+          {multiline ? (
+            <textarea
+              ref={textareaRef}
+              className="odm-inline-input odm-inline-textarea"
+              value={draftValue}
+              onChange={e => setDraftValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              rows={3}
+              disabled={isSaving}
+            />
+          ) : (
+            <input
+              ref={inputRef}
+              type={type}
+              className="odm-inline-input"
+              value={draftValue}
+              onChange={e => setDraftValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={isSaving}
+            />
+          )}
+          {fieldError && <span className="odm-field-error">{fieldError}</span>}
+          <div className="odm-inline-actions">
+            <button className="odm-save-btn" onClick={handleSave} disabled={isSaving}>
+              {isSaving ? 'Saving...' : '✓ Save'}
+            </button>
+            <button className="odm-cancel-btn" onClick={handleCancel} disabled={isSaving}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="info-value-flex">
+          {Icon && !multiline && <Icon size={13} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />}
+          <span className="info-value">
+            {displayValue}
+          </span>
+          <button
+            className="odm-edit-trigger"
+            onClick={handleOpen}
+            title={`Edit ${label}`}
+          >
+            <Edit2 size={12} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+});
+EditableField.displayName = 'EditableField';
 
 export const OrderDetailsModal = ({
   isOpen,
@@ -74,14 +240,9 @@ export const OrderDetailsModal = ({
     localStorage.setItem('orderflow_custom_notes_templates', JSON.stringify(updated));
   };
 
-  // Inline field editing state
-  const [editingField, setEditingField] = useState<string | null>(null); // 'phone' | 'address' | 'delivery_charge'
-  const [editValue, setEditValue] = useState('');
-  const [isSavingField, setIsSavingField] = useState(false);
-  const [fieldError, setFieldError] = useState('');
-  const [localOrder, setLocalOrder] = useState<any>(null); // optimistic local update
+  // Optimistic local update state
+  const [localOrder, setLocalOrder] = useState<any>(null);
   const copyTimeoutRef = useRef<NodeJS.Timeout | number | null>(null);
-  const editInputRef = useRef<HTMLInputElement | null>(null);
   const { user, profile, userRoles } = useAuth();
   const { checkPhone, getRatio } = useCourierRatio();
 
@@ -109,8 +270,6 @@ export const OrderDetailsModal = ({
       const newViewed = [newItem, ...savedViewed.filter(item => item.id !== order.id)].slice(0, 10);
       localStorage.setItem('premium_search_viewed', JSON.stringify(newViewed));
       setLocalOrder(null);
-      setEditingField(null);
-      setFieldError('');
       setActiveTab('details');
       refreshLogs();
     } else {
@@ -132,130 +291,22 @@ export const OrderDetailsModal = ({
     if (copyTimeoutRef.current) window.clearTimeout(copyTimeoutRef.current);
   }, []);
 
-  // Focus the edit input when a field opens
-  useEffect(() => {
-    if (editingField && editInputRef.current) {
-      editInputRef.current.focus();
-      editInputRef.current.select?.();
-    }
-  }, [editingField]);
+  const saveField = useCallback(async (fieldToSave: string, trimmed: string) => {
+    if (!effectiveOrder?.id || !user?.id) return;
+    const payload: Record<string, any> = fieldToSave === 'delivery_charge'
+      ? { delivery_charge: Number(trimmed) }
+      : { [fieldToSave]: trimmed };
+
+    const userName = profile?.name || user?.email || 'Unknown User';
+    await api.updateOrder(effectiveOrder.id, payload, user?.id, userName, userRoles);
+
+    // Optimistic local update so modal reflects change immediately
+    setLocalOrder((prev: any) => ({ ...(prev || effectiveOrder), ...payload }));
+    // Refresh activity log to show the new entry with user name
+    await refreshLogs();
+  }, [effectiveOrder, user?.id, user?.email, profile?.name, userRoles]);
 
   if (!effectiveOrder) return null;
-
-  // ── Inline field helpers ──────────────────────────────────────
-  const openEdit = (field) => {
-    const current = field === 'delivery_charge'
-      ? String(Number(effectiveOrder?.delivery_charge) || Number(effectiveOrder?.pricing_summary?.delivery_charge) || 0)
-      : String(effectiveOrder?.[field] || '');
-    setEditingField(field);
-    setEditValue(current);
-    setFieldError('');
-  };
-
-  const cancelEdit = () => {
-    setEditingField(null);
-    setEditValue('');
-    setFieldError('');
-  };
-
-  const saveField = async () => {
-    if (!effectiveOrder?.id || !user?.id) return;
-    const trimmed = editValue.trim();
-    if (!trimmed) { setFieldError('Value cannot be empty.'); return; }
-    if (editingField === 'delivery_charge' && isNaN(Number(trimmed))) {
-      setFieldError('Must be a valid number.'); return;
-    }
-    setIsSavingField(true);
-    setFieldError('');
-    try {
-      const payload: Record<string, any> = editingField === 'delivery_charge'
-        ? { delivery_charge: Number(trimmed) }
-        : { [editingField as string]: trimmed };
-
-      const userName = profile?.name || user?.email || 'Unknown User';
-      await api.updateOrder(effectiveOrder.id, payload, user?.id, userName, userRoles);
-
-      // Optimistic local update so modal reflects change immediately
-      setLocalOrder((prev: any) => ({ ...(prev || effectiveOrder), ...payload }));
-      setEditingField(null);
-      setEditValue('');
-      // Refresh activity log to show the new entry with user name
-      await refreshLogs();
-    } catch (err: any) {
-      console.error('[OrderDetailsModal] saveField failed:', err);
-      setFieldError(err?.message || 'Save failed. Try again.');
-    } finally {
-      setIsSavingField(false);
-    }
-  };
-
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && editingField !== 'address') saveField();
-    if (e.key === 'Escape') cancelEdit();
-  };
-
-  /** Renders an editable info row */
-  const EditableField = ({ field, label, icon: Icon, type = 'text', multiline = false }) => {
-    const isEditing = editingField === field;
-    const rawVal = field === 'delivery_charge'
-      ? (Number(effectiveOrder?.delivery_charge) || Number(effectiveOrder?.pricing_summary?.delivery_charge) || null)
-      : effectiveOrder?.[field];
-    const displayVal = rawVal !== null && rawVal !== undefined && rawVal !== '' ? rawVal : '—';
-
-    return (
-      <div className={`info-item${multiline ? ' vertical' : ''}`}>
-        <span className="info-label">{label}</span>
-        {isEditing ? (
-          <div className="odm-inline-edit-wrap">
-            {multiline ? (
-              <textarea
-                ref={editInputRef as any}
-                className="odm-inline-input odm-inline-textarea"
-                value={editValue}
-                onChange={e => setEditValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                rows={3}
-                disabled={isSavingField}
-              />
-            ) : (
-              <input
-                ref={editInputRef}
-                type={type}
-                className="odm-inline-input"
-                value={editValue}
-                onChange={e => setEditValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                disabled={isSavingField}
-              />
-            )}
-            {fieldError && <span className="odm-field-error">{fieldError}</span>}
-            <div className="odm-inline-actions">
-              <button className="odm-save-btn" onClick={saveField} disabled={isSavingField}>
-                {isSavingField ? 'Saving...' : '✓ Save'}
-              </button>
-              <button className="odm-cancel-btn" onClick={cancelEdit} disabled={isSavingField}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="info-value-flex">
-            {Icon && !multiline && <Icon size={13} style={{color:'var(--text-tertiary)', flexShrink:0}} />}
-            <span className={`info-value${multiline ? '' : ''}`}>
-              {field === 'delivery_charge' && rawVal !== null ? `৳${Number(rawVal).toLocaleString()}` : displayVal}
-            </span>
-            <button
-              className="odm-edit-trigger"
-              onClick={() => openEdit(field)}
-              title={`Edit ${label}`}
-            >
-              <Edit2 size={12} />
-            </button>
-          </div>
-        )}
-      </div>
-    );
-  };
 
   const parseEmbeddedDeliveryCharge = (value) => {
     const text = String(value || '');
@@ -660,7 +711,16 @@ export const OrderDetailsModal = ({
                 </div>
 
                 {/* ── Editable: Phone ── */}
-                <EditableField field="phone" label="Phone" icon={Phone} type="tel" />
+                <EditableField
+                  field="phone"
+                  label="Phone"
+                  icon={Phone}
+                  type="tel"
+                  orderId={effectiveOrder.id}
+                  initialValue={effectiveOrder.phone || ''}
+                  displayValue={effectiveOrder.phone || '—'}
+                  onSave={saveField}
+                />
 
                 <div className="info-item">
                   <span className="info-label">IP Address</span>
@@ -670,10 +730,32 @@ export const OrderDetailsModal = ({
                 </div>
 
                 {/* ── Editable: Address ── */}
-                <EditableField field="address" label="Delivery Address" icon={MapPin} multiline />
+                <EditableField
+                  field="address"
+                  label="Delivery Address"
+                  icon={MapPin}
+                  multiline
+                  orderId={effectiveOrder.id}
+                  initialValue={effectiveOrder.address || ''}
+                  displayValue={effectiveOrder.address || '—'}
+                  onSave={saveField}
+                />
 
                 {/* ── Editable: Delivery Charge ── */}
-                <EditableField field="delivery_charge" label="Delivery Charge" icon={Truck} type="number" />
+                <EditableField
+                  field="delivery_charge"
+                  label="Delivery Charge"
+                  icon={Truck}
+                  type="number"
+                  orderId={effectiveOrder.id}
+                  initialValue={String(Number(effectiveOrder?.delivery_charge) || Number(effectiveOrder?.pricing_summary?.delivery_charge) || 0)}
+                  displayValue={
+                    (Number(effectiveOrder?.delivery_charge) || Number(effectiveOrder?.pricing_summary?.delivery_charge) || null) !== null
+                      ? `৳${Number(effectiveOrder?.delivery_charge || effectiveOrder?.pricing_summary?.delivery_charge || 0).toLocaleString()}`
+                      : '—'
+                  }
+                  onSave={saveField}
+                />
 
                 <div className="info-item vertical">
                   <span className="info-label">Order Note</span>
