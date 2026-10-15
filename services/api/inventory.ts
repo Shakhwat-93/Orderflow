@@ -290,7 +290,7 @@ export const inventoryApi = {
   },
 
   /**
-   * Deduct stock by product name (fallback matching)
+   * Deduct stock by product name (fallback matching name, sku, or catalog fuzzy match)
    */
   async deductStockByProductName(
     productName: string,
@@ -298,18 +298,68 @@ export const inventoryApi = {
     options: { orderId?: string | number; note?: string; userId?: string } = {}
   ): Promise<InventoryItem | null> {
     try {
+      const trimmed = String(productName || '').trim();
+      if (!trimmed) return null;
+
+      // 1. Direct match on name or sku
       const { data: items, error: fetchError } = await supabase
         .from('inventory')
-        .select('id, current_stock')
-        .ilike('name', productName)
+        .select('id, name, sku, current_stock')
+        .or(`name.ilike.%${trimmed}%,sku.ilike.%${trimmed}%`)
         .limit(1);
 
       if (fetchError) throw fetchError;
-      if (!items || items.length === 0) return null;
+      if (items && items.length > 0) {
+        return this.deductStockByInventoryId(items[0].id, quantity, options);
+      }
 
-      return this.deductStockByInventoryId(items[0].id, quantity, options);
+      // 2. Intelligent fuzzy fallback across entire catalog
+      const { data: allItems } = await supabase.from('inventory').select('id, name, current_stock');
+      const matched = this.matchInventoryProduct(trimmed, allItems || []);
+      if (matched?.id) {
+        return this.deductStockByInventoryId(matched.id, quantity, options);
+      }
+
+      return null;
     } catch (err) {
       throw formatApiError(err, `Deduct stock by product name failed for "${productName}"`);
+    }
+  },
+
+  /**
+   * Restore stock by product name (fallback matching name, sku, or catalog fuzzy match)
+   */
+  async restoreStockByProductName(
+    productName: string,
+    quantity = 1,
+    options: { orderId?: string | number; txType?: string; note?: string; userId?: string } = {}
+  ): Promise<InventoryItem | null> {
+    try {
+      const trimmed = String(productName || '').trim();
+      if (!trimmed) return null;
+
+      // 1. Direct match on name or sku
+      const { data: items, error: fetchError } = await supabase
+        .from('inventory')
+        .select('id, name, sku, current_stock')
+        .or(`name.ilike.%${trimmed}%,sku.ilike.%${trimmed}%`)
+        .limit(1);
+
+      if (fetchError) throw fetchError;
+      if (items && items.length > 0) {
+        return this.restoreStockByInventoryId(items[0].id, quantity, options);
+      }
+
+      // 2. Intelligent fuzzy fallback across entire catalog
+      const { data: allItems } = await supabase.from('inventory').select('id, name, current_stock');
+      const matched = this.matchInventoryProduct(trimmed, allItems || []);
+      if (matched?.id) {
+        return this.restoreStockByInventoryId(matched.id, quantity, options);
+      }
+
+      return null;
+    } catch (err) {
+      throw formatApiError(err, `Restore stock by product name failed for "${productName}"`);
     }
   },
 

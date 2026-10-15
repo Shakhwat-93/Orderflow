@@ -495,13 +495,8 @@ export const OrderProvider = ({ children }: { children: React.ReactNode }) => {
           api.restoreStockByInventoryId(order.inventory_id, qty, { ...stockOpts, txType, note: `Order ${orderId} ${newStatus.toLowerCase()} — restored ${qty} unit(s)` })
             .catch(e => console.warn('Stock restore non-fatal error:', e));
         } else if (order.product_name) {
-          // Legacy name-based restore
-          supabase.from('inventory').select('id, current_stock').ilike('name', order.product_name).limit(1).then(({ data: items }: any) => {
-            if (items?.[0]) {
-              api.restoreStockByInventoryId(items[0].id, qty, { ...stockOpts, txType })
-                .catch((e: any) => console.warn('Stock restore non-fatal error:', e));
-            }
-          }, (e: any) => console.warn('Legacy stock lookup error:', e));
+          api.restoreStockByProductName(order.product_name, qty, { ...stockOpts, txType, note: `Order ${orderId} ${newStatus.toLowerCase()} — restored ${qty} unit(s)` })
+            .catch(e => console.warn('Stock restore non-fatal error:', e));
         }
       }
 
@@ -525,6 +520,7 @@ export const OrderProvider = ({ children }: { children: React.ReactNode }) => {
         const stockOpts = { orderId: order.id, userId: user?.id };
         if (order.inventory_id) {
           // Preferred: deduct by linked inventory_id
+          await api.deductStockByInventoryId(order.inventory_id, qty, stockOpts);
         } else {
           const rawItems = (Array.isArray(order.order_lines_payload) && order.order_lines_payload.length > 0)
             ? order.order_lines_payload
@@ -894,6 +890,18 @@ export const OrderProvider = ({ children }: { children: React.ReactNode }) => {
         .from('inventory')
         .update({ current_stock: newQty, updated_at: new Date().toISOString() })
         .eq('id', id);
+
+      const deductedQty = runningStockDeductions[id] || 0;
+      if (deductedQty > 0) {
+        api.logInventoryTransaction({
+          inventory_id: id,
+          order_id: null,
+          type: 'order_confirmed',
+          quantity: -deductedQty,
+          note: `Batch distribution to Courier Ready — deducted ${deductedQty} unit(s)`,
+          created_by: user?.id || null
+        }).catch(e => console.warn('Batch stock transaction log warning:', e));
+      }
     }
 
     // Apply all stock deductions to toy_box_inventory
@@ -944,6 +952,15 @@ export const OrderProvider = ({ children }: { children: React.ReactNode }) => {
         .from('inventory')
         .update({ current_stock: newQty, updated_at: new Date().toISOString() })
         .eq('id', ded.id);
+
+      api.logInventoryTransaction({
+        inventory_id: ded.id,
+        order_id: String(orderId),
+        type: 'order_confirmed',
+        quantity: -ded.qty,
+        note: `Order #${orderId} dispatched to Courier Ready — deducted ${ded.qty} unit(s)`,
+        created_by: user?.id || null
+      }).catch(e => console.warn('Single order stock transaction log warning:', e));
     }
 
     // 5. Deduct and save toy boxes

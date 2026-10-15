@@ -294,8 +294,10 @@ export const ProductDetailDrawer: React.FC<ProductDetailDrawerProps> = ({
                   const dateStr = tx.created_at ? new Date(tx.created_at).toLocaleDateString('en-BD', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recent';
 
                   const typeLabel =
+                    tx.type === 'order_confirmed' ? 'Order Confirmed (Deducted)' :
                     tx.type === 'order_created' ? 'Order Outflow' :
                     tx.type === 'order_returned' ? 'Order Return (Restored)' :
+                    tx.type === 'order_cancelled' ? 'Order Cancelled (Restored)' :
                     tx.type === 'manual_add' ? 'Manual Restock' :
                     tx.type === 'manual_deduct' ? 'Manual Deduct' :
                     tx.type === 'production_in' ? 'Factory Production In' :
@@ -313,6 +315,11 @@ export const ProductDetailDrawer: React.FC<ProductDetailDrawerProps> = ({
                             {isPositive ? `+${Math.abs(qty)}` : `-${Math.abs(qty)}`} pcs
                           </span>
                         </div>
+                        {tx.order_id && (
+                          <div style={{ fontSize: '0.72rem', color: 'var(--accent, #6366f1)', fontWeight: 600, marginTop: '1px' }}>
+                            Order: #{tx.order_id}
+                          </div>
+                        )}
                         {tx.note && <p className="timeline-note">{tx.note}</p>}
                         <span className="timeline-date">{dateStr}</span>
                       </div>

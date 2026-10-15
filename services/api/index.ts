@@ -115,6 +115,7 @@ export const api = {
   deductStockByInventoryId: inventoryApi.deductStockByInventoryId.bind(inventoryApi),
   restoreStockByInventoryId: inventoryApi.restoreStockByInventoryId.bind(inventoryApi),
   deductStockByProductName: inventoryApi.deductStockByProductName.bind(inventoryApi),
+  restoreStockByProductName: inventoryApi.restoreStockByProductName.bind(inventoryApi),
   getProductOrderStats: inventoryApi.getProductOrderStats.bind(inventoryApi),
   getInventoryPnL: inventoryApi.getInventoryPnL.bind(inventoryApi),
   getToyBoxInventory: inventoryApi.getToyBoxInventory.bind(inventoryApi),
