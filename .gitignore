@@ -63,3 +63,4 @@ user_ids_status.json
 # Scratch & Migration scripts
 scratch/
 scripts/
+backup/
