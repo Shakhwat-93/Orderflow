@@ -406,23 +406,27 @@ export const OrderDetailsModal = ({
     : 'N/A';
 
   const productDetails = Array.isArray(order.order_lines_payload) && order.order_lines_payload.length > 0
-    ? order.order_lines_payload.map((item) => {
-        const qty = Number(item.quantity) || 1;
-        const total = Number(item.line_total ?? ((item.unit_price || 0) * qty)) || 0;
-        const unit = Number(item.unit_price ?? (total / qty)) || 0;
+    ? order.order_lines_payload.map((item: any) => {
+        const qty = Number(item.quantity ?? item.qty) || 1;
+        const unit = Number(item.unit_price ?? item.price ?? 0);
+        const total = Number(item.line_total ?? (unit * qty)) || 0;
+        const resolvedUnit = unit > 0 ? unit : (qty > 0 && total > 0 ? total / qty : 0);
+        const rawName = typeof item === 'object' && item !== null
+          ? (item.name || item.product_name || item.title || item.productName)
+          : (typeof item === 'string' ? item : null);
         return {
-          name: item.product_name || 'Unknown Product',
+          name: rawName || order.product_name || 'Unknown Product',
           quantity: qty,
-          size: item.size || '',
-          unitPrice: unit,
+          size: item.size || item.color || '',
+          unitPrice: resolvedUnit,
           totalPrice: total,
           price: total,
-          toyBoxNumber: item.toybox_serial || item.toyBoxNumber || null
+          toyBoxNumber: item.toybox_serial || item.toyBoxNumber || item.serial || null
         };
       })
     : Array.isArray(order.ordered_items) && order.ordered_items.length > 0
       ? (typeof order.ordered_items[0] !== 'object'
-          ? order.ordered_items.map((serial) => {
+          ? order.ordered_items.map((serial: any) => {
               const totalAmount = Number(order.amount) || 0;
               const count = order.ordered_items.length;
               const unit = count > 0 ? totalAmount / count : 0;
@@ -436,18 +440,22 @@ export const OrderDetailsModal = ({
                 toyBoxNumber: serial
               };
             })
-          : order.ordered_items.map((item) => {
-              const qty = Number(item.quantity) || 1;
-              const unit = Number(item.price || 0);
-              const total = unit * qty;
+          : order.ordered_items.map((item: any) => {
+              const qty = Number(item.quantity ?? item.qty) || 1;
+              const unit = Number(item.unit_price ?? item.price ?? 0);
+              const total = Number(item.line_total ?? (unit * qty)) || 0;
+              const resolvedUnit = unit > 0 ? unit : (qty > 0 && total > 0 ? total / qty : 0);
+              const rawName = typeof item === 'object' && item !== null
+                ? (item.name || item.product_name || item.title || item.productName)
+                : (typeof item === 'string' ? item : null);
               return {
-                name: item.name || item.product_name || 'Unknown Product',
+                name: rawName || order.product_name || 'Unknown Product',
                 quantity: qty,
-                size: item.size || '',
-                unitPrice: unit,
+                size: item.size || item.color || '',
+                unitPrice: resolvedUnit,
                 totalPrice: total,
                 price: total,
-                toyBoxNumber: item.toyBoxNumber || item.toybox_serial || null
+                toyBoxNumber: item.toyBoxNumber || item.toybox_serial || item.serial || null
               };
             })
         )

@@ -49,33 +49,33 @@ export const CourierRatioProvider = ({ children }) => {
   }, [ratios]);
 
   // Core fetch function
-  const fetchRatio = async (phone) => {
+  const fetchRatio = async (phone: string) => {
     let lastError = '';
     try {
-      const { data, error, response } = await supabase.functions.invoke('courier-ratio-check', {
+      // 1. Primary: Fast server-side Next.js route (integrates Steadfast API + VPS cache)
+      const res = await fetch('/api/courier-ratio-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone }),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          return api.normalizeCourierRatioPayload(json.data, phone);
+        }
+      }
+
+      // 2. Secondary fallback: invoke Edge Function if deployed
+      const { data, error } = await supabase.functions.invoke('courier-ratio-check', {
         body: { phone },
       });
 
-      if (error) {
-        let errMsg = error.message || 'Edge Function returned a non-2xx status code';
-        if (response) {
-          try {
-            const tempResponse = response.clone();
-            const body = await tempResponse.json().catch(() => null);
-            if (body && body.error) {
-              errMsg = body.error;
-            } else if (body && body.message) {
-              errMsg = body.message;
-            }
-          } catch (e) {
-            // Ignore parse errors
-          }
-        }
-        throw new Error(errMsg);
+      if (!error && data) {
+        return api.normalizeCourierRatioPayload(data, phone);
       }
-      return api.normalizeCourierRatioPayload(data, phone);
+      throw new Error(error?.message || 'Server check failed');
     } catch (err: any) {
-      console.warn('[BD Courier Context] Server-side check failed or timed out. Attempting client-side direct check...', err?.message);
       lastError = err?.message || 'Server check failed';
 
       // Client-side fallback check
@@ -143,50 +143,13 @@ export const CourierRatioProvider = ({ children }) => {
             throw new Error(errorMsg);
           }
         } else {
-          throw new Error(`${lastError}. Client fallback skipped (no config).`);
+          throw new Error(`${lastError}.`);
         }
       } catch (fallbackErr: any) {
-        console.error('[BD Courier Context] Direct client check failed:', fallbackErr?.message);
-        
-        // Try Steadfast client-side fallback if configured
-        try {
-          const configSteadfast = await api.getSystemConfig('courier_steadfast');
-          if (configSteadfast && configSteadfast.is_enabled && configSteadfast.api_key && configSteadfast.secret_key) {
-            console.log('[BD Courier Context] Attempting Steadfast client-side check...');
-            
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 6000);
-            
-            let steadfastRes;
-            try {
-              steadfastRes = await fetch(`https://portal.packzy.com/api/v1/fraud_check/${phone}`, {
-                method: 'GET',
-                headers: {
-                  'Api-Key': configSteadfast.api_key,
-                  'Secret-Key': configSteadfast.secret_key,
-                  'Content-Type': 'application/json'
-                },
-                signal: controller.signal
-              });
-            } finally {
-              clearTimeout(timeoutId);
-            }
-            
-            if (steadfastRes.ok) {
-              const steadfastData = await steadfastRes.json();
-              console.log('[BD Courier Context] Steadfast client-side check succeeded!');
-              return api.normalizeCourierRatioPayload(steadfastData, phone);
-            } else {
-              throw new Error(`Steadfast HTTP Error ${steadfastRes.status}`);
-            }
-          }
-        } catch (steadfastErr: any) {
-          console.error('[BD Courier Context] Steadfast client-side check failed:', steadfastErr?.message);
-        }
-
+        // Fallback gracefully without throwing noisy unhandled console errors
         return {
           success: false,
-          error: fallbackErr?.message || lastError || 'Courier ratio check failed'
+          error: fallbackErr?.message || lastError || 'Courier ratio check unavailable'
         };
       }
     }

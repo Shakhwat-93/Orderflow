@@ -267,7 +267,7 @@ export async function mapConsignmentsToOmsOrders(
 ): Promise<SteadfastConsignment[]> {
   if (!consignments || consignments.length === 0) return [];
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://drbpysumezfjbudxzxzj.supabase.co';
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://supabasekong-a5tg2fvpwj6emkewfdknamid.187.77.159.209.sslip.io';
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
   const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -512,7 +512,7 @@ export async function fetchReconciliationData(options: {
   }
 
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://drbpysumezfjbudxzxzj.supabase.co';
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://supabasekong-a5tg2fvpwj6emkewfdknamid.187.77.159.209.sslip.io';
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
     const supabase = createClient(supabaseUrl, supabaseKey);
 

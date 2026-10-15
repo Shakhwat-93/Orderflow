@@ -62,10 +62,32 @@ export function formatApiError(error: unknown, fallbackMessage = 'An unexpected 
   const hint = (error as any)?.hint || '';
   const code = (error as any)?.code || '';
 
-  // Log raw technical details for debugging
-  console.error(`[OrderFlow API Error: ${code || 'ERR'}] ${rawMessage || fallbackMessage}`, { details, hint, code });
-
   const combined = `${rawMessage} ${details} ${hint}`.toLowerCase();
+
+  // Log raw technical details for debugging
+  if (
+    combined.includes('upstream request timeout') ||
+    combined.includes('gateway timeout') ||
+    combined.includes('statement timeout') ||
+    combined.includes('networkerror') ||
+    combined.includes('failed to fetch')
+  ) {
+    console.warn(`[OrderFlow API Warning: Transient Network/Timeout] ${rawMessage || fallbackMessage}`);
+  } else {
+    console.error(`[OrderFlow API Error: ${code || 'ERR'}] ${rawMessage || fallbackMessage}`, { details, hint, code });
+  }
+
+  if (
+    combined.includes('upstream request timeout') ||
+    combined.includes('statement timeout') ||
+    combined.includes('gateway timeout') ||
+    combined.includes('canceling statement') ||
+    combined.includes('57014') ||
+    combined.includes('504') ||
+    combined.includes('522')
+  ) {
+    return new Error('Database server is temporarily busy or timed out. Please try again in a moment.');
+  }
 
   if (combined.includes('permission denied') || combined.includes('row-level security') || code === '42501') {
     return new Error('Access denied: You do not have sufficient permissions to perform this action.');

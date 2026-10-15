@@ -252,17 +252,29 @@ const matchesCustomDateRange = (value, startDate, endDate) => {
   return true;
 };
 
+const getOrderItems = (order) => {
+  if (Array.isArray(order?.order_lines_payload) && order.order_lines_payload.length > 0) {
+    return order.order_lines_payload;
+  }
+
+  if (Array.isArray(order?.ordered_items) && order.ordered_items.length > 0) {
+    return order.ordered_items.filter((item) => item && typeof item === 'object');
+  }
+
+  return [];
+};
+
 const formatProductSummary = (order) => {
-  const items = Array.isArray(order?.ordered_items) ? order.ordered_items : [];
+  const items = getOrderItems(order);
 
   if (items.length === 0) {
     const fallbackQty = Number(order?.quantity) || 1;
-    return `${order?.product_name || ''} x${fallbackQty}`.trim();
+    return `${order?.product_name || 'Standard Product'} x${fallbackQty}`.trim();
   }
 
   return items
     .map((item) => {
-      const name = item?.name || order?.product_name || 'Item';
+      const name = item?.name || item?.product_name || item?.title || order?.product_name || 'Item';
       const quantity = Number(item?.quantity) || 1;
       const size = item?.size ? ` (${item.size})` : '';
       return `${name}${size} x${quantity}`;
@@ -277,18 +289,6 @@ const getOrderQuantity = (order) => {
   if (items.length === 0) return 1;
 
   return items.reduce((sum, item) => sum + (Number(item?.quantity) || 1), 0);
-};
-
-const getOrderItems = (order) => {
-  if (Array.isArray(order?.order_lines_payload) && order.order_lines_payload.length > 0) {
-    return order.order_lines_payload;
-  }
-
-  if (Array.isArray(order?.ordered_items) && order.ordered_items.length > 0) {
-    return order.ordered_items.filter((item) => item && typeof item === 'object');
-  }
-
-  return [];
 };
 
 const parseEmbeddedDeliveryCharge = (value) => {
@@ -645,7 +645,9 @@ const getBaseProductName = (rawName) => {
 };
 
 const getCleanProductDisplay = (order: any) => {
-  const items = order?.ordered_items || [];
+  const items = (Array.isArray(order?.order_lines_payload) && order.order_lines_payload.length > 0)
+    ? order.order_lines_payload
+    : (order?.ordered_items || []);
   
   // Total Qty calculation
   let totalQty = Number(order?.quantity || 0);
@@ -664,7 +666,7 @@ const getCleanProductDisplay = (order: any) => {
   if (items.length > 0) {
     const itemNames = items.map(item => {
       if (typeof item === 'object') {
-        const name = (item.name || item.product_name || item.title || '').trim();
+        const name = (item.name || item.product_name || item.title || item.productName || order?.product_name || '').trim();
         const qty = Number(item.quantity || item.qty || 1);
         return qty > 1 ? `${name} (x${qty})` : name;
       }
@@ -681,7 +683,7 @@ const getCleanProductDisplay = (order: any) => {
     if (origName && !/^\d+\s*items?$/i.test(origName)) {
       cleanName = origName;
     } else if (items.length > 0) {
-      const fallbackItems = items.map(i => (typeof i === 'object' ? (i.name || i.product_name || i.title) : i)).filter(Boolean);
+      const fallbackItems = items.map(i => (typeof i === 'object' ? (i.name || i.product_name || i.title || i.productName) : i)).filter(Boolean);
       cleanName = fallbackItems.join(', ') || origName || 'Standard Product';
     } else {
       cleanName = origName || 'Standard Product';
@@ -1373,7 +1375,9 @@ const FactoryPanelInner = () => {
       }
 
       // 2. Items - Color & Variant extraction
-      const items = order.ordered_items || [];
+      const items = (Array.isArray(order?.order_lines_payload) && order.order_lines_payload.length > 0)
+        ? order.order_lines_payload
+        : (order?.ordered_items || []);
       items.forEach(item => {
         let itemName = '';
         if (typeof item === 'object') {
@@ -1466,7 +1470,9 @@ const FactoryPanelInner = () => {
                       baseOrig.toLowerCase() === productFilter.toLowerCase();
                       
       if (!isMatch) {
-        const items = order.ordered_items || [];
+        const items = (Array.isArray(order?.order_lines_payload) && order.order_lines_payload.length > 0)
+          ? order.order_lines_payload
+          : (order?.ordered_items || []);
         const hasSubProductMatch = items.some(item => {
           const itemName = typeof item === 'object' ? (item.name || item.product_name || item.title || '') : String(item);
           return getBaseProductName(itemName).toLowerCase() === productFilter.toLowerCase();
@@ -1481,7 +1487,9 @@ const FactoryPanelInner = () => {
     // Color Filter
     if (colorFilter !== 'All') {
       const targetColor = colorFilter.toLowerCase();
-      const items = order.ordered_items || [];
+      const items = (Array.isArray(order?.order_lines_payload) && order.order_lines_payload.length > 0)
+        ? order.order_lines_payload
+        : (order?.ordered_items || []);
       let hasColor = items.some(item => {
         if (typeof item === 'object') {
           if ((item.color || '').toLowerCase().includes(targetColor)) return true;
@@ -1498,7 +1506,9 @@ const FactoryPanelInner = () => {
     // Variant Filter
     if (variantFilter !== 'All') {
       const targetVar = variantFilter.toLowerCase();
-      const items = order.ordered_items || [];
+      const items = (Array.isArray(order?.order_lines_payload) && order.order_lines_payload.length > 0)
+        ? order.order_lines_payload
+        : (order?.ordered_items || []);
       let hasVariant = items.some(item => {
         if (typeof item === 'object') {
           if ((item.variant || '').toLowerCase().includes(targetVar)) return true;
@@ -1785,8 +1795,10 @@ const FactoryPanelInner = () => {
 
   // Stock availability check helper
   const getStockStatus = (order) => {
-    const items = order.ordered_items || [];
-    const isToyBox = (order.product_name || '').toUpperCase().includes('TOY BOX');
+    const items = (Array.isArray(order?.order_lines_payload) && order.order_lines_payload.length > 0)
+      ? order.order_lines_payload
+      : (order?.ordered_items || []);
+    const isToyBox = (order?.product_name || '').toUpperCase().includes('TOY BOX');
     if (!isToyBox || items.length === 0) return { matched: true, label: 'Auto Pass', missing: [] };
 
     const stockMap = {};
@@ -1795,9 +1807,9 @@ const FactoryPanelInner = () => {
     });
 
     const missing = items.filter(item => {
-      const boxNum = typeof item === 'object' ? item.toyBoxNumber : item;
+      const boxNum = typeof item === 'object' ? (item.toybox_serial || item.toyBoxNumber || item.serial) : item;
       if (boxNum == null) return false;
-      const productName = typeof item === 'object' ? (item.name || order.product_name || 'TOY BOX') : 'TOY BOX';
+      const productName = typeof item === 'object' ? (item.name || item.product_name || item.title || order.product_name || 'TOY BOX') : 'TOY BOX';
       return (stockMap[getToyBoxStockKey(productName, boxNum)] || 0) < 1;
     });
 

@@ -14,33 +14,29 @@ export const reportsApi = {
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
         const now = new Date();
-        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
         const todayStr = now.toDateString();
 
-        const [
-          { count: total },
-          { data: recentOrders, error: ordersError },
-          { data: todayConfirmLogs }
-        ] = await Promise.all([
-          supabase.from('orders').select('*', { count: 'exact', head: true }).neq('status', 'Test'),
+        // Resilient parallel retrieval: Fetch recent orders and planned count without blocking unindexed log scans.
+        const [countResult, ordersResult] = await Promise.allSettled([
+          supabase.from('orders').select('id', { count: 'planned', head: true }),
           supabase
             .from('orders')
             .select('status, amount, phone, product_name, created_at, updated_at, source')
             .gte('created_at', thirtyDaysAgo.toISOString())
-            .neq('status', 'Test'),
-          supabase
-            .from('order_activity_logs')
-            .select('new_status, timestamp, action_type')
-            .eq('action_type', 'STATUS_CHANGE')
-            .eq('new_status', 'Confirmed')
-            .gte('timestamp', todayStart.toISOString())
-            .lte('timestamp', todayEnd.toISOString())
+            .neq('status', 'Test')
         ]);
 
-        if (ordersError) throw ordersError;
+        if (ordersResult.status === 'rejected') {
+          throw ordersResult.reason;
+        } else if (ordersResult.status === 'fulfilled' && ordersResult.value.error) {
+          throw ordersResult.value.error;
+        }
 
-        const orders = recentOrders || [];
+        const recentOrders = (ordersResult.status === 'fulfilled' ? ordersResult.value.data : []) || [];
+        const orders = recentOrders;
+
+        const totalPlanned = countResult.status === 'fulfilled' ? countResult.value.count : null;
+        const total = totalPlanned && totalPlanned > 0 ? totalPlanned : orders.length;
 
         const successfulStatuses = ['Confirmed', 'Completed', 'Shipped', 'Factory Processing'];
         const completedOrders = orders.filter((o: any) => successfulStatuses.includes(o.status));
@@ -69,14 +65,12 @@ export const reportsApi = {
           (o: any) => new Date(o.created_at).toDateString() === todayStr
         ).length;
 
-        const confirmedTodayCount =
-          todayConfirmLogs && Array.isArray(todayConfirmLogs) && todayConfirmLogs.length > 0
-            ? todayConfirmLogs.length
-            : orders.filter(
-                (o: any) =>
-                  o.status === 'Confirmed' &&
-                  new Date(o.updated_at || o.created_at).toDateString() === todayStr
-              ).length;
+        // Accurate in-memory calculation based on today's updated or created orders
+        const confirmedTodayCount = orders.filter(
+          (o: any) =>
+            o.status === 'Confirmed' &&
+            new Date(o.updated_at || o.created_at).toDateString() === todayStr
+        ).length;
 
         const sourceMap = orders.reduce<Record<string, number>>((acc, order: any) => {
           const src = order.source || 'Other';
@@ -155,7 +149,7 @@ export const reportsApi = {
       while (rows.length < limit) {
         let query = supabase
           .from('orders')
-          .select('product_name')
+          .select('product_name, ordered_items, order_lines_payload')
           .order('created_at', { ascending: false })
           .range(from, from + batchSize - 1);
 
@@ -188,7 +182,17 @@ export const reportsApi = {
 
       const counts = new Map<string, number>();
       rows.forEach((row) => {
-        const productName = String(row?.product_name || 'Unknown Product').trim() || 'Unknown Product';
+        let name = row?.product_name;
+        if (!name || name === 'Unknown Product') {
+          const lines = (Array.isArray(row.order_lines_payload) && row.order_lines_payload.length > 0)
+            ? row.order_lines_payload
+            : (Array.isArray(row.ordered_items) ? row.ordered_items : []);
+          const first = lines.find((l: any) => l && (l.name || l.product_name || l.title));
+          if (first) {
+            name = first.name || first.product_name || first.title;
+          }
+        }
+        const productName = String(name || 'Unknown Product').trim() || 'Unknown Product';
         counts.set(productName, (counts.get(productName) || 0) + 1);
       });
 
@@ -204,30 +208,30 @@ export const reportsApi = {
   },
 
   /**
-   * Order status distribution - real-time exact database counts via parallel head count queries
+   * Order status distribution - efficient aggregation in a single query
    */
   async getOrderStatusBreakdown(filters: OrderFilters = {}) {
     try {
-      const applyFilters = (baseQuery: any) => {
-        let query = baseQuery;
-        if (filters.source && filters.source !== 'All') {
-          query = query.eq('source', filters.source);
-        }
-        if (filters.searchTerm) {
-          query = query.or(
-            `id.ilike.%${filters.searchTerm}%,customer_name.ilike.%${filters.searchTerm}%,phone.ilike.%${filters.searchTerm}%`
-          );
-        }
-        if (filters.productName) {
-          query = query.ilike('product_name', `%${filters.productName}%`);
-        }
-        if (filters.dateRange?.start && filters.dateRange?.end) {
-          const start = typeof filters.dateRange.start === 'string' ? filters.dateRange.start : filters.dateRange.start.toISOString();
-          const end = typeof filters.dateRange.end === 'string' ? filters.dateRange.end : filters.dateRange.end.toISOString();
-          query = query.gte('created_at', start).lte('created_at', end);
-        }
-        return query;
-      };
+      let query = supabase.from('orders').select('status');
+      if (filters.source && filters.source !== 'All') {
+        query = query.eq('source', filters.source);
+      }
+      if (filters.searchTerm) {
+        query = query.or(
+          `id.ilike.%${filters.searchTerm}%,customer_name.ilike.%${filters.searchTerm}%,phone.ilike.%${filters.searchTerm}%`
+        );
+      }
+      if (filters.productName) {
+        query = query.ilike('product_name', `%${filters.productName}%`);
+      }
+      if (filters.dateRange?.start && filters.dateRange?.end) {
+        const start = typeof filters.dateRange.start === 'string' ? filters.dateRange.start : filters.dateRange.start.toISOString();
+        const end = typeof filters.dateRange.end === 'string' ? filters.dateRange.end : filters.dateRange.end.toISOString();
+        query = query.gte('created_at', start).lte('created_at', end);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
 
       const statuses = [
         'New',
@@ -245,17 +249,15 @@ export const reportsApi = {
         'Test'
       ];
 
-      const [allRes, ...statusResults] = await Promise.all([
-        applyFilters(supabase.from('orders').select('*', { count: 'exact', head: true })),
-        ...statuses.map((status) =>
-          applyFilters(supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', status))
-            .then((res: any) => ({ status, count: res.count || 0 }))
-        )
-      ]);
+      const countMap: Record<string, number> = {};
+      (data || []).forEach((row: any) => {
+        const s = row.status || 'Other';
+        countMap[s] = (countMap[s] || 0) + 1;
+      });
 
       return [
-        { status: 'All', count: allRes.count || 0 },
-        ...statusResults
+        { status: 'All', count: data?.length || 0 },
+        ...statuses.map((status) => ({ status, count: countMap[status] || 0 }))
       ];
     } catch (err) {
       throw formatApiError(err, 'Failed to fetch status breakdown');
@@ -339,7 +341,9 @@ export const reportsApi = {
       if (endIso) logsQuery = logsQuery.lte('timestamp', endIso);
 
       const { data: logs, error: logsError } = await logsQuery;
-      if (logsError) throw logsError;
+      if (logsError) {
+        console.warn('getUserPerformanceDetails logs query warning:', logsError.message);
+      }
 
       const allLogs = logs || [];
 

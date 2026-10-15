@@ -513,13 +513,19 @@ export const OrderProvider = ({ children }: { children: React.ReactNode }) => {
         const stockOpts = { orderId: order.id, userId: user?.id };
         if (order.inventory_id) {
           // Preferred: deduct by linked inventory_id
-          await api.deductStockByInventoryId(order.inventory_id, qty, stockOpts);
-        } else if (Array.isArray(order.ordered_items) && order.ordered_items.length > 0) {
-          for (const item of order.ordered_items) {
-            await api.deductStockByProductName(item.name || order.product_name, item.quantity || 1, stockOpts);
+        } else {
+          const rawItems = (Array.isArray(order.order_lines_payload) && order.order_lines_payload.length > 0)
+            ? order.order_lines_payload
+            : (Array.isArray(order.ordered_items) && order.ordered_items.length > 0 ? order.ordered_items : null);
+          if (rawItems) {
+            for (const item of rawItems) {
+              const name = typeof item === 'object' ? (item.name || item.product_name || item.title || order.product_name) : order.product_name;
+              const quantity = typeof item === 'object' ? Number(item.quantity || item.qty || 1) : 1;
+              await api.deductStockByProductName(name, quantity, stockOpts);
+            }
+          } else if (order.product_name) {
+            await api.deductStockByProductName(order.product_name, qty, stockOpts);
           }
-        } else if (order.product_name) {
-          await api.deductStockByProductName(order.product_name, qty, stockOpts);
         }
       }
 
@@ -715,7 +721,9 @@ export const OrderProvider = ({ children }: { children: React.ReactNode }) => {
     runningStockDeductions: Record<string, number> = {},
     runningToyBoxDeductions: Record<string, number> = {}
   ) => {
-    const items = order.ordered_items || [];
+    const items = (Array.isArray(order.order_lines_payload) && order.order_lines_payload.length > 0)
+      ? order.order_lines_payload
+      : (order.ordered_items || []);
     
     // If no detailed items, fallback to product_name & quantity
     const orderLines = items.length > 0 ? items : [
@@ -733,8 +741,8 @@ export const OrderProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     for (const item of orderLines) {
-      const itemName = typeof item === 'object' ? (item.name || order.product_name) : order.product_name;
-      const qtyNeeded = typeof item === 'object' ? (item.quantity || 1) : (order.quantity || 1);
+      const itemName = typeof item === 'object' ? (item.name || item.product_name || item.title || order.product_name) : order.product_name;
+      const qtyNeeded = typeof item === 'object' ? (Number(item.quantity || item.qty) || 1) : (order.quantity || 1);
       
       // Check if it's a toybox (supports serial tracking)
       const isToyBox = itemName.toUpperCase().includes('TOY BOX') || (typeof item === 'object' && item.isToyBox);

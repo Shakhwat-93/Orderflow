@@ -24,6 +24,7 @@ import {
   X,
   DatabaseBackup,
   CreditCard,
+  ReceiptText,
   LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -67,6 +68,7 @@ const menuItems: MenuItem[] = [
   },
   { path: '/payments', label: 'Payments', icon: CreditCard, group: 'Main Console' },
   { path: '/inventory', label: 'Inventory', icon: Package, roles: ['Admin', 'Moderator'], group: 'Main Console' },
+  { path: '/material-accounts', label: 'Material Accounts', icon: ReceiptText, roles: ['Admin', 'Moderator', 'Factory Team'], group: 'Main Console' },
   { path: '/factory', label: 'Confirmed', icon: Factory, roles: ['Admin', 'Factory Team'], group: 'Logistics' },
   { path: '/courier', label: 'Bulk Exported', icon: Truck, roles: ['Admin', 'Courier Team', 'Factory Team'], group: 'Logistics' },
   { path: '/steadfast', label: 'Steadfast Hub', icon: Truck, roles: ['Admin', 'Courier Team', 'Moderator'], group: 'Logistics' },

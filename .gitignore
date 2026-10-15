@@ -59,3 +59,7 @@ final_crosscheck_results.json
 settled_consignments_map.json
 unsettled_*.json
 user_ids_status.json
+
+# Scratch & Migration scripts
+scratch/
+scripts/

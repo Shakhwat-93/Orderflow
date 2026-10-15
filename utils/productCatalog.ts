@@ -170,11 +170,20 @@ export const getProductCheckpoints = (inventory: CatalogItem[] = []) => {
 export const getNormalizedOrderProducts = (order: any): Array<{ name: string; quantity: number; toyBoxNumber: any }> => {
   if (!order) return [];
   if (Array.isArray(order.order_lines_payload) && order.order_lines_payload.length > 0) {
-    return order.order_lines_payload.map((item: any) => ({
-      name: normalizeProductName(item.product_name || 'Unknown Product'),
-      quantity: Number(item.quantity) || 1,
-      toyBoxNumber: item.toybox_serial || item.toyBoxNumber || null
-    }));
+    return order.order_lines_payload.map((item: any) => {
+      let rawName = '';
+      if (typeof item === 'object' && item !== null) {
+        rawName = item.name || item.product_name || item.title || item.productName || item.item_name || '';
+      } else if (typeof item === 'string' || typeof item === 'number') {
+        rawName = String(item);
+      }
+      const finalName = rawName || order.product_name || 'Unknown Product';
+      return {
+        name: normalizeProductName(finalName),
+        quantity: Number(item?.quantity ?? item?.qty) || 1,
+        toyBoxNumber: item?.toybox_serial || item?.toyBoxNumber || item?.serial || null
+      };
+    });
   }
   if (Array.isArray(order.ordered_items) && order.ordered_items.length > 0) {
     if (typeof order.ordered_items[0] !== 'object') {
@@ -184,16 +193,25 @@ export const getNormalizedOrderProducts = (order: any): Array<{ name: string; qu
         toyBoxNumber: serial
       }));
     }
-    return order.ordered_items.map((item: any) => ({
-      name: normalizeProductName(item.name || item.product_name || 'Unknown Product'),
-      quantity: Number(item.quantity || item.qty) || 1,
-      toyBoxNumber: item.toyBoxNumber || null
-    }));
+    return order.ordered_items.map((item: any) => {
+      let rawName = '';
+      if (typeof item === 'object' && item !== null) {
+        rawName = item.name || item.product_name || item.title || item.productName || item.item_name || '';
+      } else if (typeof item === 'string' || typeof item === 'number') {
+        rawName = String(item);
+      }
+      const finalName = rawName || order.product_name || 'Unknown Product';
+      return {
+        name: normalizeProductName(finalName),
+        quantity: Number(item?.quantity ?? item?.qty) || 1,
+        toyBoxNumber: item?.toybox_serial || item?.toyBoxNumber || item?.serial || null
+      };
+    });
   }
   return [{
     name: normalizeProductName(order.product_name || 'Unknown Product'),
     quantity: Number(order.quantity) || 1,
-    toyBoxNumber: null
+    toyBoxNumber: order.toybox_serial || null
   }];
 };
 
@@ -210,11 +228,18 @@ export const getFormattedProductName = (order: any): string => {
     return normalizeProductName(order.product_name || 'Unknown Product');
   }
 
-  const uniqueNames = [...new Set(products.map(p => p.name))];
+  const resolvedProducts = products.map(p => {
+    if ((!p.name || p.name === 'Unknown Product') && order.product_name) {
+      return { ...p, name: normalizeProductName(order.product_name) };
+    }
+    return p;
+  });
+
+  const uniqueNames = [...new Set(resolvedProducts.map(p => p.name))];
   
   if (uniqueNames.length === 1) {
     const name = uniqueNames[0];
-    const serials = products.map(p => p.toyBoxNumber).filter(Boolean);
+    const serials = resolvedProducts.map(p => p.toyBoxNumber).filter(Boolean);
     if (serials.length > 0) {
       return `${name} (#${serials.join(', #')})`;
     }

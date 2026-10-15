@@ -729,7 +729,8 @@ const OrdersBoard = () => {
   const visibleProductBreakdown = useMemo(() => {
     const fallbackBreakdown = Array.from(
       filteredOrders.reduce((acc, order) => {
-        const productName = String(order?.product_name || 'Unknown Product').trim() || 'Unknown Product';
+        const resolvedName = getFormattedProductName(order);
+        const productName = String(order?.product_name || (resolvedName !== 'Unknown Product' ? resolvedName : '') || 'Unknown Product').trim() || 'Unknown Product';
         acc.set(productName, (acc.get(productName) || 0) + 1);
         return acc;
       }, new Map())

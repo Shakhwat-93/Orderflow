@@ -85,6 +85,7 @@ export interface Order {
   status: OrderStatus;
   notes?: string | null;
   ordered_items?: OrderItem[];
+  order_lines_payload?: any[] | null;
   inventory_id?: string | null;
   delivery_charge?: number;
   source?: string;

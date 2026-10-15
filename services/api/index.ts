@@ -15,6 +15,7 @@ import { settingsApi } from './settings';
 import { tasksApi } from './tasks';
 import { notificationsApi } from './notifications';
 import { aiApi } from './ai';
+import { materialAccountsApi, round2, formatBDT } from './materialAccounts';
 
 // Named exports for modular access
 export {
@@ -28,7 +29,10 @@ export {
   settingsApi,
   tasksApi,
   notificationsApi,
-  aiApi
+  aiApi,
+  materialAccountsApi,
+  round2,
+  formatBDT
 };
 
 /**
@@ -200,7 +204,10 @@ export const api = {
 
   // AI Integration
   extractInvoiceItemsWithGroq: aiApi.extractInvoiceItemsWithGroq.bind(aiApi),
-  extractOrderWithAI: aiApi.extractOrderWithAI.bind(aiApi)
+  extractOrderWithAI: aiApi.extractOrderWithAI.bind(aiApi),
+
+  // Material Accounts & Procurement
+  materialAccounts: materialAccountsApi
 };
 
 export default api;

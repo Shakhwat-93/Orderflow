@@ -110,11 +110,15 @@ const ReportsPanelInner = () => {
 
     filteredOrders.forEach(o => {
       const orderProducts: string[] = [];
-      if (Array.isArray(o.ordered_items)) {
-        o.ordered_items.forEach(item => {
-          if (item.name) orderProducts.push(item.name.toLowerCase());
-        });
-      }
+      const items = (Array.isArray(o.order_lines_payload) && o.order_lines_payload.length > 0)
+        ? o.order_lines_payload
+        : (Array.isArray(o.ordered_items) ? o.ordered_items : []);
+      items.forEach((item: any) => {
+        const name = typeof item === 'object' && item !== null
+          ? (item.name || item.product_name || item.title)
+          : (typeof item === 'string' ? item : null);
+        if (name) orderProducts.push(name.toLowerCase());
+      });
       if (o.product_name) {
         orderProducts.push(o.product_name.toLowerCase());
       }

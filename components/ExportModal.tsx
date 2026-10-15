@@ -227,8 +227,10 @@ export const ExportModal = ({
 
           // Format COLOR CODE by combining size and ordered_items
           if (col.key === 'size') {
-            const items = Array.isArray(order?.ordered_items) ? order.ordered_items : [];
-            const colors = [order?.size, ...items.map((i: any) => i?.name || '')]
+            const items = (Array.isArray(order?.order_lines_payload) && order.order_lines_payload.length > 0)
+              ? order.order_lines_payload
+              : (Array.isArray(order?.ordered_items) ? order.ordered_items : []);
+            const colors = [order?.size, ...items.map((i: any) => (typeof i === 'object' ? (i?.color || i?.variant || i?.name || '') : String(i || '')))]
               .filter(Boolean)
               .map((s: any) => String(s).trim());
             value = [...new Set(colors)].join(', ');

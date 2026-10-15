@@ -86,7 +86,9 @@ const getProductColor = (name = '') => {
 };
 
 const getStockStatus = (order: any, toyBoxes: any[] = []) => {
-  const items = order?.ordered_items || [];
+  const items = (Array.isArray(order?.order_lines_payload) && order.order_lines_payload.length > 0)
+    ? order.order_lines_payload
+    : (order?.ordered_items || []);
   const isToyBox = (order?.product_name || '').toUpperCase().includes('TOY BOX');
   if (!isToyBox || items.length === 0) return { matched: true, label: 'Auto Pass', missing: [] };
 
@@ -96,9 +98,9 @@ const getStockStatus = (order: any, toyBoxes: any[] = []) => {
   });
 
   const missing = items.filter((item: any) => {
-    const boxNum = typeof item === 'object' ? item.toyBoxNumber : item;
+    const boxNum = typeof item === 'object' ? (item.toybox_serial || item.toyBoxNumber || item.serial) : item;
     if (boxNum == null) return false;
-    const productName = typeof item === 'object' ? (item.name || order.product_name || 'TOY BOX') : 'TOY BOX';
+    const productName = typeof item === 'object' ? (item.name || item.product_name || item.title || order.product_name || 'TOY BOX') : 'TOY BOX';
     return (stockMap[getToyBoxStockKey(productName, boxNum)] || 0) < 1;
   });
 
@@ -110,7 +112,9 @@ const getStockStatus = (order: any, toyBoxes: any[] = []) => {
 };
 
 const getCleanProductDisplay = (order: any) => {
-  const items = order?.ordered_items || [];
+  const items = (Array.isArray(order?.order_lines_payload) && order.order_lines_payload.length > 0)
+    ? order.order_lines_payload
+    : (order?.ordered_items || []);
   let totalQty = Number(order?.quantity || 0);
   if (items.length > 0) {
     const sumQty = items.reduce((acc: number, item: any) => {
@@ -125,7 +129,7 @@ const getCleanProductDisplay = (order: any) => {
   if (items.length > 0) {
     const itemNames = items.map((item: any) => {
       if (typeof item === 'object') {
-        const name = (item.name || item.product_name || item.title || '').trim();
+        const name = (item.name || item.product_name || item.title || item.productName || order?.product_name || '').trim();
         const qty = Number(item.quantity || item.qty || 1);
         return qty > 1 ? `${name} (x${qty})` : name;
       }
@@ -140,7 +144,7 @@ const getCleanProductDisplay = (order: any) => {
     if (origName && !/^\d+\s*items?$/i.test(origName)) {
       cleanName = origName;
     } else if (items.length > 0) {
-      const fallbackItems = items.map((i: any) => (typeof i === 'object' ? (i.name || i.product_name || i.title) : i)).filter(Boolean);
+      const fallbackItems = items.map((i: any) => (typeof i === 'object' ? (i.name || i.product_name || i.title || i.productName) : i)).filter(Boolean);
       cleanName = fallbackItems.join(', ') || origName || 'Standard Product';
     } else {
       cleanName = origName || 'Standard Product';

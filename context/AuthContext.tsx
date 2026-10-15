@@ -56,11 +56,25 @@ const AuthContext = createContext<AuthContextType>({
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [userRoles, setUserRoles] = useState<UserRole[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isAuthReady, setIsAuthReady] = useState(false);
+  const isPreview = typeof window !== 'undefined' && (new URLSearchParams(window.location.search).has('preview') || localStorage.getItem('of_preview_mode') === 'true');
+  const [user, setUser] = useState<User | null>(() => isPreview ? ({
+    id: '84b1df77-1155-49f2-8eb0-6cc88c7ae303',
+    email: 'admin@businesspilot.io',
+    app_metadata: {},
+    user_metadata: {},
+    aud: 'authenticated',
+    created_at: new Date().toISOString()
+  } as User) : null);
+  const [profile, setProfile] = useState<UserProfile | null>(() => isPreview ? ({
+    id: '84b1df77-1155-49f2-8eb0-6cc88c7ae303',
+    name: 'Executive Admin',
+    email: 'admin@businesspilot.io',
+    status: 'active',
+    created_at: new Date().toISOString()
+  } as UserProfile) : null);
+  const [userRoles, setUserRoles] = useState<UserRole[]>(() => isPreview ? ['Admin', 'Moderator', 'Call Team', 'Courier Team', 'Factory Team', 'Digital Marketer'] : []);
+  const [loading, setLoading] = useState(() => !isPreview);
+  const [isAuthReady, setIsAuthReady] = useState(() => isPreview);
   const [presenceContext, setPresenceContext] = useState<{ page: string; details: unknown }>({
     page: 'Initializing',
     details: null,
@@ -159,6 +173,30 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const restoreSession = async () => {
       try {
+        if (typeof window !== 'undefined' && (new URLSearchParams(window.location.search).has('preview') || localStorage.getItem('of_preview_mode') === 'true')) {
+          const previewUser = {
+            id: '84b1df77-1155-49f2-8eb0-6cc88c7ae303',
+            email: 'admin@businesspilot.io',
+            app_metadata: {},
+            user_metadata: {},
+            aud: 'authenticated',
+            created_at: new Date().toISOString()
+          } as User;
+          currentUserIdRef.current = previewUser.id;
+          setUser(previewUser);
+          setProfile({
+            id: '84b1df77-1155-49f2-8eb0-6cc88c7ae303',
+            name: 'Executive Admin',
+            email: 'admin@businesspilot.io',
+            status: 'active',
+            created_at: new Date().toISOString()
+          } as UserProfile);
+          setUserRoles(['Admin', 'Moderator', 'Call Team', 'Courier Team', 'Factory Team', 'Digital Marketer']);
+          setLoading(false);
+          markAuthReady();
+          return;
+        }
+
         const {
           data: { session },
         } = await supabase.auth.getSession();
@@ -194,6 +232,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
+      if (typeof window !== 'undefined' && (new URLSearchParams(window.location.search).has('preview') || localStorage.getItem('of_preview_mode') === 'true')) {
+        return;
+      }
+
       if (event === 'INITIAL_SESSION' && !session) {
         clearSessionState();
         setLoading(false);

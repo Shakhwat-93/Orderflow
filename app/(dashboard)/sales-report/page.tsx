@@ -363,7 +363,7 @@ const SalesReportInner = () => {
         while (hasMore) {
           const { data, error } = await supabase
             .from('orders')
-            .select('id, created_at, customer_name, phone, product_name, quantity, amount, status, source, ordered_items')
+            .select('id, created_at, customer_name, phone, product_name, quantity, amount, status, source, ordered_items, order_lines_payload')
             .gte('created_at', dateRange.start.toISOString())
             .lte('created_at', dateRange.end.toISOString())
             .order('created_at', { ascending: false })
@@ -412,13 +412,44 @@ const SalesReportInner = () => {
     return reportOrders.filter(o => o.status !== 'Test');
   }, [reportOrders]);
 
+  const getOrderItemsList = useCallback((o: any) => {
+    const rawItems = (Array.isArray(o?.order_lines_payload) && o.order_lines_payload.length > 0)
+      ? o.order_lines_payload
+      : (Array.isArray(o?.ordered_items) && o.ordered_items.length > 0 ? o.ordered_items : null);
+
+    if (!rawItems || rawItems.length === 0) {
+      return [{
+        name: o?.product_name || 'Standard Product',
+        quantity: Number(o?.quantity) || 1,
+        price: Number(o?.amount) || 0
+      }];
+    }
+
+    return rawItems.map((item: any) => {
+      if (typeof item === 'object' && item !== null) {
+        const name = item.name || item.product_name || item.title || item.productName || o?.product_name || 'Standard Product';
+        const quantity = Number(item.quantity ?? item.qty) || 1;
+        const price = Number(item.price ?? item.unit_price ?? (Number(o?.amount) / Math.max(1, quantity))) || 0;
+        return {
+          ...item,
+          name,
+          quantity,
+          price
+        };
+      }
+      return {
+        name: String(item) || o?.product_name || 'Standard Product',
+        quantity: 1,
+        price: Number(o?.amount) || 0
+      };
+    });
+  }, []);
+
   // ── Unique Colors List ──
   const uniqueColors = useMemo(() => {
     const colors = new Set();
     filtered.forEach(o => {
-      const items = Array.isArray(o.ordered_items) && o.ordered_items.length > 0
-        ? o.ordered_items
-        : [{ name: o.product_name }];
+      const items = getOrderItemsList(o);
       
       items.forEach(item => {
         const color = extractColor(item.name || o.product_name, item);
@@ -428,16 +459,14 @@ const SalesReportInner = () => {
       });
     });
     return ['All', ...Array.from(colors).sort()] as string[];
-  }, [filtered]);
+  }, [filtered, getOrderItemsList]);
 
   // ── Color Filtered Data ──
   const colorFilteredData = useMemo(() => {
     if (colorFilter === 'All') return filtered;
 
     return filtered.map(o => {
-      const items = Array.isArray(o.ordered_items) && o.ordered_items.length > 0
-        ? o.ordered_items
-        : [{ name: o.product_name, quantity: o.quantity||1, price: o.amount||0 }];
+      const items = getOrderItemsList(o);
 
       const matchingItems = items.filter(item => {
         const itemColor = extractColor(item.name || o.product_name, item);
@@ -455,7 +484,7 @@ const SalesReportInner = () => {
         quantity: matchingItems.reduce((acc, item) => acc + (Number(item.quantity) || 1), 0)
       };
     }).filter(Boolean);
-  }, [filtered, colorFilter]);
+  }, [filtered, colorFilter, getOrderItemsList]);
 
   // ── 1. Product-wise Sales Summary Data ──
   // Columns: # | Product | Unit Cost | Selling Price | Total Qty | Total Order Selling Amount | Orders | Confirmed | Pending | Cancelled
@@ -463,9 +492,7 @@ const SalesReportInner = () => {
     const map: Record<string, any> = {};
 
     colorFilteredData.forEach(o => {
-      const items = Array.isArray(o.ordered_items) && o.ordered_items.length > 0
-        ? o.ordered_items
-        : [{ name: o.product_name, quantity: o.quantity || 1, price: o.amount || 0 }];
+      const items = getOrderItemsList(o);
 
       const isConf = isConfirmedStatus(o.status) && !(o.notes && o.notes.includes('[Was Incomplete]'));
       const isCanc = o.status === 'Cancelled';

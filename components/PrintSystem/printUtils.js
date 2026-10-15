@@ -19,14 +19,18 @@ export const extractProductDetails = (order) => {
 
   if (Array.isArray(order.order_lines_payload) && order.order_lines_payload.length > 0) {
     return order.order_lines_payload.map((item) => {
-      const qty   = Number(item.quantity)  || 1;
-      const total = Number(item.line_total ?? ((item.unit_price || 0) * qty)) || 0;
-      const unit  = Number(item.unit_price ?? (total / qty)) || 0;
+      const qty   = Number(item.quantity ?? item.qty) || 1;
+      const unit  = Number(item.unit_price ?? item.price ?? 0);
+      const total = Number(item.line_total ?? (unit * qty)) || 0;
+      const resolvedUnit = unit > 0 ? unit : (qty > 0 && total > 0 ? total / qty : 0);
+      const rawName = typeof item === 'object' && item !== null
+        ? (item.name || item.product_name || item.title || item.productName)
+        : (typeof item === 'string' ? item : null);
       return {
-        name:       item.product_name || 'Unknown Product',
+        name:       rawName || order.product_name || 'Unknown Product',
         quantity:   qty,
         size:       item.size || item.color || '',
-        unitPrice:  unit,
+        unitPrice:  resolvedUnit,
         totalPrice: total,
       };
     });
@@ -48,14 +52,19 @@ export const extractProductDetails = (order) => {
       }));
     }
     return order.ordered_items.map((item) => {
-      const qty   = Number(item.quantity) || 1;
-      const unit  = Number(item.price || 0);
+      const qty   = Number(item.quantity ?? item.qty) || 1;
+      const unit  = Number(item.unit_price ?? item.price ?? 0);
+      const total = Number(item.line_total ?? (unit * qty)) || 0;
+      const resolvedUnit = unit > 0 ? unit : (qty > 0 && total > 0 ? total / qty : 0);
+      const rawName = typeof item === 'object' && item !== null
+        ? (item.name || item.product_name || item.title || item.productName)
+        : (typeof item === 'string' ? item : null);
       return {
-        name:       item.name || item.product_name || 'Unknown Product',
+        name:       rawName || order.product_name || 'Unknown Product',
         quantity:   qty,
         size:       item.size || item.color || '',
-        unitPrice:  unit,
-        totalPrice: unit * qty,
+        unitPrice:  resolvedUnit,
+        totalPrice: total,
       };
     });
   }

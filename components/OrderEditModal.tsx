@@ -82,13 +82,19 @@ export const OrderEditModal = ({ isOpen, onClose, order = null }: { isOpen: bool
     if (isOpen) {
       if (order) {
         let items: any[] = [];
-        if (Array.isArray(order.ordered_items) && order.ordered_items.length > 0) {
-          items = order.ordered_items.map((item: any) => {
+        const rawItems = (Array.isArray(order.order_lines_payload) && order.order_lines_payload.length > 0)
+          ? order.order_lines_payload
+          : (Array.isArray(order.ordered_items) && order.ordered_items.length > 0 ? order.ordered_items : null);
+        if (rawItems) {
+          items = rawItems.map((item: any) => {
             if (typeof item === 'object') {
-              const matchedProduct = findProductRecordByName(inventory, item.name);
+              const itemName = item.name || item.product_name || item.title || order.product_name || '';
+              const matchedProduct = findProductRecordByName(inventory, itemName);
               return {
                 ...item,
-                price: item.price ?? matchedProduct?.unit_price ?? 0,
+                name: itemName,
+                price: item.price ?? item.unit_price ?? matchedProduct?.unit_price ?? 0,
+                quantity: Number(item.quantity ?? item.qty) || 1,
                 isToyBox: typeof item.isToyBox === 'boolean' ? item.isToyBox : matchedProduct?.isToyBox || false
               };
             }

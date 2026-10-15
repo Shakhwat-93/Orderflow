@@ -15,7 +15,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useCourierRatio } from '@/context/CourierRatioContext';
 import api from '@/lib/api';
 import { deserializeDateRange, usePersistentState } from '@/utils/persistentState';
-import { getProductOptions } from '@/utils/productCatalog';
+import { getProductOptions, getFormattedProductName } from '@/utils/productCatalog';
 import CurrencyIcon from '@/components/CurrencyIcon';
 import { Modal } from '@/components/Modal';
 import { useRouteOrderReadState } from '@/hooks/useRouteOrderReadState';
@@ -213,7 +213,7 @@ const CallTeamOrderCard = React.memo(function CallTeamOrderCard({
       </div>
 
       <div className="elite-col-product">
-        <span className="elite-prod-name">{order.product_name || 'Unknown Product'}</span>
+        <span className="elite-prod-name">{getFormattedProductName(order)}</span>
         <span className="elite-prod-meta">
           {order.size ? `Size: ${order.size}` : `Qty: ${order.quantity || 1}`} • {order.source || 'Direct'}
         </span>
@@ -331,7 +331,7 @@ const CallTeamOrderCard = React.memo(function CallTeamOrderCard({
 
       <div className="mob-card-body">
         <div className="mob-card-product">
-          {order.product_name || 'Unknown Product'}
+          {getFormattedProductName(order)}
           <span className="mob-card-product-meta">
             • {order.size ? `Size: ${order.size}` : `Qty: ${order.quantity || 1}`} • {order.source || 'Direct'}
           </span>

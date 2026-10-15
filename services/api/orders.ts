@@ -568,14 +568,22 @@ export const ordersApi = {
 
   async getRecentActivity(limit = 50): Promise<OrderActivityLog[]> {
     return dedupPromise(`getRecentActivity:${limit}`, async () => {
-      const { data, error } = await supabase
-        .from('order_activity_logs')
-        .select('*')
-        .order('timestamp', { ascending: false })
-        .limit(limit);
+      try {
+        const { data, error } = await supabase
+          .from('order_activity_logs')
+          .select('*')
+          .order('timestamp', { ascending: false })
+          .limit(limit);
 
-      if (error) throw formatApiError(error, 'Failed to retrieve recent activity');
-      return (data as OrderActivityLog[]) || [];
+        if (error) {
+          console.warn('getRecentActivity non-fatal warning:', error.message);
+          return [];
+        }
+        return (data as OrderActivityLog[]) || [];
+      } catch (e: any) {
+        console.warn('getRecentActivity non-fatal exception:', e?.message || e);
+        return [];
+      }
     });
   },
 

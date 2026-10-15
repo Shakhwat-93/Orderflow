@@ -38,11 +38,11 @@ export const PackingSlip: React.FC<PackingSlipProps> = ({ orders = [] }) => {
                 </tr>
               </thead>
               <tbody>
-                {(order.ordered_items && order.ordered_items.length > 0) ? (
-                  order.ordered_items.map((item: any, i: number) => (
+                {((Array.isArray(order.order_lines_payload) && order.order_lines_payload.length > 0) || (Array.isArray(order.ordered_items) && order.ordered_items.length > 0)) ? (
+                  ((Array.isArray(order.order_lines_payload) && order.order_lines_payload.length > 0) ? order.order_lines_payload : order.ordered_items).map((item: any, i: number) => (
                     <tr key={i}>
-                      <td>{item.name || order.product_name}</td>
-                      <td className="text-right">{item.quantity}</td>
+                      <td>{typeof item === 'object' ? (item.name || item.product_name || item.title || order.product_name) : (String(item) || order.product_name)}</td>
+                      <td className="text-right">{typeof item === 'object' ? (Number(item.quantity ?? item.qty) || 1) : 1}</td>
                     </tr>
                   ))
                 ) : (
