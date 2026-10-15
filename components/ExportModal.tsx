@@ -5,6 +5,7 @@ import {
   Download, X, FileText, Filter, CheckSquare,
   Calendar, Package, CheckCircle2, Loader2, History, ChevronDown
 } from 'lucide-react';
+import { getFormattedProductName } from '@/utils/productCatalog';
 
 // ── Constants ────────────────────────────────────────────────
 
@@ -194,10 +195,13 @@ export const ExportModal = ({
 
       case 'product':
         if (!selectedProduct) return allOrders.filter(o => o.status !== 'Test');
-        return allOrders.filter(o =>
-          o.status !== 'Test' &&
-          String(o.product_name || '').toLowerCase().includes(selectedProduct.toLowerCase())
-        );
+        return allOrders.filter(o => {
+          if (o.status === 'Test') return false;
+          const pName = getFormattedProductName(o).toLowerCase();
+          const rawName = String(o.product_name || '').toLowerCase();
+          const target = selectedProduct.toLowerCase();
+          return pName.includes(target) || rawName.includes(target);
+        });
 
       case 'current':
       default:
@@ -224,6 +228,11 @@ export const ExportModal = ({
         const row: Record<string, any> = {};
         columns.forEach(col => {
           let value: any = order[col.key];
+
+          // Format ORDER SHORT / PRODUCT NAME
+          if (col.key === 'product_name') {
+            value = getFormattedProductName(order);
+          }
 
           // Format COLOR CODE by combining size and ordered_items
           if (col.key === 'size') {
@@ -315,7 +324,11 @@ export const ExportModal = ({
 
   // Unique product names for the product dropdown
   const uniqueProducts = useMemo(() => {
-    const names = new Set((allOrders || []).map(o => o.product_name).filter(Boolean));
+    const names = new Set(
+      (allOrders || [])
+        .map(o => getFormattedProductName(o))
+        .filter(n => n && n !== 'Unknown Product')
+    );
     return Array.from(names).sort();
   }, [allOrders]);
 

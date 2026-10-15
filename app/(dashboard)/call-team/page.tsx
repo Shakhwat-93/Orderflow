@@ -476,9 +476,11 @@ export default function CallTeamPanel() {
       (o.id || '').toLowerCase().includes(term) ||
       (o.customer_name || '').toLowerCase().includes(term) ||
       (o.phone || '').includes(term) ||
-      (o.product_name || '').toLowerCase().includes(term);
+      (o.product_name || '').toLowerCase().includes(term) ||
+      getFormattedProductName(o).toLowerCase().includes(term);
 
-    const matchesProduct = !productFilter || o.product_name === productFilter;
+    const formattedProd = getFormattedProductName(o);
+    const matchesProduct = !productFilter || o.product_name === productFilter || formattedProd.toLowerCase().includes(productFilter.toLowerCase());
 
     let matchesDate = true;
     if (dateRange.start && dateRange.end) {

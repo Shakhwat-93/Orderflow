@@ -110,7 +110,11 @@ const OrdersBoard = () => {
     return (Array.isArray(orders) ? orders : []).filter((order) => {
       if (filters.status && filters.status !== 'All' && order.status !== filters.status) return false;
       if (filters.source && filters.source !== 'All' && order.source !== filters.source) return false;
-      if (productName && !String(order.product_name || '').toLowerCase().includes(productName)) return false;
+      if (productName) {
+        const formatted = getFormattedProductName(order).toLowerCase();
+        const raw = String(order.product_name || '').toLowerCase();
+        if (!formatted.includes(productName) && !raw.includes(productName)) return false;
+      }
 
       if (dateStart || dateEnd) {
         const orderTime = order.created_at ? new Date(order.created_at).getTime() : 0;
@@ -730,7 +734,13 @@ const OrdersBoard = () => {
     const fallbackBreakdown = Array.from(
       filteredOrders.reduce((acc, order) => {
         const resolvedName = getFormattedProductName(order);
-        const productName = String(order?.product_name || (resolvedName !== 'Unknown Product' ? resolvedName : '') || 'Unknown Product').trim() || 'Unknown Product';
+        const productName = String(
+          (resolvedName && resolvedName !== 'Unknown Product' && !/^\d+\s*items?$/i.test(resolvedName))
+            ? resolvedName
+            : (order?.product_name && !/^\d+\s*items?$/i.test(order.product_name))
+              ? order.product_name
+              : resolvedName || order?.product_name || 'Standard Product'
+        ).trim();
         acc.set(productName, (acc.get(productName) || 0) + 1);
         return acc;
       }, new Map())

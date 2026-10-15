@@ -30,6 +30,7 @@ import { AnimatedThemeToggler } from '@/components/ui/animated-theme-toggler';
 import { SmoothCaretInput } from '@/components/ui/smooth-caret-input';
 import CurrencyIcon from '@/components/CurrencyIcon';
 import { createClient } from '@/lib/supabase/client';
+import { getFormattedProductName } from '@/utils/productCatalog';
 
 interface HeaderProps {
   onMenuToggle?: () => void;
@@ -133,7 +134,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
 
         const { data: orders } = await supabase
           .from('orders')
-          .select('id, customer_name, phone, amount, status, product_name')
+          .select('id, customer_name, phone, amount, status, product_name, ordered_items, order_lines_payload')
           .or(
             `customer_name.ilike.${searchTerm},phone.ilike.${searchTerm},product_name.ilike.${searchTerm}`
           )
@@ -328,7 +329,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
                         {order.customer_name} <span className="item-id-elite">#{order.id}</span>
                       </div>
                       <div className="item-sub-elite">
-                        {order.product_name} • <CurrencyIcon size={10} />
+                        {getFormattedProductName(order)} • <CurrencyIcon size={10} />
                         {order.amount}
                       </div>
                     </div>

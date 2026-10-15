@@ -183,16 +183,16 @@ export const reportsApi = {
       const counts = new Map<string, number>();
       rows.forEach((row) => {
         let name = row?.product_name;
-        if (!name || name === 'Unknown Product') {
+        if (!name || name === 'Unknown Product' || /^\d+\s*items?$/i.test(name) || name.toLowerCase().startsWith('multi item')) {
           const lines = (Array.isArray(row.order_lines_payload) && row.order_lines_payload.length > 0)
             ? row.order_lines_payload
             : (Array.isArray(row.ordered_items) ? row.ordered_items : []);
-          const first = lines.find((l: any) => l && (l.name || l.product_name || l.title));
+          const first = lines.find((l: any) => l && (l.name || l.product_name || l.title || l.productName));
           if (first) {
-            name = first.name || first.product_name || first.title;
+            name = first.name || first.product_name || first.title || first.productName;
           }
         }
-        const productName = String(name || 'Unknown Product').trim() || 'Unknown Product';
+        const productName = String(name || 'Standard Product').trim() || 'Standard Product';
         counts.set(productName, (counts.get(productName) || 0) + 1);
       });
 

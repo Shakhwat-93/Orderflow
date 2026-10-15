@@ -11,6 +11,7 @@ import {
   ChevronRight, HelpCircle, Volume2, VolumeX, ShieldAlert,
   User, Package, MapPin, X
 } from 'lucide-react';
+import { getFormattedProductName } from '@/utils/productCatalog';
 
 // ── Synthesize premium alert sound ──
 const playPremiumAlertSound = (muted: boolean) => {
@@ -307,7 +308,7 @@ export const UnattendedOrdersAlertModal = () => {
                       </div>
                       <div className="order-meta-info-grid">
                         <div className="meta-info-pill"><Phone size={12} /> <span>{order.phone || 'No Phone'}</span></div>
-                        <div className="meta-info-pill"><Package size={12} /> <span className="product-text-truncate">{order.product_name || 'Custom Product'}</span></div>
+                        <div className="meta-info-pill"><Package size={12} /> <span className="product-text-truncate">{getFormattedProductName(order)}</span></div>
                       </div>
                     </div>
                     <div className="order-elapsed-timer animate-timer">

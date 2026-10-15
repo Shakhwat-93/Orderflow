@@ -85,7 +85,8 @@ export const OrderProvider = ({ children }: { children: React.ReactNode }) => {
           }
           lastPersistedOrdersHashRef.current = fingerprint;
           const serialized = JSON.stringify(snapshot);
-          window.localStorage.setItem('of_recent_orders', serialized);
+          window.localStorage.setItem('of_recent_orders_v2', serialized);
+          window.localStorage.removeItem('of_recent_orders'); // Purge legacy cache
         } catch (e) {
           console.warn('Orders background cache error:', e);
         }
@@ -117,12 +118,23 @@ export const OrderProvider = ({ children }: { children: React.ReactNode }) => {
   // Initialize from cache for instant-on feeling
   useEffect(() => {
     const cachedStats = localStorage.getItem('of_dashboard_stats');
-    const cachedOrders = localStorage.getItem('of_recent_orders');
+    const cachedOrders = localStorage.getItem('of_recent_orders_v2') || localStorage.getItem('of_recent_orders');
     if (cachedStats) {
       try { setStats(JSON.parse(cachedStats)); } catch (e) { console.warn('Cache error:', e); }
     }
     if (cachedOrders) {
-      try { setOrders(JSON.parse(cachedOrders)); } catch (e) { console.warn('Cache error:', e); }
+      try {
+        const parsed = JSON.parse(cachedOrders);
+        // Sanitize: do NOT load stale cache if it contains 'Unknown Product'
+        if (Array.isArray(parsed) && !parsed.some((o: any) => o?.product_name === 'Unknown Product')) {
+          setOrders(parsed);
+        } else {
+          localStorage.removeItem('of_recent_orders');
+          localStorage.removeItem('of_recent_orders_v2');
+        }
+      } catch (e) {
+        console.warn('Cache error:', e);
+      }
     }
   }, []);
 
