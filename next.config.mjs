@@ -13,7 +13,6 @@ const nextConfig = {
     optimizePackageImports: [
       'recharts',
       'framer-motion',
-      '@supabase/supabase-js',
       'clsx',
       'tailwind-merge',
     ],
