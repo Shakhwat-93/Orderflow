@@ -925,27 +925,21 @@ const FactoryPanelInner = () => {
     try {
       const { data, error } = await supabase
         .from('factory_production_logs')
-        .select('product_name, quantity_ready, total_cost, payment_status');
+        .select('product_name, quantity_ready, total_cost, payment_status, paid_amount');
       if (error) throw error;
 
       let totalQty = 0;
       let totalCost = 0;
-      let totalPaid = 0;
-      let totalDue = 0;
       const breakdownMap = {};
 
       (data || []).forEach(log => {
         const qty = Number(log.quantity_ready) || 0;
         const cost = Number(log.total_cost) || 0;
-        const isPaid = log.payment_status === 'Paid';
+        const paid = Number(log.paid_amount || 0);
+        const due = Math.max(0, cost - paid);
 
         totalQty += qty;
         totalCost += cost;
-        if (isPaid) {
-          totalPaid += cost;
-        } else {
-          totalDue += cost;
-        }
 
         const name = log.product_name || 'Unknown Product';
         if (!breakdownMap[name]) {
@@ -953,12 +947,18 @@ const FactoryPanelInner = () => {
         }
         breakdownMap[name].qty += qty;
         breakdownMap[name].cost += cost;
-        if (isPaid) {
-          breakdownMap[name].paid += cost;
-        } else {
-          breakdownMap[name].due += cost;
-        }
+        breakdownMap[name].paid += paid;
+        breakdownMap[name].due += due;
       });
+
+      const { data: payments } = await supabase
+        .from('production_payments')
+        .select('amount');
+
+      const totalPaid = (payments && payments.length > 0)
+        ? payments.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0)
+        : (data || []).reduce((sum: number, l: any) => sum + Number(l.paid_amount || 0), 0);
+      const totalDue = Math.max(0, totalCost - totalPaid);
 
       setProductionStats({
         totalQty,
