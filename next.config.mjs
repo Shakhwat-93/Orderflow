@@ -57,6 +57,17 @@ const nextConfig = {
       },
     ];
   },
+  async rewrites() {
+    const supabaseDestination =
+      process.env.INTERNAL_SUPABASE_URL ||
+      'http://supabasekong-a5tg2fvpwj6emkewfdknamid.187.77.159.209.sslip.io';
+    return [
+      {
+        source: '/_supabase/:path*',
+        destination: `${supabaseDestination}/:path*`,
+      },
+    ];
+  },
   outputFileTracingRoot: process.cwd(),
   env: {
     APP_VERSION: '2.0.0-next-agency-speed',

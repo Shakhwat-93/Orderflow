@@ -23,9 +23,16 @@ const resolvedAnonKey = (!rawAnonKey || rawAnonKey.includes('Ki7U_'))
   : rawAnonKey;
 
 export const env = {
-  supabase: {
-    url: resolvedUrl,
-    anonKey: resolvedAnonKey,
+  get supabase() {
+    return {
+      get url() {
+        if (typeof window !== 'undefined') {
+          return `${window.location.origin}/_supabase`;
+        }
+        return resolvedUrl;
+      },
+      anonKey: resolvedAnonKey,
+    };
   },
   ai: {
     openRouterApiKey: process.env.OPENROUTER_API_KEY || '',
@@ -35,7 +42,7 @@ export const env = {
     url: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
     version: process.env.APP_VERSION || '2.0.0-next-foundation',
   },
-} as const;
+};
 
 export function validateClientEnv() {
   if (!env.supabase.url || !env.supabase.anonKey) {
