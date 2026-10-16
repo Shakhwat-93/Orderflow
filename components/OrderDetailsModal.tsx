@@ -941,9 +941,26 @@ export const OrderDetailsModal = ({
 
           <div className="details-section-card glass-card full-width">
             <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div className="section-title-main">
+              <div className="section-title-main" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Truck size={18} className="text-accent" />
                 <span>Courier Ratio Intelligence</span>
+                {courierRatioData?.fetched && (
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em',
+                      backgroundColor: courierRatioData.source === 'steadfast' ? 'rgba(59, 130, 246, 0.12)' : 'rgba(16, 185, 129, 0.12)',
+                      color: courierRatioData.source === 'steadfast' ? '#2563eb' : '#059669',
+                      border: `1px solid ${courierRatioData.source === 'steadfast' ? 'rgba(59, 130, 246, 0.25)' : 'rgba(16, 185, 129, 0.25)'}`
+                    }}
+                  >
+                    {courierRatioData.source === 'steadfast' ? 'Steadfast' : 'BD Courier'}
+                  </span>
+                )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 {courierRatioData?.fetchedAt && (

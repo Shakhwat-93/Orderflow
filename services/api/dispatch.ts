@@ -119,6 +119,32 @@ export const dispatchApi = {
 
     const riskLevel = this.inferCourierRiskLevel(total, ratio, primaryPayload.risk_level || result?.risk_level);
 
+    let couriers = (primaryPayload.couriers && typeof primaryPayload.couriers === 'object')
+      ? primaryPayload.couriers
+      : (result?.couriers && typeof result.couriers === 'object') ? result.couriers : {};
+
+    if (Object.keys(couriers).length === 0 && primaryPayload && typeof primaryPayload === 'object') {
+      const reconstructed: Record<string, any> = {};
+      Object.keys(primaryPayload).forEach((key) => {
+        if (key !== 'summary' && primaryPayload[key] && typeof primaryPayload[key] === 'object') {
+          const item = primaryPayload[key];
+          reconstructed[key] = {
+            name: item.name || key,
+            logo: item.logo || '',
+            total: Number(item.total_parcel ?? item.total ?? 0) || 0,
+            success: Number(item.success_parcel ?? item.success_count ?? item.success ?? 0) || 0,
+            cancelled: Number(item.cancelled_parcel ?? item.cancelled_count ?? item.cancelled ?? 0) || 0,
+            ratio: Number(item.success_ratio ?? item.ratio ?? 0) || 0
+          };
+        }
+      });
+      if (Object.keys(reconstructed).length > 0) {
+        couriers = reconstructed;
+      }
+    }
+
+    const source = result?.source || result?.provider || primaryPayload?.source || 'bdcourier';
+
     return {
       phone: normalizedPhone,
       total,
@@ -126,7 +152,8 @@ export const dispatchApi = {
       cancelled,
       ratio,
       riskLevel,
-      couriers: primaryPayload.couriers || {},
+      couriers,
+      source,
       raw: primaryPayload.raw || result || null
     };
   },
@@ -270,6 +297,8 @@ export const dispatchApi = {
     const isCompleted = fetchStatus === 'completed';
     const nowIso = new Date().toISOString();
 
+    const detectedSource = result?.source || result?.provider;
+
     let payload: Record<string, any>;
     if (fetchStatus === 'failed') {
       payload = {
@@ -282,7 +311,7 @@ export const dispatchApi = {
         couriers: {},
         raw: result || null,
         fetch_status: 'failed',
-        source: 'steadfast',
+        source: detectedSource || 'bdcourier',
         fetched_at: null,
         updated_at: nowIso
       };
@@ -298,7 +327,7 @@ export const dispatchApi = {
         couriers: normalizedPayload.couriers || {},
         raw: normalizedPayload.raw || result || null,
         fetch_status: fetchStatus,
-        source: 'steadfast',
+        source: detectedSource || normalizedPayload.source || 'bdcourier',
         fetched_at: isCompleted ? nowIso : null,
         updated_at: nowIso
       };

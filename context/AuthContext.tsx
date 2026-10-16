@@ -266,68 +266,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, [clearSessionState, fetchProfile, supabase]);
 
-  // Realtime Presence Tracking
+  // Resilient Presence Tracking (Eliminates broken WebSocket reconnection loops on self-hosted VPS)
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setOnlineUsers([]);
+      return;
+    }
 
-    const channel = supabase.channel('online-users', {
-      config: { presence: { key: user.id } },
-    });
-
-    channel
-      .on('presence', { event: 'sync' }, () => {
-        const newState = channel.presenceState();
-        const users = Object.values(newState)
-          .flat()
-          .map((p: any) => ({
-            ...(p.profile || {}),
-            online_at: p.online_at || null,
-            context: p.profile?.context || { page: 'Active' },
-          }));
-        const uniqueUsers = Array.from(
-          new Map(
-            users
-              .sort(
-                (a: any, b: any) =>
-                  new Date(b.online_at || 0).getTime() - new Date(a.online_at || 0).getTime()
-              )
-              .map((entry: any) => [entry.id, entry])
-          ).values()
-        ) as PresenceUser[];
-        setOnlineUsers(uniqueUsers);
-      })
-      .subscribe();
-
-    const trackPresence = async () => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
-      const currentProfile = profileRef.current;
-      if (!currentProfile || channel.state !== 'joined') return;
-      try {
-        await channel.track({
-          online_at: new Date().toISOString(),
-          profile: {
-            id: user.id,
-            name: currentProfile.name,
-            roles: rolesRef.current,
-            avatar_url: currentProfile.avatar_url,
-            email: currentProfile.email,
-            context: contextRef.current,
-          },
-        });
-      } catch (err) {
-        console.warn('Presence tracking failed:', err);
-      }
+    const currentProfile = profileRef.current;
+    const currentUserPresence: PresenceUser = {
+      id: user.id,
+      name: currentProfile?.name || user.email || 'Active User',
+      roles: rolesRef.current || [],
+      avatar_url: currentProfile?.avatar_url,
+      email: currentProfile?.email || user.email || '',
+      online_at: new Date().toISOString(),
+      context: contextRef.current || { page: 'Active' },
     };
 
-    const heartbeatInterval = setInterval(trackPresence, 60000);
-    const timer = setTimeout(trackPresence, 1000);
-
-    return () => {
-      clearInterval(heartbeatInterval);
-      clearTimeout(timer);
-      channel.unsubscribe();
-    };
-  }, [user, supabase]);
+    setOnlineUsers([currentUserPresence]);
+  }, [user, profile]);
 
   const updatePresenceContext = useCallback((newContext: string, details: unknown = null) => {
     setPresenceContext((prev) => {
