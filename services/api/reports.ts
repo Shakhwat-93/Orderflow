@@ -16,9 +16,9 @@ export const reportsApi = {
         const now = new Date();
         const todayStr = now.toDateString();
 
-        // Resilient parallel retrieval: Fetch recent orders and planned count without blocking unindexed log scans.
+        // Resilient parallel retrieval: Fetch recent orders and exact count without blocking unindexed log scans.
         const [countResult, ordersResult] = await Promise.allSettled([
-          supabase.from('orders').select('id', { count: 'planned', head: true }),
+          supabase.from('orders').select('id', { count: 'exact', head: true }),
           supabase
             .from('orders')
             .select('status, amount, phone, product_name, created_at, updated_at, source')
@@ -35,8 +35,8 @@ export const reportsApi = {
         const recentOrders = (ordersResult.status === 'fulfilled' ? ordersResult.value.data : []) || [];
         const orders = recentOrders;
 
-        const totalPlanned = countResult.status === 'fulfilled' ? countResult.value.count : null;
-        const total = totalPlanned && totalPlanned > 0 ? totalPlanned : orders.length;
+        const totalExact = countResult.status === 'fulfilled' ? countResult.value.count : null;
+        const total = totalExact && totalExact > 0 ? totalExact : orders.length;
 
         const successfulStatuses = ['Confirmed', 'Completed', 'Shipped', 'Factory Processing'];
         const completedOrders = orders.filter((o: any) => successfulStatuses.includes(o.status));
@@ -141,127 +141,154 @@ export const reportsApi = {
    * Order product aggregation
    */
   async getOrderProductBreakdown(filters: OrderFilters = {}, limit = 50000) {
-    try {
-      const batchSize = 1000;
-      const rows: any[] = [];
-      let from = 0;
+    const dedupKey = `getOrderProductBreakdown:${limit}:${JSON.stringify(filters)}`;
+    return dedupPromise(dedupKey, async () => {
+      try {
+        const batchSize = 1000;
+        const rows: any[] = [];
+        let from = 0;
 
-      while (rows.length < limit) {
-        let query = supabase
-          .from('orders')
-          .select('product_name, ordered_items, order_lines_payload')
-          .order('created_at', { ascending: false })
-          .range(from, from + batchSize - 1);
+        while (rows.length < limit) {
+          let query = supabase
+            .from('orders')
+            .select('product_name, ordered_items, order_lines_payload')
+            .order('created_at', { ascending: false })
+            .range(from, from + batchSize - 1);
 
-        if (filters.status && filters.status !== 'All') {
-          query = query.eq('status', filters.status);
-        }
-        if (filters.source && filters.source !== 'All') {
-          query = query.eq('source', filters.source);
-        }
-        if (filters.searchTerm) {
-          query = query.or(
-            `id.ilike.%${filters.searchTerm}%,customer_name.ilike.%${filters.searchTerm}%,phone.ilike.%${filters.searchTerm}%`
-          );
-        }
-        if (filters.dateRange?.start && filters.dateRange?.end) {
-          const start = typeof filters.dateRange.start === 'string' ? filters.dateRange.start : filters.dateRange.start.toISOString();
-          const end = typeof filters.dateRange.end === 'string' ? filters.dateRange.end : filters.dateRange.end.toISOString();
-          query = query.gte('created_at', start).lte('created_at', end);
-        }
-
-        const { data, error } = await query;
-        if (error) throw error;
-
-        const batch = data || [];
-        rows.push(...batch);
-
-        if (batch.length < batchSize) break;
-        from += batchSize;
-      }
-
-      const counts = new Map<string, number>();
-      rows.forEach((row) => {
-        let name = row?.product_name;
-        if (!name || name === 'Unknown Product' || /^\d+\s*items?$/i.test(name) || name.toLowerCase().startsWith('multi item')) {
-          const lines = (Array.isArray(row.order_lines_payload) && row.order_lines_payload.length > 0)
-            ? row.order_lines_payload
-            : (Array.isArray(row.ordered_items) ? row.ordered_items : []);
-          const first = lines.find((l: any) => l && (l.name || l.product_name || l.title || l.productName));
-          if (first) {
-            name = first.name || first.product_name || first.title || first.productName;
+          if (filters.status && filters.status !== 'All') {
+            query = query.eq('status', filters.status);
           }
-        }
-        const productName = String(name || 'Standard Product').trim() || 'Standard Product';
-        counts.set(productName, (counts.get(productName) || 0) + 1);
-      });
+          if (filters.source && filters.source !== 'All') {
+            query = query.eq('source', filters.source);
+          }
+          if (filters.searchTerm) {
+            query = query.or(
+              `id.ilike.%${filters.searchTerm}%,customer_name.ilike.%${filters.searchTerm}%,phone.ilike.%${filters.searchTerm}%`
+            );
+          }
+          if (filters.dateRange?.start && filters.dateRange?.end) {
+            const start = typeof filters.dateRange.start === 'string' ? filters.dateRange.start : filters.dateRange.start.toISOString();
+            const end = typeof filters.dateRange.end === 'string' ? filters.dateRange.end : filters.dateRange.end.toISOString();
+            query = query.gte('created_at', start).lte('created_at', end);
+          }
 
-      return Array.from(counts.entries())
-        .map(([name, count]) => ({ name, count }))
-        .sort((a, b) => {
-          if (b.count !== a.count) return b.count - a.count;
-          return a.name.localeCompare(b.name);
+          const { data, error } = await query;
+          if (error) throw error;
+
+          const batch = data || [];
+          rows.push(...batch);
+
+          if (batch.length < batchSize) break;
+          from += batchSize;
+        }
+
+        const counts = new Map<string, number>();
+        rows.forEach((row) => {
+          let name = row?.product_name;
+          if (!name || name === 'Unknown Product' || /^\d+\s*items?$/i.test(name) || name.toLowerCase().startsWith('multi item')) {
+            const lines = (Array.isArray(row.order_lines_payload) && row.order_lines_payload.length > 0)
+              ? row.order_lines_payload
+              : (Array.isArray(row.ordered_items) ? row.ordered_items : []);
+            const first = lines.find((l: any) => l && (l.name || l.product_name || l.title || l.productName));
+            if (first) {
+              name = first.name || first.product_name || first.title || first.productName;
+            }
+          }
+          const productName = String(name || 'Standard Product').trim() || 'Standard Product';
+          counts.set(productName, (counts.get(productName) || 0) + 1);
         });
-    } catch (err) {
-      throw formatApiError(err, 'Failed to fetch product breakdown');
-    }
+
+        return Array.from(counts.entries())
+          .map(([name, count]) => ({ name, count }))
+          .sort((a, b) => {
+            if (b.count !== a.count) return b.count - a.count;
+            return a.name.localeCompare(b.name);
+          });
+      } catch (err) {
+        throw formatApiError(err, 'Failed to fetch product breakdown');
+      }
+    });
   },
 
   /**
-   * Order status distribution - efficient aggregation in a single query
+   * Order status distribution - accurate count aggregation using parallel head count queries.
+   * Avoids PostgREST default 1,000 row truncation while transferring 0 body bytes over network.
    */
   async getOrderStatusBreakdown(filters: OrderFilters = {}) {
-    try {
-      let query = supabase.from('orders').select('status');
-      if (filters.source && filters.source !== 'All') {
-        query = query.eq('source', filters.source);
-      }
-      if (filters.searchTerm) {
-        query = query.or(
-          `id.ilike.%${filters.searchTerm}%,customer_name.ilike.%${filters.searchTerm}%,phone.ilike.%${filters.searchTerm}%`
+    const dedupKey = `getOrderStatusBreakdown:${JSON.stringify(filters)}`;
+    return dedupPromise(dedupKey, async () => {
+      try {
+        const statuses = [
+          'New',
+          'Pending Call',
+          'Final Call Pending',
+          'Confirmed',
+          'Bulk Exported',
+          'Courier Ready',
+          'Courier Submitted',
+          'Factory Processing',
+          'Completed',
+          'Fake Order',
+          'Cancelled',
+          'Incomplete',
+          'Test'
+        ];
+
+        const applyFilterConditions = (query: any) => {
+          if (filters.source && filters.source !== 'All') {
+            query = query.eq('source', filters.source);
+          }
+          if (filters.searchTerm && filters.searchTerm.trim()) {
+            const term = filters.searchTerm.trim();
+            query = query.or(
+              `id.ilike.%${term}%,customer_name.ilike.%${term}%,phone.ilike.%${term}%`
+            );
+          }
+          if (filters.productName && filters.productName.trim()) {
+            query = query.ilike('product_name', `%${filters.productName.trim()}%`);
+          }
+          if (filters.dateRange?.start && filters.dateRange?.end) {
+            const start = typeof filters.dateRange.start === 'string'
+              ? filters.dateRange.start
+              : filters.dateRange.start.toISOString();
+            const end = typeof filters.dateRange.end === 'string'
+              ? filters.dateRange.end
+              : filters.dateRange.end.toISOString();
+            query = query.gte('created_at', start).lte('created_at', end);
+          }
+          return query;
+        };
+
+        // Parallel exact head-count queries: transfers zero body bytes, uses database indexes
+        const allQuery = applyFilterConditions(
+          supabase.from('orders').select('*', { count: 'exact', head: true })
         );
+
+        const statusQueries = statuses.map((status) => {
+          const q = applyFilterConditions(
+            supabase.from('orders').select('*', { count: 'exact', head: true })
+          );
+          return q.eq('status', status);
+        });
+
+        const [allRes, ...statusResults] = await Promise.all([
+          allQuery,
+          ...statusQueries
+        ]);
+
+        if (allRes.error) throw allRes.error;
+
+        return [
+          { status: 'All', count: allRes.count ?? 0 },
+          ...statuses.map((status, idx) => ({
+            status,
+            count: statusResults[idx]?.count ?? 0
+          }))
+        ];
+      } catch (err) {
+        throw formatApiError(err, 'Failed to fetch status breakdown');
       }
-      if (filters.productName) {
-        query = query.ilike('product_name', `%${filters.productName}%`);
-      }
-      if (filters.dateRange?.start && filters.dateRange?.end) {
-        const start = typeof filters.dateRange.start === 'string' ? filters.dateRange.start : filters.dateRange.start.toISOString();
-        const end = typeof filters.dateRange.end === 'string' ? filters.dateRange.end : filters.dateRange.end.toISOString();
-        query = query.gte('created_at', start).lte('created_at', end);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-
-      const statuses = [
-        'New',
-        'Pending Call',
-        'Final Call Pending',
-        'Confirmed',
-        'Bulk Exported',
-        'Courier Ready',
-        'Courier Submitted',
-        'Factory Processing',
-        'Completed',
-        'Fake Order',
-        'Cancelled',
-        'Incomplete',
-        'Test'
-      ];
-
-      const countMap: Record<string, number> = {};
-      (data || []).forEach((row: any) => {
-        const s = row.status || 'Other';
-        countMap[s] = (countMap[s] || 0) + 1;
-      });
-
-      return [
-        { status: 'All', count: data?.length || 0 },
-        ...statuses.map((status) => ({ status, count: countMap[status] || 0 }))
-      ];
-    } catch (err) {
-      throw formatApiError(err, 'Failed to fetch status breakdown');
-    }
+    });
   },
 
   /**

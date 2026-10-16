@@ -20,6 +20,26 @@ const nextConfig = {
   images: {
     remotePatterns: [
       {
+        protocol: 'https',
+        hostname: 'canvasorder.shop',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'www.canvasorder.shop',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.supabase.co',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.sslip.io',
+        pathname: '/**',
+      },
+      {
         protocol: 'http',
         hostname: '*.sslip.io',
         pathname: '/**',
@@ -36,7 +56,41 @@ const nextConfig = {
     ],
   },
   async headers() {
+    const isProd = process.env.NODE_ENV === 'production';
+    const securityHeaders = isProd
+      ? [
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=63072000; includeSubDomains; preload',
+          },
+          {
+            key: 'Content-Security-Policy',
+            value: 'upgrade-insecure-requests',
+          },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            key: 'X-Frame-Options',
+            value: 'SAMEORIGIN',
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'strict-origin-when-cross-origin',
+          },
+        ]
+      : [];
+
     return [
+      ...(securityHeaders.length > 0
+        ? [
+            {
+              source: '/:path*',
+              headers: securityHeaders,
+            },
+          ]
+        : []),
       {
         source: '/_next/static/:path*',
         headers: [

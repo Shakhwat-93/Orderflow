@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { createClient } from '@supabase/supabase-js';
+import { env } from '@/config/env';
 
 const STEADFAST_BASE_URL = 'https://portal.packzy.com/api/v1';
 
@@ -267,9 +268,7 @@ export async function mapConsignmentsToOmsOrders(
 ): Promise<SteadfastConsignment[]> {
   if (!consignments || consignments.length === 0) return [];
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://supabasekong-a5tg2fvpwj6emkewfdknamid.187.77.159.209.sslip.io';
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  const supabase = createClient(env.supabase.url, env.supabase.anonKey);
 
   // Extract lookup keys
   const trackingCodes = consignments.map((c) => c.tracking_code).filter(Boolean);
@@ -512,9 +511,7 @@ export async function fetchReconciliationData(options: {
   }
 
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://supabasekong-a5tg2fvpwj6emkewfdknamid.187.77.159.209.sslip.io';
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createClient(env.supabase.url, env.supabase.anonKey);
 
     // ── STEP 1: Load Statements from Cache & Sync Latest Batches ──
     const persisted = loadPersistedStatements();
