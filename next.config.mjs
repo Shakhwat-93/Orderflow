@@ -20,9 +20,14 @@ const nextConfig = {
   images: {
     remotePatterns: [
       {
-        protocol: 'https',
-        hostname: '*.supabase.co',
-        pathname: '/storage/v1/object/public/**',
+        protocol: 'http',
+        hostname: '*.sslip.io',
+        pathname: '/**',
+      },
+      {
+        protocol: 'http',
+        hostname: '187.77.159.209',
+        pathname: '/**',
       },
       {
         protocol: 'https',
