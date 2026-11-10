@@ -124,6 +124,7 @@ export interface OrderActivityLog {
   id?: string | number;
   order_id: string | number;
   action_type: 'CREATE' | 'UPDATE' | 'STATUS_CHANGE' | 'NOTE' | 'CALL_ATTEMPT' | 'TRACKING_ADDED' | string;
+  old_status?: string | null;
   previous_status?: string | null;
   new_status?: string | null;
   changed_by_user_id?: string | null;

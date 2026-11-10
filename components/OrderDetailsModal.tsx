@@ -1175,29 +1175,76 @@ export const OrderDetailsModal = ({
               </div>
               {isLoadingLogs ? (
                 <div className="timeline-loading">Syncing history...</div>
-              ) : activityLogs.length === 0 ? (
-                <div className="timeline-empty">No activity records found for this order.</div>
-              ) : (
-                <div className="elite-timeline">
-                  {activityLogs.filter(log => String(log.action_description || '').trim()).map((log, i) => (
-                    <div key={log.id || i} className="timeline-entry">
-                      <div className="entry-point" />
-                      <div className="entry-content">
-                        <div className="entry-header">
-                          <span className="entry-time">
-                            {new Date(log.timestamp).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
-                          </span>
-                          <div className="entry-user">
-                            <div className="mini-avatar">{(log.changed_by_user_name || 'S').charAt(0)}</div>
-                            <span>{log.changed_by_user_name || 'System'}</span>
+              ) : (() => {
+                const explicitLogs = activityLogs.filter(log => String(log.action_description || '').trim());
+                const fallbackMilestones: any[] = [];
+                if (explicitLogs.length === 0 && effectiveOrder) {
+                  if (effectiveOrder.created_at) {
+                    fallbackMilestones.push({
+                      id: 'sys-created',
+                      timestamp: effectiveOrder.created_at,
+                      changed_by_user_name: effectiveOrder.source ? `Source: ${effectiveOrder.source}` : 'System',
+                      action_description: `Order #${effectiveOrder.id} created (Status: New)`
+                    });
+                  }
+                  if (effectiveOrder.first_call_time) {
+                    fallbackMilestones.push({
+                      id: 'sys-first-call',
+                      timestamp: effectiveOrder.first_call_time,
+                      changed_by_user_name: effectiveOrder.first_caller_name || 'Call Team',
+                      action_description: `First call / verification recorded (Status moved to Confirmed)`
+                    });
+                  }
+                  if (effectiveOrder.dispatched_at) {
+                    fallbackMilestones.push({
+                      id: 'sys-dispatched',
+                      timestamp: effectiveOrder.dispatched_at,
+                      changed_by_user_name: effectiveOrder.courier_name || 'Courier Team',
+                      action_description: `Dispatched to courier${effectiveOrder.tracking_id ? ` (Tracking: ${effectiveOrder.tracking_id})` : ''}`
+                    });
+                  }
+                  if (
+                    effectiveOrder.updated_at &&
+                    effectiveOrder.updated_at !== effectiveOrder.created_at &&
+                    effectiveOrder.updated_at !== effectiveOrder.first_call_time
+                  ) {
+                    fallbackMilestones.push({
+                      id: 'sys-updated',
+                      timestamp: effectiveOrder.updated_at,
+                      changed_by_user_name: 'System Workflow',
+                      action_description: `Order status updated to "${effectiveOrder.status}"`
+                    });
+                  }
+                  fallbackMilestones.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+                }
+                const displayLogs = explicitLogs.length > 0 ? explicitLogs : fallbackMilestones;
+
+                if (displayLogs.length === 0) {
+                  return <div className="timeline-empty">No activity records found for this order.</div>;
+                }
+
+                return (
+                  <div className="elite-timeline">
+                    {displayLogs.map((log, i) => (
+                      <div key={log.id || i} className="timeline-entry">
+                        <div className="entry-point" />
+                        <div className="entry-content">
+                          <div className="entry-header">
+                            <span className="entry-time">
+                              {new Date(log.timestamp).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                            </span>
+                            <div className="entry-user">
+                              <div className="mini-avatar">{(log.changed_by_user_name || 'S').charAt(0)}</div>
+                              <span>{log.changed_by_user_name || 'System'}</span>
+                            </div>
                           </div>
+                          <div className="entry-desc">{log.action_description}</div>
                         </div>
-                        <div className="entry-desc">{log.action_description}</div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>

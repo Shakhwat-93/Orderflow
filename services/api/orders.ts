@@ -389,7 +389,7 @@ export const ordersApi = {
     this.logActivity({
       order_id: orderId,
       action_type: 'STATUS_CHANGE',
-      previous_status: oldData?.status,
+      old_status: oldData?.status,
       new_status: newStatus,
       changed_by_user_id: userId,
       changed_by_user_name: userName,
@@ -555,9 +555,11 @@ export const ordersApi = {
    */
   async logActivity(logData: Partial<OrderActivityLog>): Promise<void> {
     try {
-      const payload = {
-        ...logData,
-        timestamp: logData.timestamp || new Date().toISOString()
+      const { previous_status, created_at, ...rest } = logData as Record<string, any>;
+      const payload: Record<string, any> = {
+        ...rest,
+        old_status: rest.old_status ?? previous_status ?? null,
+        timestamp: rest.timestamp || created_at || new Date().toISOString()
       };
       const { error } = await supabase.from('order_activity_logs').insert([payload]);
       if (error) console.warn('Order activity log warning:', error.message);
