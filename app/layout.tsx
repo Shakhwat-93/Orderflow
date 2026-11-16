@@ -29,6 +29,7 @@ import { AuthProvider } from '@/context/AuthContext';
 import { BrandingProvider } from '@/context/BrandingContext';
 import { AlertProvider } from '@/context/AlertContext';
 import { ConfirmProvider } from '@/context/ConfirmContext';
+import { DesktopShell } from '@/components/desktop/DesktopShell';
 import { HexagonPattern } from '@/components/ui/hexagon-pattern';
 import { cn } from "@/lib/utils";
 
@@ -45,7 +46,7 @@ export default function RootLayout({
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('of_theme');if(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches)t='dark';if(t==='dark'){document.documentElement.setAttribute('data-theme','dark');document.documentElement.classList.add('dark');}else{document.documentElement.setAttribute('data-theme','light');document.documentElement.classList.remove('dark');}}catch(e){}})()`,
+            __html: `(function(){try{var t=localStorage.getItem('of_theme');if(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches)t='dark';if(t==='dark'){document.documentElement.setAttribute('data-theme','dark');document.documentElement.classList.add('dark');}else{document.documentElement.setAttribute('data-theme','light');document.documentElement.classList.remove('dark');}if(window.desktopApp&&window.desktopApp.isDesktop){document.documentElement.classList.add('is-desktop-app');}}catch(e){}})()`,
           }}
         />
       </head>
@@ -65,9 +66,10 @@ export default function RootLayout({
                       suppressHydrationWarning
                       className="pointer-events-none absolute inset-0 z-0 h-full w-full stroke-neutral-900/[0.04] dark:stroke-white/[0.035] fill-none opacity-60 md:opacity-100"
                     />
-                    <div className="relative z-10 min-h-screen w-full flex flex-col">
+                    <div className="desktop-content-root relative z-10 min-h-screen w-full flex flex-col">
                       {children}
                     </div>
+                    <DesktopShell />
                   </div>
                 </ConfirmProvider>
               </AlertProvider>

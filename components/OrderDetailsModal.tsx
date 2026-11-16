@@ -8,7 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import { 
   User, Phone, MapPin, Package, Calendar, Clock, 
   History, Edit2, X, Clipboard, Copy, ExternalLink, 
-  Truck, CheckCircle2, AlertCircle, Info, RotateCcw, Loader2, Printer
+  Truck, CheckCircle2, AlertCircle, Info, RotateCcw, Loader2, Printer, Barcode
 } from 'lucide-react';
 import CurrencyIcon from './CurrencyIcon';
 import api from '@/services/api';
@@ -17,6 +17,7 @@ import dynamic from 'next/dynamic';
 import { isIncompleteConversion, getDisplayStatusLabel } from '@/utils/orderStatusHelper';
 
 const PrintPreviewModal = dynamic(() => import('./PrintSystem/PrintPreviewModal').then((m) => m.PrintPreviewModal || m.default), { ssr: false });
+const GenerateParcelModal = dynamic(() => import('@/components/parcels/GenerateParcelModal').then((m) => m.GenerateParcelModal), { ssr: false });
 
 interface EditableFieldProps {
   field: string;
@@ -203,6 +204,7 @@ export const OrderDetailsModal = ({
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [activeTab, setActiveTab] = useState('details'); // 'details' | 'history'
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false); // Print system
+  const [isGenerateParcelOpen, setIsGenerateParcelOpen] = useState(false); // Parcel & Barcode generator
   
   // Note Quick Templates States
   const [customTemplates, setCustomTemplates] = useState<string[]>(() => {
@@ -606,6 +608,33 @@ export const OrderDetailsModal = ({
           >
             <Printer size={14} />
             Print / Invoice
+          </button>
+
+          {/* ── Generate Parcel Barcode Button ── */}
+          <button
+            type="button"
+            onClick={() => setIsGenerateParcelOpen(true)}
+            style={{
+              padding: '7px 14px',
+              borderRadius: '8px',
+              border: '1px solid rgba(16,185,129,0.3)',
+              background: 'rgba(16,185,129,0.08)',
+              color: '#10b981',
+              fontSize: '12.5px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.18s ease',
+              flexShrink: 0,
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.16)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(16,185,129,0.2)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.08)'; e.currentTarget.style.boxShadow = 'none'; }}
+            title="Generate Parcel & Barcode Label"
+          >
+            <Barcode size={14} />
+            Generate Parcel
           </button>
         </div>
 
@@ -1267,6 +1296,15 @@ export const OrderDetailsModal = ({
         isOpen={isPrintModalOpen}
         onClose={() => setIsPrintModalOpen(false)}
         orders={effectiveOrder ? [effectiveOrder] : []}
+      />
+    )}
+
+    {/* ── Generate Parcel Barcode Modal ── */}
+    {isGenerateParcelOpen && (
+      <GenerateParcelModal
+        isOpen={isGenerateParcelOpen}
+        onClose={() => setIsGenerateParcelOpen(false)}
+        order={effectiveOrder}
       />
     )}
     </>

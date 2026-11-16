@@ -472,7 +472,10 @@ export async function getSteadfastLiveTrackingStatus(trackingCode: string): Prom
   }
 }
 
-const STATEMENTS_CACHE_FILE = path.join(process.cwd(), 'data', 'steadfast_statements_cache.json');
+const STATEMENTS_CACHE_FILE = path.join(
+  process.env.ORDERFLOW_DATA_DIR || path.join(process.cwd(), 'data'),
+  'steadfast_statements_cache.json'
+);
 
 export function loadPersistedStatements(): SteadfastPayment[] {
   try {

@@ -1,0 +1,988 @@
+/* ==========================================================================
+   CANVAS ORDER — NATIVE WINDOWS DESKTOP SHELL STYLES
+   Strictly scoped under `html.is-desktop-app` so web browsers stay 100% intact.
+   ========================================================================== */
+
+html.is-desktop-app {
+  --dt-top: 40px;
+  --dt-bottom: 24px;
+  --dt-chrome-bg: rgba(248, 250, 252, 0.98);
+  --dt-chrome-surface: #ffffff;
+  --dt-chrome-hover: rgba(15, 23, 42, 0.06);
+  --dt-chrome-active: #ffffff;
+  --dt-chrome-border: rgba(15, 23, 42, 0.09);
+  --dt-chrome-text: #0f172a;
+  --dt-chrome-muted: #64748b;
+  --dt-chrome-subtle: #94a3b8;
+  --dt-accent: #6366f1;
+  --dt-accent-soft: rgba(99, 102, 241, 0.11);
+  --dt-accent-border: rgba(99, 102, 241, 0.28);
+  --dt-frame-border: rgba(15, 23, 42, 0.14);
+  --dt-scrollbar-thumb: rgba(15, 23, 42, 0.16);
+  --dt-scrollbar-hover: rgba(15, 23, 42, 0.28);
+}
+
+html.is-desktop-app[data-theme='dark'],
+html.is-desktop-app.dark {
+  --dt-chrome-bg: #101012;
+  --dt-chrome-surface: #1b1b1f;
+  --dt-chrome-hover: rgba(255, 255, 255, 0.07);
+  --dt-chrome-active: #202026;
+  --dt-chrome-border: rgba(255, 255, 255, 0.08);
+  --dt-chrome-text: #f4f4f5;
+  --dt-chrome-muted: #a1a1aa;
+  --dt-chrome-subtle: #71717a;
+  --dt-accent: #818cf8;
+  --dt-accent-soft: rgba(129, 140, 248, 0.15);
+  --dt-accent-border: rgba(129, 140, 248, 0.32);
+  --dt-frame-border: rgba(255, 255, 255, 0.12);
+  --dt-scrollbar-thumb: rgba(255, 255, 255, 0.12);
+  --dt-scrollbar-hover: rgba(255, 255, 255, 0.24);
+}
+
+/* ── Desktop Window Frame Definition & Viewport Containment ─────────────── */
+html.is-desktop-app,
+html.is-desktop-app body {
+  overscroll-behavior: none;
+  overflow: hidden;
+  height: 100vh;
+}
+
+html.is-desktop-app:not(.desktop-window-maximized):not(.desktop-window-fullscreen) body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  border: 1px solid var(--dt-frame-border);
+  pointer-events: none;
+  z-index: 25000;
+}
+
+/* Prevent ghost web-link/image dragging & accidental UI chrome selection */
+html.is-desktop-app img,
+html.is-desktop-app a,
+html.is-desktop-app button,
+html.is-desktop-app svg {
+  -webkit-user-drag: none;
+}
+
+html.is-desktop-app body {
+  user-select: none;
+}
+
+html.is-desktop-app input,
+html.is-desktop-app textarea,
+html.is-desktop-app [contenteditable='true'],
+html.is-desktop-app select,
+html.is-desktop-app table td,
+html.is-desktop-app table th,
+html.is-desktop-app code,
+html.is-desktop-app pre,
+html.is-desktop-app p,
+html.is-desktop-app .info-value,
+html.is-desktop-app .order-id-copy,
+html.is-desktop-app .ip-address-value,
+html.is-desktop-app .selectable-text {
+  user-select: text;
+}
+
+/* Sleek native-feel Windows desktop scrollbars */
+html.is-desktop-app ::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+html.is-desktop-app ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+html.is-desktop-app ::-webkit-scrollbar-thumb {
+  background: var(--dt-scrollbar-thumb);
+  border-radius: 999px;
+}
+
+html.is-desktop-app ::-webkit-scrollbar-thumb:hover {
+  background: var(--dt-scrollbar-hover);
+}
+
+/* ── Workspace Root Offset & Split-Pane Desktop Scrolling ───────────────── */
+html.is-desktop-app .desktop-content-root {
+  height: 100vh;
+  min-height: 100vh;
+  padding-top: var(--dt-top);
+  padding-bottom: var(--dt-bottom);
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+html.is-desktop-app .app-container {
+  height: calc(100vh - var(--dt-top) - var(--dt-bottom));
+  min-height: calc(100vh - var(--dt-top) - var(--dt-bottom));
+  overflow-x: clip;
+  overflow-y: hidden;
+}
+
+html.is-desktop-app .main-content {
+  height: 100%;
+  min-height: 0;
+  overflow-x: clip;
+  overflow-y: visible;
+}
+
+html.is-desktop-app .content-scrollable {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: clip;
+}
+
+@media (min-width: 768px) {
+  html.is-desktop-app .sidebar {
+    position: relative;
+    top: 0;
+    height: 100%;
+    max-height: 100%;
+    align-self: stretch;
+  }
+
+  html.is-desktop-app .header {
+    position: relative;
+    top: 0;
+    height: 56px;
+    flex-shrink: 0;
+  }
+
+  html.is-desktop-app .header .search-input {
+    height: 36px;
+    border-radius: 10px;
+    font-size: 0.875rem;
+  }
+}
+
+@media (max-width: 767px) {
+  html.is-desktop-app .sidebar {
+    top: var(--dt-top);
+    bottom: var(--dt-bottom);
+    height: calc(100vh - var(--dt-top) - var(--dt-bottom));
+  }
+}
+
+html.is-desktop-app .st-sidebar {
+  top: 0;
+  height: calc(100vh - var(--dt-top) - var(--dt-bottom) - 104px);
+}
+
+html.is-desktop-app .login-wrapper,
+html.is-desktop-app .auth-loading-screen {
+  height: calc(100vh - var(--dt-top) - var(--dt-bottom));
+  min-height: calc(100vh - var(--dt-top) - var(--dt-bottom));
+  overflow-y: auto;
+}
+
+/* Native Desktop Login Card Adaptation (eliminates white web halo in dark mode & improves sharpness) */
+html.is-desktop-app .login-card {
+  background: var(--bg-surface, #ffffff);
+  border: 1px solid var(--dt-chrome-border) !important;
+  border-radius: 20px;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.12), 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+
+html.is-desktop-app[data-theme='dark'] .login-card,
+html.is-desktop-app.dark .login-card {
+  background: #1a1a1e;
+  border: 1px solid rgba(255, 255, 255, 0.09) !important;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+html.is-desktop-app .login-logo-container {
+  background: var(--bg-elevated, #f8fafc);
+  border: 1px solid var(--dt-chrome-border);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+}
+
+html.is-desktop-app[data-theme='dark'] .login-logo-container,
+html.is-desktop-app.dark .login-logo-container {
+  background: #ffffff;
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+}
+
+html.is-desktop-app .login-brand-copy h1 {
+  color: var(--dt-chrome-text) !important;
+}
+
+html.is-desktop-app .login-brand-copy p {
+  color: var(--dt-chrome-muted) !important;
+}
+
+html.is-desktop-app .neu-input-field {
+  background: var(--bg-elevated, #f1f5f9);
+  border: 1px solid var(--dt-chrome-border);
+  border-radius: 14px;
+  box-shadow: none;
+  height: 48px;
+}
+
+html.is-desktop-app .neu-input-field:focus-within {
+  border-color: var(--dt-accent);
+  box-shadow: 0 0 0 3px var(--dt-accent-soft);
+}
+
+html.is-desktop-app[data-theme='dark'] .neu-input-field,
+html.is-desktop-app.dark .neu-input-field {
+  background: #121215;
+  border-color: rgba(255, 255, 255, 0.09);
+}
+
+html.is-desktop-app[data-theme='dark'] .neu-input-field input,
+html.is-desktop-app.dark .neu-input-field input {
+  color: #f4f4f5 !important;
+}
+
+html.is-desktop-app .login-submit-btn {
+  height: 48px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  box-shadow: 0 8px 22px rgba(99, 102, 241, 0.32);
+}
+
+html.is-desktop-app .login-submit-btn:hover {
+  box-shadow: 0 10px 26px rgba(99, 102, 241, 0.42);
+}
+
+html.is-desktop-app .tb-loading {
+  height: calc(100vh - var(--dt-top) - var(--dt-bottom) - 80px);
+}
+
+/* Keep ALL fixed overlays/drawers bounded strictly inside native chrome */
+html.is-desktop-app .modal-overlay,
+html.is-desktop-app .bem-overlay,
+html.is-desktop-app .ppm-overlay,
+html.is-desktop-app .boc-overlay,
+html.is-desktop-app .restricted-overlay,
+html.is-desktop-app .startup-unread-modal-overlay,
+html.is-desktop-app .sidebar-overlay,
+html.is-desktop-app .date-picker-mobile-overlay,
+html.is-desktop-app .export-modal-overlay,
+html.is-desktop-app .sheet-backdrop,
+html.is-desktop-app .drawer-backdrop,
+html.is-desktop-app .ma-modal-backdrop,
+html.is-desktop-app .mob-more-overlay,
+html.is-desktop-app .status-dropdown-backdrop,
+html.is-desktop-app .sr-sheet-backdrop,
+html.is-desktop-app .sr-modal-backdrop,
+html.is-desktop-app .st-modal-overlay,
+html.is-desktop-app .upm-overlay,
+html.is-desktop-app .unattended-alert-overlay,
+html.is-desktop-app .tb-daily-alert-overlay {
+  top: var(--dt-top) !important;
+  bottom: var(--dt-bottom) !important;
+}
+
+html.is-desktop-app .boc-panel {
+  height: calc(100vh - var(--dt-top) - var(--dt-bottom));
+}
+
+html.is-desktop-app .modal-content,
+html.is-desktop-app .bem-modal,
+html.is-desktop-app .ppm-modal {
+  max-height: calc(100vh - var(--dt-top) - var(--dt-bottom) - 32px);
+}
+
+@media (min-width: 768px) {
+  html.is-desktop-app .product-detail-drawer {
+    top: var(--dt-top);
+    bottom: var(--dt-bottom);
+  }
+}
+
+html.is-desktop-app .notification-toasts-container {
+  bottom: calc(var(--dt-bottom) + 14px);
+}
+
+html.is-desktop-app .bulk-action-bar-container:not(.orders-floating-bulk-actions) {
+  bottom: calc(var(--dt-bottom) + 14px);
+}
+
+html.is-desktop-app .orders-floating-bulk-actions {
+  top: calc(var(--dt-top) + 72px);
+}
+
+/* ==========================================================================
+   FRAMELESS NATIVE TITLEBAR (40px)
+   ========================================================================== */
+.dt-titlebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--dt-top);
+  z-index: 20000;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-left: 10px;
+  background: var(--dt-chrome-bg);
+  border-bottom: 1px solid var(--dt-chrome-border);
+  color: var(--dt-chrome-text);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-app-region: drag;
+  user-select: none;
+  box-sizing: border-box;
+  transition: background-color 0.16s ease, border-color 0.16s ease;
+}
+
+html.is-desktop-app.desktop-window-unfocused .dt-titlebar .dt-left,
+html.is-desktop-app.desktop-window-unfocused .dt-titlebar .dt-center,
+html.is-desktop-app.desktop-window-unfocused .dt-titlebar .dt-utils {
+  opacity: 0.74;
+}
+
+.dt-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.dt-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding-right: 4px;
+  flex-shrink: 0;
+}
+
+.dt-brand-icon {
+  width: 19px;
+  height: 19px;
+  border-radius: 5px;
+  object-fit: cover;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+  flex-shrink: 0;
+}
+
+.dt-brand-name {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--dt-chrome-text);
+  white-space: nowrap;
+}
+
+.dt-brand-badge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--dt-accent-soft);
+  color: var(--dt-accent);
+  border: 1px solid var(--dt-accent-border);
+}
+
+.dt-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--dt-chrome-border);
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+
+.dt-nav-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  -webkit-app-region: no-drag;
+  flex-shrink: 0;
+}
+
+.dt-icon-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--dt-chrome-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background-color 0.14s ease, color 0.14s ease, border-color 0.14s ease, transform 0.12s ease;
+  -webkit-app-region: no-drag;
+}
+
+.dt-icon-btn:hover:not(:disabled) {
+  background: var(--dt-chrome-hover);
+  color: var(--dt-chrome-text);
+}
+
+.dt-icon-btn:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.dt-icon-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.dt-icon-btn.is-active {
+  background: var(--dt-accent-soft);
+  color: var(--dt-accent);
+  border-color: var(--dt-accent-border);
+}
+
+/* ── Workspace Tabs inside Titlebar ─────────────────────────────────────── */
+.dt-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  -webkit-app-region: no-drag;
+}
+
+@media (max-width: 1120px) {
+  .dt-tabs {
+    display: none;
+  }
+}
+
+.dt-tab {
+  height: 26px;
+  max-width: 138px;
+  padding: 0 6px 0 9px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--dt-chrome-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: background-color 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+  flex-shrink: 0;
+}
+
+.dt-tab:hover:not(.active) {
+  background: var(--dt-chrome-hover);
+  color: var(--dt-chrome-text);
+}
+
+.dt-tab.active {
+  background: var(--dt-chrome-active);
+  color: var(--dt-chrome-text);
+  border-color: var(--dt-chrome-border);
+  font-weight: 650;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.dt-tab-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--dt-chrome-subtle);
+  flex-shrink: 0;
+}
+
+.dt-tab.active .dt-tab-dot {
+  background: var(--dt-accent);
+}
+
+.dt-tab-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dt-tab-close {
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dt-chrome-subtle);
+  opacity: 0.65;
+  transition: background-color 0.12s ease, color 0.12s ease, opacity 0.12s ease;
+  flex-shrink: 0;
+}
+
+.dt-tab:hover .dt-tab-close,
+.dt-tab.active .dt-tab-close {
+  opacity: 1;
+}
+
+.dt-tab-close:hover {
+  background: rgba(239, 68, 68, 0.16);
+  color: #ef4444;
+}
+
+/* ── Center Quick Jump Command Bar ──────────────────────────────────────── */
+.dt-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 0 8px;
+}
+
+.dt-command-pill {
+  -webkit-app-region: no-drag;
+  height: 26px;
+  width: clamp(190px, 24vw, 310px);
+  padding: 0 8px 0 10px;
+  border-radius: 7px;
+  border: 1px solid var(--dt-chrome-border);
+  background: var(--dt-chrome-surface);
+  color: var(--dt-chrome-muted);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 11.5px;
+  font-weight: 500;
+  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+.dt-command-pill:hover {
+  border-color: var(--dt-accent-border);
+  color: var(--dt-chrome-text);
+}
+
+.dt-command-pill-left {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.dt-command-pill-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dt-kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 650;
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid var(--dt-chrome-border);
+  background: var(--dt-chrome-bg);
+  color: var(--dt-chrome-muted);
+  flex-shrink: 0;
+}
+
+/* ── Right Cluster & Windows 11 Caption Controls ────────────────────────── */
+.dt-right {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+
+.dt-utils {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 8px;
+}
+
+.dt-engine-pill {
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--dt-chrome-border);
+  background: var(--dt-chrome-surface);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--dt-chrome-muted);
+}
+
+.dt-engine-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.55);
+}
+
+.dt-engine-dot.offline {
+  background: #f59e0b;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.55);
+}
+
+.dt-window-controls {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+  margin-left: 4px;
+  border-left: 1px solid var(--dt-chrome-border);
+}
+
+.dt-win-btn {
+  width: 44px;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: var(--dt-chrome-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.dt-win-btn:hover {
+  background: var(--dt-chrome-hover);
+  color: var(--dt-chrome-text);
+}
+
+.dt-win-btn.close:hover {
+  background: #c42b1c;
+  color: #ffffff;
+}
+
+/* ==========================================================================
+   BOTTOM NATIVE STATUS BAR (24px)
+   ========================================================================== */
+.dt-statusbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--dt-bottom);
+  z-index: 20000;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  background: var(--dt-chrome-bg);
+  border-top: 1px solid var(--dt-chrome-border);
+  color: var(--dt-chrome-muted);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.dt-status-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.dt-status-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.dt-status-btn {
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--dt-chrome-muted);
+  font-size: 10.5px;
+  font-weight: 550;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.dt-status-btn:hover {
+  background: var(--dt-chrome-hover);
+  color: var(--dt-chrome-text);
+}
+
+.dt-status-btn.pinned {
+  background: var(--dt-accent-soft);
+  color: var(--dt-accent);
+}
+
+.dt-zoom-box {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--dt-chrome-border);
+  border-radius: 4px;
+  overflow: hidden;
+  height: 18px;
+}
+
+.dt-zoom-btn {
+  width: 17px;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: var(--dt-chrome-muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dt-zoom-btn:hover {
+  background: var(--dt-chrome-hover);
+  color: var(--dt-chrome-text);
+}
+
+.dt-zoom-value {
+  padding: 0 5px;
+  border: none;
+  border-left: 1px solid var(--dt-chrome-border);
+  border-right: 1px solid var(--dt-chrome-border);
+  background: transparent;
+  color: var(--dt-chrome-text);
+  font-size: 10px;
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  cursor: pointer;
+  height: 100%;
+}
+
+.dt-zoom-value:hover {
+  background: var(--dt-chrome-hover);
+}
+
+.dt-shortcuts-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--dt-chrome-subtle);
+  font-size: 10.5px;
+}
+
+@media (max-width: 1140px) {
+  .dt-shortcuts-hint {
+    display: none;
+  }
+}
+
+.dt-status-divider {
+  width: 1px;
+  height: 12px;
+  background: var(--dt-chrome-border);
+}
+
+/* ==========================================================================
+   DESKTOP COMMAND LAUNCHER MODAL (Ctrl+P)
+   GPU-only transforms & opacity, reduced-motion aware
+   ========================================================================== */
+.dt-palette-overlay {
+  position: fixed;
+  top: var(--dt-top);
+  bottom: var(--dt-bottom);
+  left: 0;
+  right: 0;
+  z-index: 20500;
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: min(11vh, 84px);
+  animation: dtFadeIn 0.14s ease-out both;
+}
+
+html.is-desktop-app[data-theme='dark'] .dt-palette-overlay,
+html.is-desktop-app.dark .dt-palette-overlay {
+  background: rgba(0, 0, 0, 0.58);
+}
+
+.dt-palette {
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(500px, calc(100vh - var(--dt-top) - var(--dt-bottom) - 96px));
+  background: var(--dt-chrome-surface);
+  border: 1px solid var(--dt-chrome-border);
+  border-radius: 12px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28), 0 0 0 1px var(--dt-chrome-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: dtPaletteEnter 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes dtFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes dtPaletteEnter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -8px, 0) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.dt-palette-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--dt-chrome-border);
+}
+
+.dt-palette-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--dt-chrome-text);
+  font-family: inherit;
+}
+
+.dt-palette-input::placeholder {
+  color: var(--dt-chrome-subtle);
+}
+
+.dt-palette-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dt-palette-group {
+  padding: 6px 10px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--dt-chrome-subtle);
+}
+
+.dt-palette-item {
+  width: 100%;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  color: var(--dt-chrome-text);
+  font-family: inherit;
+  text-align: left;
+  transition: background-color 0.1s ease;
+}
+
+.dt-palette-item:hover,
+.dt-palette-item.selected {
+  background: var(--dt-accent-soft);
+}
+
+.dt-palette-item-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.dt-palette-item-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: var(--dt-chrome-hover);
+  color: var(--dt-accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dt-palette-item-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--dt-chrome-text);
+}
+
+.dt-palette-item-sub {
+  font-size: 11px;
+  color: var(--dt-chrome-muted);
+}
+
+.dt-palette-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-top: 1px solid var(--dt-chrome-border);
+  background: var(--dt-chrome-bg);
+  font-size: 10.5px;
+  color: var(--dt-chrome-muted);
+}
+
+/* ── Reduced Motion & Print Safety ──────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .dt-palette-overlay,
+  .dt-palette,
+  .dt-icon-btn,
+  .dt-tab,
+  .dt-win-btn,
+  .dt-command-pill {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+}
+
+@media print {
+  html.is-desktop-app {
+    --dt-top: 0px !important;
+    --dt-bottom: 0px !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+  html.is-desktop-app body,
+  html.is-desktop-app .desktop-content-root,
+  html.is-desktop-app .app-container,
+  html.is-desktop-app .main-content,
+  html.is-desktop-app .content-scrollable {
+    height: auto !important;
+    overflow: visible !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+  html.is-desktop-app body::after,
+  .dt-titlebar,
+  .dt-statusbar,
+  .dt-palette-overlay {
+    display: none !important;
+  }
+}

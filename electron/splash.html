@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Canvas Order — Starting</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg-surface: #0b1120;
+      --card-bg: rgba(15, 23, 42, 0.88);
+      --border-subtle: rgba(148, 163, 184, 0.16);
+      --text-primary: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #6366f1;
+      --accent-soft: rgba(99, 102, 241, 0.22);
+      --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .splash-card {
+      width: 420px;
+      height: 280px;
+      border-radius: 24px;
+      background: radial-gradient(120% 100% at 50% 0%, rgba(99, 102, 241, 0.18), transparent 60%), var(--card-bg);
+      border: 1px solid var(--border-subtle);
+      box-shadow: 0 24px 48px -12px rgba(2, 6, 23, 0.72), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 32px;
+      position: relative;
+      opacity: 0;
+      transform: translate3d(0, 8px, 0) scale(0.985);
+      animation: cardEnter 320ms var(--ease-out-expo) forwards;
+    }
+
+    @keyframes cardEnter {
+      to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+      }
+    }
+
+    .logo-stage {
+      position: relative;
+      width: 72px;
+      height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    .logo-ring {
+      position: absolute;
+      inset: -6px;
+      border-radius: 22px;
+      background: var(--accent-soft);
+      opacity: 0.5;
+      transform: scale(0.96);
+      animation: ringPulse 2.2s ease-in-out infinite;
+    }
+
+    @keyframes ringPulse {
+      0%, 100% {
+        transform: scale(0.96);
+        opacity: 0.4;
+      }
+      50% {
+        transform: scale(1.06);
+        opacity: 0.85;
+      }
+    }
+
+    .logo-tile {
+      position: relative;
+      z-index: 2;
+      width: 68px;
+      height: 68px;
+      border-radius: 18px;
+      background: #ffffff;
+      padding: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.45);
+    }
+
+    .logo-tile img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .brand-title {
+      font-size: 21px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .brand-subtitle {
+      font-size: 12.5px;
+      font-weight: 500;
+      color: var(--text-muted);
+      letter-spacing: 0.01em;
+      margin-bottom: 24px;
+    }
+
+    .progress-track {
+      width: 220px;
+      height: 4px;
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.16);
+      overflow: hidden;
+      position: relative;
+      margin-bottom: 14px;
+    }
+
+    .progress-bar {
+      position: absolute;
+      inset: 0;
+      width: 45%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #4f46e5, #818cf8);
+      transform: translate3d(-110%, 0, 0);
+      animation: indeterminateSlide 1.35s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    }
+
+    @keyframes indeterminateSlide {
+      0% {
+        transform: translate3d(-110%, 0, 0);
+      }
+      100% {
+        transform: translate3d(240%, 0, 0);
+      }
+    }
+
+    .status-text {
+      font-size: 11.5px;
+      font-weight: 500;
+      color: #a5b4fc;
+      letter-spacing: 0.02em;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .splash-card {
+        animation: none;
+        opacity: 1;
+        transform: none;
+      }
+      .logo-ring {
+        animation: none;
+        opacity: 0.5;
+        transform: none;
+      }
+      .progress-bar {
+        animation: none;
+        width: 100%;
+        transform: none;
+        opacity: 0.85;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="splash-card">
+    <div class="logo-stage">
+      <div class="logo-ring"></div>
+      <div class="logo-tile">
+        <img src="./icon.png" alt="Canvas Order" />
+      </div>
+    </div>
+    <div class="brand-title">Canvas Order</div>
+    <div class="brand-subtitle">Enterprise Order Management System</div>
+    <div class="progress-track">
+      <div class="progress-bar"></div>
+    </div>
+    <div class="status-text" id="status">Initializing local workspace...</div>
+  </div>
+</body>
+</html>

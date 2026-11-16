@@ -25,6 +25,9 @@ import {
   DatabaseBackup,
   CreditCard,
   ReceiptText,
+  Barcode,
+  Scan,
+  RotateCcw,
   LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -70,6 +73,21 @@ const menuItems: MenuItem[] = [
   { path: '/inventory', label: 'Inventory', icon: Package, roles: ['Admin', 'Moderator'], group: 'Main Console' },
   { path: '/material-accounts', label: 'Material Accounts', icon: ReceiptText, roles: ['Admin', 'Moderator', 'Factory Team'], group: 'Main Console' },
   { path: '/factory', label: 'Confirmed', icon: Factory, roles: ['Admin', 'Factory Team'], group: 'Logistics' },
+  {
+    path: '/parcels',
+    label: 'Parcel Hub',
+    icon: Barcode,
+    roles: ['Admin', 'Factory Team', 'Courier Team', 'Moderator'],
+    group: 'Logistics',
+    children: [
+      { path: '/parcels', label: 'Dashboard' },
+      { path: '/parcels/dispatch', label: 'Dispatch Scanner' },
+      { path: '/parcels/returns', label: 'Return Scanner' },
+      { path: '/parcels/tracking', label: 'Parcel Tracking' },
+      { path: '/parcels/inventory', label: 'Parcel Inventory' },
+      { path: '/parcels/reports', label: 'Reports & Audit' },
+    ],
+  },
   { path: '/courier', label: 'Bulk Exported', icon: Truck, roles: ['Admin', 'Courier Team', 'Factory Team'], group: 'Logistics' },
   { path: '/steadfast', label: 'Steadfast Hub', icon: Truck, roles: ['Admin', 'Courier Team', 'Moderator'], group: 'Logistics' },
   { path: '/moderator', label: 'Moderator', icon: ShieldCheck, roles: ['Admin', 'Moderator'], group: 'Intelligence' },

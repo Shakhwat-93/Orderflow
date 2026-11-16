@@ -60,6 +60,10 @@ settled_consignments_map.json
 unsettled_*.json
 user_ids_status.json
 
+# desktop electron build output (ignored so local runtime secrets/artifacts never commit)
+/dist-desktop/
+/release/
+
 # Scratch & Migration scripts
 scratch/
 scripts/

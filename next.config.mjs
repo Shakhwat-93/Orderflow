@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
+const isDesktopBuild = process.env.DESKTOP_BUILD === '1';
+
 const nextConfig = {
+  ...(isDesktopBuild ? { output: 'standalone' } : {}),
   reactStrictMode: true,
   compress: true,
   poweredByHeader: false,
@@ -57,7 +60,7 @@ const nextConfig = {
   },
   async headers() {
     const isProd = process.env.NODE_ENV === 'production';
-    const securityHeaders = isProd
+    const securityHeaders = (isProd && !isDesktopBuild)
       ? [
           {
             key: 'Strict-Transport-Security',
