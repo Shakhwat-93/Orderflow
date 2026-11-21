@@ -1,6 +1,30 @@
 import { supabase, schemaState, normalizeIpAddress, formatApiError, dedupPromise } from './client';
 import type { Order, OrderFilters, PaginatedOrders, OrderActivityLog, UserRole } from '@/types/api';
 
+const applySourceFilter = (query: any, sourceFilter?: string) => {
+  if (!sourceFilter || sourceFilter === 'All') return query;
+  const s = sourceFilter.toLowerCase().trim();
+  if (s === 'tiktok') {
+    return query.or('source.ilike.%tiktok%,traffic_source.ilike.%tiktok%');
+  }
+  if (s === 'facebook') {
+    return query.or('source.ilike.%facebook%,source.eq.fb,traffic_source.ilike.%facebook%,traffic_source.eq.fb');
+  }
+  if (s === 'instagram') {
+    return query.or('source.ilike.%instagram%,source.eq.ig,traffic_source.ilike.%instagram%,traffic_source.eq.ig');
+  }
+  if (s === 'messenger') {
+    return query.or('source.ilike.%messenger%,source.eq.msg,traffic_source.ilike.%messenger%');
+  }
+  if (s === 'website') {
+    return query.or('source.ilike.%website%,source.ilike.%landing%,traffic_source.eq.organic');
+  }
+  if (s === 'direct') {
+    return query.or('source.ilike.%direct%,traffic_source.ilike.%direct%');
+  }
+  return query.or(`source.ilike.%${sourceFilter}%,traffic_source.ilike.%${sourceFilter}%`);
+};
+
 export const ordersApi = {
   /**
    * Fetch orders with server-side pagination and filtering
@@ -29,9 +53,7 @@ export const ordersApi = {
         if (filters.status && filters.status !== 'All') {
           query = query.eq('status', filters.status);
         }
-        if (filters.source && filters.source !== 'All') {
-          query = query.eq('source', filters.source);
-        }
+        query = applySourceFilter(query, filters.source);
         if (filters.searchTerm) {
           query = query.or(
             `id.ilike.%${filters.searchTerm}%,customer_name.ilike.%${filters.searchTerm}%,phone.ilike.%${filters.searchTerm}%`
@@ -72,9 +94,7 @@ export const ordersApi = {
       if (filters.status && filters.status !== 'All') {
         query = query.eq('status', filters.status);
       }
-      if (filters.source && filters.source !== 'All') {
-        query = query.eq('source', filters.source);
-      }
+      query = applySourceFilter(query, filters.source);
       if (filters.searchTerm) {
         query = query.or(
           `id.ilike.%${filters.searchTerm}%,customer_name.ilike.%${filters.searchTerm}%,phone.ilike.%${filters.searchTerm}%`

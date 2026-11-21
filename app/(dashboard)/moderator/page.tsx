@@ -25,6 +25,7 @@ import './ModeratorPanel.css';
 
 import { OrderEditModal } from '@/components/OrderEditModal';
 import { OrderDetailsModal } from '@/components/OrderDetailsModal';
+import { matchesSourceFilter } from '@/components/SourceBadge';
 const ModeratorSourceChart = dynamic(() => import('@/components/charts/ModeratorSourceChart'), {
   ssr: false,
   loading: () => <div className="h-[250px] animate-pulse bg-slate-100/50 dark:bg-white/[0.02] rounded-xl" />,
@@ -35,7 +36,7 @@ const ORDER_STATUSES = [
   'Courier Submitted', 'Factory Processing', 'Completed', 'Fake Order', 'Cancelled', 'Incomplete', 'Test'
 ];
 
-const SOURCES = ['Website', 'Facebook', 'Instagram', 'Direct', 'Messenger'];
+const SOURCES = ['Website', 'TikTok', 'Facebook', 'Instagram', 'Direct', 'Messenger'];
 const MODERATOR_PAGE_SIZE = 10;
 
 const getVisiblePageNumbers = (currentPage, totalPages, maxVisible = 5) => {
@@ -167,7 +168,7 @@ export default function ModeratorPanel() {
 
     const matchesStatus = statusFilter === 'All' || o.status === statusFilter;
     const matchesProduct = !productFilter || o.product_name === productFilter;
-    const matchesSource = sourceFilter === 'All' || o.source === sourceFilter;
+    const matchesSource = matchesSourceFilter(o, sourceFilter);
     
     let matchesDate = true;
     if (dateRange.start && dateRange.end) {

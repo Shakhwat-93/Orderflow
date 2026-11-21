@@ -6,6 +6,7 @@ import { RoleGate } from '@/components/RoleGate';
 import { CardSkeleton } from '@/components/skeletons/CardSkeleton';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/services/api/client';
+import { normalizeSource } from '@/components/SourceBadge';
 import {
   BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
@@ -15,7 +16,6 @@ import {
   FileDown, Printer, BarChart3, Package, Trophy,
   Settings, X, ChevronDown, MoreHorizontal, Calendar, SlidersHorizontal, Search
 } from 'lucide-react';
-
 
 // ── Constants & Status Definitions ────────────────────────────────
 const CONFIRMED_STATUSES = [
@@ -27,12 +27,39 @@ const CONFIRMED_STATUSES = [
   'Factory Processing',
   'Processing',
   'Shipped',
-  'Completed'
+  'Completed',
+  'Delivered'
 ];
 
-const isConfirmedStatus = (status: any) => CONFIRMED_STATUSES.includes(status);
+const PENDING_STATUSES = [
+  'New',
+  'Pending Call',
+  'Final Call Pending',
+  'Hold',
+  'Incomplete'
+];
 
-const STATUS_COLORS = {
+const CANCELLED_STATUSES = [
+  'Cancelled',
+  'Fake Order'
+];
+
+const isConfirmedStatus = (status: any) => {
+  const s = String(status || '').trim().toLowerCase();
+  return CONFIRMED_STATUSES.some(c => c.toLowerCase() === s);
+};
+
+const isPendingStatus = (status: any) => {
+  const s = String(status || '').trim().toLowerCase();
+  return PENDING_STATUSES.some(c => c.toLowerCase() === s);
+};
+
+const isCancelledStatus = (status: any) => {
+  const s = String(status || '').trim().toLowerCase();
+  return CANCELLED_STATUSES.some(c => c.toLowerCase() === s);
+};
+
+const STATUS_COLORS: Record<string, string> = {
   'Confirmed': '#10b981', 
   'Confirmed & Printed': '#10b981',
   'Bulk Exported': '#10b981', 
@@ -42,6 +69,7 @@ const STATUS_COLORS = {
   'Processing': '#06b6d4', 
   'Shipped': '#3b82f6', 
   'Completed': '#059669',
+  'Delivered': '#059669',
   'Cancelled': '#ef4444', 
   'Fake Order': '#f59e0b',
   'New': '#6366f1', 
@@ -84,18 +112,22 @@ const getPresetRange = (key: string) => {
 
 // ── CSV Export ────────────────────────────────────────────────────
 const exportCSV = (orders: any[], label: string) => {
-  const headers = ['Order ID','Date','Customer','Phone','Product','Qty','Amount','Status','Source'];
-  const rows = orders.map(o => [
-    o.id,
-    new Date(o.created_at).toLocaleDateString('en-GB'),
-    `"${o.customer_name || ''}"`,
-    `"${o.phone || ''}"`,
-    `"${o.product_name || ''}"`,
-    o.quantity||1,
-    o.amount||0,
-    o.status || '',
-    o.source||''
-  ].join(','));
+  const headers = ['Order ID','Date','Customer','Phone','Product','Qty','Amount','Status','Source','Traffic Channel'];
+  const rows = orders.map(o => {
+    const norm = normalizeSource(o.traffic_source, o.source);
+    return [
+      o.id,
+      new Date(o.created_at).toLocaleDateString('en-GB'),
+      `"${(o.customer_name || '').replace(/"/g, '""')}"`,
+      `"${(o.phone || '').replace(/"/g, '""')}"`,
+      `"${(o.product_name || '').replace(/"/g, '""')}"`,
+      o.quantity || 1,
+      o.amount || 0,
+      o.status || '',
+      `"${(o.source || '').replace(/"/g, '""')}"`,
+      norm.label
+    ].join(',');
+  });
   const csv = [headers.join(','), ...rows].join('\n');
   const blob = new Blob(['\uFEFF'+csv], { type:'text/csv;charset=utf-8;' });
   const a = document.createElement('a');
@@ -105,12 +137,25 @@ const exportCSV = (orders: any[], label: string) => {
 };
 
 // ── Sub-components ────────────────────────────────────────────────
-const SummaryKpiCard = ({ icon: Icon, label, value, color }: { icon: any; label: string; value: string | number; color: string }) => (
+const SummaryKpiCard = ({
+  icon: Icon,
+  label,
+  value,
+  sub,
+  color
+}: {
+  icon: any;
+  label: string;
+  value: string | number;
+  sub?: string;
+  color: string;
+}) => (
   <div className="sr-summary-kpi" style={{ '--kc': color } as React.CSSProperties}>
     <div className="sr-summary-kpi-icon"><Icon size={20} /></div>
     <div className="sr-summary-kpi-body">
       <span className="sr-summary-kpi-label">{label}</span>
       <h3 className="sr-summary-kpi-val">{value}</h3>
+      {sub && <span className="sr-summary-kpi-sub">{sub}</span>}
     </div>
   </div>
 );
@@ -146,7 +191,8 @@ const extractColor = (itemName: any, orderItem?: any) => {
   
   const commonColors = [
     'black', 'blue', 'beige', 'olive', 'pink', 'white', 'golden', 'gold', 
-    'silver', 'grey', 'gray', 'red', 'green', 'yellow', 'purple', 'orange', 'brown'
+    'silver', 'grey', 'gray', 'red', 'green', 'yellow', 'purple', 'orange', 'brown',
+    'chocolate', 'navy', 'maroon', 'teal'
   ];
   
   const nameLower = String(itemName || '').toLowerCase();
@@ -175,7 +221,7 @@ const getBaseProductName = (rawName: any) => {
   const wordsToRemove = [
     'black', 'blue', 'beige', 'standard', 'olive', 'pink', 'white', 'golden', 'gold', 
     'silver', 'grey', 'gray', 'red', 'green', 'yellow', 'purple', 'orange', 'brown', 
-    'navy', 'maroon', 'teal', 'combo', '1 pcs', '2 pcs', '3 pcs', '1pcs', '2pcs', '3pcs'
+    'chocolate', 'navy', 'maroon', 'teal', 'combo', '1 pcs', '2 pcs', '3 pcs', '1pcs', '2pcs', '3pcs'
   ];
 
   const parts = name.split(/\s*[-–—,]\s*/);
@@ -223,12 +269,12 @@ const getBaseProductName = (rawName: any) => {
 
 // ── Main Sales Report Component ───────────────────────────────────
 const SalesReportInner = () => {
-  const { updatePresenceContext } = useAuth();
+  useAuth();
 
-  const [preset, setPreset]       = useState('today');
-  const [dateRange, setDateRange] = useState(getPresetRange('today'));
+  const [preset, setPreset]       = useState('month');
+  const [dateRange, setDateRange] = useState(getPresetRange('month'));
   const [chartType, setChartType] = useState('bar'); // 'bar' | 'area'
-  const [productSort, setProductSort] = useState('revenue'); // default sort by Total Order Amount
+  const [productSort, setProductSort] = useState('confirmedSales'); // default sort by Confirmed Sales
   const [sortDirection, setSortDirection] = useState('desc');
   const [colorFilter, setColorFilter] = useState('All');
   const [reportOrders, setReportOrders] = useState<any[]>([]);
@@ -254,7 +300,7 @@ const SalesReportInner = () => {
     }
   });
 
-  // 2. Selling Price State (Default Customer Selling Price per Unit)
+  // 2. Selling Price State (Default Reference Selling Price per Unit)
   const [productSellingPrices, setProductSellingPrices] = useState<Record<string, number>>(() => {
     try {
       const cached = localStorage.getItem('sr_product_selling_prices');
@@ -349,7 +395,7 @@ const SalesReportInner = () => {
     }
   };
 
-  // Fetch all orders in date range directly from Supabase
+  // Fetch all orders in date range directly from Supabase with chunked pagination
   useEffect(() => {
     let active = true;
     const loadReportOrders = async () => {
@@ -363,7 +409,7 @@ const SalesReportInner = () => {
         while (hasMore) {
           const { data, error } = await supabase
             .from('orders')
-            .select('id, created_at, customer_name, phone, product_name, quantity, amount, status, source, ordered_items, order_lines_payload')
+            .select('id, created_at, customer_name, phone, product_name, quantity, amount, status, source, traffic_source, notes, ordered_items, order_lines_payload')
             .gte('created_at', dateRange.start.toISOString())
             .lte('created_at', dateRange.end.toISOString())
             .order('created_at', { ascending: false })
@@ -412,45 +458,91 @@ const SalesReportInner = () => {
     return reportOrders.filter(o => o.status !== 'Test');
   }, [reportOrders]);
 
+  /**
+   * Intelligently unpacks order items and proportionally allocates
+   * the exact order amount across line items with zero rounding discrepancy.
+   */
   const getOrderItemsList = useCallback((o: any) => {
     const rawItems = (Array.isArray(o?.order_lines_payload) && o.order_lines_payload.length > 0)
       ? o.order_lines_payload
       : (Array.isArray(o?.ordered_items) && o.ordered_items.length > 0 ? o.ordered_items : null);
 
+    const orderAmount = Math.max(0, Number(o?.amount) || 0);
+
     if (!rawItems || rawItems.length === 0) {
+      const qty = Math.max(1, Number(o?.quantity) || 1);
       return [{
         name: o?.product_name || 'Standard Product',
-        quantity: Number(o?.quantity) || 1,
-        price: Number(o?.amount) || 0
+        quantity: qty,
+        unit_price: qty > 0 ? orderAmount / qty : orderAmount,
+        line_total: orderAmount,
+        allocated_amount: orderAmount
       }];
     }
 
-    return rawItems.map((item: any) => {
+    const parsed = rawItems.map((item: any) => {
       if (typeof item === 'object' && item !== null) {
         const name = item.name || item.product_name || item.title || item.productName || o?.product_name || 'Standard Product';
-        const quantity = Number(item.quantity ?? item.qty) || 1;
-        const price = Number(item.price ?? item.unit_price ?? (Number(o?.amount) / Math.max(1, quantity))) || 0;
+        const quantity = Math.max(1, Number(item.quantity ?? item.qty) || 1);
+        const unit_price = Number(item.price ?? item.unit_price) || 0;
+        const line_total = Number(item.line_total ?? (unit_price * quantity)) || 0;
         return {
           ...item,
           name,
           quantity,
-          price
+          unit_price,
+          line_total
         };
       }
       return {
         name: String(item) || o?.product_name || 'Standard Product',
         quantity: 1,
-        price: Number(o?.amount) || 0
+        unit_price: orderAmount,
+        line_total: orderAmount
       };
     });
+
+    const sumLineTotals = parsed.reduce((sum: number, item: any) => sum + (item.line_total > 0 ? item.line_total : item.unit_price * item.quantity), 0);
+    const totalItemQty = parsed.reduce((sum: number, item: any) => sum + item.quantity, 0);
+
+    let allocatedSum = 0;
+    const allocatedItems = parsed.map((item: any) => {
+      let allocatedAmount = 0;
+      if (sumLineTotals > 0) {
+        const itemVal = item.line_total > 0 ? item.line_total : item.unit_price * item.quantity;
+        allocatedAmount = Math.round((itemVal / sumLineTotals) * orderAmount);
+      } else if (totalItemQty > 0) {
+        allocatedAmount = Math.round((item.quantity / totalItemQty) * orderAmount);
+      } else {
+        allocatedAmount = Math.round(orderAmount / parsed.length);
+      }
+      allocatedSum += allocatedAmount;
+      return {
+        ...item,
+        allocated_amount: allocatedAmount
+      };
+    });
+
+    // Reconcile residual difference on the highest value item to guarantee exact order total
+    const diff = orderAmount - allocatedSum;
+    if (diff !== 0 && allocatedItems.length > 0) {
+      let maxIdx = 0;
+      for (let i = 1; i < allocatedItems.length; i++) {
+        if (allocatedItems[i].allocated_amount > allocatedItems[maxIdx].allocated_amount) {
+          maxIdx = i;
+        }
+      }
+      allocatedItems[maxIdx].allocated_amount += diff;
+    }
+
+    return allocatedItems;
   }, []);
 
   // ── Unique Colors List ──
   const uniqueColors = useMemo(() => {
-    const colors = new Set();
+    const colors = new Set<string>();
     filtered.forEach(o => {
       const items = getOrderItemsList(o);
-      
       items.forEach(item => {
         const color = extractColor(item.name || o.product_name, item);
         if (color) {
@@ -468,40 +560,42 @@ const SalesReportInner = () => {
     return filtered.map(o => {
       const items = getOrderItemsList(o);
 
-      const matchingItems = items.filter(item => {
+      const matchingItems = items.filter((item: any) => {
         const itemColor = extractColor(item.name || o.product_name, item);
         return itemColor === colorFilter;
       });
 
       if (matchingItems.length === 0) return null;
 
-      const matchingAmount = matchingItems.reduce((acc, item) => acc + (Number(item.price) || 0) * (Number(item.quantity) || 1), 0);
+      const matchingAmount = matchingItems.reduce((acc: number, item: any) => acc + (Number(item.allocated_amount) || 0), 0);
+      const matchingQty = matchingItems.reduce((acc: number, item: any) => acc + (Number(item.quantity) || 1), 0);
 
       return {
         ...o,
         ordered_items: matchingItems,
-        amount: matchingAmount > 0 ? matchingAmount : o.amount,
-        quantity: matchingItems.reduce((acc, item) => acc + (Number(item.quantity) || 1), 0)
+        order_lines_payload: matchingItems,
+        amount: matchingAmount,
+        quantity: matchingQty
       };
     }).filter(Boolean);
   }, [filtered, colorFilter, getOrderItemsList]);
 
   // ── 1. Product-wise Sales Summary Data ──
-  // Columns: # | Product | Unit Cost | Selling Price | Total Qty | Total Order Selling Amount | Orders | Confirmed | Pending | Cancelled
+  // Exact mathematical alignment: Confirmed Qty & Confirmed Sales match actual confirmed transactions!
   const productData = useMemo(() => {
     const map: Record<string, any> = {};
 
     colorFilteredData.forEach(o => {
       const items = getOrderItemsList(o);
 
-      const isConf = isConfirmedStatus(o.status) && !(o.notes && o.notes.includes('[Was Incomplete]'));
-      const isCanc = o.status === 'Cancelled';
-      const isPend = ['New', 'Pending Call', 'Final Call Pending', 'Hold'].includes(o.status);
+      const isConf = isConfirmedStatus(o.status);
+      const isPend = isPendingStatus(o.status);
+      const isCanc = isCancelledStatus(o.status);
 
       // Track products in this order to count unique orders per product
       const productsInThisOrder = new Set<string>();
 
-      items.forEach(item => {
+      items.forEach((item: any) => {
         const baseName = getBaseProductName(item.name || o.product_name);
         productsInThisOrder.add(baseName);
 
@@ -509,47 +603,65 @@ const SalesReportInner = () => {
           map[baseName] = {
             name: baseName,
             orders: 0,
+            confirmedOrders: 0,
+            pendingOrders: 0,
+            cancelledOrders: 0,
             totalQty: 0,
-            confirmed: 0,
-            pending: 0,
-            cancelled: 0,
-            historicalRevenue: 0, // Fallback from historical order lines
+            confirmedQty: 0,
+            pendingQty: 0,
+            cancelledQty: 0,
+            confirmedSales: 0,
+            grossSales: 0,
           };
         }
 
-        const q = Number(item.quantity || 1);
+        const q = Number(item.quantity) || 1;
+        const itemAllocated = Number(item.allocated_amount) || 0;
 
-        // Eligible sales quantity = Confirmed + Pending orders (cancelled orders excluded from sales quantity)
-        if (isConf || isPend) {
-          map[baseName].totalQty += q;
-          const itemRevenue = Number(item.line_total ?? (item.price ? Number(item.price) * q : o.amount)) || 0;
-          map[baseName].historicalRevenue += itemRevenue;
+        map[baseName].totalQty += q;
+        map[baseName].grossSales += itemAllocated;
+
+        if (isConf) {
+          map[baseName].confirmedQty += q;
+          map[baseName].confirmedSales += itemAllocated;
+        } else if (isPend) {
+          map[baseName].pendingQty += q;
+        } else if (isCanc) {
+          map[baseName].cancelledQty += q;
         }
       });
 
       // Increment unique order count and status counts per product
       productsInThisOrder.forEach((baseName: string) => {
         map[baseName].orders += 1;
-        if (isConf) map[baseName].confirmed += 1;
-        if (isPend) map[baseName].pending += 1;
-        if (isCanc) map[baseName].cancelled += 1;
+        if (isConf) map[baseName].confirmedOrders += 1;
+        if (isPend) map[baseName].pendingOrders += 1;
+        if (isCanc) map[baseName].cancelledOrders += 1;
       });
     });
 
-    const result = Object.values(map).map(p => {
+    const result = Object.values(map).map((p: any) => {
       const unitCost = Number(productUnitCosts[p.name]) || 0;
       const sellingPrice = Number(productSellingPrices[p.name]) || 0;
 
-      // Total Order Selling Amount = Configured Selling Price × Total Qty (fallback to historical revenue if selling price not configured)
-      const revenue = sellingPrice > 0 ? sellingPrice * p.totalQty : p.historicalRevenue;
-      const totalCost = unitCost * p.totalQty; // Internal cost calculation (Unit Cost × Total Qty)
+      // Real confirmed sales generated by this product
+      const revenue = p.confirmedSales;
+      const totalCost = unitCost * p.confirmedQty; // Cost of Goods Sold for confirmed units
+      const grossProfit = revenue - totalCost;
+      const profitMargin = revenue > 0 ? Math.round((grossProfit / revenue) * 100) : 0;
 
       return {
         ...p,
         unitCost,
         sellingPrice,
         revenue,
-        totalCost
+        totalCost,
+        grossProfit,
+        profitMargin,
+        // Aliases for clean sorting & display compatibility
+        confirmed: p.confirmedOrders,
+        pending: p.pendingOrders,
+        cancelled: p.cancelledOrders
       };
     });
 
@@ -559,13 +671,13 @@ const SalesReportInner = () => {
       let valB = b[productSort];
 
       if (productSort === 'name') {
-        return sortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        return sortDirection === 'asc' ? String(valA).localeCompare(String(valB)) : String(valB).localeCompare(String(valA));
       }
       valA = Number(valA) || 0;
       valB = Number(valB) || 0;
       return sortDirection === 'asc' ? valA - valB : valB - valA;
     });
-  }, [colorFilteredData, productSort, sortDirection, productUnitCosts, productSellingPrices]);
+  }, [colorFilteredData, productSort, sortDirection, productUnitCosts, productSellingPrices, getOrderItemsList]);
 
   const handleSort = (field: string) => {
     if (productSort === field) {
@@ -593,26 +705,41 @@ const SalesReportInner = () => {
     setProductPage(1);
   }, [productSearch, productSort, sortDirection, colorFilter]);
 
-  // ── 2. Top Summary KPIs (Total Orders, Confirmed, Pending, Cancelled, Total Order Amount) ──
+  // ── 2. Top Summary KPIs (Total Orders, Confirmed, Pending, Cancelled, Confirmed Sales) ──
   const summaryKpi = useMemo(() => {
-    const isConf = o => isConfirmedStatus(o.status) && !(o.notes && o.notes.includes('[Was Incomplete]'));
-    const isPend = o => ['New','Pending Call','Final Call Pending','Hold'].includes(o.status);
-    const isCanc = o => o.status === 'Cancelled';
-
     const totalOrders = colorFilteredData.length;
-    const confirmedOrders = colorFilteredData.filter(isConf).length;
-    const pendingOrders = colorFilteredData.filter(isPend).length;
-    const cancelledOrders = colorFilteredData.filter(isCanc).length;
+    let confirmedOrders = 0;
+    let pendingOrders = 0;
+    let cancelledOrders = 0;
+    let confirmedSalesAmount = 0;
+    let grossOrderAmount = 0;
 
-    // Overall Total Order Amount = Sum of product selling amounts
-    const totalOrderAmount = productData.reduce((sum, p) => sum + (p.revenue || 0), 0);
+    colorFilteredData.forEach((o: any) => {
+      const amt = Math.max(0, Number(o.amount) || 0);
+      grossOrderAmount += amt;
+
+      if (isConfirmedStatus(o.status)) {
+        confirmedOrders++;
+        confirmedSalesAmount += amt;
+      } else if (isPendingStatus(o.status)) {
+        pendingOrders++;
+      } else if (isCancelledStatus(o.status)) {
+        cancelledOrders++;
+      }
+    });
+
+    const confirmedQty = productData.reduce((sum: number, p: any) => sum + (p.confirmedQty || 0), 0);
+    const totalQty = productData.reduce((sum: number, p: any) => sum + (p.totalQty || 0), 0);
 
     return {
       totalOrders,
       confirmedOrders,
       pendingOrders,
       cancelledOrders,
-      totalOrderAmount
+      confirmedSalesAmount,
+      grossOrderAmount,
+      confirmedQty,
+      totalQty
     };
   }, [colorFilteredData, productData]);
 
@@ -639,12 +766,12 @@ const SalesReportInner = () => {
       }
       map[dayKey].total++;
       const s = o.status;
-      if (isConfirmedStatus(s) && !(o.notes && o.notes.includes('[Was Incomplete]'))) {
+      if (isConfirmedStatus(s)) {
         map[dayKey].confirmed++;
-        map[dayKey].revenue += Number(o.amount||0);
-      } else if (['New', 'Pending Call', 'Final Call Pending', 'Hold'].includes(s)) {
+        map[dayKey].revenue += Math.max(0, Number(o.amount) || 0);
+      } else if (isPendingStatus(s)) {
         map[dayKey].pending++;
-      } else if (s === 'Cancelled') {
+      } else if (isCancelledStatus(s)) {
         map[dayKey].cancelled++;
       }
     });
@@ -658,24 +785,25 @@ const SalesReportInner = () => {
     return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a: any, b: any) => b.value - a.value);
   }, [colorFilteredData]);
 
-  // ── Source breakdown ──
+  // ── Source breakdown (Normalized across TikTok, Facebook, Instagram, Website, etc.) ──
   const sourceData = useMemo(() => {
     const map: Record<string, any> = {};
     colorFilteredData.forEach((o: any) => {
-      const src = o.source || 'Direct / Store';
-      if (!map[src]) map[src] = { source: src, total:0, confirmed:0, revenue:0 };
+      const norm = normalizeSource(o.traffic_source, o.source);
+      const src = norm.label;
+      if (!map[src]) map[src] = { source: src, total: 0, confirmed: 0, revenue: 0 };
       map[src].total++;
-      if (isConfirmedStatus(o.status) && !(o.notes && o.notes.includes('[Was Incomplete]'))) {
+      if (isConfirmedStatus(o.status)) {
         map[src].confirmed++;
-        map[src].revenue += Number(o.amount||0);
+        map[src].revenue += Math.max(0, Number(o.amount) || 0);
       }
     });
     return Object.values(map).sort((a: any, b: any) => b.total - a.total);
   }, [colorFilteredData]);
 
-  // ── Top Selling Products (by Confirmed Orders) ──
+  // ── Top Selling Products (by Confirmed Sales) ──
   const topSellers = useMemo(() => {
-    return [...productData].sort((a: any, b: any) => b.confirmed - a.confirmed).slice(0, 8);
+    return [...productData].sort((a: any, b: any) => b.confirmedSales - a.confirmedSales).slice(0, 8);
   }, [productData]);
 
   // Filtered list for Pricing & Cost Modal
@@ -696,7 +824,7 @@ const SalesReportInner = () => {
           <div className="sr-header-icon"><TrendingUp size={20}/></div>
           <div>
             <h1>Sales Report</h1>
-            <p>Sales and order performance summary</p>
+            <p>Verified sales revenue and multi-channel order performance summary</p>
           </div>
         </div>
         <div className="sr-header-right desktop-only-actions">
@@ -781,36 +909,41 @@ const SalesReportInner = () => {
         </span>
       </div>
 
-      {/* ── 5 SUMMARY METRICS (Total Orders, Confirmed, Pending, Cancelled, Total Order Amount) ── */}
+      {/* ── 5 SUMMARY METRICS (Total Orders, Confirmed, Pending, Cancelled, Confirmed Sales) ── */}
       <div className="sr-summary-grid">
         <SummaryKpiCard
           icon={ShoppingCart}
           label="Total Orders"
           value={fmtNum(summaryKpi.totalOrders)}
+          sub={`Gross: ${fmtTk(summaryKpi.grossOrderAmount)}`}
           color="#6366f1"
         />
         <SummaryKpiCard
           icon={CheckCircle2}
           label="Confirmed"
           value={fmtNum(summaryKpi.confirmedOrders)}
+          sub={`${fmtNum(summaryKpi.confirmedQty)} items sold`}
           color="#10b981"
         />
         <SummaryKpiCard
           icon={Clock}
           label="Pending"
           value={fmtNum(summaryKpi.pendingOrders)}
+          sub="Awaiting call / hold"
           color="#3b82f6"
         />
         <SummaryKpiCard
           icon={XCircle}
           label="Cancelled"
           value={fmtNum(summaryKpi.cancelledOrders)}
+          sub="Cancelled & Fake"
           color="#ef4444"
         />
         <SummaryKpiCard
           icon={DollarSign}
-          label="Total Order Amount"
-          value={fmtTk(summaryKpi.totalOrderAmount)}
+          label="Confirmed Sales"
+          value={fmtTk(summaryKpi.confirmedSalesAmount)}
+          sub="Actual verified revenue"
           color="#059669"
         />
       </div>
@@ -821,7 +954,7 @@ const SalesReportInner = () => {
           <SectionTitle
             icon={Package}
             title="Product Sales Summary"
-            sub="Top selling product performance, pricing, and order breakdown."
+            sub="Realized product performance, confirmed sales revenue, and order breakdown."
           />
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -860,44 +993,47 @@ const SalesReportInner = () => {
           <>
             {/* Mobile Product Cards (<640px) */}
             <div className="sr-product-mobile-list">
-              {paginatedProductData.map((p: any, i: number) => (
-                <div key={p.name} className="sr-prod-simple-card">
-                  <div className="sr-prod-sc-head">
-                    <span className="sr-prod-rank-pill">#{i + 1}</span>
-                    <h4 className="sr-prod-sc-name">{p.name}</h4>
-                  </div>
+              {paginatedProductData.map((p: any, i: number) => {
+                const rank = (safeProductPage - 1) * productPageSize + i + 1;
+                return (
+                  <div key={p.name} className="sr-prod-simple-card">
+                    <div className="sr-prod-sc-head">
+                      <span className="sr-prod-rank-pill">#{rank}</span>
+                      <h4 className="sr-prod-sc-name">{p.name}</h4>
+                    </div>
 
-                  <div className="sr-prod-sc-rev">
-                    <span className="sr-prod-sc-amount">{fmtTk(p.revenue)}</span>
-                    <span className="sr-prod-sc-meta">{p.totalQty} units · {p.orders} orders</span>
-                  </div>
+                    <div className="sr-prod-sc-rev">
+                      <span className="sr-prod-sc-amount">{fmtTk(p.confirmedSales)}</span>
+                      <span className="sr-prod-sc-meta">{p.confirmedQty} sold · {p.confirmedOrders} confirmed orders</span>
+                    </div>
 
-                  <div className="sr-prod-sc-prices">
-                    <span>Selling Price: <strong className="text-accent">{p.sellingPrice > 0 ? fmtTk(p.sellingPrice) : 'Not Set'}</strong></span>
-                    <span>Unit Cost: <strong className="text-muted">{p.unitCost > 0 ? fmtTk(p.unitCost) : 'Not Set'}</strong></span>
-                  </div>
+                    <div className="sr-prod-sc-prices">
+                      <span>Selling Price: <strong className="text-accent">{p.sellingPrice > 0 ? fmtTk(p.sellingPrice) : 'Not Set'}</strong></span>
+                      <span>Unit Cost: <strong className="text-muted">{p.unitCost > 0 ? fmtTk(p.unitCost) : 'Not Set'}</strong></span>
+                    </div>
 
-                  <div className="sr-prod-sc-counts">
-                    <span className="sr-green">Confirmed: <strong>{p.confirmed}</strong></span>
-                    <span className="sr-pending">Pending: <strong>{p.pending}</strong></span>
-                    <span className="sr-red">Cancelled: <strong>{p.cancelled}</strong></span>
-                  </div>
+                    <div className="sr-prod-sc-counts">
+                      <span className="sr-green">Confirmed: <strong>{p.confirmedOrders}</strong></span>
+                      <span className="sr-pending">Pending: <strong>{p.pendingOrders}</strong></span>
+                      <span className="sr-red">Cancelled: <strong>{p.cancelledOrders}</strong></span>
+                    </div>
 
-                  <div className="sr-prod-sc-cost-row">
-                    <button
-                      className="sr-prod-sc-edit-btn"
-                      onClick={() => setIsPricingModalOpen(true)}
-                      title="Edit Selling Price & Unit Cost"
-                    >
-                      <Settings size={12} />
-                      <span>Edit Price & Cost</span>
-                    </button>
+                    <div className="sr-prod-sc-cost-row">
+                      <button
+                        className="sr-prod-sc-edit-btn"
+                        onClick={() => setIsPricingModalOpen(true)}
+                        title="Edit Selling Price & Unit Cost"
+                      >
+                        <Settings size={12} />
+                        <span>Edit Price & Cost</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
-            {/* Desktop Clean Table (≥640px) - With Serial # and Pending column */}
+            {/* Desktop Clean Table (≥640px) - With Serial # and Paginated Data */}
             <div className="sr-product-table-wrap desktop-only-table-wrap">
               <table className="sr-product-table">
                 <colgroup>
@@ -924,67 +1060,72 @@ const SalesReportInner = () => {
                     <th className="sr-sortable text-center" onClick={() => handleSort('sellingPrice')}>
                       Selling Price {productSort === 'sellingPrice' && (sortDirection === 'asc' ? '↑' : '↓')}
                     </th>
-                    <th className="sr-sortable text-center" onClick={() => handleSort('totalQty')}>
-                      Total Qty {productSort === 'totalQty' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    <th className="sr-sortable text-center" onClick={() => handleSort('confirmedQty')} title="Confirmed items sold">
+                      Sold Qty {productSort === 'confirmedQty' && (sortDirection === 'asc' ? '↑' : '↓')}
                     </th>
-                    <th className="sr-sortable text-right" onClick={() => handleSort('revenue')} title="Total Order Selling Amount">
-                      Total Sales {productSort === 'revenue' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    <th className="sr-sortable text-right" onClick={() => handleSort('confirmedSales')} title="Realized Confirmed Sales Revenue">
+                      Confirmed Sales {productSort === 'confirmedSales' && (sortDirection === 'asc' ? '↑' : '↓')}
                     </th>
                     <th className="sr-sortable text-center" onClick={() => handleSort('orders')}>
                       Orders {productSort === 'orders' && (sortDirection === 'asc' ? '↑' : '↓')}
                     </th>
-                    <th className="sr-sortable text-center" onClick={() => handleSort('confirmed')}>
-                      Confirmed {productSort === 'confirmed' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    <th className="sr-sortable text-center" onClick={() => handleSort('confirmedOrders')}>
+                      Confirmed {productSort === 'confirmedOrders' && (sortDirection === 'asc' ? '↑' : '↓')}
                     </th>
-                    <th className="sr-sortable text-center" onClick={() => handleSort('pending')}>
-                      Pending {productSort === 'pending' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    <th className="sr-sortable text-center" onClick={() => handleSort('pendingOrders')}>
+                      Pending {productSort === 'pendingOrders' && (sortDirection === 'asc' ? '↑' : '↓')}
                     </th>
-                    <th className="sr-sortable text-center" onClick={() => handleSort('cancelled')}>
-                      Cancelled {productSort === 'cancelled' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    <th className="sr-sortable text-center" onClick={() => handleSort('cancelledOrders')}>
+                      Cancelled {productSort === 'cancelledOrders' && (sortDirection === 'asc' ? '↑' : '↓')}
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {productData.map((p, i) => (
-                    <tr key={p.name} className={i < 3 && productSort === 'revenue' ? 'sr-top-row' : ''}>
-                      <td className="sr-rank-cell">
-                        {i === 0 && productSort === 'revenue' ? '🥇' : i === 1 && productSort === 'revenue' ? '🥈' : i === 2 && productSort === 'revenue' ? '🥉' : `${i + 1}`}
-                      </td>
-                      <td className="sr-prod-name-cell">
-                        <div className="sr-prod-name-flex">
-                          <span className="sr-prod-title" title={p.name}>{p.name}</span>
-                          {i === 0 && productSort === 'revenue' && <span className="sr-top-tag">Top Seller</span>}
-                        </div>
-                      </td>
-                      <td className="text-center">
-                        <span
-                          className={`sr-unit-cost-badge ${p.unitCost > 0 ? 'set' : 'unset'}`}
-                          onClick={() => setIsPricingModalOpen(true)}
-                          title="Click to edit Unit Cost"
-                        >
-                          {p.unitCost > 0 ? fmtTk(p.unitCost) : 'Not Set'}
-                        </span>
-                      </td>
-                      <td className="text-center">
-                        <span
-                          className={`sr-selling-price-badge ${p.sellingPrice > 0 ? 'set' : 'unset'}`}
-                          onClick={() => setIsPricingModalOpen(true)}
-                          title="Click to edit Selling Price"
-                        >
-                          {p.sellingPrice > 0 ? fmtTk(p.sellingPrice) : 'Not Set'}
-                        </span>
-                      </td>
-                      <td className="text-center font-bold">{p.totalQty}</td>
-                      <td className="text-right sr-green font-extrabold">{fmtTk(p.revenue)}</td>
-                      <td className="text-center font-bold">{p.orders}</td>
-                      <td className="text-center sr-green font-bold">{p.confirmed}</td>
-                      <td className="text-center sr-pending font-bold">{p.pending}</td>
-                      <td className="text-center sr-red font-bold">{p.cancelled}</td>
-                    </tr>
-                  ))}
+                  {paginatedProductData.map((p, i) => {
+                    const rank = (safeProductPage - 1) * productPageSize + i + 1;
+                    const isTopThree = rank <= 3 && productSort === 'confirmedSales';
+                    return (
+                      <tr key={p.name} className={isTopThree ? 'sr-top-row' : ''}>
+                        <td className="sr-rank-cell">
+                          {rank === 1 && productSort === 'confirmedSales' ? '🥇' : rank === 2 && productSort === 'confirmedSales' ? '🥈' : rank === 3 && productSort === 'confirmedSales' ? '🥉' : `${rank}`}
+                        </td>
+                        <td className="sr-prod-name-cell">
+                          <div className="sr-prod-name-flex">
+                            <span className="sr-prod-title" title={p.name}>{p.name}</span>
+                            {rank === 1 && productSort === 'confirmedSales' && <span className="sr-top-tag">Top Seller</span>}
+                          </div>
+                        </td>
+                        <td className="text-center">
+                          <span
+                            className={`sr-unit-cost-badge ${p.unitCost > 0 ? 'set' : 'unset'}`}
+                            onClick={() => setIsPricingModalOpen(true)}
+                            title="Click to edit Unit Cost"
+                          >
+                            {p.unitCost > 0 ? fmtTk(p.unitCost) : 'Not Set'}
+                          </span>
+                        </td>
+                        <td className="text-center">
+                          <span
+                            className={`sr-selling-price-badge ${p.sellingPrice > 0 ? 'set' : 'unset'}`}
+                            onClick={() => setIsPricingModalOpen(true)}
+                            title="Click to edit Selling Price"
+                          >
+                            {p.sellingPrice > 0 ? fmtTk(p.sellingPrice) : 'Not Set'}
+                          </span>
+                        </td>
+                        <td className="text-center font-bold">{p.confirmedQty}</td>
+                        <td className="text-right sr-green font-extrabold">{fmtTk(p.confirmedSales)}</td>
+                        <td className="text-center font-bold">{p.orders}</td>
+                        <td className="text-center sr-green font-bold">{p.confirmedOrders}</td>
+                        <td className="text-center sr-pending font-bold">{p.pendingOrders}</td>
+                        <td className="text-center sr-red font-bold">{p.cancelledOrders}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
+
             {/* Pagination Controls */}
             {searchedProductData.length > 0 && (
               <div style={{
@@ -1145,10 +1286,10 @@ const SalesReportInner = () => {
           )}
         </div>
 
-        {/* Source Breakdown */}
+        {/* Source Breakdown (Unified with TikTok, Facebook, Instagram, Website, etc.) */}
         <div className="sr-card">
           <div className="sr-card-header">
-            <SectionTitle icon={BarChart3} title="Source Breakdown" sub="Where orders originate" />
+            <SectionTitle icon={BarChart3} title="Source Breakdown" sub="Where confirmed orders originate" />
           </div>
 
           <div className="sr-source-mobile-list">
@@ -1158,12 +1299,12 @@ const SalesReportInner = () => {
               sourceData.map(s => (
                 <div key={s.source} className="sr-source-mobile-item">
                   <div className="sr-source-m-top">
-                    <span className="sr-source-m-name">{s.source || 'Direct / Store'}</span>
+                    <span className="sr-source-m-name">{s.source}</span>
                     <span className="sr-source-m-tot">{s.total} orders</span>
                   </div>
                   <div className="sr-source-m-bottom">
                     <span>Confirmed: <strong className="sr-green">{s.confirmed}</strong></span>
-                    <span>Order Amount: <strong className="sr-green">{fmtTk(s.revenue)}</strong></span>
+                    <span>Confirmed Sales: <strong className="sr-green">{fmtTk(s.revenue)}</strong></span>
                   </div>
                 </div>
               ))
@@ -1173,11 +1314,11 @@ const SalesReportInner = () => {
           <div className="sr-source-table-wrap desktop-only-table-wrap">
             <div className="sr-source-table">
               <div className="sr-source-head">
-                <span>Source</span><span>Total Orders</span><span>Confirmed</span><span>Order Amount</span>
+                <span>Source</span><span>Total Orders</span><span>Confirmed</span><span>Confirmed Sales</span>
               </div>
               {sourceData.length === 0 ? <div className="sr-empty-compact">No data</div> : sourceData.map(s => (
                 <div key={s.source} className="sr-source-row">
-                  <span className="sr-source-name">{s.source || 'Direct / Store'}</span>
+                  <span className="sr-source-name">{s.source}</span>
                   <span>{s.total}</span>
                   <span className="sr-green">{s.confirmed}</span>
                   <span className="sr-green font-bold">{fmtTk(s.revenue)}</span>
@@ -1191,15 +1332,15 @@ const SalesReportInner = () => {
       {/* ── Top Selling Products ── */}
       <div className="sr-card">
         <div className="sr-card-header">
-          <SectionTitle icon={Trophy} title="Top Selling Products" sub="By confirmed orders" />
+          <SectionTitle icon={Trophy} title="Top Selling Products" sub="By confirmed sales revenue" />
         </div>
         {topSellers.length === 0 ? <div className="sr-empty-compact">No confirmed orders yet.</div> : (
           <ResponsiveContainer width="100%" height={280} minWidth={0} minHeight={0}>
             <BarChart data={topSellers} layout="vertical" margin={{ top:0, right:16, left:0, bottom:0 }}>
-              <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill:'var(--sr-text-muted)', fontSize:11 }} />
+              <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill:'var(--sr-text-muted)', fontSize:11 }} tickFormatter={(val) => fmtTk(val)} />
               <YAxis dataKey="name" type="category" width={140} axisLine={false} tickLine={false} tick={{ fill:'var(--sr-text-sub)', fontSize:11, fontWeight:600 }} tickFormatter={(val) => val.length > 20 ? val.substring(0, 18) + '...' : val} />
               <Tooltip content={<ChartTooltip />} />
-              <Bar dataKey="confirmed" name="Confirmed Orders" fill="#10b981" radius={[0,6,6,0]} maxBarSize={18} />
+              <Bar dataKey="confirmedSales" name="Confirmed Sales Revenue" fill="#10b981" radius={[0,6,6,0]} maxBarSize={18} />
             </BarChart>
           </ResponsiveContainer>
         )}
@@ -1330,7 +1471,7 @@ const SalesReportInner = () => {
                 </div>
                 <div>
                   <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: 'var(--sr-text)' }}>Unit Cost & Selling Price Config</h3>
-                  <p style={{ margin: 0, fontSize: '11.5px', color: 'var(--sr-text-muted)' }}>Configure internal unit cost and customer selling price independently</p>
+                  <p style={{ margin: 0, fontSize: '11.5px', color: 'var(--sr-text-muted)' }}>Configure internal unit cost and reference customer selling price independently</p>
                 </div>
               </div>
               <button onClick={() => setIsPricingModalOpen(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--sr-text-muted)' }}>
@@ -1367,7 +1508,7 @@ const SalesReportInner = () => {
                 <div key={p.name} className="sr-pricing-config-row">
                   <div className="sr-pricing-config-info">
                     <span className="sr-pricing-config-name">{p.name}</span>
-                    <span className="sr-pricing-config-qty">{p.totalQty} units ordered</span>
+                    <span className="sr-pricing-config-qty">{p.confirmedQty} units sold · {p.confirmedOrders} confirmed orders</span>
                   </div>
                   
                   <div className="sr-pricing-config-inputs">

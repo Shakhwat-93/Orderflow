@@ -1,5 +1,30 @@
 import { supabase, dedupPromise, formatApiError } from './client';
 import type { DashboardStats, OrderFilters } from '@/types/api';
+import { normalizeSource } from '@/components/SourceBadge';
+
+const applySourceFilter = (query: any, sourceFilter?: string) => {
+  if (!sourceFilter || sourceFilter === 'All') return query;
+  const s = sourceFilter.toLowerCase().trim();
+  if (s === 'tiktok') {
+    return query.or('source.ilike.%tiktok%,traffic_source.ilike.%tiktok%');
+  }
+  if (s === 'facebook') {
+    return query.or('source.ilike.%facebook%,source.eq.fb,traffic_source.ilike.%facebook%,traffic_source.eq.fb');
+  }
+  if (s === 'instagram') {
+    return query.or('source.ilike.%instagram%,source.eq.ig,traffic_source.ilike.%instagram%,traffic_source.eq.ig');
+  }
+  if (s === 'messenger') {
+    return query.or('source.ilike.%messenger%,source.eq.msg,traffic_source.ilike.%messenger%');
+  }
+  if (s === 'website') {
+    return query.or('source.ilike.%website%,source.ilike.%landing%,traffic_source.eq.organic');
+  }
+  if (s === 'direct') {
+    return query.or('source.ilike.%direct%,traffic_source.ilike.%direct%');
+  }
+  return query.or(`source.ilike.%${sourceFilter}%,traffic_source.ilike.%${sourceFilter}%`);
+};
 
 export const reportsApi = {
   /**
@@ -21,7 +46,7 @@ export const reportsApi = {
           supabase.from('orders').select('id', { count: 'exact', head: true }),
           supabase
             .from('orders')
-            .select('status, amount, phone, product_name, created_at, updated_at, source')
+            .select('status, amount, phone, product_name, created_at, updated_at, source, traffic_source')
             .gte('created_at', thirtyDaysAgo.toISOString())
             .neq('status', 'Test')
         ]);
@@ -73,7 +98,7 @@ export const reportsApi = {
         ).length;
 
         const sourceMap = orders.reduce<Record<string, number>>((acc, order: any) => {
-          const src = order.source || 'Other';
+          const src = normalizeSource(order.traffic_source, order.source).label;
           acc[src] = (acc[src] || 0) + 1;
           return acc;
         }, {});
@@ -82,12 +107,20 @@ export const reportsApi = {
           name: key,
           value: sourceMap[key],
           color:
-            key === 'Website'
+            key === 'TikTok'
+              ? '#0f172a'
+              : key === 'Website'
               ? '#7c4dff'
               : key === 'Facebook'
               ? '#2dd4bf'
               : key === 'Instagram'
-              ? '#3f51b5'
+              ? '#e1306c'
+              : key === 'Messenger'
+              ? '#0084ff'
+              : key === 'Google'
+              ? '#ea4335'
+              : key === 'YouTube'
+              ? '#ff0000'
               : '#94a3b8'
         }));
 
@@ -158,9 +191,7 @@ export const reportsApi = {
           if (filters.status && filters.status !== 'All') {
             query = query.eq('status', filters.status);
           }
-          if (filters.source && filters.source !== 'All') {
-            query = query.eq('source', filters.source);
-          }
+          query = applySourceFilter(query, filters.source);
           if (filters.searchTerm) {
             query = query.or(
               `id.ilike.%${filters.searchTerm}%,customer_name.ilike.%${filters.searchTerm}%,phone.ilike.%${filters.searchTerm}%`
@@ -235,9 +266,7 @@ export const reportsApi = {
         ];
 
         const applyFilterConditions = (query: any) => {
-          if (filters.source && filters.source !== 'All') {
-            query = query.eq('source', filters.source);
-          }
+          query = applySourceFilter(query, filters.source);
           if (filters.searchTerm && filters.searchTerm.trim()) {
             const term = filters.searchTerm.trim();
             query = query.or(

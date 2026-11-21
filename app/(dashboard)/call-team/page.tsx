@@ -18,6 +18,7 @@ import { deserializeDateRange, usePersistentState } from '@/utils/persistentStat
 import { getProductOptions, getFormattedProductName } from '@/utils/productCatalog';
 import CurrencyIcon from '@/components/CurrencyIcon';
 import { Modal } from '@/components/Modal';
+import { normalizeSource } from '@/components/SourceBadge';
 import { useRouteOrderReadState } from '@/hooks/useRouteOrderReadState';
 import { ResponseTimer } from '@/components/ResponseTimer';
 import { isIncompleteConversion, getDisplayStatusLabel } from '@/utils/orderStatusHelper';
@@ -215,7 +216,7 @@ const CallTeamOrderCard = React.memo(function CallTeamOrderCard({
       <div className="elite-col-product">
         <span className="elite-prod-name">{getFormattedProductName(order)}</span>
         <span className="elite-prod-meta">
-          {order.size ? `Size: ${order.size}` : `Qty: ${order.quantity || 1}`} • {order.source || 'Direct'}
+          {order.size ? `Size: ${order.size}` : `Qty: ${order.quantity || 1}`} • {normalizeSource(order.traffic_source, order.source).label}
         </span>
       </div>
 
@@ -333,7 +334,7 @@ const CallTeamOrderCard = React.memo(function CallTeamOrderCard({
         <div className="mob-card-product">
           {getFormattedProductName(order)}
           <span className="mob-card-product-meta">
-            • {order.size ? `Size: ${order.size}` : `Qty: ${order.quantity || 1}`} • {order.source || 'Direct'}
+            • {order.size ? `Size: ${order.size}` : `Qty: ${order.quantity || 1}`} • {normalizeSource(order.traffic_source, order.source).label}
           </span>
         </div>
         <div className="mob-card-meta">

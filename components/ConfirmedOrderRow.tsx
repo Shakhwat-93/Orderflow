@@ -19,46 +19,7 @@ import { ResponseTimer } from './ResponseTimer';
 import { Badge } from './Badge';
 import { getToyBoxStockKey } from '../utils/productCatalog';
 import { isIncompleteConversion, getDisplayStatusLabel } from '../utils/orderStatusHelper';
-
-const SourceBadge: React.FC<{ traffic_source?: string | null; source?: string | null }> = ({ traffic_source, source }) => {
-  const raw = traffic_source || source;
-  if (!raw) return null;
-  const s = String(raw).toLowerCase();
-
-  let label = raw;
-  let cls   = 'source-badge-default';
-
-  if (s.includes('messenger') || s === 'msg') {
-    cls   = 'source-badge-messenger';
-    label = 'Messenger';
-  } else if (s.includes('facebook') || s === 'fb' || s.includes('l.facebook.com') || s.includes('m.facebook.com')) {
-    cls   = 'source-badge-fb';
-    label = 'Facebook';
-  } else if (s.includes('tiktok') || s.includes('ttclid')) {
-    cls   = 'source-badge-tiktok';
-    label = 'TikTok';
-  } else if (s.includes('instagram') || s === 'ig' || s.includes('l.instagram.com')) {
-    cls   = 'source-badge-ig';
-    label = 'Instagram';
-  } else if (s.includes('youtube') || s === 'yt') {
-    cls   = 'source-badge-yt';
-    label = 'YouTube';
-  } else if (s.includes('google') || s === 'cpc') {
-    cls   = 'source-badge-google';
-    label = 'Google';
-  } else if (s.includes('website') || s.includes('web') || s.includes('new web') || s.includes('stb-landing') || s.includes('-landing')) {
-    cls   = 'source-badge-web';
-    label = 'Website';
-  } else if (s.includes('direct')) {
-    cls   = 'source-badge-direct';
-    label = 'Direct';
-  } else if (s.includes('whatsapp')) {
-    cls   = 'source-badge-wa';
-    label = 'WhatsApp';
-  }
-
-  return <span className={`source-badge ${cls}`}>{label}</span>;
-};
+import { SourceBadge } from './SourceBadge';
 
 const getStatusBadgeVariant = (status: string) => {
   switch (status) {

@@ -20,6 +20,7 @@ import api from '@/services/api';
 import { usePersistentState } from '@/utils/persistentState';
 import { useRouteOrderReadState } from '@/hooks/useRouteOrderReadState';
 import { useConfirm } from '@/hooks/useConfirm';
+import { matchesSourceFilter } from '@/components/SourceBadge';
 
 const ExportModal = dynamic(() => import('@/components/ExportModal').then((m) => m.ExportModal), { ssr: false });
 
@@ -272,7 +273,7 @@ const CourierPanelInner = () => {
     // Order Source Filter
     let matchesSourceVal = true;
     if (selectedSource !== 'All') {
-      matchesSourceVal = (order.source || '').toLowerCase().includes(selectedSource.toLowerCase());
+      matchesSourceVal = matchesSourceFilter(order, selectedSource);
     }
 
     return matchesSearchVal && matchesDateVal && matchesProduct && matchesVariant && matchesStock && matchesShipping && matchesSourceVal;

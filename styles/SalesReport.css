@@ -440,6 +440,14 @@
   white-space: nowrap;
 }
 
+.sr-summary-kpi-sub {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--sr-text-muted);
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
 /* ── Section Card Container ──────────────────── */
 .sr-card {
   background: var(--sr-card);

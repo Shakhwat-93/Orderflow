@@ -28,6 +28,7 @@ import { OrderEditModal } from '@/components/OrderEditModal';
 import { BulkOrderCreator } from '@/components/BulkOrderCreator';
 import { ExportModal } from '@/components/ExportModal';
 import { PrintPreviewModal } from '@/components/PrintSystem/PrintPreviewModal';
+import { SourceBadge, matchesSourceFilter } from '@/components/SourceBadge';
 
 const ORDER_STATUSES = [
   'New',
@@ -45,7 +46,7 @@ const ORDER_STATUSES = [
   'Test'
 ];
 
-const SOURCES = ['Website', 'Facebook', 'Instagram', 'Direct', 'Messenger'];
+const SOURCES = ['Website', 'TikTok', 'Facebook', 'Instagram', 'Direct', 'Messenger'];
 
 const DELIVERY_ZONES = [
   { value: 'Inside Dhaka', charge: 80 },
@@ -109,7 +110,7 @@ const OrdersBoard = () => {
 
     return (Array.isArray(orders) ? orders : []).filter((order) => {
       if (filters.status && filters.status !== 'All' && order.status !== filters.status) return false;
-      if (filters.source && filters.source !== 'All' && order.source !== filters.source) return false;
+      if (filters.source && filters.source !== 'All' && !matchesSourceFilter(order, filters.source)) return false;
       if (productName) {
         const formatted = getFormattedProductName(order).toLowerCase();
         const raw = String(order.product_name || '').toLowerCase();
@@ -1218,31 +1219,9 @@ const OrdersBoard = () => {
                     <span className="detail-label">Product</span>
                     <span className="detail-value product">{getFormattedProductName(order)}</span>
                     <span className="detail-subvalue">{order.size || 'No Size'}</span>
-                    {order.source && (
-                      <span style={{
-                        display: 'inline-flex', alignItems: 'center', marginTop: '3px',
-                        padding: '2px 8px', borderRadius: '999px', fontSize: '10.5px',
-                        fontWeight: 700, letterSpacing: '0.03em', whiteSpace: 'nowrap',
-                        border: '1px solid',
-                        ...(
-                          String(order.source).toLowerCase().includes('messenger') || String(order.source).toLowerCase() === 'msg'
-                            ? { background: 'rgba(0,132,255,0.1)', color: '#0084ff', borderColor: 'rgba(0,132,255,0.22)' }
-                          : String(order.source).toLowerCase().includes('facebook') || String(order.source).toLowerCase() === 'fb'
-                            ? { background: 'rgba(24,119,242,0.1)', color: '#1877f2', borderColor: 'rgba(24,119,242,0.22)' }
-                          : String(order.source).toLowerCase().includes('tiktok')
-                            ? { background: 'rgba(0,0,0,0.07)', color: '#1a1a1a', borderColor: 'rgba(0,0,0,0.14)' }
-                          : String(order.source).toLowerCase().includes('instagram')
-                            ? { background: 'rgba(225,48,108,0.1)', color: '#e1306c', borderColor: 'rgba(225,48,108,0.22)' }
-                          : String(order.source).toLowerCase().includes('web')
-                            ? { background: 'rgba(99,102,241,0.1)', color: '#6366f1', borderColor: 'rgba(99,102,241,0.22)' }
-                          : String(order.source).toLowerCase().includes('direct')
-                            ? { background: 'rgba(16,185,129,0.1)', color: '#059669', borderColor: 'rgba(16,185,129,0.22)' }
-                          : { background: 'rgba(100,116,139,0.08)', color: '#64748b', borderColor: 'rgba(100,116,139,0.18)' }
-                        )
-                      }}>
-                        {order.source}
-                      </span>
-                    )}
+                    <div style={{ marginTop: '3px' }}>
+                      <SourceBadge traffic_source={order.traffic_source} source={order.source} />
+                    </div>
                   </div>
                   <div className="detail-box-elite">
                     <span className="detail-label">Logistics</span>
